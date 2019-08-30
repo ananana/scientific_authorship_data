@@ -1,0 +1,895 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<TEI xmlns="http://www.tei-c.org/ns/1.0" 
+xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+xsi:schemaLocation="http://www.tei-c.org/ns/1.0 /home/ana/installs/grobid/grobid-0.5.1/grobid-home/schemas/xsd/Grobid.xsd"
+ xmlns:xlink="http://www.w3.org/1999/xlink">
+	<teiHeader xml:lang="en">
+		<encodingDesc>
+			<appInfo>
+				<application version="0.5.1-SNAPSHOT" ident="GROBID" when="2019-04-18T12:08+0000">
+					<ref target="https://github.com/kermitt2/grobid">GROBID - A machine learning software for extracting information from scholarly documents</ref>
+				</application>
+			</appInfo>
+		</encodingDesc>
+		<fileDesc>
+			<titleStmt>
+				<title level="a" type="main">Entity Linking for Queries by Searching Wikipedia Sentences</title>
+			</titleStmt>
+			<publicationStmt>
+				<publisher>Association for Computational Linguistics</publisher>
+				<availability status="unknown"><p>Copyright Association for Computational Linguistics</p>
+				</availability>
+				<date>September 7-11, 2017. 2017</date>
+			</publicationStmt>
+			<sourceDesc>
+				<biblStruct>
+					<analytic>
+						<author role="corresp">
+							<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Chuanqi</forename><surname>Tan</surname></persName>
+							<email>tanchuanqi@nlsde.buaa.edu.cn +</email>
+						</author>
+						<author>
+							<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Furu</forename><surname>Wei</surname></persName>
+							<affiliation key="aff1">
+								<orgName type="institution" key="instit1">Microsoft Research</orgName>
+								<orgName type="institution" key="instit2">Shandong University</orgName>
+							</affiliation>
+						</author>
+						<author>
+							<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Pengjie</forename><surname>Ren</surname></persName>
+						</author>
+						<author>
+							<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Weifeng</forename><surname>Lv</surname></persName>
+						</author>
+						<author>
+							<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ming</forename><surname>Zhou</surname></persName>
+							<affiliation key="aff1">
+								<orgName type="institution" key="instit1">Microsoft Research</orgName>
+								<orgName type="institution" key="instit2">Shandong University</orgName>
+							</affiliation>
+						</author>
+						<author>
+							<affiliation key="aff0">
+								<orgName type="laboratory">State Key Laboratory of Software Development Environment</orgName>
+								<orgName type="institution">Beihang University</orgName>
+								<address>
+									<country key="CN">China</country>
+								</address>
+							</affiliation>
+						</author>
+						<title level="a" type="main">Entity Linking for Queries by Searching Wikipedia Sentences</title>
+					</analytic>
+					<monogr>
+						<title level="m">Natural Language Processing</title>
+						<meeting> <address><addrLine>Copenhagen, Denmark</addrLine></address>
+						</meeting>
+						<imprint>
+							<publisher>Association for Computational Linguistics</publisher>
+							<biblScope unit="page" from="68" to="77"/>
+							<date type="published">September 7-11, 2017. 2017</date>
+						</imprint>
+					</monogr>
+				</biblStruct>
+			</sourceDesc>
+		</fileDesc>
+		<profileDesc>
+			<abstract>
+				<p>We present a simple yet effective approach for linking entities in queries. The key idea is to search sentences similar to a query from Wikipedia articles and directly use the human-annotated entities in the similar sentences as candidate entities for the query. Then, we employ a rich set of features, such as link-probability, context-matching, word embeddings, and related-ness among candidate entities as well as their related entities, to rank the candidates under a regression based framework. The advantages of our approach lie in two aspects, which contribute to the ranking process and final linking result. First, it can greatly reduce the number of candidate entities by filtering out irrelevant entities with the words in the query. Second, we can obtain the query sensitive prior probability in addition to the static link-probability derived from all Wikipedia articles. We conduct experiments on two benchmark datasets on entity linking for queries, namely the ERD14 dataset and the GERDAQ dataset. Experimental results show that our method outperforms state-of-the-art systems and yields 75.0% in F1 on the ERD14 dataset and 56.9% on the GERDAQ dataset.</p>
+			</abstract>
+		</profileDesc>
+	</teiHeader>
+	<text xml:lang="en">
+		<body>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="1">Introduction</head><p>Query understanding has been an important re- search area in information retrieval and natural language processing <ref type="bibr" target="#b6">(Croft et al., 2010)</ref>. A key part of this problem is entity linking, which aims to annotate the entities in the query and link them to a knowledge base such as Freebase and * Contribution during internship at Microsoft Research.</p><p>Wikipedia. This problem has been extensively studied over the recent years ( <ref type="bibr" target="#b14">Ling et al., 2015;</ref><ref type="bibr" target="#b22">Usbeck et al., 2015;</ref><ref type="bibr" target="#b4">Cornolti et al., 2016)</ref>.</p><p>The mainstream methods of entity linking for queries can be summed up in three steps: mention detection, candidate generation, and entity disam- biguation. The first step is to recognize candidate mentions in the query. The most common method to detect mentions is to search a dictionary col- lected by the entity alias in a knowledge base and the human-maintained information in Wikipedia (such as anchors, titles and redirects) <ref type="bibr">(Laclavik et al., 2014</ref>). The second step is to generate candidates by mapping mentions to entities. It usually uses all possible senses of detected men- tions as candidates. Hereafter, we refer to these two steps of generating candidate entities as entity search. Finally, they disambiguate and prune can- didate entities, which is usually implemented with a ranking framework.</p><p>There are two main issues in entity search. First, a mention may be linked to many entities. The methods using entity search usually leverage little context information in the query. Therefore it may generate many completely irrelevant entities for the query, which brings challenges to the ranking phase. For example, the mention "Austin" usually represents the capital of Texas in the United States. However, it can also be linked to "Austin, Western Australia", "Austin, Quebec", "Austin (name)", "Austin College", "Austin (song)" and 31 other entities in the Wikipedia page of "Austin (disam- biguation)". For the query "blake shelton austin lyrics", Blake Shelton is a singer and made his debut with the song "Austin". The entity search method detects the mention "austin" using the dic- tionary. However, while "Austin (song)" is most related to the context "blake shelton" and "lyrics", the mention "austin" may be linked to all the above entities as candidates. Therefore candidate gener-ation with entity search generates too many can- didates especially for a common anchor text with a large number of corresponding entities. Second, it is hard to recognize entities with common sur- face names. The common methods usually define a feature called "link-probability" as the probabil- ity that a mention is annotated in all documents. There is an issue with this probability being static whatever the query is. We show an example with the query "her film". "Her (film)" is a film while its surface name is usually used as a possessive pronoun. Since the static link-probability of "her" from all Wikipedia articles is very low, "her" is usually not treated as a mention linked to the en- tity "Her (film)".</p><p>In this paper, we propose a novel approach to generating candidates by searching sentences from Wikipedia articles and directly using the human- annotated entities as the candidates. Our approach can greatly reduce the number of candidate enti- ties and obtain the query sensitive prior probabil- ity. We take the query "blake shelton austin lyrics" as an example. Below we show a sentence in the Wikipedia page of "Austin (song)".</p><p>[  <ref type="table">Table 1</ref>: A sentence in the page "Austin (song)".</p><p>In the above sentence, the mentions "Austin" and "Blake Shelton" in square brackets are an- notated to the entity "Austin (song)" and "Blake Shelton", respectively. We generate candidates by searching sentences and thus obtain "Blake Shel- ton" as well as "Austin (song)" from this example. We reduce the number of candidates because many irrelevant entities linked by "austin" do not oc- cur in returned sentences. In addition, as previous methods generate candidates by searching entities without the query information, "austin" can be linked to "Austin, Texas" with much higher static link-probability than all other senses of "austin". However, the number of returned sentences that contain "Austin, Texas" is close to the number of sentences that contain "Austin (song)" in our sys- tem. We show another example with the query "her film" in <ref type="table" target="#tab_1">Table 2</ref>. In this sentence, "Her", "ro- mantic", "science fiction", "comedy-drama" and "Spike Jonze" are annotated to corresponding en- tities. As "Her" is annotated to "Her (film)" by humans in this example, we have strong evidence to annotate it even if it is usually used as a posses- sive pronoun with very low static link-probability.</p><p>[  We obtain the anchors as well as corresponding entities and map them to the query after search- ing similar sentences. Then we build a regres- sion based framework to rank the candidates. We use a rich set of features, such as link-probability, context-matching, word embeddings, and related- ness among candidate entities as well as their re- lated entities. We evaluate our method on the ERD14 and GERDAQ datasets. Experimental re- sults show that our method outperforms state-of- the-art systems and yields 75.0% and 56.9% in terms of F1 metric on the ERD14 dataset and the GERDAQ dataset respectively.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2">Related Work</head><p>Recognizing entity mentions in text and linking them to the corresponding entries helps to under- stand documents and queries. Most work uses the knowledge base including Freebase ( <ref type="bibr" target="#b3">Chiu et al., 2014</ref>), <ref type="bibr">YAGO (Yosef et al., 2011</ref>) and Dbpe- dia ( <ref type="bibr" target="#b20">Olieman et al., 2014</ref>). Wikify ( <ref type="bibr" target="#b17">Mihalcea and Csomai, 2007</ref>) is the very early work on linking anchor texts to Wikipedia pages. It extracts all n- grams that match Wikipedia concepts such as an- chors and titles as candidates. They implement a voting scheme based on the knowledge-based and data-driven method to disambiguate candi- dates. <ref type="bibr" target="#b7">Cucerzan (2007)</ref> uses four recourses to generate candidates, namely entity pages, redirect- ing pages, disambiguation pages, and list pages. Then they disambiguate candidates by calculat- ing the similarity between the contextual informa- tion and the document as well as category tags on Wikipedia pages.  gen- erate candidates by gathering all n-grams in the document, and retaining those whose probability exceeds a low threshold. Then they define com- monness and relatedness on the hyper-link struc- ture of Wikipedia to disambiguate candidates.</p><p>The work on linking entities in queries has been extensively studied in recent years. TagME <ref type="bibr" target="#b10">(Ferragina and Scaiella, 2010</ref>) is a very early work on entity linking in queries. It generates candi- dates by searching Wikipedia page titles, anchors and redirects. Then disambiguation exploits the structure of the Wikipedia graph, according to a voting scheme based on a relatedness measure inspired by . The im- proved version of TagME, named WAT ( <ref type="bibr" target="#b21">Piccinno and Ferragina, 2014)</ref>, uses Jaccard-similarity be- tween two pages' in-links as a measure of relat- edness and uses PageRank to rank the candidate entities. Moreover, Meij (2012) proposes a two step approach for linking tweets to Wikipedia arti- cles. They first extract candidate concepts for each n-gram, and then use a supervised learning algo- rithm to classify relevant concepts.</p><p>Unlike the work which revolves around rank- ing entities for query spans, the Entity Recognition and Disambiguation (ERD) <ref type="bibr">Challenge (Carmel et al., 2014</ref>) views entity linking in queries as the problem of finding multiple query interpretations. The SMAPH system ( <ref type="bibr" target="#b5">Cornolti et al., 2014</ref>) which wins the short-text track works in three phases: fetching, candidate-entity generation and pruning. First, they fetch the snippets returned by a com- mercial search engine. Next, snippets are parsed to identify candidate entities by looking at the bold- faced parts of the search snippets. Finally, they im- plement a binary classifier using a set of features such as the coherence and robustness of the anno- tation process and the ranking as well as compo- sition of snippets. They further extend SMAPH-1 to SMAPH-2 ( <ref type="bibr" target="#b4">Cornolti et al., 2016)</ref>. They use the annotator WAT to annotate the snippets of search results to generate candidates and joint the addi- tionally link-back step as well as the pruning step in the ranking phase, which gets the state-of-the- art results on the ERD14 dataset and their released dataset GERDAQ. There is another work closed to SMAPH that uses information of query logs and anchor texts ( <ref type="bibr" target="#b0">Blanco et al., 2015)</ref>, which gives a ranked list of entities and is evaluated by means of typical ranking metrics.</p><p>Our work is different from using search en- gines to generate candidates. We firstly propose to search Wikipedia sentences and take advan- tage of human annotations to generate candidates. The previous work, such as SMAPH, employs search engine for candidate generation, which puts queries in a larger context in which it is easier to make sense of them. However, it uses WAT, an entity search based tool, to pre-annotate the snip- pets for candidate generation, which falls back the issues of entity search.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3">Our Approach</head><p>As shown in <ref type="figure" target="#fig_1">Figure 1</ref>, we introduce our approach with the query "blake shelton austin lyrics". Our approach consists of three main phases: sentence search, candidate generation, and candidate rank- ing. First, we search the query in all Wikipedia ar- ticles to obtain the similar sentences. Second, we extract human-annotated entities from these sen- tences. We keep the entities whose correspond- ing anchor texts occur in the query as candidates, and treat others as related entities. Specifically, we obtain three candidates in this example, namely "Blake Shelton", "Austin, Texas", and "Austin (song)". Finally, we use a regression based model to rank the candidate entities. We get the final an- notations of "Blake Shelton" and "Austin (song)" whose scores are higher than the threshold se- lected on the development set. In the following sections, we describe these three phases in detail.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.1">Sentence Search</head><p>Sentences in Wikipedia articles usually contain anchors linking to entities. We are therefore mo- tivated to generate the candidate entities based on the sentence search instead of the common method using entity search. There are some issues in the original annotations because of the annotation reg- ulation. First, entities in their own pages are usu- ally not annotated. Thus we annotate these enti- ties with matching between the text and the page title. Second, entities are usually annotated only in their first appearance. We annotate these en- tities if they are annotated in previous sentences in the page. Moreover, pronouns are widely used in Wikipedia sentences and are usually not anno- tated. We use the Stanford CoreNLP toolkit <ref type="bibr" target="#b15">(Manning et al., 2014</ref>) to do the coreference resolution. In addition, we use the content in the disambigua- tion page and the infobox. Although these two kinds of information may have incomplete gram- matical structure, it contains enough context infor- mation for the sentence search in our task.</p><p>We use the Wikipedia snapshot of May 1, 2016, which contains 4.45 million pages and 120 mil- lion sentences. We extract sentences that contain at least one anchor in the Wikipedia articles, and blake shelton austin lyrics</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Query</head><p>Sentence Search</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>"[[Austin (song)|Austin]]" is the title of a debut song written by David Kent and Kirsti Manna, and performed by American country music artist [[Blake Shelton]]. --Page:Austin (song) In 2001, [[Blake Shelton]] made his debut with the single "[[Austin (song)|Austin]]". --Page:Blake Shelton</head><p>Braddock is credited as producer for several of Shelton's number- one country <ref type="bibr">[</ref>  For each query, we search it with Lucene using its default ranker 2 based on the vector space model and tf-idf to obtain the top K sentences (K is selected on the development set). We extract all entities as the related entities and use these sen- tences as their support sentences.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.2">Candidate Generation</head><p>We back-map anchors and corresponding entities extracted in sentences to generate candidates. We use (a, e) to denote the pair of the anchor text and corresponding entity and use w(a, e) to denote the number of sentences containing the pair (a, e). Then, we prune the candidate pairs according to following rules. First, we only keep the pair whose correspond- ing anchor text a occurs in the query as a candi- date, which has been used in previous work <ref type="bibr" target="#b10">(Ferragina and Scaiella, 2010)</ref>. Second, we follow the long-string match strategy. If we have two pairs (a 1 , e 1 ) and (a 2 , e 2 ) while a 1 is a substring of 1 http://lucene.apache.org 2 Details can be found in https://lucene.apache. org/core/2_9_4/api/core/org/apache/ lucene/search/Similarity.html a 2 , we drop (a 1 , e 1 ) if w(a 1 , e 1 ) &lt; w(a 2 , e 2 ). This is because a 2 is typically less ambiguous than a 1 . For example, for the query "mesa com- munity college football", we can obtain the an- chor "mesa", "college", "community college", and "mesa community college". We only keep "mesa community college" because it is longest and oc- curs most times in returned sentences. However, if w(a 1 , e 1 ) &gt; w(a 2 , e 2 ), we keep both candidate pairs because a 1 is more common in the query.</p><p>In addition, we keep the entity whose surface form is the same with the anchor text and prune others. If we have two pairs (a, e 1 ) and (a, e 2 ) with the same anchor, and only e 2 occurs in the query, we drop the pair (a, e 1 ) if w(a, e 1 ) &lt; w(a, e 2 ). For example, for the query "business day south africa", the anchor "south africa" can be linked to "south africa", "union of south africa", and "south africa cricket team". We only keep the entity "south africa".</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.3">Candidate Ranking</head><p>We build a regression based framework to rank the candidate entities. In the training phase, we treat the candidates that are equal to the ground truth as the positive samples and the others as nega- tive samples. The regression object of the positive sample is set to the score 1.0. The negative sample is set to the maximum score of overlapping ratio of tokens between its text and each gold answer. The regression object of the negative sample is not simply set to 0 in order to give a small score if the candidate is very closed to the ground truth. We find it benefits the final results. We use LIBLIN-EAR ( <ref type="bibr" target="#b9">Fan et al., 2008</ref>) with L2-regularized L2- loss support vector regression to train the regres- sion model. The object function is to minimize</p><formula xml:id="formula_0">w T w/2 + C max(0, |y i − w T x i | − eps) 2 (1)</formula><p>where x i is the feature set, y i is the object score and w is the parameter to be learned. We follow the default setting that C is set to 1 and eps is set to 0.1. In the test phase, each candidate gets a score of w T x i and then we only output the candidate whose score is higher than the threshold selected on the development set.</p><p>We employ four different feature sets to capture the quality of a candidate from different aspects. All features are shown in <ref type="table" target="#tab_3">Table 3</ref>.</p><p>Context-Independent Features This feature set measures each annotation pair (a, e) without con- text information. Feature 1-4 catch the syntactic properties of the candidate. Feature 5 is the num- ber of returned sentences that contain (a, e). Fea- ture 6 is the maximum search score (returned by Lucene) in its support sentences. Moreover, in- spired by <ref type="bibr">TagME (Ferragina and Scaiella, 2010)</ref>, we denote f req(a) as the number of times the text a occurs in Wikipedia. We use link(a) to denote the number of times the text a occurs as an anchor. We use lp(a) = link(a)/f req(a) to denote the static link-probability that an occurrence of a has been set as an anchor. We use f req(a, e) to denote the number of times that the anchor text a links to the entity e, and use pr(e|a) = f req(a, e)/link(a) to denote the static prior-probability that the an- chor text a links to e. Features 7 and 8 are these two probabilities.</p><p>Context-Matching Features We treat the other words except for the anchor text as the context. This feature set measures the context matching to the query. Feature 9 is the context matching score calculated by tokens. We denote c as the set of context words. For each c i in c, the cm sc(c i ) is the ratio of times that c i occurs in the support sentences, and cm sc(c) = 1 N cm sc(c i ). Fea- tures 10 and 11 are the ratio of context words oc- curring in the first sentence in the entity page and the description of entity's disambiguation page (if existed), respectively. Moreover, we train a 300- dimensional word embeddings on all Wikipedia articles by word2vec ( <ref type="bibr" target="#b18">Mikolov et al., 2013)</ref> and use the average embedding of each word as the ID Name Description 1 in query 1 if e is in the query, 0 otherwise 2 is pt 1 if e contains parenthesis, 0 otherwise 3 is cm 1 if e contains comma, 0 otherwise 4 len len(e) by tokens 5 w(a, e) number of support sentences 6 sc(a, e) maximum search score of support sen- tences 7 lp(a) static link-probability that a is an an- chor 8 pr(a, e) static prior-probability that a links to e 9 cm sc context matching score to the support sentences 10 cm f s context matching score to the first sen- tence of e's page 11 cm dd context matching score to the descrip- tion in e's disambiguation page 12 embed sc maximum embedding similarity of the query and each support sentence 13 embed f s embedding similarity of the query and the first sentence of e's page 14 embed dd embedding similarity of the query and the description in e's disambiguation page 15 rel cd sc number of candidates that occur in the support sentences 16 rel cd sp number of candidates that occur in the same Wikipedia page 17 rel re sc number of related entities that occur in the support sentences 18 rel re sp number of related entities that occur in the same Wikipedia page </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4">Experiment</head><p>We conduct experiments on the ERD14 and GER- DAQ datasets. We compare with several base- line annotators and experimental results show that our method outperforms the baseline on these two datasets. We also report the parameter selection on each dataset and analyze the quality of the candi- dates using different methods.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.1">Dataset</head><p>ERD14 3 is a benchmark dataset in the ERD Chal- lenge ( <ref type="bibr" target="#b1">Carmel et al., 2014</ref>), which contains both long-text track and short-text track. In this pa- per we only focus on the short-text track. It con- tains 500 queries as the development set and 500 queries as the test set. Due to the lack of train- ing set, we use the development set to do the model training and tuning. This dataset can be evaluated by both Freebase and Wikipedia as the ERD Challenge Organizers provide the Freebase Wikipedia Mapping with one-to-one correspon- dence of entities between two knowledge bases. We use Wikipedia to evaluate our results.</p><p>GERDAQ 4 is a benchmark dataset to annotate entities to Wikipedia built by <ref type="bibr" target="#b4">Cornolti et al. (2016)</ref>. It contains 500 queries for training, 250 for development, and 250 for test. The query in this dataset is sampled from the KDD-Cup 2005 and then annotated manually. Both name enti- ties and common concepts are annotated in this dataset.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.2">Evaluation Metric</head><p>We use average F1 designed by ERD Chal- lenge ( <ref type="bibr" target="#b1">Carmel et al., 2014</ref>) as the evaluation met- rics. Specifically, given a query q, with labeled entitiesˆAentitiesˆ entitiesˆA = { ˆ E 1 , . . . , ˆ E n }. We define the F- measure of a set of hypothesized interpretations A = {E 1 , . . . , E m } as follows:</p><formula xml:id="formula_1">P recision = | ˆ A ∩ A| |A| , Recall = | ˆ A ∩ A| | ˆ A| (2) F 1 = 2 × P recision × Recall P recision + Recall<label>(3)</label></formula><p>The average F1 of the evaluation set is the average of the F1 for each query:</p><formula xml:id="formula_2">AverageF 1 = 1 N N i=1 F 1 (q i )<label>(4)</label></formula><p>Following the evaluation guideline in ERD14 and GERDAQ, we define recall to be 1.0 if the gold binding of a query is empty and define precision to be 1.0 if the hypothesized interpretation is empty.</p><p>AIDA (Hoffart et al., 2011) searches the mention using Stanford NER Tagger based on YAGO2. We select AIDA as a representative system aiming to entity linking for documents following the work in <ref type="bibr" target="#b4">Cornolti et al. (2016)</ref>. WAT ( <ref type="bibr" target="#b21">Piccinno and Ferragina, 2014</ref>) is the im- proved version of TagME <ref type="bibr" target="#b10">(Ferragina and Scaiella, 2010</ref> </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.4">Result</head><p>We report results on the ERD datset and GER- DAQ dataset in <ref type="table" target="#tab_6">Table 4 and Table 5</ref>, respectively. On the ERD14 dataset, WAT is superior to AIDA but it is still up to 10% than SMAPH-1 that wins the ERD Challenge. SMAPH-2 improves 2% than SMAPH-1. Our system significantly outperforms the state-of-the-art annotator SMAPH-2 by 4.2%.</p><p>On the GERDAQ dataset, our system is 2.5% su- perior to the state-of-the-art annotator SMAPH-2. The F1 score in this dataset is much lower than the ERD dataset because common concepts such as "Week" and "Game" that are not annotated in the ERD dataset are annotated in the GERDAQ dataset. Spell checking has been widely used in the baseline annotators as it is not uncommon in queries ( <ref type="bibr">Laclavik et al., 2014</ref>   <ref type="table">Table 5</ref>: Results on the GERDAQ dataset. Results of the baseline systems are taken from <ref type="table">Table 10</ref> in <ref type="bibr" target="#b4">Cornolti et al. (2016)</ref>.</p><p>search engines. In our experiments, spell check- ing improves 1.0% on the ERD dataset and 7.6% on the GERDAQ dataset. Furthermore, only 6.9% of queries in the ERD14 dataset have spelling mistakes, whereas the number in the GERDAQ dataset is 23.0%. Thus spell-checking is more im- portant in the GERDAQ dataset. The result decreases 0.6% on the ERD dataset and 1.1% on the GERDAQ dataset without the ad- ditional annotation. Furthermore, while the F1 score decreases 2.4% on the ERD dataset and 1.4% on the GERDAQ dataset without the con- text features, the score only decreases 0.5% on the ERD dataset and 0.2% on the GERDAQ dataset without the relatedness features. Unlike the work on entity linking for documents <ref type="bibr" target="#b8">(Eckhardt et al., 2014;</ref>) that features de- rived from entity relations get promising results, the context features play a more important role than the relatedness features on entity linking for </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.5">Parameter Selection</head><p>There are two parameters in our framework, namely the number of search sentences and the threshold for final output. We select these two pa- rameters on the development set. We show the F1 score with different numbers of search sentences and thresholds in <ref type="figure" target="#fig_2">Figure 2</ref> and <ref type="figure">Figure 3</ref>. On the ERD development set, better results occur in the search number between 600 and 800 as well as the threshold 0.55 and 0.6. On the GERDAQ devel- opment set, better results occur in the search num- ber between 700 and 1000 as well as the thresh- old between 0.45 and 0.5. In our experiment, we set the number of sentences to 700 and the thresh- old to 0.56 on the ERD dataset as well as 800 and 0.48 on the GERDAQ dataset according to the F1 scores on the development set.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.6">Model Analysis</head><p>The main difference between our method and most previous work is that we generate candidates by searching Wikipedia sentences instead of search- ing entities. For generating candidates with en- tity search, we build a dictionary containing all an- chors, titles, and redirects in Wikipedia. Then we query the dictionary to get the mention and obtain corresponding entities as candidates. We use the   <ref type="table">Table 7</ref>: Results for the 398 queries which have at least one labeled entity on the ERD dataset using different candidate generation methods. C avg is the average recall of candidates per query. P avg and R avg are calculated on the final results.</p><p>same pruning rules and ranking framework in our experiments, but exclude the features from sup- port sentences because the entity search method does not contain the information. The F1 score is shown in <ref type="table" target="#tab_8">Table 6</ref>. We achieve similar results in our implementation of the method using entity search on the ERD dataset as Magnetic IISAS <ref type="bibr">(Laclavik et al., 2014</ref>) which uses a similar method and ranks 4th with the F1 of 65.57 in the ERD14 Challenge.</p><p>We compare the two candidate generation meth- ods in several aspects. First, we show the overall results in <ref type="table" target="#tab_8">Table 6</ref>. The average number of candi- dates from our method is much smaller. It is noted that the anchors from sentence search can also be found in entity search. However, we only extract the entities in the returned sentences while the methods by entity search use all entities linked by the anchors. In addition, features such as the num- ber of sentences containing the entity from sen- tence search which provide query sensitive prior probability contribute to the ranking process. It improves the F1 score from 73.81 to 75.01 for sen- tence search and from 66.46 to 69.00 for entity search. More important, the result of "ES+RF" is still significantly worse than the result of both small candidate set and Wikipedia related features that prunes irrelevant candidates at the beginning, which proves that the high-quality candidate set is very important since the larger candidate set brings in lots of noise in training a ranking model. Moreover, there are 102 queries (20.4%) without labeled entities in the ERD dataset. We only give 7 incorrect annotations in these queries while the number is 13 from entity search. Furthermore, as shown in <ref type="table">Table 7</ref>, the coverage of our method is lower in queries with at least one entity, but we obtain better results on precision, recall and F1 in the final stage. <ref type="figure" target="#fig_3">Figure 4</ref> illustrates the F1 score grouped by the number of candidates using entity search. In al- most all columns the F1 score of our method is better than the baseline. In left columns (the num- ber of candidates is less than 10), both methods generate few candidates. The F1 score of our method is higher, which proves that we train a bet- ter ranking model because of our small but qual- ity candidate set. Moreover, the right columns (the number of candidates is more than 10) show that the F1 score using entity search gradually de- creases with the incremental candidates. However, our method based on sentence search takes advan- tage of context information to keep a small set of candidates, which keeps a consistent result and outperforms the baseline.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5">Conclusion</head><p>In this paper we address the problem of entity linking for open-domain queries. We introduce a novel approach to generating candidate entities by searching sentences in the Wikipedia to the query, then we extract the human-annotated entities as the candidates. We implement a regression model to rank these candidates for the final output. Two experiments on the ERD dataset and the GER- DAQ dataset show that our approach outperforms the baseline systems. In this work we directly use the default ranker in Lucene for similar sentences, which can be improved in future work.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>75</head></div><figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_0"><head></head><label></label><figDesc>[Austin (song)|Austin]] is the title of a debut song written by David Kent and Kirsti Manna, and performed by American country music artist [[Blake Shelton]].</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_1"><head>Figure 1 :</head><label>1</label><figDesc>Figure 1: Example of the linking process of the query "blake shelton austin lyrics"</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_2"><head>Figure 2 :</head><label>2</label><figDesc>Figure 2: F1 scores with different search numbers and thresholds on the ERD development set</figDesc><graphic url="image-2.png" coords="7,308.00,204.65,214.21,98.96" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_3"><head>Figure 4 :</head><label>4</label><figDesc>Figure 4: F1 scores with number of candidates using different methods on the ERD dataset. The number of queries is shown in the parentheses.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_1" validated="false"><head>Table 2 :</head><label>2</label><figDesc></figDesc><table>A sentence in the page "Her (film)". 
+
+</table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_3" validated="false"><head>Table 3 :</head><label>3</label><figDesc></figDesc><table>Feature Set for Candidate Ranking 
+
+sentence representation. Feature 12 is the max-
+imum cosine score between the query and each 
+support sentence. Features 13 and 14 are calcu-
+lated with the first sentence in the entity's page and 
+the description in the disambiguation page. 
+
+Relatedness Features of Candidate Entities 
+This set of features measures how much an en-
+tity is supported by other candidates. Feature 15 is 
+the number of other candidate entities occurring in 
+the support sentences. Feature 16 is the number of 
+candidate entities occurring in the same Wikipedia 
+page with the current entity. 
+
+Relatedness Features to Related Entities This 
+set of features measures the relatedness between 
+candidates and related entities outside of queries. 
+Related entities can provide useful signals for dis-
+ambiguating the candidates. Features 17 and 18 
+are analogous features with features 15 and 16, 
+which are calculated by the related entities. 
+
+</table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_5" validated="false"><head></head><label></label><figDesc>). The SMAPH sys- tem that generates candidates by search results im- plicitly leverages the spell-checking embedded in</figDesc><table>System 
+
+F 1avg 
+AIDA 
+22.1 
+WAT 
+58.6 
+Magnetic IISAS 
+65.6 
+Seznam 
+66.9 
+NTUNLP 
+68.0 
+SMAPH-1 
+68.8 
+SMAPH-2 
+70.8 
+Our work 
+75.0* 
+w/o Spell Check 
+74.0 
+w/o Additional Annotation 
+74.4 
+w/o Context Feature 
+72.6 
+w/o Relatedness Feature 
+74.5 
+
+</table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_6" validated="false"><head>Table 4 :</head><label>4</label><figDesc></figDesc><table>Results on the ERD dataset. Results 
+of the baseline systems are taken from Table 8 
+in Cornolti et al. (2016) and reported by the ERD 
+organizer (Carmel et al., 2014). We only report the 
+F1 score as precision and recall are not reported 
+in previous work. *Significant improvement over 
+state-of-the-art baselines (t-test, p &lt; 0.05). 
+
+System 
+Pavg Ravg F 1avg 
+AIDA 
+94.0 
+12.2 
+12.6 
+TagME 
+60.4 
+51.2 
+44.7 
+WAT 
+49.6 
+57.0 
+46.0 
+SMAPH-1 
+77.4 
+54.3 
+52.1 
+SMAPH-2 
+72.1 
+55.3 
+54.4 
+Our work 
+71.5 
+58.5 
+56.9 
+w/o Spell Check 
+75.4 
+48.6 
+49.3 
+w/o Additional Annotation 70.3 
+58.2 
+55.8 
+w/o Context Feature 
+69.2 
+56.4 
+55.5 
+w/o Relatedness Feature 
+73.3 
+57.4 
+56.7 
+
+</table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_8" validated="false"><head>Table 6 :</head><label>6</label><figDesc></figDesc><table>Comparison with different candidate gen-
+eration methods on the ERD dataset. +RF: in-
+tegrating ranking features extracted by Sentence 
+Search. 
+
+Method 
+Cavg 
+Pavg 
+Ravg 
+Entity Search 
+78.87 77.56 66.04 
+Sentence Search 74.42 89.61 69.08 
+
+</table></figure>
+
+			<note place="foot" n="3"> http://web-ngram.research.microsoft. com/erd2014/Datasets.aspx 4 http://acube.di.unipi.it/datasets 4.3 Baseline Methods We compare with several baselines and use the results reported by the ERD organizer and Cornolti et al. (2016).</note>
+		</body>
+		<back>
+
+			<div type="acknowledgement">
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Acknowledgments</head><p>We thank Ming-Wei Chang for sharing the ERD14 dataset. Chuanqi Tan and Weifeng Lv are sup-ported by the National Natural Science Founda-tion of China (Grant No. 61421003). Weifeng Lv is the corresponding author of this paper.</p></div>
+			</div>
+
+			<div type="references">
+
+				<listBibl>
+
+<biblStruct xml:id="b0">
+	<analytic>
+		<title level="a" type="main">Fast and space-efficient entity linking for queries</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Roi</forename><surname>Blanco</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Giuseppe</forename><surname>Ottaviano</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Edgar</forename><surname>Meij</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Eighth ACM International Conference on Web Search and Data Mining</title>
+		<meeting>the Eighth ACM International Conference on Web Search and Data Mining</meeting>
+		<imprint>
+			<publisher>ACM</publisher>
+			<date type="published" when="2015" />
+			<biblScope unit="page" from="179" to="188" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b1">
+	<monogr>
+		<title/>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">David</forename><surname>Carmel</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ming-Wei</forename><surname>Chang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Evgeniy</forename><surname>Gabrilovich</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Bo-June Paul</forename><surname>Hsu</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kuansan</forename><surname>Wang</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2014" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b2">
+	<analytic>
+		<title level="a" type="main">14: entity recognition and disambiguation challenge</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Erd</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">ACM SIGIR Forum</title>
+		<imprint>
+			<publisher>ACM</publisher>
+			<biblScope unit="volume">48</biblScope>
+			<biblScope unit="page" from="63" to="77" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b3">
+	<analytic>
+		<title level="a" type="main">Ntunlp approaches to recognizing and disambiguating entities in long and short text at the erd challenge 2014</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yen-Pin</forename><surname>Chiu</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yong-Siang</forename><surname>Shih</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yang-Yin</forename><surname>Lee</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Chihchieh</forename><surname>Shao</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ming-Lun</forename><surname>Cai</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Sheng-Lun</forename><surname>Wei</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Hsin-Hsi</forename><surname>Chen</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the first international workshop on Entity recognition &amp; disambiguation</title>
+		<meeting>the first international workshop on Entity recognition &amp; disambiguation</meeting>
+		<imprint>
+			<publisher>ACM</publisher>
+			<date type="published" when="2014" />
+			<biblScope unit="page" from="3" to="12" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b4">
+	<analytic>
+		<title level="a" type="main">A piggyback system for joint entity mention detection and linking in web queries</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Marco</forename><surname>Cornolti</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Paolo</forename><surname>Ferragina</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Massimiliano</forename><surname>Ciaramita</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Stefan</forename><surname>Rüd</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Hinrich</forename><surname>Schütze</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 25th International Conference on World Wide Web</title>
+		<meeting>the 25th International Conference on World Wide Web</meeting>
+		<imprint>
+			<date type="published" when="2016" />
+			<biblScope unit="page" from="567" to="578" />
+		</imprint>
+	</monogr>
+	<note>International World Wide Web Conferences Steering Committee</note>
+</biblStruct>
+
+<biblStruct xml:id="b5">
+	<analytic>
+		<title level="a" type="main">The smaph system for query entity recognition and disambiguation</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Marco</forename><surname>Cornolti</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Paolo</forename><surname>Ferragina</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Massimiliano</forename><surname>Ciaramita</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Hinrich</forename><surname>Schütze</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Stefan</forename><surname>Rüd</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the first international workshop on Entity recognition &amp; disambiguation</title>
+		<meeting>the first international workshop on Entity recognition &amp; disambiguation</meeting>
+		<imprint>
+			<publisher>ACM</publisher>
+			<date type="published" when="2014" />
+			<biblScope unit="page" from="25" to="30" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b6">
+	<analytic>
+		<title level="a" type="main">Query representation and understanding workshop</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">W Bruce</forename><surname>Croft</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Michael</forename><surname>Bendersky</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Hang</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Gu</forename><surname>Xu</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">SIGIR Forum</title>
+		<imprint>
+			<date type="published" when="2010" />
+			<biblScope unit="volume">44</biblScope>
+			<biblScope unit="page" from="48" to="53" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b7">
+	<analytic>
+		<title level="a" type="main">Large-scale named entity disambiguation based on wikipedia data</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Silviu Cucerzan</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">EMNLPCoNLL</title>
+		<imprint>
+			<date type="published" when="2007" />
+			<biblScope unit="volume">7</biblScope>
+			<biblScope unit="page" from="708" to="716" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b8">
+	<analytic>
+		<title level="a" type="main">Entity linking based on the cooccurrence graph and entity probability</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Alan</forename><surname>Eckhardt</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Juraj</forename><surname>Hreško</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jan</forename><surname>Procházka</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Otakar</forename><surname>Smrf</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the first international workshop on Entity recognition &amp; disambiguation</title>
+		<meeting>the first international workshop on Entity recognition &amp; disambiguation</meeting>
+		<imprint>
+			<publisher>ACM</publisher>
+			<date type="published" when="2014" />
+			<biblScope unit="page" from="37" to="44" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b9">
+	<analytic>
+		<title level="a" type="main">Liblinear: A library for large linear classification</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kai-Wei</forename><surname>Rong-En Fan</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Cho-Jui</forename><surname>Chang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Xiangrui</forename><surname>Hsieh</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Chih-Jen</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Lin</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Journal of machine learning research</title>
+		<imprint>
+			<biblScope unit="volume">9</biblScope>
+			<biblScope unit="page" from="1871" to="1874" />
+			<date type="published" when="2008-08" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b10">
+	<analytic>
+		<title level="a" type="main">Tagme: on-the-fly annotation of short text fragments (by wikipedia entities)</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Paolo</forename><surname>Ferragina</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ugo</forename><surname>Scaiella</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 19th ACM international conference on Information and knowledge management</title>
+		<meeting>the 19th ACM international conference on Information and knowledge management</meeting>
+		<imprint>
+			<publisher>ACM</publisher>
+			<date type="published" when="2010" />
+			<biblScope unit="page" from="1625" to="1628" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b11">
+	<analytic>
+		<title level="a" type="main">Robust disambiguation of named entities in text</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Johannes</forename><surname>Hoffart</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Mohamed</forename><forename type="middle">Amir</forename><surname>Yosef</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ilaria</forename><surname>Bordino</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Hagen</forename><surname>Fürstenau</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Manfred</forename><surname>Pinkal</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Marc</forename><surname>Spaniol</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Bilyana</forename><surname>Taneva</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Stefan</forename><surname>Thater</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Gerhard</forename><surname>Weikum</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>the Conference on Empirical Methods in Natural Language Processing</meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2011" />
+			<biblScope unit="page" from="782" to="792" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b12">
+	<monogr>
+		<title/>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Michal</forename><surname>Laclavik</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Marek</forename><surname>Ciglan</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Alex</forename><surname>Dorman</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Stefan</forename><surname>Dlugolinsky</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Sam</forename><surname>Steingold</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Martiň</forename><surname>Seleng</surname></persName>
+		</author>
+		<imprint/>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b13">
+	<analytic>
+		<title level="a" type="main">A search based approach to entity recognition: magnetic and iisas team at erd challenge</title>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the first international workshop on Entity recognition &amp; disambiguation</title>
+		<meeting>the first international workshop on Entity recognition &amp; disambiguation</meeting>
+		<imprint>
+			<publisher>ACM</publisher>
+			<biblScope unit="page" from="63" to="68" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b14">
+	<analytic>
+		<title level="a" type="main">Design challenges for entity linking</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Xiao</forename><surname>Ling</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Sameer</forename><surname>Singh</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">S</forename><surname>Daniel Weld</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Transactions of the Association of Computational Linguistics</title>
+		<imprint>
+			<biblScope unit="volume">3</biblScope>
+			<biblScope unit="page" from="315" to="328" />
+			<date type="published" when="2015" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b15">
+	<analytic>
+		<title level="a" type="main">The Stanford CoreNLP natural language processing toolkit</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Christopher</forename><forename type="middle">D</forename><surname>Manning</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Mihai</forename><surname>Surdeanu</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">John</forename><surname>Bauer</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jenny</forename><surname>Finkel</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Steven</forename><forename type="middle">J</forename><surname>Bethard</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">David</forename><surname>Mcclosky</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Association for Computational Linguistics (ACL) System Demonstrations</title>
+		<imprint>
+			<date type="published" when="2014" />
+			<biblScope unit="page" from="55" to="60" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b16">
+	<analytic>
+		<title level="a" type="main">Adding semantics to microblog posts</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Edgar</forename><surname>Meij</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Wouter</forename><surname>Weerkamp</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Maarten</forename><surname>De Rijke</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the fifth ACM international conference on Web search and data mining</title>
+		<meeting>the fifth ACM international conference on Web search and data mining</meeting>
+		<imprint>
+			<publisher>ACM</publisher>
+			<date type="published" when="2012" />
+			<biblScope unit="page" from="563" to="572" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b17">
+	<analytic>
+		<title level="a" type="main">Wikify!: linking documents to encyclopedic knowledge</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Rada</forename><surname>Mihalcea</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Andras</forename><surname>Csomai</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the sixteenth ACM conference on Conference on information and knowledge management</title>
+		<meeting>the sixteenth ACM conference on Conference on information and knowledge management</meeting>
+		<imprint>
+			<publisher>ACM</publisher>
+			<date type="published" when="2007" />
+			<biblScope unit="page" from="233" to="242" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b18">
+	<analytic>
+		<title level="a" type="main">Efficient estimation of word representations in vector space</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Tomas</forename><surname>Mikolov</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kai</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Greg</forename><surname>Corrado</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jeffrey</forename><surname>Dean</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of Workshop at ICLR</title>
+		<meeting>Workshop at ICLR</meeting>
+		<imprint>
+			<date type="published" when="2013" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b19">
+	<analytic>
+		<title level="a" type="main">Learning to link with wikipedia</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">David</forename><surname>Milne</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Ian H Witten</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 17th ACM conference on Information and knowledge management</title>
+		<meeting>the 17th ACM conference on Information and knowledge management</meeting>
+		<imprint>
+			<publisher>ACM</publisher>
+			<date type="published" when="2008" />
+			<biblScope unit="page" from="509" to="518" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b20">
+	<analytic>
+		<title level="a" type="main">Entity linking by focusing dbpedia candidate entities</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Alex</forename><surname>Olieman</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Hosein</forename><surname>Azarbonyad</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Mostafa</forename><surname>Dehghani</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jaap</forename><surname>Kamps</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Maarten</forename><surname>Marx</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the first international workshop on Entity recognition &amp; disambiguation</title>
+		<meeting>the first international workshop on Entity recognition &amp; disambiguation</meeting>
+		<imprint>
+			<publisher>ACM</publisher>
+			<date type="published" when="2014" />
+			<biblScope unit="page" from="13" to="24" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b21">
+	<analytic>
+		<title level="a" type="main">From tagme to wat: a new entity annotator</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Francesco</forename><surname>Piccinno</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Paolo</forename><surname>Ferragina</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the first international workshop on Entity recognition &amp; disambiguation</title>
+		<meeting>the first international workshop on Entity recognition &amp; disambiguation</meeting>
+		<imprint>
+			<publisher>ACM</publisher>
+			<date type="published" when="2014" />
+			<biblScope unit="page" from="55" to="62" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b22">
+	<analytic>
+		<title level="a" type="main">Gerbil: General entity annotator benchmarking framework</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ricardo</forename><surname>Usbeck</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Michael</forename><surname>Röder</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Axel-Cyrille Ngonga</forename><surname>Ngomo</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ciro</forename><surname>Baron</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Andreas</forename><surname>Both</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Martin</forename><surname>Brümmer</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Diego</forename><surname>Ceccarelli</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Marco</forename><surname>Cornolti</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Didier</forename><surname>Cherix</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Bernd</forename><surname>Eickmann</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 24th International Conference on World Wide Web</title>
+		<meeting>the 24th International Conference on World Wide Web</meeting>
+		<imprint>
+			<publisher>ACM</publisher>
+			<date type="published" when="2015" />
+			<biblScope unit="page" from="1133" to="1143" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b23">
+	<analytic>
+		<title level="a" type="main">An effective, lowcost measure of semantic relatedness obtained from wikipedia links</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ian</forename><surname>Witten</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">David</forename><surname>Milne</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceeding of AAAI Workshop on Wikipedia and Artificial Intelligence: an Evolving Synergy</title>
+		<meeting>eeding of AAAI Workshop on Wikipedia and Artificial Intelligence: an Evolving Synergy<address><addrLine>Chicago, USA</addrLine></address></meeting>
+		<imprint>
+			<publisher>AAAI Press</publisher>
+			<date type="published" when="2008" />
+			<biblScope unit="page" from="25" to="30" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b24">
+	<analytic>
+		<title level="a" type="main">Aida: An online tool for accurate disambiguation of named entities in text and tables</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Mohamed</forename><surname>Amir Yosef</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Johannes</forename><surname>Hoffart</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ilaria</forename><surname>Bordino</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Marc</forename><surname>Spaniol</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Gerhard</forename><surname>Weikum</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the VLDB Endowment</title>
+		<meeting>the VLDB Endowment</meeting>
+		<imprint>
+			<date type="published" when="2011" />
+			<biblScope unit="volume">4</biblScope>
+			<biblScope unit="page" from="1450" to="1453" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+				</listBibl>
+			</div>
+		</back>
+	</text>
+</TEI>

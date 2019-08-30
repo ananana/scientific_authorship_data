@@ -1,0 +1,1006 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<TEI xmlns="http://www.tei-c.org/ns/1.0" 
+xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+xsi:schemaLocation="http://www.tei-c.org/ns/1.0 /home/ana/installs/grobid/grobid-0.5.1/grobid-home/schemas/xsd/Grobid.xsd"
+ xmlns:xlink="http://www.w3.org/1999/xlink">
+	<teiHeader xml:lang="en">
+		<encodingDesc>
+			<appInfo>
+				<application version="0.5.1-SNAPSHOT" ident="GROBID" when="2019-04-18T11:40+0000">
+					<ref target="https://github.com/kermitt2/grobid">GROBID - A machine learning software for extracting information from scholarly documents</ref>
+				</application>
+			</appInfo>
+		</encodingDesc>
+		<fileDesc>
+			<titleStmt>
+				<title level="a" type="main">Constituent Parsing as Sequence Labeling</title>
+			</titleStmt>
+			<publicationStmt>
+				<publisher>Association for Computational Linguistics</publisher>
+				<availability status="unknown"><p>Copyright Association for Computational Linguistics</p>
+				</availability>
+				<date>October 31-November 4, 2018. 2018</date>
+			</publicationStmt>
+			<sourceDesc>
+				<biblStruct>
+					<analytic>
+						<author>
+							<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Carlos</forename><surname>Gómez-Rodríguez</surname></persName>
+							<email>carlos.gomez@udc.es</email>
+							<affiliation key="aff0">
+								<orgName type="department">Departamento de Computación Campus de Elviña s/n</orgName>
+								<orgName type="laboratory">LyS Group</orgName>
+								<orgName type="institution">Universidade da Coruña FASTPARSE Lab</orgName>
+								<address>
+									<postCode>15071 A</postCode>
+									<settlement>Coruña</settlement>
+									<country key="ES">Spain</country>
+								</address>
+							</affiliation>
+						</author>
+						<author>
+							<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">David</forename><surname>Vilares</surname></persName>
+							<email>david.vilares@udc.es</email>
+							<affiliation key="aff1">
+								<orgName type="laboratory">Universidade da Coruña FASTPARSE Lab, LyS Group Departamento de Computación Campus de Elviña s/n</orgName>
+								<address>
+									<addrLine>15071 A Coruña</addrLine>
+									<country key="ES">Spain</country>
+								</address>
+							</affiliation>
+						</author>
+						<title level="a" type="main">Constituent Parsing as Sequence Labeling</title>
+					</analytic>
+					<monogr>
+						<title level="m">Proceedings of the 2018 Conference on Empirical Methods in Natural Language Processing</title>
+						<meeting>the 2018 Conference on Empirical Methods in Natural Language Processing <address><addrLine>Brussels, Belgium</addrLine></address>
+						</meeting>
+						<imprint>
+							<publisher>Association for Computational Linguistics</publisher>
+							<biblScope unit="page" from="1314" to="1324"/>
+							<date type="published">October 31-November 4, 2018. 2018</date>
+						</imprint>
+					</monogr>
+					<note>1314</note>
+				</biblStruct>
+			</sourceDesc>
+		</fileDesc>
+		<profileDesc>
+			<abstract>
+				<p>We introduce a method to reduce constituent parsing to sequence labeling. For each word w t , it generates a label that encodes: (1) the number of ancestors in the tree that the words w t and w t+1 have in common, and (2) the non-terminal symbol at the lowest common ancestor. We first prove that the proposed encoding function is injective for any tree without unary branches. In practice, the approach is made extensible to all constituency trees by collapsing unary branches. We then use the PTB and CTB treebanks as testbeds and propose a set of fast baselines. We achieve 90% F-score on the PTB test set, outperforming the Vinyals et al. (2015) sequence-to-sequence parser. In addition , sacrificing some accuracy, our approach achieves the fastest constituent parsing speeds reported to date on PTB by a wide margin.</p>
+			</abstract>
+		</profileDesc>
+	</teiHeader>
+	<text xml:lang="en">
+		<body>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="1">Introduction</head><p>Constituent parsing is a core problem in NLP where the goal is to obtain the syntactic structure of sentences expressed as a phrase structure tree.</p><p>Traditionally, constituent-based parsers have been built relying on chart-based, statistical mod- els <ref type="bibr" target="#b3">(Collins, 1997;</ref><ref type="bibr" target="#b1">Charniak, 2000;</ref><ref type="bibr" target="#b22">Petrov et al., 2006</ref>), which are accurate but slow, with typical speeds well below 10 sentences per second on modern CPUs ( <ref type="bibr" target="#b14">Kummerfeld et al., 2012)</ref>.</p><p>Several authors have proposed more efficient approaches which are helpful to gain speed while preserving (or even improving) accuracy. Sagae and Lavie (2005) present a classifier for con- stituency parsing that runs in linear time by re- lying on a shift-reduce stack-based algorithm, in- stead of a grammar. It is essentially an ex- tension of transition-based dependency parsing <ref type="bibr" target="#b19">(Nivre, 2003)</ref>. This line of research has been polished through the years ( <ref type="bibr" target="#b33">Wang et al., 2006</ref>; <ref type="bibr" target="#b37">Zhu et al., 2013;</ref><ref type="bibr" target="#b4">Dyer et al., 2016;</ref><ref type="bibr" target="#b16">Liu and Zhang, 2017;</ref><ref type="bibr" target="#b5">Fernández-González and GómezRodríguez, 2018)</ref>.</p><p>With an aim more related to our work, other au- thors have reduced constituency parsing to tasks that can be solved faster or in a more generic way. <ref type="bibr" target="#b6">Fernández-González and Martins (2015)</ref> re- duce phrase structure parsing to dependency pars- ing. They propose an intermediate representation where dependency labels from a head to its de- pendents encode the nonterminal symbol and an attachment order that is used to arrange nodes into constituents. Their approach makes it pos- sible to use off-the-shelf dependency parsers for constituency parsing. In a different line, <ref type="bibr" target="#b32">Vinyals et al. (2015)</ref> address the problem by relying on a sequence-to-sequence model where trees are lin- earized in a depth-first traversal order. Their so- lution can be seen as a machine translation model that maps a sequence of words into a parenthesized version of the tree. <ref type="bibr" target="#b2">Choe and Charniak (2016)</ref> re- cast parsing as language modeling. They train a generative parser that obtains the phrasal structure of sentences by relying on the <ref type="bibr" target="#b32">Vinyals et al. (2015)</ref> intuition and on the <ref type="bibr">Zaremba et al. (2014)</ref> model to build the basic language modeling architecture.</p><p>More recently, <ref type="bibr" target="#b30">Shen et al. (2018)</ref> propose an architecture to speed up the current state-of-the- art chart parsers trained with deep neural net- works ( <ref type="bibr" target="#b31">Stern et al., 2017;</ref><ref type="bibr" target="#b13">Kitaev and Klein, 2018)</ref>. They introduce the concept of syntactic distances, which specify the order in which the splitting points of a sentence will be selected. The model learns to predict such distances, to then recursively partition the input in a top-down fashion.</p><p>Contribution We propose a method to trans- form constituent parsing into sequence labeling. This reduces it to the complexity of tasks such as part-of-speech (PoS) tagging, chunking or named- entity recognition. The contribution is two-fold.</p><p>First, we describe a method to linearize a tree into a sequence of labels ( §2) of the same length of the sentence minus one. <ref type="bibr">1</ref> The label generated for each word encodes the number of common an- cestors in the constituent tree between that word and the next, and the nonterminal symbol associ- ated with the lowest common ancestor. We prove that the encoding function is injective for any tree without unary branchings. After applying collaps- ing techniques, the method can parse unary chains.</p><p>Second, we use such encoding to present differ- ent baselines that can effectively predict the struc- ture of sentences ( §3). To do so, we rely on a recurrent sequence labeling model based on BIL- STM's <ref type="bibr" target="#b11">(Hochreiter and Schmidhuber, 1997;</ref><ref type="bibr" target="#b35">Yang and Zhang, 2018)</ref>. We also test other models in- spired in classic approaches for other tagging tasks <ref type="bibr" target="#b28">(Schmid, 1994;</ref><ref type="bibr" target="#b29">Sha and Pereira, 2003)</ref>. We use the Penn Treebank (PTB) and the Penn Chinese Treebank (CTB) as testbeds.</p><p>The comparison against <ref type="bibr" target="#b32">Vinyals et al. (2015)</ref>, the closest work to ours, shows that our method is able to train more accurate parsers. This is in spite of the fact that our approach addresses constituent parsing as a sequence labeling problem, which is simpler than a sequence-to-sequence problem, where the output sequence has variable/unknown length. Despite being the first sequence label- ing method for constituent parsing, our baselines achieve decent accuracy results in comparison to models coming from mature lines of research, and their speeds are the fastest reported to our knowl- edge.</p><p>2 Linearization of n-ary trees Notation and Preliminaries In what follows, we use bold style to refer to vectors and matrices (e.g x and W). Let w=[w 1 , w 2 , ..., w |w| ] be an in- put sequence of words, where w i ∈ V . Let T |w| be the set of constituent trees with |w| leaf nodes that have no unary branches. For now, we will assume that the constituent parsing problem con- sists in mapping each sentence w to a tree in T |w| , i.e., we assume that correct parses have no unary branches. We will deal with unary branches later.</p><p>To reduce the problem to a sequence labeling task, we define a set of labels L that allows us to encode each tree in T |w| as a unique sequence of labels in L (|w|−1) , via an encoding function <ref type="figure" target="#fig_0">−1)</ref> . Then, we can reduce the constituent parsing problem to a sequence la- beling task where the goal is to predict a function F |w|,θ : V |w| → L |w|−1 , where θ are the parame- ters to be learned. To parse a sentence, we label it and then decode the resulting label sequence into a constituent tree, i.e., we apply F |w|,θ • Φ −1 |w| . For the method to be correct, we need the en- coding of trees to be complete (every tree in T |w| must be expressible as a label sequence, i.e., Φ |w| must be a function, so we have full coverage of constituent trees) and injective (so that the in- verse function Φ −1 |w| is well-defined). Surjectivity is also desirable, so that the inverse is a function on L |w|−1 , and the parser outputs a tree for any sequence of labels that the classifier can generate.</p><formula xml:id="formula_0">Φ |w| : T |w| → L (|w|</formula><p>We now define our Φ |w| and show that it is total and injective. Our encoding is not surjective per se. We handle ill-formed label sequences in §2.3.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.1">The Encoding</head><p>Let w i be a word located at position i in the sen- tence, for 1 ≤ i ≤ |w| − 1. We will assign it a 2-tuple label l i = (n i , c i ), where: n i is an inte- ger that encodes the number of common ancestors between w i and w i+1 , and c i is the nonterminal symbol at the lowest common ancestor.</p><p>Basic encodings The number of common ances- tors may be encoded in several ways.</p><p>1. Absolute scale: The simplest encoding is to make n i directly equal to the number of an- cestors in common between w i and w i+1 .</p><p>2. Relative scale: A second and better variant consists in making n i represent the difference with respect to the number of ancestors en- coded in n i−1 . Its main advantage is that the size of the label set is reduced considerably. <ref type="figure" target="#fig_0">Figure 1</ref> shows an example of a tree linearized ac- cording to both absolute and relative scales.</p><p>Encoding for trees with exactly k children For trees where all branchings have exactly k children, it is possible to obtain a even more efficient lin- earization in terms of number of labels. To do so, we take the relative scale encoding as our starting point. If we build the tree incrementally in a left- to-right manner from the labels, if we find a neg- ative n i , we will need to attach the word w i+1 (or a new subtree with that word as its leftmost leaf) to the (−n i + 2)th node in the path going from w i to the root. If every node must have exactly k children, there is only one valid negative value of n i : the one pointing to the first node in said path that has not received its kth child yet. Any smaller value would leave this node without enough chil- dren (which cannot be fixed later due to the left- to-right order in which we build the tree), and any larger value would create a node with too many children. Thus, we can map negative values to a single label. <ref type="figure" target="#fig_1">Figure 2</ref> shows an example for the case of binarized trees (k = 2). Links to root Another variant emerged from the empirical observation that some tokens that are usually linked to the root node (such as the final punctuation in <ref type="figure" target="#fig_0">Figure 1</ref>) were particularly difficult to learn for the simpler baselines. To successfully deal with these cases in practice, it makes sense to consider a simplified annotation scheme where a node is assigned a special tag (ROOT, c i ) when it is directly linked to the root of the tree.</p><p>From now on, unless otherwise specified, we use the relative scale without the simplification for exactly k children. This will be the encoding used in the experiments ( §4), because the size of the la- bel set is significantly lower than the one obtained by relying on the absolute one. Also, it works di- rectly with non-binarized trees, in contrast to the encoding that we introduce for trees with exactly k children, which is described only for completeness and possible interest for future work. For the ex- periments ( §4), we also use the special tag (ROOT, c i ) to further reduce the size of the label set and to simplify the classification of tokens connected to the root, where |n i | is expected to be large.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.2">Theoretical correctness</head><p>We now prove that Φ |w| is a total function and in- jective for any tree in T |w| . We remind that trees in this set have no unary branches. Later (in §2.3) we describe how we deal with unary branches. To prove correctness, we use the relative scale. Cor- rectness for the other scales follows trivially.</p><p>Completeness Every pair of nodes in a rooted tree has at least one common ancestor, and a unique lowest common ancestor. Hence, for any tree in T |w| , the label l i = (n i , c i ) defined in Sec- tion 2.1 is well-defined and unique for each word w i , 1 ≤ i ≤ |w| − 1; and thus Φ |w| is a total func- tion from T |w| to L (|w|−1) .</p><p>Injectivity The encoding method must ensure that any given sequence of labels corresponds to exactly one tree. Otherwise, we have to deal with ambiguity, which is not desirable.</p><p>For simplicity, we will prove injectivity in two steps. First, we will show that the encoding is injective if we ignore nonterminals (i.e., equiva- lently, that the encoding is injective for the set of trees resulting from replacing all the nonterminals in trees in T |w| with a generic nonterminal X). Then, we will show that it remains injective when we take nonterminals into account.</p><p>For the first part, let τ ∈ T |w| be a tree where nonterminals take a generic value X. We repre- sent the label of the ith leaf node as • i . Con- sider the representation of τ as a bracketed string, where a single-node tree with a node labeled A is represented by (A), and a tree rooted at R with child subtrees C 1 . . . C n is represented as</p><formula xml:id="formula_1">(R(C 1 . . . C n )).</formula><p>Each leaf node will appear in this string as a substring (• i ). Thus, the parenthesized string has the form α 0 (• 1 )α 1 (• 2 ) . . . α |w|−1 (• |w| )α w , where the α i s are strings that can only contain brackets and nonterminals, as by construction there can be no leaf nodes between (• i ) and (• i+1 ).</p><p>We now observe some properties of this paren- thesized string. First, note that each of the sub- strings α i must necessarily be composed of zero or more closing parentheses followed by zero or more opening parentheses with their correspond- ing nonterminal, i.e., it must be of the form [)] * [(X] * . This is because an opening parenthesis followed by a closing parenthesis would represent a leaf node, and there are no leaf nodes between (• i ) and <ref type="bibr">(• i+1</ref> ) in the tree.</p><p>Thus, we can write α i as α i) α i( , where α i) is a string matching the expression [)] * and α i( a string matching the expression [(X] * . With this, we can write the parenthesized string for τ as Then, and taking into account that α 0) and α w( are trivially empty in the previous expression due to bracket balancing, the expression for the tree becomes simply β 1 β 2 . . . β |w| , where we know, by construction, that each β i is of the form</p><formula xml:id="formula_2">α 0) α 0( (• 1 )α 1) α 1( (• 2 )α 2) α 2( . . . (• |w| )α |w|) α |w|( .</formula><formula xml:id="formula_3">[(X] * (• i )[)] * .</formula><p>Since we have shown that each tree in T |w| uniquely corresponds to a string β 1 β 2 . . . β |w| , to show injectivity of the encoding, it suffices to show that different values for a β i generate dif- ferent label sequences.</p><p>To show this, we can say more about the form of β i : it must be either of the form [(X] * (• i ) or of the form (• i )[)] * , i.e., it is not possible that β i contains both opening parenthesis before the leaf node and closing parentheses after the leaf node. This could only happen if the tree had a subtree of the form (X(• i )), but this is not possible since we are forbidding unary branches.</p><p>Hence, we can identify each β i with an in- teger number δ(β i ): 0 if β i has neither open- ing nor closing parentheses outside the leaf node, +k if it has k opening parentheses, and −k if it has k closing parentheses. It is easy to see that δ(β 1 )δ(β 2 ) . . . δ(β |w|−1 ) corresponds to the val- ues n i in the relative-scale label encoding of the tree τ . To see this, note that the number of un- closed parentheses at the point right after β i in the string exactly corresponds to the number of com- mon ancestors between the ith and (i + 1)th leaf nodes. A positive δ(β i ) = k corresponds to open- ing k parentheses before β i , so the number of com- mon ancestors of w i and w i+1 will be k more than that of w i−1 and w i . A negative δ(β i ) = −k cor- responds to closing k parentheses after β i , so the number of common ancestors will conversely de- crease by k. A value of zero means no opening or closing parentheses, and no change in the number of common ancestors.</p><p>Thus, different parenthesized strings β 1 β 2 . . . β |w| generate different label sequences, which proves injectivity ignoring nonterminals (note that δ(β |w| ) does not affect injectivity as it is uniquely determined by the other values: it corresponds to closing all the parentheses that remain unclosed at that point).</p><p>It remains to show that injectivity still holds when nonterminals are taken into account. Since we have already proven that trees with differ- ent structure produce different values of n i in the labels, it suffices to show that trees with the same structure, but different nonterminals, pro- duce different values of c i . Essentially, this re- duces to showing that every nonterminal in the tree is mapped into a concrete c i . That said, consider a tree τ ∈ T |w| , and some nonterminal X in τ . Since trees in T w do not have unary branches, X has at least two children. Consider the rightmost word in the first child subtree, and call it w i . Then, w i+1 is the leftmost word in the second child sub- tree, and X is the lowest common ancestor of w i and w i+1 . Thus, c i = X, and a tree with identical structure but a different nonterminal at that posi- tion will generate a label sequence with a different value of c i . This concludes the proof of injectivity.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.3">Limitations</head><p>We have shown that our proposed encoding is a total, injective function from trees without unary branches with yield of length |w| to sequences of |w| − 1 labels. This will serve as the basis for our reduction of constituent parsing to sequence label- ing. However, to go from theory to practice, we need to overcome two limitations of the theoreti- cal encoding: non-surjectivity and the inability to encode unary branches. Fortunately, both can be overcome with simple techniques.</p><p>Handling of unary branches The encoding function Φ |w| cannot directly assign the nontermi- nal symbols of unary branches, as there is not any pair of words (w i , w i+1 ) that have those in com- mon. <ref type="figure">Figure 3</ref> illustrates it with an example.</p><p>It is worth remarking that this is not a limitation of our encoding, but of any encoding that would facilitate constituent parsing as sequence labeling, as the number of nonterminal nodes in a tree with unary branches is not bounded by any function of |w|. The fact that our encoding works for trees without unary branches owes to the fact that such a tree cannot have more than |w| − 1 non-leaf nodes, and therefore it is always possible to encode all of them in labels associated with |w| − 1 leaf nodes. </p><formula xml:id="formula_4">Φ -1 (Φ(T)):</formula><p>Figure 3: An example of a tree that cannot be di- rectly linearized with our approach. w i and T i abstract over words and PoS tags. Dotted lines represent incor- rect branches after applying and inverting our encoding naively without any adaptation for unaries. The nonter- minal symbol of the second ancestor of w 2 (X) cannot be decoded, as no pair of words have X as their lowest common ancestor. A similar situation can be observed for the closest ancestor of w 5 (Z).</p><p>To overcome this issue, we follow a collapsing approach, as is common in parsers that need spe- cial treatment of unary chains ( <ref type="bibr" target="#b7">Finkel et al., 2008;</ref><ref type="bibr" target="#b18">Narayan and Cohen, 2016;</ref><ref type="bibr" target="#b30">Shen et al., 2018</ref>). For clarity, we use the name intermediate unary chains to refer to unary chains that end up into a nonter- minal symbol (e.g. X → Y in <ref type="figure">Figure 3</ref>) and leaf unary chains to name those that yield a PoS tag (e.g. Z → T 5 ). Intermediate unary chains are col- lapsed into a chained single symbol, which can be encoded by Φ |w| as any other nonterminal symbol. On the other hand, leaf unary chains are collapsed together with the PoS tag, but these cannot be en- coded and decoded by relying on Φ |w| , as our en- coding assumes a fixed sequence of leaf nodes and does not encode them explicitly. To overcome this, we propose two methods:</p><p>1. To use an extra function to enrich the PoS tags before applying our main sequence la- beling function. This function is of the form Ψ |w| : V |w| → U |w| , where U is the set of la- bels of the leaf unary chains (without includ- ing the PoS tags) plus a dummy label ∅. Ψ |w| maps w i to ∅ if there is no leaf unary chain at w i , or to the collapsed label otherwise.</p><p>2. To extend our encoding function to predict them as a part of our labels l i , by transform- ing them into 3-tuples (n i , c i , u i ) where u i encodes the leaf unary chain collapsed label for w i , if there is any, or none otherwise. We call this extended encoding function Φ |w| .</p><p>The former requires to run two passes of se- quence labeling to deal with leaf unary chains. The latter avoids this, but the number of labels is larger and sparser. In §4 we discuss how these two approaches behave in terms of accuracy and speed.</p><p>Non-surjectivity Our encoding, as defined for- mally in Section 2.1, is injective but not surjec- tive, i.e., not every sequence of |w| − 1 labels of the form (n i , c i ) corresponds to a tree in T |w| . In particular, there are two situations where a label sequence formally has no tree, and thus Φ −1 |w| is not formally defined and we have to use extra heuris- tics or processing to define it:</p><p>• Sequences with conflicting nonterminals. A nonterminal can be the lowest common an- cestor of more than two pairs of contiguous words when branches are non-binary. For ex- ample, in the tree in <ref type="figure" target="#fig_0">Figure 1</ref>, the lowest com- mon ancestor of both "the" and "red" and of "red" and "toy" is the same N P node. This translates into c 4 = NP , c 5 = NP in the la- bel sequence. If we take that sequence and set c 5 = VP , we obtain a label sequence that does not strictly correspond to the encoding of any tree, as it contains a contradiction: two elements referencing the same node indicate different nonterminal labels. In practice, this problem is trivial to solve: when a label se- quence encodes several conflicting nontermi- nals at a given position in the tree, we com- pute Φ −1 |w| using the first such nonterminal and ignoring the rest.</p><p>• Sequences that produce unary structures.</p><p>There are sequences of values n i that do not correspond to a tree in T |w| because the only tree structure satisfying the common ances- tor conditions of their values (the one built by generating the string of β i s in the injec- tivity proof) contains unary branchings, caus- ing the problem described above where we do not have a specification for every nonter- minal. An example of this is the sequence (1, S), (3, Y ), (1, S), (1, S) in absolute scal- ing, that was introduced in <ref type="figure">Figure 3</ref>. In prac- tice, as unary chains have been previously collapsed, any generated unary node is con- sidered as not valid and removed.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3">Sequence Labeling</head><p>Sequence labeling is an structured prediction task that generates an output label for every token in an input sequence <ref type="bibr" target="#b25">(Rei and Søgaard, 2018)</ref>. Exam- ples of practical tasks that can be formulated un- der this framework in natural language processing are PoS tagging, chunking or named-entity recog- nition, which are in general fast. However, to our knowledge, there is no previous work on sequence labeling methods for constituent parsing, as an en- coding allowing it was lacking so far. In this work, we consider a range of methods ranging from traditional models to state-of-the- art neural models for sequence labeling, to test whether they are valid to train constituency-based parsers following our approach. We give the es- sential details needed to comprehend the core of each approach, but will mainly treat them as black boxes, referring the reader to the references for a careful and detailed mathematical analysis of each method. Appendix A specifies additional hyper- parameters for the tested models.</p><p>Preprocessing We add to every sentence both beginning and end tokens.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.1">Traditional Sequence Labeling Methods</head><p>We consider two baselines to train our prediction function F |w|,θ , based on popular sequence label- ing methods used in NLP problems, such as PoS tagging or shallow parsing <ref type="bibr" target="#b28">(Schmid, 1994;</ref><ref type="bibr" target="#b29">Sha and Pereira, 2003)</ref>.</p><p>Conditional Random Fields ( <ref type="bibr" target="#b15">Lafferty et al., 2001</ref>) Let CRF |w|,θ be its prediction function, a CRF model computes conditional probability dis- tributions of the form p(l, w) such that CRF θ (w) = l = arg max l p(l , w). In our work, the inputs to the CRF are words and PoS tags. To repre- sent a word w i , we are using information of the word itself and also contextual information from w <ref type="bibr">[i−1:i+1]</ref> . <ref type="bibr">2</ref> In particular:</p><p>• We extract the word form (lowercased), the PoS tag and its prefix of length 2, from <ref type="bibr">:i+1]</ref> . For these words we also include binary features: whether it is the first word, the last word, a number, whether the word is capitalized or uppercased.</p><formula xml:id="formula_5">w [i−1</formula><p>• Additionally, for w i we look at the suffixes of both length 3 and 2 (i.e. w i <ref type="bibr">[−3:]</ref> and w i <ref type="bibr">[−2:]</ref> ).</p><p>To build our CRF models, we relied on the sklearn-crfsuite library 3 .</p><p>MultiLayer Perceptron (Rosenblatt, 1958) We use one hidden layer. Let MLP |w|,θ be its predic- tion function, it treats sequence labeling as a set of independent predictions, one per word. The pre- diction for a word is computed as sof tmax(W 2 · relu(W 1 · x + b 1 ) + b 2 ), where x is the input vector and W i and b i the weights and biases to be learned at layer i. We consider both a discrete (MLP d ) and an embedded (MLP e ) perceptron. For the former, we use as inputs the same set of fea- tures as for the CRF. For the latter, the vector x for w i is defined as a concatenation of word and PoS tag embeddings from w [i−2:i+2] . <ref type="bibr">4</ref> To build our MLPs, we relied on keras. <ref type="bibr">5</ref> </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.2">Sequence Labeling Neural Models</head><p>We are using NCRFPP++ 6 , a sequence label- ing framework based on recurrent neural net- works (RNN) <ref type="bibr" target="#b35">(Yang and Zhang, 2018)</ref>, and more specifically on bidirectional short-term memory networks <ref type="bibr" target="#b11">(Hochreiter and Schmidhuber, 1997</ref>), which have been successfully applied to problems such as PoS tagging or dependency parsing <ref type="bibr" target="#b24">(Plank et al., 2016;</ref><ref type="bibr" target="#b12">Kiperwasser and Goldberg, 2016)</ref>. Let <ref type="bibr">LSTM(x)</ref> be an abstraction of a standard long short-term memory network that processes the se- quence x = [x 1 , ..., x |x| ], then a BILSTM encoding of its ith element, BILSTM(x, i) is defined as:</p><formula xml:id="formula_6">BILSTM(x, i) = h i = h l i • h r i = LSTM l (x [1:i] ) • LSTM r (x [|x|:i] )</formula><p>In the case of multilayer BILSTM'S, the time- step outputs of the BILSTM m are fed as input to the BILSTM m+1 . The output label for each w i is finally predicted as sof tmax(W · h i + b).</p><p>Given a sentence [w 1 , w 2 , ..., w |w| ], the input to the sequence model is a sequence of embeddings [w 1 , w 2 , ..., w |w| ] where each w i = w i • p i • ch i , such that w i and p i are a word and a PoS tag embedding, and ch i is a word embedding ob- tained from an initial character embedding layer, also based on a BILSTM. <ref type="figure" target="#fig_3">Figure 4</ref> shows the ar- chitecture of the network.  </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4">Experiments</head><p>We report results on models trained using the rela- tive scale encoding and the special tag (ROOT,c i ). As a reminder, to deal also with leaf unary chains, we proposed two methods in §2.3: to predict them relying both on the encoding functions Φ |w| and Ψ |w| , or to predict them as a part of an enriched label predicted by the function Φ |w| . For clarity, we are naming these models with the superscripts Ψ,Φ and Φ , respectively.</p><p>Datasets We use the Penn Treebank <ref type="bibr" target="#b17">(Marcus et al., 1994)</ref> and its official splits: Sections 2 to 21 for training, 22 for development and 23 for test- ing. For the Chinese Penn Treebank ( <ref type="bibr" target="#b34">Xue et al., 2005</ref>): articles 001-270 and 440-1151 are used for training, articles 301-325 for development, and articles 271-300 for testing. We use the version of the corpus with the predicted PoS tags of <ref type="bibr" target="#b4">Dyer et al. (2016)</ref>. We train the Φ models based on the predicted output by the corresponding Ψ model.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Metrics</head><p>We use the F-score from the EVALB script. Speed is measured in sentences per second. As the problem is reduced to sequence labeling, we briefly comment on the accuracy (percentage of correctly predicted labels) of our baselines.</p><p>Source code It can be found at https:// github.com/aghie/tree2labels</p><p>Hardware The models are run on a single thread of a CPU 7 and on a consumer-grade GPU 8 . In sequence-to-sequence work ( <ref type="bibr" target="#b32">Vinyals et al., 2015</ref>) the authors use a multi-core CPU (the num- ber of threads was not specified), while we pro- vide results on a single core for easier comparabil- ity. Parsing sentences on a CPU can be framed as an "embarrassingly parallel" problem ( <ref type="bibr" target="#b10">Hall et al., 2014</ref>), so speed can be made to scale linearly with the number of cores. We use the same batch size as <ref type="bibr" target="#b32">Vinyals et al. (2015)</ref> for testing (128). <ref type="bibr">9</ref>  <ref type="table">Table 1</ref> shows the performance of our baselines on the PTB development set. It is worth noting that since we are using different libraries to train the models, these might show some differences in terms of performance/speed beyond those ex- pected in theory. For the BILSTM model we test:</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.1">Results</head><p>• BILSTM m=1 : It does not use pretrained word embeddings nor character embeddings. The number of layers m is set to 1.</p><p>• BILSTM m=1,e : It adds pretrained word em- beddings from GloVe ( <ref type="bibr" target="#b20">Pennington et al., 2014</ref>) for English and from the Gigaword corpus for Chinese ( <ref type="bibr" target="#b16">Liu and Zhang, 2017</ref>).</p><p>• BILSTM m=1,e,ch : It includes character em- beddings processed through a BILSTM.</p><p>• BILSTM m=2,e : m is set to 2. No character embeddings.</p><p>• BILSTM m=2,e,ch : m is set to 2.</p><p>7 An Intel(R) Core(TM) i7-7700 CPU @ 3.60GHz. 8 A GeForce GTX 1080. <ref type="bibr">9</ref> A larger batch will likely result in faster parsing when executing the model on a GPU, but not necessarily on a CPU.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Model</head><p>F-score Acc. Sent/s Sent/s (CPU) (GPU) <ref type="table">Table 1</ref>: Performance of the proposed sequence label- ing methods on the development set of the PTB. For the CRF models the complexity is quadratic with respect to the number of labels, which causes CRF Φ to be partic- ularly slow.</p><p>The Ψ, Φ and the Φ models obtain similar F- scores. When it comes to speed, the BILSTMs Φ are notably faster than the BILSTMs Ψ,Φ . Φ mod- els are expected to be more efficient, as leaf unary chains are handled implicitly. In practice, Φ is a more expensive function to compute than the orig- inal Φ, since the number of output labels is sig- nificantly larger, which reduces the expected gains with respect to the Ψ, Φ models. It is worth not- ing that our encoding is useful to train an MLP e with a decent sense of phrase structure, while be- ing very fast. Paying attention to the differences between F-score and Accuracy for each baseline, we notice the gap between them is larger for CRFs and MLPs. This shows the difficulties that these methods have, in comparison to the BILSTM ap- proaches, to predict the correct label when a word w i+1 has few common ancestors with w i . For ex- ample, let -10X be the right (relative scale) label between w i and w i+1 , and let l 1 =-1X and l 2 =-9X be two possible wrong labels. In terms of accu- racy it is the same that a model predicts l1 or l2, but in terms of constituent F-score, the first will be much worse, as many closed parentheses will remain unmatched. <ref type="table" target="#tab_3">Tables 2 and 3</ref> compare our best models against the state of the art on the PTB and CTB test sets. The performance corresponds to models without reranking strategies, unless otherwise specified.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5">Discussion</head><p>We are not aware of work that reduces con- stituency parsing to sequence labeling. The work that can be considered as the closest to ours is that of <ref type="bibr" target="#b32">Vinyals et al. (2015)</ref>, who address it as a sequence-to-sequence problem, where the out- put sequence has variable/unknown length. In this context, even a one hidden layer percep- tron outperforms their 3-layer LSTM model with- out attention, while parsing hundreds of sen- tences per second. Our best models also out- performed their 3-layer LSTM model with atten- tion and even a simple BILSTM model with pre- trained GloVe embeddings obtains a similar per- formance. In terms of F-score, the proposed se- quence labeling baselines still lag behind mature shift-reduce and chart parsers. In terms of speed, they are clearly faster than both CPU and GPU chart parsers and are at least on par with the fastest shift-reduce ones. Although with significant loss of accuracy, if phrase-representation is needed in large-scale tasks where the speed of current sys- tems makes parsing infeasible <ref type="bibr" target="#b8">(Gómez-Rodríguez, 2017;</ref>, we can use the simpler, less accurate models to get speeds well above any parser reported to date.</p><p>It is also worth noting that in their recent work, published while this manuscript was under review, <ref type="bibr" target="#b30">Shen et al. (2018)</ref> developed a mapping of binary trees with n leaves to sequences of n − 1 integers ( <ref type="bibr">Shen et al., 2018, Algorithm 1)</ref>. This encoding is different from the ones presented here, as it is based on the height of lowest common ancestors in the tree, rather than their depth. While their pur- pose is also different from ours, as they use this mapping to generate training data for a parsing al- gorithm based on recursive partitioning using real- valued distances, their encoding could also be ap- plied with our sequence labeling approach. How- ever, it has the drawback that it only supports bi- narized trees, and some of its theoretical properties are worse for our goal, as the way to define the in- verse of an arbitrary label sequence can be highly ambiguous: for example, a sequence of n−1 equal labels in this encoding can represent any binary tree with n leaves.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6">Conclusion</head><p>We presented a new parsing paradigm, based on a reduction of constituency parsing to sequence la- beling. We first described a linearization function   <ref type="bibr" target="#b31">Stern et al. (2017)</ref> report that they use a 16-core machine, but sentences are processed one-at-a-time. Hence, they do not exploit inter-sentence parallelism, but they may gain some speed from intra-sentence parallelism. indicates the that the speed was reported in the paper itself. * and £ indicate that the speeds were extracted from <ref type="bibr" target="#b37">Zhu et al. (2013)</ref> and <ref type="bibr">Fernández and Gómez-Rodríguez (2018</ref>  <ref type="bibr">86.5 Fernández and Gómez-Rodríguez (2018)</ref> 86.8 to transform a constituent tree (with n leaves) into a sequence of n − 1 labels that encodes it. We proved that this encoding function is total and in- jective for any tree without unary branches. We also discussed its limitations: how to deal with unary branches and non-surjectivity, and showed how these can be solved. We finally proposed a set of fast and strong baselines.</p></div><figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_0"><head>Figure 1 :</head><label>1</label><figDesc>Figure 1: An example of a constituency tree linearized applying both absolute and relative scales.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_1"><head>Figure 2 :</head><label>2</label><figDesc>Figure 2: An example of a binarized constituency tree, linearized both applying absolute and relative scales.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_2"><head></head><label></label><figDesc>Let us now denote by β i the string α i−1( (• i )α i) .</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_3"><head>Figure 4 :</head><label>4</label><figDesc>Figure 4: Architecture of the neural model</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_3" validated="false"><head>Table 2 : Comparison against the state of the art. *</head><label>2</label><figDesc></figDesc><table></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_5" validated="false"><head>Table 3 : Performance on the CTB test set</head><label>3</label><figDesc></figDesc><table></table></figure>
+
+			<note place="foot" n="1"> A last dummy label is generated to fulfill the properties of sequence labeling tasks.</note>
+
+			<note place="foot" n="2"> We tried contextual information beyond the immediate previous and next word, but the performance was similar. 3 https://sklearn-crfsuite.readthedocs.io/en/latest/ 4 In contrast to the discrete input, larger contextual information was useful. 5 https://keras.io/ 6 https://github.com/jiesutd/NCRFpp, with PyTorch.</note>
+		</body>
+		<back>
+
+			<div type="acknowledgement">
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Acknowledgments</head><p>This work has received funding from the Eu-ropean Research Council (ERC), under the Eu-ropean Union's Horizon 2020 research and in-novation programme (FASTPARSE, grant agree-ment No 714150), from the TELEPARES-UDC project (FFI2014-51978-C2-2-R) and the ANSWER-ASAP project (TIN2017-85160-C2-1-R) from MINECO, and from Xunta de Galicia (ED431B 2017/01). We gratefully acknowledge NVIDIA Corporation for the donation of a GTX Titan X GPU.</p></div>
+			</div>
+
+			<div type="annex">
+			</div>
+			<div type="references">
+
+				<listBibl>
+
+<biblStruct xml:id="b0">
+	<analytic>
+		<title level="a" type="main">A multi-teraflop constituency parser using GPUs</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">John</forename><surname>Canny</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">David</forename><surname>Hall</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Dan</forename><surname>Klein</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2013 Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>the 2013 Conference on Empirical Methods in Natural Language Processing</meeting>
+		<imprint>
+			<date type="published" when="2013" />
+			<biblScope unit="page" from="1898" to="1907" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b1">
+	<analytic>
+		<title level="a" type="main">A maximum-entropy-inspired parser</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Eugene</forename><surname>Charniak</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 1st North American chapter of the Association for Computational Linguistics conference</title>
+		<meeting>the 1st North American chapter of the Association for Computational Linguistics conference</meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2000" />
+			<biblScope unit="page" from="132" to="139" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b2">
+	<analytic>
+		<title level="a" type="main">Parsing as language modeling</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kook</forename><surname>Do</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Eugene</forename><surname>Choe</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Charniak</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2016 Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>the 2016 Conference on Empirical Methods in Natural Language Processing<address><addrLine>Austin, Texas</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2016" />
+			<biblScope unit="page" from="2331" to="2336" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b3">
+	<analytic>
+		<title level="a" type="main">Three generative, lexicalised models for statistical parsing</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Michael</forename><surname>Collins</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the eighth conference on European chapter of the Association for Computational Linguistics</title>
+		<meeting>the eighth conference on European chapter of the Association for Computational Linguistics</meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="1997" />
+			<biblScope unit="page" from="16" to="23" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b4">
+	<analytic>
+		<title level="a" type="main">Recurrent neural network grammars</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Chris</forename><surname>Dyer</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Adhiguna</forename><surname>Kuncoro</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Miguel</forename><surname>Ballesteros</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Noah</forename><forename type="middle">A</forename><surname>Smith</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2016 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies</title>
+		<meeting>the 2016 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies</meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2016" />
+			<biblScope unit="page" from="199" to="209" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b5">
+	<monogr>
+		<title level="m" type="main">Faster Shift-Reduce Constituent Parsing with a Non-Binary, Bottom-Up Strategy</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Daniel</forename><surname>Fernández</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">-González</forename></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Carlos</forename><surname>Gómezrodríguez</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2018" />
+		</imprint>
+	</monogr>
+	<note>ArXiv e-prints</note>
+</biblStruct>
+
+<biblStruct xml:id="b6">
+	<analytic>
+		<title level="a" type="main">Parsing as reduction</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Daniel</forename><surname>Fernández</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">-González</forename><surname>André</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">F</forename><forename type="middle">T</forename><surname>Martins</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 53rd Annual Meeting of the Association for Computational Linguistics and the 7th International Joint Conference on Natural Language Processing</title>
+		<meeting>the 53rd Annual Meeting of the Association for Computational Linguistics and the 7th International Joint Conference on Natural Language Processing</meeting>
+		<imprint>
+			<date type="published" when="2015" />
+			<biblScope unit="page" from="1523" to="1533" />
+		</imprint>
+	</monogr>
+	<note>Association for Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b7">
+	<analytic>
+		<title level="a" type="main">Efficient, feature-based, conditional random field parsing</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jenny</forename><forename type="middle">Rose</forename><surname>Finkel</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Alex</forename><surname>Kleeman</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Christopher D</forename><surname>Manning</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of ACL08: HLT</title>
+		<meeting>ACL08: HLT</meeting>
+		<imprint>
+			<date type="published" when="2008" />
+			<biblScope unit="page" from="959" to="967" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b8">
+	<analytic>
+		<title level="a" type="main">Towards fast natural language parsing: FASTPARSE ERC Starting Grant</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Carlos</forename><surname>Gómez-Rodríguez</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Procesamiento del Lenguaje Natural</title>
+		<meeting>esamiento del Lenguaje Natural</meeting>
+		<imprint>
+			<date type="published" when="2017" />
+			<biblScope unit="page">59</biblScope>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b9">
+	<analytic>
+		<title level="a" type="main">How important is syntactic parsing accuracy? An empirical evaluation on rulebased sentiment analysis</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Carlos</forename><surname>Gómez-Rodríguez</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Iago</forename><surname>Alonso-Alonso</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">David</forename><surname>Vilares</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Artificial Intelligence Review</title>
+		<imprint>
+			<date type="published" when="2017" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b10">
+	<analytic>
+		<title level="a" type="main">Sparser, better, faster GPU parsing</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">David</forename><surname>Hall</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Taylor</forename><surname>Berg-Kirkpatrick</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Dan</forename><surname>Klein</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 52nd Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 52nd Annual Meeting of the Association for Computational Linguistics</meeting>
+		<imprint>
+			<date type="published" when="2014" />
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="208" to="217" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b11">
+	<analytic>
+		<title level="a" type="main">Long short-term memory</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Sepp</forename><surname>Hochreiter</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jürgen</forename><surname>Schmidhuber</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Neural computation</title>
+		<imprint>
+			<biblScope unit="volume">9</biblScope>
+			<biblScope unit="issue">8</biblScope>
+			<biblScope unit="page" from="1735" to="1780" />
+			<date type="published" when="1997" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b12">
+	<analytic>
+		<title level="a" type="main">Simple and accurate dependency parsing using bidirectional LSTM feature representations</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Eliyahu</forename><surname>Kiperwasser</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yoav</forename><surname>Goldberg</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Transactions of the Association for Computational Linguistics</title>
+		<imprint>
+			<biblScope unit="volume">4</biblScope>
+			<biblScope unit="page" from="313" to="327" />
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b13">
+	<analytic>
+		<title level="a" type="main">Constituency parsing with a self-attentive encoder</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Nikita</forename><surname>Kitaev</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Dan</forename><surname>Klein</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 56th Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 56th Annual Meeting of the Association for Computational Linguistics<address><addrLine>Melbourne, Australia</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2018" />
+			<biblScope unit="volume">1</biblScope>
+		</imprint>
+	</monogr>
+	<note>Long Papers). Association for Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b14">
+	<analytic>
+		<title level="a" type="main">Parser showdown at the Wall Street corral: An empirical investigation of error types in parser output</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jonathan</forename><forename type="middle">K</forename><surname>Kummerfeld</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">David</forename><surname>Hall</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">James</forename><forename type="middle">R</forename><surname>Curran</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Dan</forename><surname>Klein</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2012 Joint Conference on Empirical Methods in Natural Language Processing and Computational Natural Language Learning</title>
+		<meeting>the 2012 Joint Conference on Empirical Methods in Natural Language Processing and Computational Natural Language Learning<address><addrLine>Jeju Island</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2012" />
+			<biblScope unit="page" from="1048" to="1059" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b15">
+	<analytic>
+		<title level="a" type="main">Conditional random fields: Probabilistic models for segmenting and labeling sequence data</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">John</forename><forename type="middle">D</forename><surname>Lafferty</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Andrew</forename><surname>Mccallum</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Fernando</forename><forename type="middle">C N</forename><surname>Pereira</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Eighteenth International Conference on Machine Learning, ICML &apos;01</title>
+		<meeting>the Eighteenth International Conference on Machine Learning, ICML &apos;01<address><addrLine>San Francisco, CA, USA</addrLine></address></meeting>
+		<imprint>
+			<publisher>Morgan Kaufmann Publishers Inc</publisher>
+			<date type="published" when="2001" />
+			<biblScope unit="page" from="282" to="289" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b16">
+	<analytic>
+		<title level="a" type="main">In-order transition-based constituent parsing</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jiangming</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yue</forename><surname>Zhang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Transactions of the Association for Computational Linguistics</title>
+		<imprint>
+			<biblScope unit="volume">5</biblScope>
+			<biblScope unit="page" from="413" to="424" />
+			<date type="published" when="2017" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b17">
+	<analytic>
+		<title level="a" type="main">The Penn Treebank: Annotating predicate argument structure</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Mitchell</forename><surname>Marcus</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Grace</forename><surname>Kim</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Mary</forename><forename type="middle">Ann</forename><surname>Marcinkiewicz</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Robert</forename><surname>Macintyre</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ann</forename><surname>Bies</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Mark</forename><surname>Ferguson</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Karen</forename><surname>Katz</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Britta</forename><surname>Schasberger</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Workshop on Human Language Technology, HLT &apos;94</title>
+		<meeting>the Workshop on Human Language Technology, HLT &apos;94<address><addrLine>Stroudsburg, PA, USA</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="1994" />
+			<biblScope unit="page" from="114" to="119" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b18">
+	<analytic>
+		<title level="a" type="main">Optimizing spectral learning for parsing</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Shashi</forename><surname>Narayan</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Shay</forename><forename type="middle">B</forename><surname>Cohen</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 54th Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 54th Annual Meeting of the Association for Computational Linguistics<address><addrLine>Berlin, Germany</addrLine></address></meeting>
+		<imprint>
+			<publisher>Long Papers</publisher>
+			<date type="published" when="2016" />
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="1546" to="1556" />
+		</imprint>
+	</monogr>
+	<note>Association for Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b19">
+	<analytic>
+		<title level="a" type="main">An efficient algorithm for projective dependency parsing</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Joakim</forename><surname>Nivre</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 8th International Workshop on Parsing Technologies (IWPT)</title>
+		<meeting>the 8th International Workshop on Parsing Technologies (IWPT)</meeting>
+		<imprint>
+			<date type="published" when="2003" />
+			<biblScope unit="page" from="149" to="160" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b20">
+	<analytic>
+		<title level="a" type="main">Glove: Global vectors for word representation</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jeffrey</forename><surname>Pennington</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Richard</forename><surname>Socher</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Christopher</forename><surname>Manning</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2014 Conference on Empirical Methods in Natural Language Processing (EMNLP)</title>
+		<meeting>the 2014 Conference on Empirical Methods in Natural Language Processing (EMNLP)</meeting>
+		<imprint>
+			<date type="published" when="2014" />
+			<biblScope unit="page" from="1532" to="1543" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b21">
+	<analytic>
+		<title level="a" type="main">Deep contextualized word representations</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Matthew</forename><surname>Peters</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Mark</forename><surname>Neumann</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Mohit</forename><surname>Iyyer</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Matt</forename><surname>Gardner</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Christopher</forename><surname>Clark</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kenton</forename><surname>Lee</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Luke</forename><surname>Zettlemoyer</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2018 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies</title>
+		<meeting>the 2018 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies</meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2018" />
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="2227" to="2237" />
+		</imprint>
+	</monogr>
+	<note>Long Papers</note>
+</biblStruct>
+
+<biblStruct xml:id="b22">
+	<analytic>
+		<title level="a" type="main">Learning accurate, compact, and interpretable tree annotation</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Slav</forename><surname>Petrov</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Leon</forename><surname>Barrett</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Romain</forename><surname>Thibaux</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Dan</forename><surname>Klein</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 21st International Conference on Computational Linguistics and the 44th annual meeting of the Association for Computational Linguistics</title>
+		<meeting>the 21st International Conference on Computational Linguistics and the 44th annual meeting of the Association for Computational Linguistics</meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2006" />
+			<biblScope unit="page" from="433" to="440" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b23">
+	<analytic>
+		<title level="a" type="main">Improved inference for unlexicalized parsing</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Slav</forename><surname>Petrov</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Dan</forename><surname>Klein</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Human Language Technologies 2007: The Conference of the North American Chapter of the Association for Computational Linguistics; Proceedings of the Main Conference</title>
+		<imprint>
+			<date type="published" when="2007" />
+			<biblScope unit="page" from="404" to="411" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b24">
+	<analytic>
+		<title level="a" type="main">Multilingual part-of-speech tagging with bidirectional long short-term memory models and auxiliary loss</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Barbara</forename><surname>Plank</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Anders</forename><surname>Søgaard</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yoav</forename><surname>Goldberg</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 54th Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 54th Annual Meeting of the Association for Computational Linguistics<address><addrLine>Berlin, Germany</addrLine></address></meeting>
+		<imprint>
+			<publisher>Short Papers</publisher>
+			<date type="published" when="2016" />
+			<biblScope unit="volume">2</biblScope>
+			<biblScope unit="page" from="412" to="418" />
+		</imprint>
+	</monogr>
+	<note>Association for Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b25">
+	<analytic>
+		<title level="a" type="main">Zero-shot sequence labeling: Transferring knowledge from sentences to tokens</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Marek</forename><surname>Rei</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Anders</forename><surname>Søgaard</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2018 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies</title>
+		<meeting>the 2018 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies</meeting>
+		<imprint>
+			<publisher>Long Papers</publisher>
+			<date type="published" when="2018" />
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="293" to="302" />
+		</imprint>
+	</monogr>
+	<note>Association for Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b26">
+	<analytic>
+		<title level="a" type="main">The perceptron: a probabilistic model for information storage and organization in the brain</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Frank</forename><surname>Rosenblatt</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Psychological review</title>
+		<imprint>
+			<biblScope unit="volume">65</biblScope>
+			<biblScope unit="issue">6</biblScope>
+			<biblScope unit="page">386</biblScope>
+			<date type="published" when="1958" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b27">
+	<analytic>
+		<title level="a" type="main">A classifier-based parser with linear run-time complexity</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kenji</forename><surname>Sagae</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Alon</forename><surname>Lavie</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Ninth International Workshop on Parsing Technology</title>
+		<meeting>the Ninth International Workshop on Parsing Technology</meeting>
+		<imprint>
+			<date type="published" when="2005" />
+			<biblScope unit="page" from="125" to="132" />
+		</imprint>
+	</monogr>
+	<note>Association for Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b28">
+	<analytic>
+		<title level="a" type="main">Part-of-speech tagging with neural networks</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Helmut</forename><surname>Schmid</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 15th Conference on Computational Linguistics</title>
+		<meeting>the 15th Conference on Computational Linguistics<address><addrLine>Stroudsburg, PA, USA</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="1994" />
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="172" to="176" />
+		</imprint>
+	</monogr>
+	<note>COLING &apos;94</note>
+</biblStruct>
+
+<biblStruct xml:id="b29">
+	<analytic>
+		<title level="a" type="main">Shallow parsing with conditional random fields</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Fei</forename><surname>Sha</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Fernando</forename><surname>Pereira</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2003 Conference of the North American Chapter</title>
+		<meeting>the 2003 Conference of the North American Chapter</meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2003" />
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="134" to="141" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b30">
+	<analytic>
+		<title level="a" type="main">Straight to the tree: Constituency parsing with neural syntactic distance</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yikang</forename><surname>Shen</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Zhouhan</forename><surname>Lin</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Athul</forename><forename type="middle">Paul</forename><surname>Jacob</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Alessandro</forename><surname>Sordoni</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Aaron</forename><surname>Courville</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yoshua</forename><surname>Bengio</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 56th Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 56th Annual Meeting of the Association for Computational Linguistics</meeting>
+		<imprint>
+			<publisher>Long Papers</publisher>
+			<date type="published" when="2018" />
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="1171" to="1180" />
+		</imprint>
+	</monogr>
+	<note>Association for Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b31">
+	<analytic>
+		<title level="a" type="main">A minimal span-based neural constituency parser</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Mitchell</forename><surname>Stern</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jacob</forename><surname>Andreas</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Dan</forename><surname>Klein</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 55th Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 55th Annual Meeting of the Association for Computational Linguistics<address><addrLine>Vancouver, Canada</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2017" />
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="818" to="827" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b32">
+	<analytic>
+		<title level="a" type="main">Grammar as a foreign language</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Oriol</forename><surname>Vinyals</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Łukasz</forename><surname>Kaiser</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Terry</forename><surname>Koo</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Slav</forename><surname>Petrov</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ilya</forename><surname>Sutskever</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Geoffrey</forename><surname>Hinton</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Advances in Neural Information Processing Systems</title>
+		<imprint>
+			<date type="published" when="2015" />
+			<biblScope unit="page" from="2773" to="2781" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b33">
+	<analytic>
+		<title level="a" type="main">A fast, accurate deterministic parser for chinese</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Mengqiu</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kenji</forename><surname>Sagae</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Teruko</forename><surname>Mitamura</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 21st International Conference on Computational Linguistics and the 44th Annual Meeting of the Association for Computational Linguistics, ACL-44</title>
+		<meeting>the 21st International Conference on Computational Linguistics and the 44th Annual Meeting of the Association for Computational Linguistics, ACL-44<address><addrLine>Stroudsburg, PA, USA</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2006" />
+			<biblScope unit="page" from="425" to="432" />
+		</imprint>
+	</monogr>
+	<note>Association for Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b34">
+	<analytic>
+		<title level="a" type="main">The Penn Chinese Treebank: Phrase structure annotation of a large corpus</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Naiwen</forename><surname>Xue</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Fei</forename><surname>Xia</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Fu-Dong</forename><surname>Chiou</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Marta</forename><surname>Palmer</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Natural language engineering</title>
+		<imprint>
+			<biblScope unit="volume">11</biblScope>
+			<biblScope unit="issue">2</biblScope>
+			<biblScope unit="page" from="207" to="238" />
+			<date type="published" when="2005" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b35">
+	<analytic>
+		<title level="a" type="main">NCRF++: An opensource neural sequence labeling toolkit</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jie</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yue</forename><surname>Zhang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of ACL 2018, System Demonstrations</title>
+		<meeting>ACL 2018, System Demonstrations<address><addrLine>Melbourne, Australia</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2018" />
+			<biblScope unit="page" from="74" to="79" />
+		</imprint>
+	</monogr>
+	<note>Association for Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b36">
+	<monogr>
+				<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Wojciech</forename><surname>Zaremba</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1409.2329</idno>
+		<title level="m">Ilya Sutskever, and Oriol Vinyals. 2014. Recurrent neural network regularization</title>
+		<imprint/>
+	</monogr>
+<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b37">
+	<analytic>
+		<title level="a" type="main">Fast and accurate shiftreduce constituent parsing</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Muhua</forename><surname>Zhu</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yue</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Wenliang</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Min</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jingbo</forename><surname>Zhu</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 51st Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 51st Annual Meeting of the Association for Computational Linguistics</meeting>
+		<imprint>
+			<date type="published" when="2013" />
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="434" to="443" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+				</listBibl>
+			</div>
+		</back>
+	</text>
+</TEI>

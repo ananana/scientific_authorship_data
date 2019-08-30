@@ -1,0 +1,870 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<TEI xmlns="http://www.tei-c.org/ns/1.0" 
+xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+xsi:schemaLocation="http://www.tei-c.org/ns/1.0 /home/ana/installs/grobid/grobid-0.5.1/grobid-home/schemas/xsd/Grobid.xsd"
+ xmlns:xlink="http://www.w3.org/1999/xlink">
+	<teiHeader xml:lang="en">
+		<encodingDesc>
+			<appInfo>
+				<application version="0.5.1-SNAPSHOT" ident="GROBID" when="2019-04-18T12:08+0000">
+					<ref target="https://github.com/kermitt2/grobid">GROBID - A machine learning software for extracting information from scholarly documents</ref>
+				</application>
+			</appInfo>
+		</encodingDesc>
+		<fileDesc>
+			<titleStmt>
+				<title level="a" type="main">Mapping Language to Code in Programmatic Context</title>
+			</titleStmt>
+			<publicationStmt>
+				<publisher>Association for Computational Linguistics</publisher>
+				<availability status="unknown"><p>Copyright Association for Computational Linguistics</p>
+				</availability>
+				<date>October 31-November 4, 2018. 2018</date>
+			</publicationStmt>
+			<sourceDesc>
+				<biblStruct>
+					<analytic>
+						<author>
+							<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Srinivasan</forename><surname>Iyer</surname></persName>
+						</author>
+						<author role="corresp">
+							<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ioannis</forename><surname>Konstas</surname></persName>
+							<email>i.konstas@hw.ac.uk</email>
+						</author>
+						<author>
+							<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Alvin</forename><surname>Cheung</surname></persName>
+						</author>
+						<author>
+							<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Luke</forename><surname>Zettlemoyer</surname></persName>
+						</author>
+						<author>
+							<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Paul</forename><forename type="middle">G</forename><surname>Allen</surname></persName>
+						</author>
+						<author>
+							<affiliation key="aff0">
+								<orgName type="department">School of Computer Science and Engineering</orgName>
+								<orgName type="institution">Univ. of Washington</orgName>
+								<address>
+									<settlement>Seattle</settlement>
+									<region>WA</region>
+								</address>
+							</affiliation>
+						</author>
+						<author>
+							<affiliation key="aff1">
+								<orgName type="institution">†Heriot-Watt University</orgName>
+								<address>
+									<settlement>Edinburgh</settlement>
+									<country key="GB">UK</country>
+								</address>
+							</affiliation>
+						</author>
+						<title level="a" type="main">Mapping Language to Code in Programmatic Context</title>
+					</analytic>
+					<monogr>
+						<title level="m">Proceedings of the 2018 Conference on Empirical Methods in Natural Language Processing</title>
+						<meeting>the 2018 Conference on Empirical Methods in Natural Language Processing <address><addrLine>Brussels, Belgium</addrLine></address>
+						</meeting>
+						<imprint>
+							<publisher>Association for Computational Linguistics</publisher>
+							<biblScope unit="page" from="1643" to="1652"/>
+							<date type="published">October 31-November 4, 2018. 2018</date>
+						</imprint>
+					</monogr>
+				</biblStruct>
+			</sourceDesc>
+		</fileDesc>
+		<profileDesc>
+			<abstract>
+				<p>Source code is rarely written in isolation. It depends significantly on the programmatic context , such as the class that the code would reside in. To study this phenomenon, we introduce the task of generating class member functions given English documentation and the pro-grammatic context provided by the rest of the class. This task is challenging because the desired code can vary greatly depending on the functionality the class provides (e.g., a sort function may or may not be available when we are asked to &quot;return the smallest element&quot; in a particular member variable list). We introduce CONCODE, a new large dataset with over 100,000 examples consisting of Java classes from online code repositories, and develop a new encoder-decoder architecture that models the interaction between the method documentation and the class environment. We also present a detailed error analysis suggesting that there is significant room for future work on this task.</p>
+			</abstract>
+		</profileDesc>
+	</teiHeader>
+	<text xml:lang="en">
+		<body>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="1">Introduction</head><p>Natural language can be used to define complex computations that reuse the functionality of rich, existing code bases. However, existing approaches for automatically mapping natural language (NL) to executable code have considered limited lan- guage or code environments. They either assume fixed code templates (i.e., generate only parts of a method with a predefined structure; <ref type="bibr" target="#b23">Quirk et al., 2015</ref>), a fixed context (i.e., generate the body of the same method within a single fixed class; <ref type="bibr" target="#b16">Ling et al., 2016)</ref>, or no context at all (i.e., generate code tokens from the text alone; <ref type="bibr" target="#b21">Oda et al., 2015)</ref>. In this paper, we introduce new data and methods for learning to map language to source code within the context of a real-world programming environment, with application to generating member functions and method documentation. The figure shows a class where the programmer wants to automatically generate the add method from documentation, assuming the rest of the class is already written. The system needs to understand that vecElements is the vector to be augmented, and that the method must take in a scalar parameter as the element to be added. The model also needs to disambiguate between the member variables vecElements and weights.</p><p>from documentation for automatically collected Java class environments.</p><p>The presence of rich context provided by an ex- isting code environment better approximates the way programmers capitalize on code re-use, and also introduces new language understanding chal- lenges. Models must (a) map the NL to environ- ment variables, library API calls and user-defined methods found elsewhere in the class based on their names, types and signatures, and (b) decide on the structure of the resulting code. For example, in <ref type="figure">Figure 1</ref>, to generate the method inc() from the corresponding NL, Increment this vector, it is cru- cial to know of the existence of class method add(). This helps us decide if it should directly call add() or generate the method from scratch by iterating through the vecElements array and incrementing each element. Similarly, for generating the add() method, the code needs to use the class variable vecElements correctly. Overall, the code environ- ment provides rich information relating to the intent of the developer, and can be used to considerably reduce ambiguity in the NL documentation.</p><p>To learn such a code generator, we use a special- ized neural encoder-decoder model that (a) encodes the NL together with representations based on sub- word units for environment identifiers (member variables, methods) and data types, and (b) decodes the resulting code using an attention mechanism with multiple steps, by first attending to the NL, and then to the variables and methods, thus also learning to copy variables and methods. This two- step attention helps the model to match words in the NL with representations of the identifiers in the environment. Rather than directly generating the output source code tokens <ref type="bibr" target="#b7">(Dong and Lapata, 2016;</ref><ref type="bibr" target="#b11">Iyer et al., 2017)</ref>, the decoder generates produc- tion rules from the grammar of the target program- ming language similar to <ref type="bibr" target="#b24">Rabinovich et al. (2017)</ref>, <ref type="bibr" target="#b26">Yin and Neubig (2017)</ref>, and  and therefore, guarantees the syntactic well- formedness of the output.</p><p>To train our model, we collect and release CON- CODE, a new dataset comprising over 100,000 (class environment, NL, code) tuples by gather- ing Java files containing method documentation from public Github repositories. This is an or- der of magnitude larger than existing datasets that map NL to source code for a general purpose lan- guage (MTG from <ref type="bibr" target="#b16">Ling et al. (2016)</ref> has 13k ex- amples), contains a larger variety of output code templates than existing datasets built for a specific domain, and is the first to condition on the envi- ronment of the output code. Also, by design, it contains examples from several domains, thus in- troducing open-domain challenges of new identi- fiers during test time (some e.g. class environments are LookupCommand, ColumnFileReader and Im- ageSequenceWriter). Our model achieves an ex- act match accuracy of 8.6% and a BLEU score (a metric for partial credit; <ref type="bibr" target="#b22">Papineni et al., 2002</ref>) of 22.11, outperforming retrieval and recent neural methods. We also provide an extensive ablative analysis, quantifying the contributions that come from the context and the model, and suggesting that our work opens up various areas for future investigation. </p><formula xml:id="formula_0">); i++){ vecElements[i] += arg0; } } MemberDeclaration--&gt;MethodDeclaration MethodDeclaration--&gt; TypeTypeOrVoid IdentifierNT FormalParameters MethodBody TypeTypeOrVoid--&gt;void IdentifierNT--&gt;add FormalParameters--&gt;( FormalParameterList ) FormalParameterList--&gt;FormalParameter … Primary--&gt;IdentifierNT IdentifierNT--&gt;i Nt_68--&gt;+= Expression--&gt;Primary Primary--&gt;IdentifierNT IdentifierNT--&gt;arg0</formula><p>Source code:</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>AST Derivation:</head><p>Figure 2: Our task involves generating the derivation of the source code of a method based on the NL documentation, class member variables (names and data types), and other class member methods (method names and return types), which form the code environment.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2">Task Definition</head><p>We introduce the task of generating source code from NL documentation, conditioned on the class environment the code resides in. The environment comprises two lists of entities: (1) class member variable names with their data types (for example, double[] vecElements as seen in <ref type="figure">Figure 2</ref>), and (2) member function names together with their re- turn types (for example, void inc()). 1 Formally, let q (i) , a (i) denote the NL and source code respec- tively for the i th training example, where a (i) is a sequence of production rules that forms the deriva- tion of its underlying source code. The environ- ment comprises a list of variables names v (i) </p><formula xml:id="formula_1">r (i) 1..|r (i) | .</formula><p>Our goal is to generate the derivation of a (i) given q (i) and the environment (see <ref type="figure">Figure 2</ref>).</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3">Models</head><p>We evaluate a number of encoder-decoder models that generate source code derivations from NL and the class environment. Our best model encodes all environment components broken down into sub- word units <ref type="bibr" target="#b25">(Sennrich et al., 2016</ref>) separately, using Bi-LSTMs and decodes these contextual represen- tations to produce a sequence of valid production rules that derive syntactically valid source code. The decoder also uses a two-step attention mecha- nism to match words in the NL with environment components, and then uses a supervised copy mech- anism ( <ref type="bibr" target="#b8">Gu et al., 2016a</ref>) to incorporate environment elements in the resulting code. We describe this architecture below.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.1">Encoder</head><p>The encoder computes contextual representations of the NL and each component in the environment. Each word of the NL, q i , is embedded into a high dimensional space using Identifier matrix I (de- noted as q i ) followed by the application of a n- layer bidirectional LSTM (Hochreiter and Schmid- huber, 1997). The hidden states of the last layer (h 1 , · · · , h z ) are passed on to the attention layer, while the hidden states at the last token are used to initialize the decoder.</p><formula xml:id="formula_2">h 1 , · · · , h z = BiLSTM(q 1 , . . . , q z )</formula><p>To encode variables and methods, the variable types (t i ) and method return types (r i ) are embedded us- ing a type matrix T (denoted as t i and r i ). To encode the variable and method names (v i , m i ), they are first split based on camel-casing, and each component is embedded using I, represented as v i1 , . . . , v ij and m i1 , . . . , m ik . The encoded rep- resentation of the variable and method names is the final hidden state of the last layer of a Bi-LSTM over these embeddings (v i and m i ). Finally, a 2- step Bi-LSTM is executed on the concatenation of the variable type embedding and the variable name encoding. The corresponding hidden states form the final representations of the variable type and the variable name ( ˆ t i , ˆ v i ) and are passed on to the attention mechanism. Method return types and names are processed identically using the same  Bi-LSTMs and embedding matrices ( ˆ r i , ˆ m i ). <ref type="figure" target="#fig_3">Figure 3</ref> shows an example of the encoder.</p><formula xml:id="formula_3">t i = t i T ; v ij = v ij I r i = r i T ; m ik = m ik I v i = BiLSTM(v i1 , . . . , v ij ) m i = BiLSTM(m i1 , . . . , m ik ) ˆ t i , ˆ v i = BiLSTM(t i , v i ) ˆ r i , ˆ m i = BiLSTM(r i , m i )</formula></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.2">Decoder</head><p>We represent the source code to be produced as a sequence of production rules (a t at step t), with a non-terminal n t on the left hand side and a com- bination of terminal and non-terminal symbols on the right hand side (see <ref type="figure">Figure 2</ref>). The first non- terminal is MemberDeclaration. Subsequently, ev- ery non-terminal is expanded in a depth first left to right fashion, similar to <ref type="bibr" target="#b26">Yin and Neubig (2017)</ref>. The probability of a source code snippet is decom- posed as a product of the conditional probability of generating each step in the sequence of rules conditioned on the previously generated rules. Our decoder is an LSTM-based RNN that produces a context vector c t at each time step, which is used to compute a distribution over next actions.</p><formula xml:id="formula_4">p(a t |a &lt;t ) ∝ exp(W nt c t )<label>(1)</label></formula><p>Here, W nt is a |n t | × H matrix, where |n t | is the total number of unique production rules that n t can be expanded to. The context vector c t is computed using the hidden state s t of an n-layer decoder LSTM cell and attention vectors over the NL and the context (z t and e t ), as described below.</p><p>Decoder LSTM The decoder uses an n-layer LSTM whose hidden state s t is computed based on the current non-terminal n t to be expanded, the previous production rule a t−1 , the parent produc- tion rule par(n t ) that produced n t , the previous decoder LSTM state s t−1 , and the decoder state of the LSTM cell that produced n t , denoted as s nt .</p><formula xml:id="formula_5">s t = LSTM(n t , a t−1 , par(n t ), s t−1 , s nt ) (2)</formula><p>We use an embedding matrix N to embed n t and matrix A to embed a t−1 and par(n t ). If a t−1 is a rule that generates a terminal node that represents an identifier or literal, it is represented using a spe- cial rule IdentifierOrLiteral to collapse all these rules into a single previous rule.</p><p>Two-step Attention At time step t, the decoder first attends to every token in the NL representation, h i , using the current decoder state, s t , to compute a set of attention weights α t , which are used to combine h i into an NL context vector z t . We use a general attention mechanism ( <ref type="bibr" target="#b18">Luong et al., 2015)</ref>, extended to perform multiple steps.</p><formula xml:id="formula_6">α t,i = exp(s T t Fh i ) i exp(s T t Fh i ) z t = i α t,i h i</formula><p>The context vector z t is used to attend over ev- ery type (return type) and variable (method) name in the environment, to produce attention weights β t that are used to combine the entire context</p><formula xml:id="formula_7">x = [t : v : r : m] into an environment context vec- tor e t . 2 β t,j = exp(z T t Gx j ) j exp(z T t Gx j ) e t = j β t,j x j</formula><p>Finally, c t is computed using the decoder state and both context vectors z t and e t :</p><formula xml:id="formula_8">c t = tanh( ˆ W [s t : z t : e t ])</formula><p>2 ":" denotes concatenation.   <ref type="figure">Figure 4</ref>: The hidden state st of our decoder is a function of the previous hidden state, current non-terminal, previous production rule, parent rule, and the parent hidden state. st is used to attend on the NL and compress it into zt, which is then used to attend over the environment variables and methods to generate et. The decoder uses all these context vectors to produce a distribution over valid right hand side values of the current non-terminal, and also learns to copy from the environment.</p><formula xml:id="formula_9">FormalParameters (n t ) IdentifierNt-&gt;identifier (a t−1 ) MethodDeclaration -&gt; TypeTypeOrVoid IdentifierNT FormalParameters MethodBody (par(n t )) s nt (α t ) z t (β t ) e t ˆ W s t z t c t β t Copy Mechanism FormalParameters -&gt; ( formalParameterList ) double[ ] float inc() void dotProduct() FormalParameters -&gt; ()</formula><p>Supervised Copy Mechanism Since the class environment at test time can belong to previously unseen new domains, our model needs to learn to copy variables and methods into the output. We use the copying technique of <ref type="bibr" target="#b8">Gu et al. (2016a)</ref> to compute a copy probability at every time step t using vector b of dimensionality H.</p><formula xml:id="formula_10">copy(t) = σ(b T c t )</formula><p>Since we only require named identifiers or user defined types to be copied, both of which are pro- duced by production rules with n t as IdentifierNT, we make use of this copy mechanism only in this case. Identifiers can be generated by directly gen- erating derivation rules (see equation 1), or by copying from the environment. The probability of copying an environment token x j , is set to be the attention weights β t,j computed earlier, which attend exactly on the environment types and names which we wish to be able to copy. The copying process is supervised by preprocessing the produc- tion rules to recognize identifiers that can be copied from the environment, and both the generation and the copy probabilities are weighted by 1 − copy(t) and copy(t) respectively. The LSTM decoder with attention mechanism is illustrated in <ref type="figure">Figure 4</ref>.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.3">Baseline Models</head><p>Retrieval We evaluate a retrieval baseline, where the output source code for a test example is the training example source code whose NL is closest in terms of cosine similarity to the test NL using a tf-idf representation. We then replace all occur- rences of environment variables and methods in the chosen training source code with similarly typed variables and methods from the environment of the test example, and we break ties randomly.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Seq2seq</head><p>We evaluate a Seq2Seq baseline by rep- resenting the NL and context as a sequence formed by the concatenation of the NL, the variables and the methods with separators between them. The variables (methods) are represented with the type (return type) followed by the name, with a differ- ent separator between them. The encoder is an n-layer LSTM which initializes an LSTM-based decoder using its final hidden states. The decoder uses an attention mechanism ( <ref type="bibr" target="#b18">Luong et al., 2015)</ref> over the encoder states to produce a conditional distribution over the next source code token (not production rule) given all the previous tokens. We replace UNK tokens in the output with source to- kens having the most attention weight. We also attempted to evaluate the Seq2Tree model of Dong and Lapata (2016) but the redundancy in the model resulted in extremely long output sequences which did not scale. Experiments on a smaller dataset gave comparable results to Seq2seq.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Seq2prod</head><p>This baseline corresponds to the ac- tion sequence model by <ref type="bibr" target="#b26">Yin and Neubig (2017)</ref>, with a BiLSTM over a sequence representation of the NL and context (same as Seq2seq), and a de- coder that learns to generate a derivation of the AST of the underlying source code, similar to our model. The decoder uses the same attention mech- anism as the Seq2seq, however, it uses supervised copying from the entire input sequence to handle unknown words encountered during testing.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4">CONCODE</head><p>We built a new dataset (CONCODE) from pub- lic Java projects on Github that contains environ- ment information together with NL (Javadoc-style method comments) and code tuples. We gather Java files from ∼33,000 repositories, which are then split into train, development, and test sets based on repository, rather than purely randomly. Dividing based on the repository keeps the domains in the test set separate from the training set, therefore pro- viding near zero-shot conditions that should truly test the ability of models to generalize to associate unseen NL tokens with previously unseen environ- ment variables and methods. We also remove all examples from the development and test sets where the NL is exactly present in the training set. We further eliminate all Java classes that inherit from parent classes, since the resulting code may use variables and methods inherited from parent classes that reside in separate source files. While this is an important and interesting feature, we leave it for future work.</p><p>Every method that contains a Javadoc comment is treated as a training example. The Javadoc com- ment forms the NL, the method body is the target code to be generated, and all member variables, as well as other member method signatures are extracted and stored as part of the context. The Javadoc is preprocessed by stripping special sym- bols such as @link, @code, @inheritDoc and spe- cial fields such as @params. Methods that do not parse are eliminated and the rest are pre-processed by renaming locally defined variables canonically, beginning at loc0 and similarly for arguments, start- ing with arg0. We also replace all method names with the word function since it doesn't affect the semantics of the resulting program. Generating informative method names has been studied by <ref type="bibr" target="#b0">Allamanis et al. (2015a)</ref>. We replace all string literals in the code with constants as they are often debug messages. Finally, we use an ANTLR java gram-mar 3 that is post-processed by adding additional non-terminals and rules to eliminate wildcard sym- bols in the grammar, in order to convert the source code into a sequence of production rules. The re- sulting dataset contains 100,000 examples for train- ing, and 2000 examples each for development and testing, respectively. <ref type="table">Table 1</ref> summarizes the vari- ous statistics. We observe that on average, an envi- ronment contains ∼5 variables and ∼11 methods. Around 68% of the target code uses class member variables, and 16% of them use member methods, from the environment. Based on a frequency cut- off of 2 on the training set, we find that 7% of the types in the development set code are unknown, hence they need to be copied from the environment. Since CONCODE is extracted from a diverse set of online repositories, there is a high variety of code templates in the dataset compared to existing datasets. For example, a random baseline on the Hearthstone card game dataset ( <ref type="bibr" target="#b16">Ling et al., 2016)</ref> gives a BLEU score of 40.3, but only a score of 10.2 on CONCODE. We plan to release all code and data from this work. <ref type="bibr">4</ref> </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5">Experimental Setup</head><p>We restrict all models to examples where the length of the combination of the NL and the context is at most 200 tokens and the length of the output source code is at most 150 tokens. Source NL tokens are lower-cased, camel-cased identifiers are split and lower-cased, and are used together with the original version. The vocabulary for identifiers uses a fre- quency threshold of 7, resulting in a vocabulary of 32, 600 tokens. The types vocabulary uses a thresh- old of 2 resulting in 22, 324 types. We include all 153 non-terminals and 342 previous rules. We use a threshold of 2 for output production rules to filter out the long tail of rules creating identifiers and lit- erals, resulting in 18, 135 output rules. Remaining values are replaced with the UNK symbol.</p><p>Hyperparameters We use an embedding size H of 1024 for identifiers and types. All LSTM cells use 2-layers and a hidden dimensionality of 1024 (512 on each direction for BiLSTMs). We use an embedding size of 512 for encoding non-terminals and rules in the decoder. We use dropout with p = 0.5 in between LSTM layers and at the output of the decoder over c t . We train our model for 30 epochs using mini-batch gradient descent with a   batch size of 20, and we use Adam ( <ref type="bibr" target="#b12">Kingma and Ba, 2015</ref>) with an initial learning rate of 0.001 for optimization. We decay our learning rate by 80% based on performance on the development set after every epoch.</p><p>Inference and Metrics Inference is done by first encoding the NL and context of the test exam- ple. We maintain a stack of symbols starting with the non-terminal, MemberDeclaration, and at each step, a non-terminal (terminals are added to the out- put) is popped off the stack to run a decoding step to generate the next set of symbols to push onto the stack. The set of terminals generated along the way forms the output source code. We use beam search and maintain a ranked list of partial deriva- tions (or code tokens for Seq2seq) at every step to explore alternate high-probability derivations. We use a beam size of 3 for all neural models. We copy over source tokens whenever preferred by the model output. We restrict the output to 150 tokens or 500 production rules.</p><p>To evaluate the quality of the output, we use Ex- act match accuracy between the reference and gen- erated code. As a measure of partial credit, we also compute the BLEU score ( <ref type="bibr" target="#b22">Papineni et al., 2002</ref>), following recent work on code generation ( <ref type="bibr" target="#b16">Ling et al., 2016;</ref><ref type="bibr" target="#b26">Yin and Neubig, 2017)</ref>. BLEU is an n-gram precision-based metric that will be higher when more subparts of the predicted code match the provided reference.  </p><note type="other">Returns the execution data store with data for all loaded classes. Variables: SessionInfoStore sessionInfos ExecutionDataStore executionData Methods: void load SessionInfoStore getSessionInfoStore void save Code: ExecutionDataStore function () { return executionData ; } NL: Convert mixed case to underscores. Variables: NamingStrategy INSTANCE; Methods: String classToTableName String collectionTableName String tableName String columnName String addUnderscores Code: String function (String arg0) { return addUnderscores (arg0); } NL: Gets the value of the tags property. This accessor method returns a reference to the live list, not a snapshot. Variables: String validationPattern; List&lt;String&gt; tags; Methods: String getValidationPattern void setValidationPattern Code: List &lt;String&gt; function() { if ( tags == null ) { tags = new ArrayList &lt;String&gt;();} return this.tags; } NL: Skips the next char</note></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6">Results</head><p>We present results for the context based code gen- eration task on the test and dev sets in <ref type="table" target="#tab_4">Table 2</ref>.</p><p>Our model outperforms all baselines and achieves a gain of 1.95% exact match accuracy and 0.82 BLEU points, with respect to the next best models. The combination of independently encoding sub- word units and applying a two-step attention mech- anism helps the model learn to better associate the correct variables/methods from the context and the language in the NL. <ref type="figure" target="#fig_6">Figure 5 (a)</ref> shows an example output of our model, which produces code structure intermixed with member variables (tags). In (b) our model learns to call method addUnderscores (an UNK in the vocabulary) with its correct return type (String). Similarly, in (d) our model also suc- cessfully learns to use a previously unseen type (ExecutionDataStore) when making use of the corresponding variable. (c) is an example of where the NL does not directly refer to the variable to be used. The mismatch between dev and test results is because we ensure that the dev and test examples come from non-overlapping Github repositories, resulting in different distributions. Using a constrained decoder that generates syn- tax tree rules instead of tokens leads to signifi- cant gains in terms of exact match score (6.65 for Seq2prod vs 3.2 for Seq2seq), and shows that this is an important component of code generation sys- tems. Seq2prod, however, fails on examples (b)-(d), since it is harder to learn to match the NL tokens with environment elements. Finally, all neural mod- els outperform the retrieval baseline with member substitution.</p><p>To understand which components of the data and the model contribute most to the output, we perform an ablation study on the development set ( <ref type="table" target="#tab_5">Table 3</ref>). Removing the variables leads to a sig- nificant hit in exact match accuracy since 68% of examples <ref type="table">(Table 1</ref>) refers to class variables; a simi- lar but smaller reduction is incurred by removing methods. The presence of these components makes this task more challenging and also more aligned with programming scenarios in practice. Remov- ing the two-step attention mechanism leads to a 1.3% drop in accuracy since the attention on the NL is unable to interact with the attention on the environment variables/methods. Removing camel- case encoding leads to a small drop mainly because many variable (method) names are single words.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Category Fraction</head><p>Totally Wrong 62% Marginally Correct 9% Mostly Correct 16% Exact Match 11% Semantically Equivalent 2% <ref type="table">Table 4</ref>: Qualitative distribution of errors on the development set.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="7">Error Analysis</head><p>Subfigures 5(e)-(i) show cases where our model output did not exactly match the reference. In (e)- (g), the model output is semantically equivalent to the reference and is a very reasonable prediction in a practical setting. For example, in (e) the only difference between the prediction and the reference is the string concatenations to the url. Interestingly, in example (f) the prediction is a cleaner way to achieve the same effect as the reference, and this is a great example of the application of these models for suggesting standard and efficient code. Un- fortunately, our model is penalized by the exact match metric here. Similarly, in (g), the model uses a generic list (List&lt;?&gt;) in place of the specific type (Transformer[]). Example (h) demonstrates a case where the model is unaware of methods that can be called on class members (specifically that evictAll is a member of the TimestampsRegion class), and requires augmenting the environment with additional member type documentation, which we believe will be an important area for future work. Example (i) calls for richer encoder repre- sentations, since our model incorrectly uses the values variable instead of register, as it is un- able to associate the word "registry" with the right elements.</p><p>We further perform a qualitative analysis of 100 predictions on our development set ( <ref type="table">Table 4</ref>) and find that there is significant room for improvement with 71% of the predictions differing significantly from their references. 16% of the predictions are very close to their references with the difference being 1-2 tokens, while 11% are exactly correct. 2% of the predictions were semantically equivalent but not exactly equal to their references.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="8">Related Work</head><p>There is significant existing research on mapping NL directly to executable programs in the form of logical forms <ref type="bibr" target="#b27">(Zettlemoyer and Collins, 2005</ref>), λ-DCS ( <ref type="bibr" target="#b15">Liang et al., 2013)</ref>, regular expressions ( <ref type="bibr" target="#b14">Kushman and Barzilay, 2013;</ref><ref type="bibr" target="#b17">Locascio et al., 2016)</ref>, database queries ( <ref type="bibr" target="#b11">Iyer et al., 2017;</ref><ref type="bibr" target="#b28">Zhong et al., 2017)</ref> and general purpose programs ( <ref type="bibr" target="#b5">Balog et al., 2016;</ref><ref type="bibr" target="#b4">Allamanis et al., 2015b</ref>). <ref type="bibr" target="#b16">Ling et al. (2016)</ref> generate Java and Python source code from NL for card games, conditioned on categorical card attributes. <ref type="bibr" target="#b19">Manshadi et al. (2013)</ref> generate code based on input/output examples for applications such as database querying. <ref type="bibr" target="#b9">Gu et al. (2016b)</ref> use neural models to map NL queries to a sequence of API calls, and <ref type="bibr" target="#b20">Neelakantan et al. (2015)</ref> augment neural models with a small set of basic arithmetic and logic operations to generate more meaning- ful programs. In this work, we introduce a new task of generating programs from NL based on the environment in which the generated code resides, following the frequently occurring pattern in large repositories where the code depends on the types and availability of variables and methods in the environment.</p><p>Neural encoder-decoder models have proved ef- fective in mapping NL to logical forms and also for directly producing general purpose programs. <ref type="bibr" target="#b16">Ling et al. (2016)</ref> use a sequence-to-sequence model with attention and a copy mechanism to gener- ate source code. Instead of directly generating a sequence of code tokens, recent methods focus on constrained decoding mechanisms to generate syntactically correct output using a decoder that is either grammar-aware or has a dynamically- determined modular structure paralleling the struc- ture of the abstract syntax tree (AST) of the code <ref type="bibr" target="#b7">(Dong and Lapata, 2016;</ref><ref type="bibr" target="#b24">Rabinovich et al., 2017;</ref><ref type="bibr" target="#b26">Yin and Neubig, 2017)</ref>. Our model also uses a grammar-aware decoder similar to <ref type="bibr" target="#b26">Yin and Neubig (2017)</ref> to generate syn- tactically valid parse trees, augmented with a two- step attention mechanism <ref type="bibr" target="#b6">(Chen et al., 2016</ref>), fol- lowed by a supervised copying mechanism ( <ref type="bibr" target="#b8">Gu et al., 2016a</ref>) over the class environment.</p><p>Recent models for mapping NL to code have been evaluated on datasets containing highly tem- plated code for card games <ref type="bibr">(Hearthstone &amp; MTG;</ref><ref type="bibr" target="#b16">Ling et al., 2016)</ref>, or manually labeled per-line comments (DJANGO; <ref type="bibr" target="#b21">Oda et al., 2015</ref>). These datasets contain ∼20,000 programs with short tex- tual descriptions possibly paired with categorical data, whose values need to be copied onto the re- sulting code from a single domain. In this work, we collect a new dataset of over 100,000 NL and code pairs, together with the corresponding class envi- ronment. Each environment and NL describe a spe- cific domain and the dataset comprises thousands of different domains, that poses additional chal- lenges. Having an order of magnitude more data than existing datasets makes training deep neural models very effective, as we saw in the experimen- tal evaluation. While massive amounts of Github code have been used before for creating datasets on source code only <ref type="bibr">Sutton, 2013, 2014;</ref><ref type="bibr" target="#b1">Allamanis et al., 2016)</ref>, we instead extract from Github a dataset of NL and code with an em- phasis on context, in order to learn to map NL to code within a class.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="9">Conclusion</head><p>In this paper, we introduce new data and methods for learning to generate source code from language within the context of a real-world code base. To train models for this task, we collect and release CONCODE, a large new dataset of NL, code, and context tuples from online repositories, featuring code from a variety of domains. We also introduced a new encoder decoder model with a specialized context encoder which outperforms strong neural baselines by 1.95% exact match accuracy. Finally, analysis suggests that even richer models of pro- grammatic context could further improve these re- sults.</p></div><figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_0"><head></head><label></label><figDesc>Figure 1: Code generation based on the class environment</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_1"><head></head><label></label><figDesc>Adds a scalar to this vector in place NL query: Variables: [Type, Name] double[] vecElements double[] weights Methods: [Return Type, Name, ParameterList] void inc () float dotProduct (SimpleVector other) float multiply(float scalar) Environment public void add(final double arg0) { for (int i = 0; i &lt; vecElements.length(</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_2"><head>1</head><label></label><figDesc>..|v (i) | and their corresponding types t (i) 1..|t (i) | , as well as method names m (i) 1..|m (i) | and their return types</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_3"><head>Figure 3 :</head><label>3</label><figDesc>Figure 3: The encoder creates contextual representations of the NL (a), the variables and the methods (b). Variable (method) names are split based on camel-casing and encoded using a BiLSTM. The variable (method) type and name are further contextualized using another BiLSTM.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_4"><head>LSTM</head><label></label><figDesc></figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_5"><head>NL:</head><label></label><figDesc></figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_6"><head>Figure 5 :</head><label>5</label><figDesc>Figure 5: Analysis of our model output on development set examples. Some environment variables and methods are omitted for space. (a)-(d) represent cases where the model exactly produced the reference output. (e)-(g) are cases where the model output is very reasonable for a practical setting. In (f), the model produces a better solution than the reference. In (h), the context lacks information to produce the reference code. The model chooses the wrong element in (i) and could be improved by better encoder representations.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_4" validated="false"><head>Table 2 :</head><label>2</label><figDesc></figDesc><table>Exact match accuracy and BLEU score (for par-
+
+tial credit) on the test (development) set, comprising 2000 
+examples from previously unseen repositories. 
+
+Model 
+Exact BLEU 
+
+Ours 
+7.05 
+21.28 
+-Variables 
+1.6 
+20.78 
+-Methods 
+6.2 
+21.74 
+-Two step attention 
+5.75 
+17.2 
+-Camel-case encoding 5.7 
+21.83 
+
+</table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_5" validated="false"><head>Table 3 :</head><label>3</label><figDesc>Ablation of model features on the development set.</figDesc><table></table></figure>
+
+			<note place="foot" n="1"> The method parameters and body can be used as well but we leave this to future work.</note>
+		</body>
+		<back>
+
+			<div type="acknowledgement">
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Acknowledgements</head><p>The research was supported in part by DARPA (FA8750-16-2-0032), the ARO (ARO-W911NF-16-1-0121), the NSF (IIS-1252835, IIS-1562364, IIS1546083, IIS-1651489, OAC-1739419), the DOE (DE-SC0016260), the Intel-NSF CAPA cen-ter, and gifts from Adobe, Amazon, Google, and Huawei. The authors thank the anonymous review-ers for their helpful comments.</p></div>
+			</div>
+
+			<div type="references">
+
+				<listBibl>
+
+<biblStruct xml:id="b0">
+	<analytic>
+		<title level="a" type="main">Suggesting accurate method and class names</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Miltiadis</forename><surname>Allamanis</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">T</forename><surname>Earl</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Christian</forename><surname>Barr</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Charles</forename><surname>Bird</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Sutton</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2015 10th Joint Meeting on Foundations of Software Engineering</title>
+		<meeting>the 2015 10th Joint Meeting on Foundations of Software Engineering</meeting>
+		<imprint>
+			<date type="published" when="2015" />
+			<biblScope unit="page" from="38" to="49" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b1">
+	<analytic>
+		<title level="a" type="main">A convolutional attention network for extreme summarization of source code</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Miltiadis</forename><surname>Allamanis</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Hao</forename><surname>Peng</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Charles</forename><surname>Sutton</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">International Conference on Machine Learning</title>
+		<imprint>
+			<date type="published" when="2016" />
+			<biblScope unit="page" from="2091" to="2100" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b2">
+	<analytic>
+		<title level="a" type="main">Mining source code repositories at massive scale using language modeling</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Miltiadis</forename><surname>Allamanis</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Charles</forename><surname>Sutton</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 10th Working Conference on Mining Software Repositories</title>
+		<meeting>the 10th Working Conference on Mining Software Repositories</meeting>
+		<imprint>
+			<publisher>IEEE Press</publisher>
+			<date type="published" when="2013" />
+			<biblScope unit="page" from="207" to="216" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b3">
+	<analytic>
+		<title level="a" type="main">Mining idioms from source code</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Miltiadis</forename><surname>Allamanis</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Charles</forename><surname>Sutton</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 22nd ACM SIGSOFT International Symposium on Foundations of Software Engineering</title>
+		<meeting>the 22nd ACM SIGSOFT International Symposium on Foundations of Software Engineering</meeting>
+		<imprint>
+			<publisher>ACM</publisher>
+			<date type="published" when="2014" />
+			<biblScope unit="page" from="472" to="483" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b4">
+	<analytic>
+		<title level="a" type="main">Bimodal modelling of source code and natural language</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Miltiadis</forename><surname>Allamanis</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Daniel</forename><surname>Tarlow</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Andrew</forename><surname>Gordon</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yi</forename><surname>Wei</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of The 32nd International Conference on Machine Learning</title>
+		<meeting>The 32nd International Conference on Machine Learning</meeting>
+		<imprint>
+			<date type="published" when="2015" />
+			<biblScope unit="page" from="2123" to="2132" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b5">
+	<monogr>
+				<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Matej</forename><surname>Balog</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Alexander</forename><forename type="middle">L</forename><surname>Gaunt</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Marc</forename><surname>Brockschmidt</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Sebastian</forename><surname>Nowozin</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Daniel</forename><surname>Tarlow</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1611.01989</idno>
+		<title level="m">Deepcoder: Learning to write programs</title>
+		<imprint>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b6">
+	<analytic>
+		<title level="a" type="main">A thorough examination of the CNN/Daily Mail reading comprehension task</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Danqi</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jason</forename><surname>Bolton</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Christopher</forename><forename type="middle">D</forename><surname>Manning</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Association for Computational Linguistics (ACL)</title>
+		<imprint>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b7">
+	<analytic>
+		<title level="a" type="main">Language to logical form with neural attention</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Li</forename><surname>Dong</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Mirella</forename><surname>Lapata</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 54th Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 54th Annual Meeting of the Association for Computational Linguistics</meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2016" />
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="33" to="43" />
+		</imprint>
+	</monogr>
+	<note>Long Papers)</note>
+</biblStruct>
+
+<biblStruct xml:id="b8">
+	<analytic>
+		<title level="a" type="main">Incorporating copying mechanism in sequence-to-sequence learning</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jiatao</forename><surname>Gu</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Zhengdong</forename><surname>Lu</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Hang</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Victor</forename><forename type="middle">O K</forename><surname>Li</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 54th Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 54th Annual Meeting of the Association for Computational Linguistics<address><addrLine>Berlin, Germany</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2016" />
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="1631" to="1640" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b9">
+	<analytic>
+		<title level="a" type="main">Deep api learning</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Xiaodong</forename><surname>Gu</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Hongyu</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Dongmei</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Sunghun</forename><surname>Kim</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2016 24th ACM SIGSOFT International Symposium on Foundations of Software Engineering, FSE 2016</title>
+		<meeting>the 2016 24th ACM SIGSOFT International Symposium on Foundations of Software Engineering, FSE 2016<address><addrLine>New York, NY, USA</addrLine></address></meeting>
+		<imprint>
+			<publisher>ACM</publisher>
+			<date type="published" when="2016" />
+			<biblScope unit="page" from="631" to="642" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b10">
+	<analytic>
+		<title level="a" type="main">Long short-term memory</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Sepp</forename><surname>Hochreiter</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jürgen</forename><surname>Schmidhuber</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Neural computation</title>
+		<imprint>
+			<biblScope unit="volume">9</biblScope>
+			<biblScope unit="issue">8</biblScope>
+			<biblScope unit="page" from="1735" to="1780" />
+			<date type="published" when="1997" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b11">
+	<analytic>
+		<title level="a" type="main">Learning a neural semantic parser from user feedback</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Srinivasan</forename><surname>Iyer</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ioannis</forename><surname>Konstas</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Alvin</forename><surname>Cheung</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jayant</forename><surname>Krishnamurthy</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Luke</forename><surname>Zettlemoyer</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 55th Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 55th Annual Meeting of the Association for Computational Linguistics<address><addrLine>Vancouver, Canada</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2017" />
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="963" to="973" />
+		</imprint>
+	</monogr>
+	<note>Long Papers)</note>
+</biblStruct>
+
+<biblStruct xml:id="b12">
+	<analytic>
+		<title level="a" type="main">Adam: A method for stochastic optimization</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Diederik</forename><surname>Kingma</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jimmy</forename><surname>Ba</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">ICLR</title>
+		<imprint>
+			<date type="published" when="2015" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b13">
+	<analytic>
+		<title level="a" type="main">Neural semantic parsing with type constraints for semi-structured tables</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jayant</forename><surname>Krishnamurthy</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Pradeep</forename><surname>Dasigi</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Matt</forename><surname>Gardner</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2017 Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>the 2017 Conference on Empirical Methods in Natural Language Processing<address><addrLine>Copenhagen, Denmark</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2017" />
+			<biblScope unit="page" from="1516" to="1526" />
+		</imprint>
+	</monogr>
+	<note>Association for Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b14">
+	<analytic>
+		<title level="a" type="main">Using semantic unification to generate regular expressions from natural language</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Nate</forename><surname>Kushman</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Regina</forename><surname>Barzilay</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2013 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies</title>
+		<meeting>the 2013 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies</meeting>
+		<imprint>
+			<date type="published" when="2013" />
+			<biblScope unit="page" from="826" to="836" />
+		</imprint>
+	</monogr>
+	<note>Association for Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b15">
+	<analytic>
+		<title level="a" type="main">Learning dependency-based compositional semantics</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Percy</forename><surname>Liang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">I</forename><surname>Michael Jordan</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Dan</forename><surname>Klein</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Computational Linguistics</title>
+		<imprint>
+			<biblScope unit="issue">2</biblScope>
+			<biblScope unit="page">39</biblScope>
+			<date type="published" when="2013" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b16">
+	<analytic>
+		<title level="a" type="main">Latent predictor networks for code generation</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Wang</forename><surname>Ling</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Phil</forename><surname>Blunsom</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Edward</forename><surname>Grefenstette</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Karl</forename><surname>Moritz</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Tomáš</forename><surname>Hermann</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Fumin</forename><surname>Kočisk´kočisk´y</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Andrew</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Senior</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 54th Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 54th Annual Meeting of the Association for Computational Linguistics</meeting>
+		<imprint>
+			<publisher>Long Papers</publisher>
+			<date type="published" when="2016" />
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="599" to="609" />
+		</imprint>
+	</monogr>
+	<note>Association for Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b17">
+	<analytic>
+		<title level="a" type="main">Neural generation of regular expressions from natural language with minimal domain knowledge</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Nicholas</forename><surname>Locascio</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Karthik</forename><surname>Narasimhan</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Eduardo</forename><forename type="middle">De</forename><surname>Leon</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Nate</forename><surname>Kushman</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Regina</forename><surname>Barzilay</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2016 Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>the 2016 Conference on Empirical Methods in Natural Language Processing<address><addrLine>Austin, Texas</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2016" />
+			<biblScope unit="page" from="1918" to="1923" />
+		</imprint>
+	</monogr>
+	<note>Association for Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b18">
+	<analytic>
+		<title level="a" type="main">Effective approaches to attention-based neural machine translation</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Thang</forename><surname>Luong</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Hieu</forename><surname>Pham</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">D</forename><forename type="middle">Christopher</forename><surname>Manning</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2015 Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>the 2015 Conference on Empirical Methods in Natural Language Processing</meeting>
+		<imprint>
+			<date type="published" when="2015" />
+			<biblScope unit="page" from="1412" to="1421" />
+		</imprint>
+	</monogr>
+	<note>Association for Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b19">
+	<analytic>
+		<title level="a" type="main">Integrating programming by example and natural language programming</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Daniel</forename><surname>Mehdi Hafezi Manshadi</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">James F</forename><surname>Gildea</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Allen</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">AAAI</title>
+		<imprint>
+			<date type="published" when="2013" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b20">
+	<monogr>
+		<title level="m" type="main">Neural programmer: Inducing latent programs with gradient descent</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Arvind</forename><surname>Neelakantan</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">V</forename><surname>Quoc</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ilya</forename><surname>Le</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Sutskever</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1511.04834</idno>
+		<imprint>
+			<date type="published" when="2015" />
+		</imprint>
+	</monogr>
+<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b21">
+	<analytic>
+		<title level="a" type="main">Learning to generate pseudo-code from source code using statistical machine translation (t)</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yusuke</forename><surname>Oda</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Hiroyuki</forename><surname>Fudaba</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Graham</forename><surname>Neubig</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Hideaki</forename><surname>Hata</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Sakriani</forename><surname>Sakti</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Tomoki</forename><surname>Toda</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Satoshi</forename><surname>Nakamura</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">30th IEEE/ACM International Conference on</title>
+		<imprint>
+			<publisher>IEEE</publisher>
+			<date type="published" when="2015" />
+			<biblScope unit="page" from="574" to="584" />
+		</imprint>
+	</monogr>
+	<note>Automated Software Engineering (ASE)</note>
+</biblStruct>
+
+<biblStruct xml:id="b22">
+	<analytic>
+		<title level="a" type="main">Bleu: a method for automatic evaluation of machine translation</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kishore</forename><surname>Papineni</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Salim</forename><surname>Roukos</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Todd</forename><surname>Ward</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Weijing</forename><surname>Zhu</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 40th annual meeting on association for computational linguistics</title>
+		<meeting>the 40th annual meeting on association for computational linguistics</meeting>
+		<imprint>
+			<date type="published" when="2002" />
+			<biblScope unit="page" from="311" to="318" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b23">
+	<analytic>
+		<title level="a" type="main">Language to code: Learning semantic parsers for if-this-then-that recipes</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Chris</forename><surname>Quirk</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Raymond</forename><surname>Mooney</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Michel</forename><surname>Galley</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 53rd Annual Meeting of the Association for Computational Linguistics and the 7th International Joint Conference on Natural Language Processing</title>
+		<meeting>the 53rd Annual Meeting of the Association for Computational Linguistics and the 7th International Joint Conference on Natural Language Processing<address><addrLine>Beijing, China</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2015" />
+			<biblScope unit="page" from="878" to="888" />
+		</imprint>
+	</monogr>
+	<note>Long Papers)</note>
+</biblStruct>
+
+<biblStruct xml:id="b24">
+	<analytic>
+		<title level="a" type="main">Abstract syntax networks for code generation and semantic parsing</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Maxim</forename><surname>Rabinovich</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Mitchell</forename><surname>Stern</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Dan</forename><surname>Klein</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 55th Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 55th Annual Meeting of the Association for Computational Linguistics<address><addrLine>Vancouver, Canada</addrLine></address></meeting>
+		<imprint>
+			<publisher>Long Papers</publisher>
+			<date type="published" when="2017" />
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="1139" to="1149" />
+		</imprint>
+	</monogr>
+	<note>Association for Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b25">
+	<analytic>
+		<title level="a" type="main">Neural machine translation of rare words with subword units</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Rico</forename><surname>Sennrich</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Barry</forename><surname>Haddow</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Alexandra</forename><surname>Birch</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 54th Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 54th Annual Meeting of the Association for Computational Linguistics<address><addrLine>Berlin, Germany</addrLine></address></meeting>
+		<imprint>
+			<publisher>Long Papers</publisher>
+			<date type="published" when="2016" />
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="1715" to="1725" />
+		</imprint>
+	</monogr>
+	<note>Association for Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b26">
+	<analytic>
+		<title level="a" type="main">A syntactic neural model for general-purpose code generation</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Pengcheng</forename><surname>Yin</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Graham</forename><surname>Neubig</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 55th Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 55th Annual Meeting of the Association for Computational Linguistics<address><addrLine>Vancouver, Canada</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2017" />
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="440" to="450" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b27">
+	<analytic>
+		<title level="a" type="main">Learning to map sentences to logical form: structured classification with probabilistic categorial grammars</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Luke</forename><forename type="middle">S</forename><surname>Zettlemoyer</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Michael</forename><surname>Collins</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">UAI &apos;05, Proceedings of the 21st Conference in Uncertainty in Artificial Intelligence</title>
+		<imprint>
+			<date type="published" when="2005" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b28">
+	<monogr>
+				<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Victor</forename><surname>Zhong</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Caiming</forename><surname>Xiong</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Richard</forename><surname>Socher</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1709.00103</idno>
+		<title level="m">Seq2sql: Generating structured queries from natural language using reinforcement learning</title>
+		<imprint>
+			<date type="published" when="2017" />
+		</imprint>
+	</monogr>
+<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+				</listBibl>
+			</div>
+		</back>
+	</text>
+</TEI>

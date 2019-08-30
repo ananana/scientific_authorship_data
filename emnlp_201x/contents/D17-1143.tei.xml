@@ -1,0 +1,528 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<TEI xmlns="http://www.tei-c.org/ns/1.0" 
+xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+xsi:schemaLocation="http://www.tei-c.org/ns/1.0 /home/ana/installs/grobid/grobid-0.5.1/grobid-home/schemas/xsd/Grobid.xsd"
+ xmlns:xlink="http://www.w3.org/1999/xlink">
+	<teiHeader xml:lang="en">
+		<encodingDesc>
+			<appInfo>
+				<application version="0.5.1-SNAPSHOT" ident="GROBID" when="2019-04-18T12:30+0000">
+					<ref target="https://github.com/kermitt2/grobid">GROBID - A machine learning software for extracting information from scholarly documents</ref>
+				</application>
+			</appInfo>
+		</encodingDesc>
+		<fileDesc>
+			<titleStmt>
+				<title level="a" type="main">Here&apos;s My Point: Joint Pointer Architecture for Argument Mining</title>
+			</titleStmt>
+			<publicationStmt>
+				<publisher/>
+				<availability status="unknown"><licence/></availability>
+				<date>September 7-11, 2017</date>
+			</publicationStmt>
+			<sourceDesc>
+				<biblStruct>
+					<analytic>
+						<author>
+							<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Peter</forename><surname>Potash</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="department">Department of Computer Science</orgName>
+								<orgName type="institution">University of Massachusetts Lowell</orgName>
+							</affiliation>
+						</author>
+						<author>
+							<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Alexey</forename><surname>Romanov</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="department">Department of Computer Science</orgName>
+								<orgName type="institution">University of Massachusetts Lowell</orgName>
+							</affiliation>
+						</author>
+						<author>
+							<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Anna</forename><surname>Rumshisky</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="department">Department of Computer Science</orgName>
+								<orgName type="institution">University of Massachusetts Lowell</orgName>
+							</affiliation>
+						</author>
+						<title level="a" type="main">Here&apos;s My Point: Joint Pointer Architecture for Argument Mining</title>
+					</analytic>
+					<monogr>
+						<title level="m">Natural Language Processing</title>
+						<meeting> <address><addrLine>Copenhagen, Denmark</addrLine></address>
+						</meeting>
+						<imprint>
+							<biblScope unit="page" from="1364" to="1373"/>
+							<date type="published">September 7-11, 2017</date>
+						</imprint>
+					</monogr>
+				</biblStruct>
+			</sourceDesc>
+		</fileDesc>
+		<profileDesc>
+			<abstract>
+				<p>In order to determine argument structure in text, one must understand how individual components of the overall argument are linked. This work presents the first neural network-based approach to link extraction in argument mining. Specifically , we propose a novel architecture that applies Pointer Network sequence-to-sequence attention modeling to structural prediction in discourse parsing tasks. We then develop a joint model that extends this architecture to simultaneously address the link extraction task and the classification of argument components. The proposed joint model achieves state-of-the-art results on two separate evaluation corpora, showing far superior performance than the previously proposed corpus-specific and heavily feature-engineered models. Furthermore , our results demonstrate that jointly optimizing for both tasks is crucial for high performance.</p>
+			</abstract>
+		</profileDesc>
+	</teiHeader>
+	<text xml:lang="en">
+		<body>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="1">Introduction</head><p>An important goal in argument mining is to un- derstand the structure in argumentative text <ref type="bibr" target="#b4">(Persing and Ng, 2016;</ref><ref type="bibr" target="#b2">Peldszus and Stede, 2015;</ref><ref type="bibr" target="#b10">Stab and Gurevych, 2016;</ref><ref type="bibr">Nguyen and Litman, 2016)</ref>. One fundamental assumption when working with argumentative text is the presence of Arguments Components (ACs). The types of ACs are gener- ally characterized as a claim or a premise <ref type="bibr">(Govier, 2013)</ref>, with premises acting as support (or possi- bly attack) units for claims (though some corpora have further AC types, such as major claim <ref type="bibr">Gurevych, 2016, 2014b)</ref>).</p><p>The task of processing argument structure en- capsulates four distinct subtasks (our work fo- cuses on subtasks 2 and 3): (1) Given a sequence of tokens that represents an entire argumentative text, determine the token subsequences that con- stitute non-intersecting ACs; (2) Given an AC, determine the type of AC (claim, premise, etc.); (3) Given a set/list of ACs, determine which ACs have directed links that encapsulate overall argu- ment structure; (4) Given two linked ACs, deter- mine whether the link is a supporting or attack- ing relation. This can be labeled as a 'micro' ap- proach to argument mining ( <ref type="bibr" target="#b10">Stab and Gurevych, 2016)</ref>. In contrast, there have been a number of efforts to identify argument structure at a higher level <ref type="bibr">(Boltuzic andŠnajderandˇandŠnajder, 2014;</ref><ref type="bibr">Ghosh et al., 2014;</ref><ref type="bibr">Cabrio and Villata, 2012)</ref>, as well as slightly re-ordering the pipeline with respect to AC types ( <ref type="bibr" target="#b5">Rinott et al., 2015)</ref>).</p><p>There are two key assumptions our work makes going forward. First, we assume subtask 1 has been completed, i.e. ACs have already been iden- tified. Second, we follow previous work that as- sumes a tree structure for the linking of ACs ( <ref type="bibr" target="#b0">Palau and Moens, 2009;</ref><ref type="bibr">Cohen, 1987;</ref><ref type="bibr" target="#b2">Peldszus and Stede, 2015;</ref><ref type="bibr" target="#b10">Stab and Gurevych, 2016)</ref>. Specifi- cally, a given AC can only have a single outgoing link, but can have numerous incoming links. Fur- thermore, there is a 'head' component that has no outgoing link (the top of the tree). Depending on the corpus (see Section 4), an argument structure can be either a single tree or a forest, consisting of multiple trees. <ref type="figure">Figure 1</ref> shows an example that we will use throughout the paper to concretely explain how our approach works. First, the left side of the figure presents the raw text of a paragraph in a persuasive essay <ref type="bibr" target="#b10">(Stab and Gurevych, 2016)</ref>, with the ACs contained in square brackets. Squiggly vs straight underlining differentiates between claims and premises, respectively. The ACs have been an- notated as to how they are linked, and the right side of the figure reflects this structure. The argument First, [ ::::::: cloning ::::: will ::: be :::::::::: beneficial :::: for ::::: many ::::::: people :::: who :::: are ::: in ::::: need ::: of ::::: organ  <ref type="figure">Figure 1</ref>: An example of argument structure with four ACs. The left side shows raw text that has been annotated for the presence of ACs. Squiggly or straight underlining means an AC is a claim or premise, respectively. The ACs in the text have also been annotated for links to other ACs, which is shown in the right figure. ACs 3 and 4 are premises that link to another premise, AC2. Finally, AC2 links to a claim, AC1. AC1 therefore acts as the central argumentative component. structure with four ACs forms a tree, where AC2 has two incoming links, and AC1 acts as the head, with no outgoing links. We also specify the type of AC, with the head AC marked as a claim and the remaining ACs marked as premises. Lastly, we note that the order of argument components can be a strong indicator of how components should re- late. Linking to the first argument component can provide a competitive baseline heuristic ( <ref type="bibr" target="#b2">Peldszus and Stede, 2015;</ref><ref type="bibr" target="#b10">Stab and Gurevych, 2016)</ref>.</p><p>Given the above considerations, we propose that sequence-to-sequence attention modeling, in the spirit of a Pointer Network (PN) ( <ref type="bibr" target="#b13">Vinyals et al., 2015b</ref>), can be effective for predicting argument structure. To the best of our knowledge, a clean, elegant implementation of a PN-based model has yet to be introduced for discourse parsing tasks. A PN is a sequence-to-sequence model ) that outputs a distribution over the en- coding indices at each decoding timestep. More generally, it is a recurrent model with attention ( <ref type="bibr">Bahdanau et al., 2014</ref>), and we claim that as such, it is promising for link extraction because it inher- ently possesses three important characteristics: (1) it is able to model the sequential nature of ACs, (2) it constrains ACs to have a single outgoing link, thus partly enforcing the tree structure, and (3) the hidden representations learned by the model can be used for jointly predicting multiple sub- tasks. Furthermore, we believe the sequence-to- sequence aspect of the model provides two distinct benefits: (1) it allows for two separate representa- tions of a single AC (one for the source and one for the target of the link), and (2) the decoder network- could learn to predict correct sequences of linked indices, which is a second recurrence over ACs. Note that we also test the sequence-to-sequence architecture against a simplified model that only uses hidden states from an encoding network to make predictions (see Section 5).</p><p>The main technical contribution of our work is a joint model that simultaneously predicts links be- tween ACs and determines their type. Our joint model uses the hidden representation of ACs pro- duced during the encoding step (see Section 3.4). While PNs were originally proposed to allow a variable length decoding sequence, our model dif- fers in that it decodes for the same number of timesteps as there are inputs. This is a key insight that allows for a sequence-to-sequence model to be used for structural prediction. Aside from the partial assumption of tree structure in the argu- mentative text, our models do not make any ad- ditional assumptions about the AC types or con- nectivity, unlike the work of <ref type="bibr" target="#b1">Peldszus (2014)</ref>. Lastly, in respect to the broad task of parsing, our model is flexible because it can easily handle non- projective, multi-root dependencies. We evaluate our models on the corpora of <ref type="bibr" target="#b10">Stab and Gurevych (2016)</ref> and <ref type="bibr" target="#b1">Peldszus (2014)</ref>, and compare our re- sults with the results of the aformentioned au- thors. Our results show that (1) joint model- ing is imperative for competitive performance on the link extraction task, (2) the presence of the second recurrence improves performance over a non-sequence-to-sequence model, and (3) the joint model can outperform models with heavy feature- engineering and corpus-specific constraints.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2">Related Work</head><p>Palau and <ref type="bibr" target="#b0">Moens (2009)</ref> is an early work in argu- ment mining, using a hand-crafted Context-Free Grammar to determine the structure of ACs in a corpus of legal texts. <ref type="bibr">Lawrence et al. (2014)</ref> lever- age a topic modeling-based AC similarity to un- cover tree-structured arguments in philosophical texts. Recent work offers data-driven approaches to the task of predicting links between ACs. Stab and Gurevych (2014b) approach the task as a bi- nary classification problem. The authors train an SVM with various semantic and structural fea- tures. Peldszus and Stede have also used classifi- cation models for predicting the presence of links <ref type="bibr">(2015)</ref>. The first neural network-based model for argumentation mining was proposed by <ref type="bibr">Laha and Raykar (2016)</ref>, who use two recurrent networks in end-to-end fashion to classify AC types.</p><p>Various authors have also proposed to jointly model link extraction with other subtasks from the argument mining pipeline, using either an Inte- ger Linear Programming (ILP) framework <ref type="bibr" target="#b4">(Persing and Ng, 2016;</ref><ref type="bibr" target="#b10">Stab and Gurevych, 2016)</ref> or directly feeding previous subtask predictions into a tree-based parser. The former joint approaches are evaluated on an annotated corpus of persuasive essays <ref type="bibr">Gurevych, 2014a, 2016)</ref>, and the latter on a corpus of microtexts <ref type="bibr" target="#b1">(Peldszus, 2014)</ref>. The ILP framework is effective in enforcing a tree structure between ACs when predictions are made from otherwise naive base classifiers.</p><p>Recurrent neural networks have previously been proposed to model tree/graph structures in a linear manner. <ref type="bibr" target="#b14">Vinyals et al. (2015c)</ref> use a sequence-to- sequence model for the task of syntactic parsing. <ref type="bibr">Bowman et al. (2015)</ref> experiment on an artificial entailment dataset that is specifically engineered to capture recursive logic <ref type="bibr">(Bowman et al., 2014</ref>). Standard recurrent neural networks can take in complete sentence sequences and perform com- petitively with a recursive neural network. Multi- task learning for sequence-to-sequence has also been proposed ( <ref type="bibr">Luong et al., 2015)</ref>, though none of the models used a PN for prediction.</p><p>In the field of discourse parsing, the work of <ref type="bibr">Li et al. (2016)</ref> is the only work, to our knowledge, that incorporates attention into the network archi- tecture. However, the attention is only used in the process of creating representations of the text it- self. Attention is not used to predict the overall discourse structure. In fact, the model still relies on a binary classifier to determine if textual com- ponents should have a link. Arguably the most similar approach to ours is in the field of depen- dency parsing <ref type="bibr">(Cheng et al., 2016)</ref>. The authors propose a model that performs 'queries' between word representations in order to determine a dis- tribution over potential headwords.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3">Proposed Approach</head><p>In this section, we describe our approach to using a sequence-to-sequence model with attention for ar- gument mining, specifically, identifying AC types and extracting the links between them. We begin by giving a brief overview of these models.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.1">Pointer Network</head><p>A PN is a sequence-to-sequence model ) with attention ( <ref type="bibr">Bahdanau et al., 2014</ref>) that was proposed to handle decoding sequences over the encoding inputs, and can be extended to arbitrary sets ( <ref type="bibr" target="#b12">Vinyals et al., 2015a</ref>). The origi- nal motivation for a pointer network was to allow networks to learn solutions to algorithmic prob- lems, such as the traveling salesperson and convex hull problems, where the solution is a sequence over input points. The PN model is trained on in- put/output sequence pairs <ref type="bibr">(E, D)</ref>, where E is the source and D is the target (our choice of E,D is meant to represent the encoding, decoding steps of the sequence-to-sequence model). Given model parameters Θ, we apply the chain rule to deter- mine the probability of a single training example:</p><formula xml:id="formula_0">p(D|E; Θ) = m(E) i=1 p(D i |D 1 , ..., D i−1 , E; Θ)</formula><p>(1) where the function m signifies that the number of decoding timesteps is a function of each individual training example. We will discuss shortly why we need to modify the original definition of m for our application. By taking the log-likelihood of Equa- tion 1, we arrive at the optimization objective:</p><formula xml:id="formula_1">Θ * = arg max Θ E,D log p(D|E; Θ)<label>(2)</label></formula><p>which is the sum over all training example pairs. The PN uses Long Short-Term Memory (LSTM) <ref type="bibr">(Hochreiter and Schmidhuber, 1997</ref>) for sequential modeling, which produces a hidden layer h at each encoding/decoding timestep. In practice, the PN has two separate LSTMs, one for Figure 2: Applying a Pointer Network to the example paragraph in <ref type="figure">Figure 1</ref> with LSTMs unrolled over time. Note that D1 points to itself to denote that it has not outgoing link and is therefore the head of a tree.</p><p>encoding and one for decoding. Thus, we refer to encoding hidden layers as e, and decoding hidden layers as d.</p><p>The PN uses a form of content-based at- tention ( <ref type="bibr">Bahdanau et al., 2014</ref>) to allow the model to produce a distribution over input ele- ments. This can also be thought of as a dis- tribution over input indices, wherein a decoding step 'points' to the input. Formally, given encod- ing hidden states (e 1 , ..., e n ), the model calculates p(D i |D 1 , ..., D i−1 , E) as follows:</p><formula xml:id="formula_2">u i j = v T tanh(W 1 e j + W 2 d i )<label>(3)</label></formula><formula xml:id="formula_3">p(D i |D 1 , ..., D j−1 , E) = sof tmax(u i ) (4)</formula><p>where matrices W 1 , W 2 and vector v are param- eters of the model (along with the LSTM param- eters used for encoding and decoding). In Equa- tion 3, prior to taking the dot product with v, the resulting transformation can be thought of as cre- ating a joint hidden representation of inputs i and j. Vector u i in equation 4 is of length n, and in- dex j corresponds to input element j. Therefore, by taking the softmax of u i , we are able to create a distribution over the input.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.2">Link Extraction as Sequence Modeling</head><p>A given piece of text has a set of ACs, which occur in a specific order in the text: (C 1 , ..., C n ). There- fore, at encoding timestep i, the model is fed a representation of C i . Since the representation is large and sparse (see Section 3.3 for details on how we represent ACs), we add a fully-connected layer before the LSTM input. Given a representation R i for AC C i , the LSTM input A i is calculated as:</p><formula xml:id="formula_4">A i = σ(W rep R i + b rep )<label>(5)</label></formula><p>where W rep , b rep in turn become model parame- ters, and σ is the sigmoid function 1 . Similarly, the decoding network applies a fully-connected layer with sigmoid activation to its inputs, see <ref type="figure" target="#fig_1">Figure 3</ref>. At encoding step i, the encoding LSTM produces hidden layer e i , which can be thought of as a hid- den representation of AC C i . In order to make sequence-to-sequence model- ing applicable to the problem of link extraction, we explicitly set the number of decoding timesteps to be equal to the number of input components. Using notation from Equation 1, the decoding se- quence length for an encoding sequence E is sim- ply m(E) = |{C 1 , ..., C n }|, which is trivially equal to n. By constructing the decoding sequence in this manner, we can associate decoding timestep i with AC C i .</p><p>From Equation 4, decoding timestep i will out- put a distribution over input indices. The result of this distribution will indicate to which AC compo- nent C i links. Recall there is a possibility that an AC has no outgoing link, such as if it's the root of the tree. In this case, we state that if AC C i does not have an outgoing link, decoding step D i will output index i. Conversely, if D i outputs index j, such that j is not equal to i, this implies that C i has an outgoing link to C j . For the argument structure in <ref type="figure">Figure 1</ref>, the corresponding decoding sequence is <ref type="figure">(1, 1, 2, 2)</ref>. The topology of this decoding se- quence is illustrated in <ref type="figure">Figure 2</ref>. Observe how C 1 points to itself since it has no outgoing link.</p><p>Finally, we note that we have a Bidirectional LSTM (Graves and <ref type="bibr">Schmidhuber, 2005</ref>) as the en- coder, unlike the model proposed by <ref type="bibr" target="#b13">Vinyals et al. (2015b)</ref>. Thus, e i is the concatenation of forward and backward hidden states − → e i and ← − e n−i+1 , pro- duced by two separate LSTMs. The decoder re- mains a standard forward LSTM.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.3">Representing Argument Components</head><p>At each timestep of the encoder, the network takes in a representation of an AC. Each AC is itself  </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.4">Joint Neural Model</head><p>Up to this point, we focused on the task of extract- ing links between ACs. However, recent work has shown that joint models that simultaneously try to complete multiple aspects of the subtask pipeline outperform models that focus on a single sub- task ( <ref type="bibr" target="#b4">Persing and Ng, 2016;</ref><ref type="bibr" target="#b9">Stab and Gurevych, 2014b;</ref><ref type="bibr" target="#b2">Peldszus and Stede, 2015</ref>). Therefore, we will modify the single-task architecture so that it would allow us to perform AC classification ( <ref type="bibr">Kwon et al., 2007;</ref><ref type="bibr" target="#b6">Rooney et al., 2012</ref>) together with link prediction. Knowledge of an individual subtask's predictions can aid in other subtasks. For example, claims do not have an outgoing link, so knowing the type of AC can aid in the link predic- tion task. This can be seen as a way of regulariz- ing the hidden representations from the encoding component ( <ref type="bibr">Che et al., 2015)</ref>. At each timestep, predicting AC type is a straightforward classification task: given AC C i , we need to predict whether it is a claim, premise, or possibly major claim. More generally, this is another sequence modeling problem: given input sequence E, we want to predict a sequence of argument types T . For encoding timestep i, the model creates hidden representation e i . This can be thought of as a representation of AC C i . There- fore, our joint model will simply pass this repre- sentation through a fully-connected layer as fol- lows:</p><formula xml:id="formula_5">z i = W cls e i + b cls<label>(6)</label></formula><p>where W cls , b cls become elements of the model parameters, Θ. The dimensionality of W cls , b cls is determined by the number of classes. Lastly, we use softmax to form a distribution over the possi- ble classes. Consequently, the probability of predicting the component type at timestep i is defined as:</p><formula xml:id="formula_6">p(T i |E i ; Θ) = sof tmax(z i )<label>(7)</label></formula><p>Finally, combining this new prediction task with Equation 2, we arrive at the new training objective:</p><formula xml:id="formula_7">Θ * = arg max Θ α E,D log p(D|E; Θ) +(1 − α) E log p(T |E; Θ)<label>(8)</label></formula><p>which simply sums the costs of the individual pre- diction tasks, and the second summation is the cost for the new task of predicting AC type. α ∈ [0, 1] is a hyperparameter that specifies how we weight the two prediction tasks in our cost function. The architecture of the joint model, applied to our on- going example, is illustrated in <ref type="figure" target="#fig_1">Figure 3</ref>.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4">Experimental Design</head><p>As we have mentioned, our work assumes that ACs have already been identified. The order of ACs corresponds directly to the order in which the ACs appear in the text. We test the effectiveness of our proposed model on a dataset of persuasive essays (PEC) <ref type="bibr" target="#b10">(Stab and Gurevych, 2016)</ref>, as well as a dataset of microtexts (MTC) <ref type="bibr" target="#b1">(Peldszus, 2014</ref>). The feature space for the PEC has roughly 3,000 dimensions, and the MTC feature space has be- tween 2,500 and 3,000 dimensions, depending on the data split. The PEC contains a total of 402 es- says, with a frozen set of 80 essays held out for testing. There are three AC types in this corpus: major claim, claim, and premise. In this corpus, individual structures can be either trees or forests. Also, in this corpus, each essay has multiple para- graphs, and argument structure is only uncovered within a given paragraph. The MTC contains 112 short texts. Unlike the PEC, each text in this cor- pus is itself a complete example, as well as a single tree. Since the dataset is small, the authors have created 10 sets of 5-fold cross-validation, report- ing the the average across all splits for final model evaluation. This corpus contains only two types of ACs: claim and premise. Note that link prediction is directed, i.e., predicting a link between the pair</p><formula xml:id="formula_8">C i , C j (i = j) is different than C j , C i .</formula><p>We implement our models in TensorFlow ( <ref type="bibr">Abadi et al., 2015)</ref>. We use the following pa- rameters: hidden input dimension size 512, hidden layer size 256 for the bidirectional LSTMs, hidden layer size 512 for the LSTM decoder, α equal to 0.5, and dropout ( <ref type="bibr" target="#b7">Srivastava et al., 2014</ref>) of 0.9. We believe the need for such high dropout is due to the small amounts of training data <ref type="bibr" target="#b17">(Zarrella and Marsh, 2016)</ref>, particularly in the MTC. All models are trained with Adam optimizer <ref type="bibr">(Kingma and Ba, 2014</ref>) with a batch size of 16. For a given training set, we randomly select 10% to become the valida- tion set. Training occurs for 4,000 epochs. Once training is completed, we select the model with the highest validation accuracy (on the link prediction task) and evaluate it on the held-out test set. At test time, we take a greedy approach and select the index of the probability distribution (whether link or type prediction) with the highest value.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5">Results</head><p>The results of our experiments are presented in Ta- bles 1 and 2. For each corpus, we present f1 scores for the AC type classification experiment, with a macro-averaged score of the individual class f1 scores. We also present the f1 scores for predict- ing the presence/absence of links between ACs, as well as the associated macro-average between these two values.</p><p>We implement and compare four types of neural models: 1) The previously described joint model from Section 3.4 (called Joint Model in the ta- bles); 2) The same as 1), but without the fully- connected input layers (called Joint Model No FC Input in the table); 3) The same as 1), but the model only predicts the link task, and is therefore not optimized for type prediction (called Single- Task Model in the table); 4) A non-sequence-to- sequence model that uses the hidden layers pro- duced by the BLSTM encoder with the same type of attention as the joint model (called Joint</p><note type="other">Model No Seq2Seq in the table). That is, d i in Equation 3 is replaced by e i .</note><p>In both corpora we compare against the follow- ing previously proposed models: Base Classifier ( <ref type="bibr" target="#b10">Stab and Gurevych, 2016</ref>) is a feature-rich, task- specific (AC type or link extraction) SVM clas- sifier. Neither of these classifiers enforce struc- tural or global constraints. Conversely, the ILP Joint Model ( <ref type="bibr" target="#b10">Stab and Gurevych, 2016)</ref> provides constraints by sharing prediction information be- tween the base classifiers. For example, the model attempts to enforce a tree structure among ACs within a given paragraph, as well as using incom- ing link predictions to better predict the type class claim. For the MTC only, we also have the fol- lowing comparative models: Simple ( <ref type="bibr" target="#b2">Peldszus and Stede, 2015</ref>) is a feature-rich logistic regression classifier. Best EG ( <ref type="bibr" target="#b2">Peldszus and Stede, 2015)</ref> cre- ates an Evidence Graph (EG) from the predictions of a set of base classifiers. The EG models the po- tential argument structure, and offers a global opti- mization objective that the base classifiers attempt to optimize by adjusting their individual weights. Lastly, MP+p (Peldszus and Stede, 2015) com- bines predictions from base classifiers with a Min- imum Spanning Tree Parser (MSTParser).</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6">Discussion</head><p>First, we point out that the joint model achieves state-of-the-art on 10 of the 13 metrics in <ref type="table" target="#tab_3">Tables  1 and 2</ref>, including the highest results in all met- rics on the PEC, as well as link prediction on the MTC. The performance on the MTC is very en-  couraging for several reasons. First, the fact that the model can perform so well with only a hun- dred training examples is rather remarkable. Sec- ond, although we motivate the use of an attention model due to the fact that it partially enforces a tree structure, other models we compare against explicitly contain further constraints (for example, only premises can have outgoing links). More- over, the MP+p model directly enforces the sin- gle tree constraint unique to the microtext cor- pus (the PEC allows forests). Even though the joint model does not have the tree constraint di- rectly encoded, it able to learn the structure ef- fectively from the training examples so that it can outperform the Mp+p model for link prediction.</p><p>As for the other neural models, the joint model with no seq2seq performs competitively with the ILP joint model on the PEC, but trails the per- formance of the joint model. We believe this is because the joint model is able to create two dif- ferent representations for each AC, one each in the encoding/decoding state, which benefits per- formance in the two tasks. We also believe that the joint model benefits from a second recurrence over the ACs, modeling the tree/forest structure in a linear manner. Conversely, the joint model with no seq2seq must encode information relating to type as well as link prediction in a single hidden representation. On one hand, the joint model no seq2seq outperforms the ILP model on link pre- diction, yet it is not able to match the ILP joint model's performance on type prediction, primar- ily due to the poor performance on predicting the major claim class. Another interesting outcome is the importance of the fully-connected layer before the LSTM input. This extra layer seems to be cru- cial for improving performance on this task. The results dictate that even a simple fully-connected layer with sigmoid activation can provide a use- ful dimensionality reduction step. Finally, and ar- guably most importantly, the single-task model, only optimized for link prediction, suffers a large drop in performance, conveying that the dual op- timization of the joint model is vital for high per- formance in the link prediction task. We believe this is because the joint optimization creates more expressive representations of the ACs, which cap- ture the natural relation between AC type and AC linking. <ref type="table" target="#tab_5">Table 3</ref> shows the results of an ablation study for AC feature representation. Regarding link pre- diction, BOW features are clearly the most impor- tant, as their absence results in the highest drop in performance. Conversely, the presence of struc- tural features provides the smallest boost in per- formance, as the model is still able to record state-   <ref type="table">Table 4</ref>: Results of binning test data by length of AC sequence. * indicates that this bin does not contain any major claim labels, and this average only applies to claim and premise classes. However, we do not disable the model from predicting this class: the model was able to avoid predicting this class on its own.</p><p>of-the-art results compared to the ILP Joint Model. This shows that the Joint Model is able to capture structural cues through sequence modeling and se- mantics. When considering type prediction, both BOW and structural features are important, and it is the embedding features that provide the least benefit. The ablation results also provide an in- teresting insight into the effectiveness of different pooling strategies for using individual token em- beddings to create a multi-word embedding. The popular method of averaging embeddings (which is used by <ref type="bibr" target="#b10">Stab and Gurevych (2016)</ref> in their sys- tem) is in fact the worst method, although its per- formance is still competitive with the previous state-of-the-art. Conversely, max pooling results are on par with the joint model results in <ref type="table">Table 1</ref>. <ref type="table">Table 4</ref> shows results on the PEC test set with the test examples binned by sequence length. First, it is not surprising to see that the model per- forms best when the sequences are the shortest (for link prediction; type prediction actually sees the worst performance in the middle bin). As the se- quence length increases, the accuracy on link pre- diction drops. This is possibly due to the fact that as the length increases, a given AC has more possi- bilities as to which other AC it can link to, making the task more difficult. Conversely, there is actu- ally a rise in no link prediction accuracy from the second to third row. This is likely due to the fact that since the model predicts at most one outgoing link, it indirectly predicts no link for the remain- ing ACs in the sequence. Since the chance prob- ability is low for having a link between a given AC in a long sequence, the no link performance is actually better in longer sequences. The results of the length-based binning could also potentially give insight into the poor performance on the type prediction task in the MTC. Since the arguments in the MTC average 5 ACs, they would be in the sec- ond bin (row 2) of <ref type="table">Table 4</ref>. The claim and premise f1 scores for this bin are similar to those from the same system's performance on the MTC.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="7">Conclusion</head><p>In this paper we have proposed how to use a joint sequence-to-sequence model with attention <ref type="bibr" target="#b13">(Vinyals et al., 2015b</ref>) to both extract links be- tween ACs and classify AC type. We evaluate our models on two corpora: a corpus of persuasive essays <ref type="bibr" target="#b10">(Stab and Gurevych, 2016)</ref>, and a corpus of microtexts <ref type="bibr" target="#b1">(Peldszus, 2014</ref>). The Joint Model records state-of-the-art results on the persuasive essay corpus, as well as achieving state-of-the-art results for link prediction on the microtext corpus. The results show that jointly modeling the two pre- diction tasks is critical for high performance. Fu- ture work can attempt to learn the AC representa- tions themselves, such as in <ref type="bibr">Kumar et al. (2015)</ref>.</p><p>Lastly, future work can integrate subtasks 1 and 4 into the model. The representations produced by Equation 3 could potentially be used to predict link type, i.e. supporting or attacking (the fourth subtask in the pipeline). In addition, a segment- ing technique, such as the one proposed by <ref type="bibr">Weston et al. (2014)</ref>, can accomplish subtask 1.</p></div><figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_1"><head>Figure 3 :</head><label>3</label><figDesc>Figure 3: Architecture of the joint model applied to the example in Figure 1. Note that D1 points to itself to denote that it has not outgoing link and is therefore the head of a tree.</figDesc><graphic url="image-13.png" coords="5,108.12,139.01,210.15,58.95" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_3" validated="false"><head>Table 2 :</head><label>2</label><figDesc>Results on the Microtext corpus.</figDesc><table></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_5" validated="false"><head>Table 3 :</head><label>3</label><figDesc></figDesc><table>Feature ablation study. * indicates that both BOW and Structural are present, as well as the 
+stated embedding type. 
+
+Type prediction 
+Link prediction 
+Bin 
+Macro f1 MC f1 Cl f1 Pr f1 Macro f1 Link f1 No Link f1 
+1 ≤ len &lt; 4 
+.863 
+.902 
+.798 .889 
+.918 
+.866 
+.969 
+4 ≤ len &lt; 8 
+.680 
+.444 
+.675 .920 
+.749 
+.586 
+.912 
+8 ≤ len &lt; 12 
+.862* 
+.000* .762 .961 
+.742 
+.542 
+.941 
+
+</table></figure>
+
+			<note place="foot" n="1"> We also experimented with relu and elu activations, but found sigmoid to yield the best performance.</note>
+		</body>
+		<back>
+
+			<div type="acknowledgement">
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Acknowledgments</head><p>This work was supported in part by the U.S. Army Research Office under Grant No. W911NF-16-1-0174.</p></div>
+			</div>
+
+			<div type="annex">
+			</div>
+			<div type="references">
+
+				<listBibl>
+
+<biblStruct xml:id="b0">
+	<analytic>
+		<title level="a" type="main">Argumentation mining: the detection, classification and structure of arguments in text</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Raquel</forename><forename type="middle">Mochales</forename><surname>Palau</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Marie-Francine</forename><surname>Moens</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 12th international conference on artificial intelligence and law</title>
+		<meeting>the 12th international conference on artificial intelligence and law</meeting>
+		<imprint>
+			<publisher>ACM</publisher>
+			<date type="published" when="2009" />
+			<biblScope unit="page" from="98" to="107" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b1">
+	<monogr>
+		<title level="m" type="main">Towards segment-based recognition of argumentation structure in short texts</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Andreas</forename><surname>Peldszus</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2014" />
+			<biblScope unit="page">88</biblScope>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b2">
+	<analytic>
+		<title level="a" type="main">Joint prediction in mst-style discourse parsing for argumentation mining</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Andreas</forename><surname>Peldszus</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Manfred</forename><surname>Stede</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. of the Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>of the Conference on Empirical Methods in Natural Language essing</meeting>
+		<imprint>
+			<date type="published" when="2015" />
+			<biblScope unit="page" from="938" to="948" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b3">
+	<analytic>
+		<title level="a" type="main">Glove: Global vectors for word representation</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jeffrey</forename><surname>Pennington</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Richard</forename><surname>Socher</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Christopher D</forename><surname>Manning</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">EMNLP</title>
+		<imprint>
+			<date type="published" when="2014" />
+			<biblScope unit="volume">14</biblScope>
+			<biblScope unit="page" from="1532" to="1575" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b4">
+	<analytic>
+		<title level="a" type="main">End-to-end argumentation mining in student essays</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Isaac</forename><surname>Persing</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Vincent</forename><surname>Ng</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of NAACL-HLT</title>
+		<meeting>NAACL-HLT</meeting>
+		<imprint>
+			<date type="published" when="2016" />
+			<biblScope unit="page" from="1384" to="1394" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b5">
+	<analytic>
+		<title level="a" type="main">Show me your evidence-an automatic method for context dependent evidence detection</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ruty</forename><surname>Rinott</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Lena</forename><surname>Dankin</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Carlos</forename><forename type="middle">Alzate</forename><surname>Perez</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">M</forename><surname>Mitesh</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ehud</forename><surname>Khapra</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Noam</forename><surname>Aharoni</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Slonim</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">EMNLP</title>
+		<imprint>
+			<date type="published" when="2015" />
+			<biblScope unit="page" from="440" to="450" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b6">
+	<analytic>
+		<title level="a" type="main">Applying kernel methods to argumentation mining</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Niall</forename><surname>Rooney</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Hui</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Fiona</forename><surname>Browne</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">FLAIRS Conference</title>
+		<imprint>
+			<date type="published" when="2012" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b7">
+	<analytic>
+		<title level="a" type="main">Dropout: a simple way to prevent neural networks from overfitting</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Nitish</forename><surname>Srivastava</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Geoffrey</forename><forename type="middle">E</forename><surname>Hinton</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Alex</forename><surname>Krizhevsky</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ilya</forename><surname>Sutskever</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ruslan</forename><surname>Salakhutdinov</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Journal of Machine Learning Research</title>
+		<imprint>
+			<biblScope unit="volume">15</biblScope>
+			<biblScope unit="issue">1</biblScope>
+			<biblScope unit="page" from="1929" to="1958" />
+			<date type="published" when="2014" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b8">
+	<analytic>
+		<title level="a" type="main">Annotating argument components and relations in persuasive essays</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Christian</forename><surname>Stab</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Iryna</forename><surname>Gurevych</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">COLING</title>
+		<imprint>
+			<date type="published" when="2014" />
+			<biblScope unit="page" from="1501" to="1510" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b9">
+	<analytic>
+		<title level="a" type="main">Identifying argumentative discourse structures in persuasive essays</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Christian</forename><surname>Stab</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Iryna</forename><surname>Gurevych</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">EMNLP</title>
+		<imprint>
+			<date type="published" when="2014" />
+			<biblScope unit="page" from="46" to="56" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b10">
+	<monogr>
+		<title level="m" type="main">Parsing argumentation structures in persuasive essays</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Christian</forename><surname>Stab</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Iryna</forename><surname>Gurevych</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1604.07370</idno>
+		<imprint>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b11">
+	<analytic>
+		<title level="a" type="main">Sequence to sequence learning with neural networks</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ilya</forename><surname>Sutskever</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Oriol</forename><surname>Vinyals</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Quoc V</forename><surname>Le</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Advances in neural information processing systems</title>
+		<imprint>
+			<date type="published" when="2014" />
+			<biblScope unit="page" from="3104" to="3112" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b12">
+	<monogr>
+		<title level="m" type="main">Order matters: Sequence to sequence for sets</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Oriol</forename><surname>Vinyals</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Samy</forename><surname>Bengio</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Manjunath</forename><surname>Kudlur</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1511.06391</idno>
+		<imprint>
+			<date type="published" when="2015" />
+		</imprint>
+	</monogr>
+<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b13">
+	<analytic>
+		<title level="a" type="main">Pointer networks</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Oriol</forename><surname>Vinyals</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Meire</forename><surname>Fortunato</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Navdeep</forename><surname>Jaitly</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Advances in Neural Information Processing Systems</title>
+		<imprint>
+			<date type="published" when="2015" />
+			<biblScope unit="page" from="2692" to="2700" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b14">
+	<analytic>
+		<title level="a" type="main">Grammar as a foreign language</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Oriol</forename><surname>Vinyals</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Łukasz</forename><surname>Kaiser</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Terry</forename><surname>Koo</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Slav</forename><surname>Petrov</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ilya</forename><surname>Sutskever</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Geoffrey</forename><surname>Hinton</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Advances in Neural Information Processing Systems</title>
+		<imprint>
+			<date type="published" when="2015" />
+			<biblScope unit="page" from="2773" to="2781" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b15">
+	<monogr>
+		<title level="m" type="main">Towards ai-complete question answering: A set of prerequisite toy tasks</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jason</forename><surname>Weston</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Antoine</forename><surname>Bordes</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Sumit</forename><surname>Chopra</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Alexander</forename><forename type="middle">M</forename><surname>Rush</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Bart</forename><surname>Van Merriënboer</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Armand</forename><surname>Joulin</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Tomas</forename><surname>Mikolov</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1502.05698</idno>
+		<imprint>
+			<date type="published" when="2015" />
+		</imprint>
+	</monogr>
+<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b16">
+	<monogr>
+		<title/>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jason</forename><surname>Weston</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Sumit</forename><surname>Chopra</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Antoine</forename></persName>
+		</author>
+		<idno type="arXiv">arXiv:1410.3916</idno>
+		<imprint/>
+	</monogr>
+<note type="report_type">Bordes. 2014. Memory networks. arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b17">
+	<monogr>
+		<title level="m" type="main">Mitre at semeval-2016 task 6: Transfer learning for stance detection</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Guido</forename><surname>Zarrella</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Amy</forename><surname>Marsh</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1606.03784</idno>
+		<imprint>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+				</listBibl>
+			</div>
+		</back>
+	</text>
+</TEI>

@@ -1,0 +1,708 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<TEI xmlns="http://www.tei-c.org/ns/1.0" 
+xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+xsi:schemaLocation="http://www.tei-c.org/ns/1.0 /home/ana/installs/grobid/grobid-0.5.1/grobid-home/schemas/xsd/Grobid.xsd"
+ xmlns:xlink="http://www.w3.org/1999/xlink">
+	<teiHeader xml:lang="en">
+		<encodingDesc>
+			<appInfo>
+				<application version="0.5.1-SNAPSHOT" ident="GROBID" when="2019-04-18T12:00+0000">
+					<ref target="https://github.com/kermitt2/grobid">GROBID - A machine learning software for extracting information from scholarly documents</ref>
+				</application>
+			</appInfo>
+		</encodingDesc>
+		<fileDesc>
+			<titleStmt>
+				<title level="a" type="main">Sequence-based Structured Prediction for Semantic Parsing</title>
+			</titleStmt>
+			<publicationStmt>
+				<publisher/>
+				<availability status="unknown"><licence/></availability>
+				<date>August 7-12, 2016</date>
+			</publicationStmt>
+			<sourceDesc>
+				<biblStruct>
+					<analytic>
+						<author>
+							<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Chunyang</forename><surname>Xiao</surname></persName>
+						</author>
+						<author>
+							<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Marc</forename><surname>Dymetman</surname></persName>
+						</author>
+						<author role="corresp">
+							<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Claire</forename><surname>Gardent</surname></persName>
+							<email>claire.gardent@loria.fr</email>
+						</author>
+						<author>
+							<affiliation key="aff0">
+								<orgName type="institution">Xerox Research Centre Europe</orgName>
+							</affiliation>
+						</author>
+						<author>
+							<affiliation key="aff1">
+								<orgName type="institution">Chemin de Maupertuis Meylan</orgName>
+								<address>
+									<postCode>38240</postCode>
+									<country key="FR">France</country>
+								</address>
+							</affiliation>
+						</author>
+						<author>
+							<affiliation key="aff2">
+								<orgName type="institution" key="instit1">CNRS</orgName>
+								<orgName type="institution" key="instit2">UMR</orgName>
+								<address>
+									<addrLine>7503 Vandoeuvre-l` es-Nancy</addrLine>
+									<postCode>F-54500</postCode>
+									<country key="FR">France</country>
+								</address>
+							</affiliation>
+						</author>
+						<title level="a" type="main">Sequence-based Structured Prediction for Semantic Parsing</title>
+					</analytic>
+					<monogr>
+						<title level="m">Proceedings of the 54th Annual Meeting of the Association for Computational Linguistics</title>
+						<meeting>the 54th Annual Meeting of the Association for Computational Linguistics <address><addrLine>Berlin, Germany</addrLine></address>
+						</meeting>
+						<imprint>
+							<biblScope unit="page" from="1341" to="1350"/>
+							<date type="published">August 7-12, 2016</date>
+						</imprint>
+					</monogr>
+				</biblStruct>
+			</sourceDesc>
+		</fileDesc>
+		<profileDesc>
+			<abstract>
+				<p>We propose an approach for semantic parsing that uses a recurrent neural network to map a natural language question into a logical form representation of a KB query. Building on recent work by (Wang et al., 2015), the interpretable logical forms, which are structured objects obeying certain constraints, are enumerated by an underlying grammar and are paired with their canonical realizations. In order to use sequence prediction, we need to sequentialize these logical forms. We compare three sequentializations: a direct linearization of the logical form, a linearization of the associated canonical realization, and a sequence consisting of derivation steps relative to the underlying grammar. We also show how grammatical constraints on the derivation sequence can easily be integrated inside the RNN-based sequential predictor. Our experiments show important improvements over previous results for the same dataset, and also demonstrate the advantage of incorporating the grammatical constraints.</p>
+			</abstract>
+		</profileDesc>
+	</teiHeader>
+	<text xml:lang="en">
+		<body>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="1">Introduction</head><p>Learning to map natural language utterances (NL) to logical forms (LF), a process known as seman- tic parsing, has received a lot of attention recently, in particular in the context of building Question- Answering systems ( <ref type="bibr" target="#b10">Kwiatkowski et al., 2013;</ref><ref type="bibr" target="#b2">Berant et al., 2013;</ref><ref type="bibr" target="#b1">Berant and Liang, 2014)</ref>. In this paper, we focus on such a task where the NL question may be semantically complex, leading to a logical form query with a fair amount of compo- sitionality, in a spirit close to <ref type="bibr" target="#b12">(Pasupat and Liang, 2015)</ref>.</p><p>Given the recently shown effectiveness of RNNs (Recurrent Neural Networks), in particu- lar Long Short Term Memory (LSTM) networks <ref type="bibr" target="#b9">(Hochreiter and Schmidhuber, 1997)</ref>, for perform- ing sequence prediction in NLP applications such as machine translation ) and natural language generation <ref type="bibr" target="#b23">(Wen et al., 2015)</ref>, we try to exploit similar techniques for our task. However we observe that, contrary to those appli- cations which try to predict intrinsically sequen- tial objects (texts), our task involves producing a structured object, namely a logical form that is tree-like by nature and also has to respect cer- tain a priori constraints in order to be interpretable against the knowledge base.</p><p>In our case, building on the work "Building a Semantic Parser Overnight" ( <ref type="bibr" target="#b22">Wang et al., 2015)</ref>, which we will refer to as SPO, the LFs are gener- ated by a grammar which is known a priori, and it is this grammar that makes explicit the structural constraints that have to be satisfied by the LFs. The SPO grammar, along with generating logi- cal forms, generates so-called "canonical forms" (CF), which are direct textual realizations of the LF that, although they are not "natural" English, transparently convey the meaning of the LF (see <ref type="figure">Fig. 1</ref> for an example).</p><p>Based on this grammar, we explore three differ- ent ways of representing the LF structure through a sequence of items. The first one (LF Prediction, or LFP), and simplest, consists in just linearizing the LF tree into a sequence of individual tokens; the second one (CFP) represents the LF through its associated CF, which is itself a sequence of words; and finally the third one (DSP) represents the LF through a derivation sequence (DS), namely the sequence of grammar rules that were chosen to produce this LF.</p><p>We then predict the LF via LSTM-based models that take as input the NL question and map it into NL: article published in 1950 CF: article whose publication date is 1950 LF: get <ref type="bibr">[[lambda,s,[filter,s,pubDate,=,1950]]</ref>,article] DT: s0(np0 (np1 (typenp0), cp0 (relnp0, entitynp0)) DS: s0 np0 np1 typenp0 cp0 relnp0 entitynp0</p><p>Figure 1: Example of natural language utterance (NL) from the SPO dataset and associated representa- tions considered in this work. CF: canonical form, LF: logical form, DT: derivation tree, DS: derivation sequence.</p><p>one of the three sequentializations. In the three cases, the LSTM predictor cannot on its own en- sure the grammaticality of the predicted sequence, so that some sequences do not lead to well-formed LFs. However, in the DSP case (in contrast to LFP and CFP), it is easy to integrate inside the LSTM predictor local constraints which guarantee that only grammatical sequences will be produced.</p><p>In summary, the contribution of our paper is twofold. Firstly, we propose to use sequence pre- diction for semantic parsing. Our experimental results show some significant improvements over previous systems. Secondly, we propose to predict derivation sequences taking into account gram- matical constraints and we show that the model performs better than sequence prediction models not exploiting this knowledge. These results are obtained without employing any reranking or lin- guistic features such as POS tags, edit distance, paraphrase features, etc., which makes the pro- posed methodology even more promising.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2">Background on SPO</head><p>The SPO paper ( <ref type="bibr" target="#b22">Wang et al., 2015)</ref> proposes an approach for quickly developing semantic parsers for new knowledge bases and domains when no training data initially exists. In this approach, a small underlying grammar is used to generate canonical forms and pair them with logical forms. Crowdsourcing is then used to paraphrase each of these canonical forms into several natural utter- ances. The crowdsourcing thus creates a dataset (SPO dataset in the sequel) consisting of (NL, CF, LF) tuples where NL is a natural language ques- tion with CF and LF the canonical and the logical form associated with this question.</p><p>SPO learns a semantic parser on this dataset by firstly learning a log-linear similarity model based on a number of features (word matches, ppdb matches, matches between semantic types and POSs, etc.) between NL and the correspond- ing (CF, LF) pair. At decoding time, SPO parses a natural utterance NL by searching among the derivations of the grammar for one for which the projected (CF, LF) is most similar to the NL based on this log-linear model. The search is based on a so-called "floating parser" <ref type="bibr" target="#b12">(Pasupat and Liang, 2015)</ref>, a modification of a standard chart-parser, which is able to guide the search based on the sim- ilarity features.</p><p>In contrast, our approach does not search among the derivations for the one that maximizes a match with the NL, but instead directly tries to predict a decision sequence that can be mapped to the LF.</p><p>The SPO system together with its dataset were released to the public 1 and our work exploits this release.  The core grammatical resource released by SPO is a generic grammar connecting logical forms with canonical form realizations. They also pro- vide seven domain-specific lexica that can be used in combination with the generic grammar to obtain domain-specific grammars which generate (LF, CF) pairs in each domain, in such a way that LF can then be used to query the corresponding knowledge base. While SPO also released a set of  Java-based parsers and generators for these gram- mars, for our own purposes we found it conve- nient to translate the grammars into the formalism of Definite Clause Grammars ( <ref type="bibr" target="#b13">Pereira and Warren, 1980</ref>), a classical unification-based extension of CFGs, which -through a standard Prolog in- terpreter such as SWIPL 2 -provide direct sup- port for jointly generating textual realizations and logical forms and also for parsing text into logi- cal forms; we found this translation process to be rather straightforward and we were able to cover all of the SPO grammars. <ref type="figure" target="#fig_1">Figure 2</ref> lists a few DCG rules, general rules first, then lexical rules, for the SPO "publications" domain. Nonterminals are indicated in bold, ter- minals in italics. We provide each rule with a unique identifier (e.g. s0, np0, ...), which is ob- tained by concatenating the name of its head non- terminal with a position number relative to the rules that may expand this nonterminal; we can then consider that the nonterminal (e.g. np) is the "type" of all its expanding rules (e.g. np0, np1, ...).</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3">Approach</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.1">Grammars and Derivations</head><p>According to standard DCG notation, upper- 2 http://www.swi-prolog.org/ case items S, NP, CP, RELNP, ENTNP de- note unification variables that become instantiated during processing. In our case unificaion vari- ables range over logical forms and each nonter- minal has a single argument denoting a partially instantiated associated logical form. For instance, in the cp0 rule, relnp is associated with the log- ical form RELNP, entitynp with the logical form ENTNP, and the LHS nonterminal cp is then associated with the logical form [lambda, s, [filter, s, RELNP, =, ENTNP]]. <ref type="bibr">3</ref> In <ref type="figure" target="#fig_2">Figure 3</ref>, we display a derivation tree DT (or simply derivation) relative to this gram- mar, where each node is labelled with a rule identifier. This tree projects on the one hand onto the canonical form article whose publica- tion date is 1950, on the other hand onto the logical form get <ref type="bibr">[[lambda,s,[filter,s, pubDate,=,1950]</ref>],article]. <ref type="figure" target="#fig_3">Figure 4</ref> shows how these projections are ob- tained by bottom-up composition. For instance, the textual projection of node cp0 is obtained from the textual representations of nodes relnp0 and en- titynp0, according to the RHS of the rule cp0, while its logical form projection is obtained by in- stantiation of the variables RELNP and ENTNP re- spectively to the LFs associated with relnp0 and entitynp0.</p><p>Relative to these projections, one may note a fundamental difference between derivation trees DT and their projections CF and LF: while the well-formedness of DT can simply be assessed locally by checking that each node expansion is valid according to the grammar, there is in princi- ple no such easy, local, checking possible for the canonical or the logical form; in fact, in order to check the validity of a proposed CF (resp. LF), one needs to search for some DT that projects onto this CF (resp LF). The first process, of course, is known as "parsing", the second process as "gener- ation". While parsing has polynomial complexity for grammars with a context-free backbone such as the ones considered here, deciding whether a logical form is well-formed or not could in princi- ple be undecidable for certain forms of LF compo- sition. <ref type="bibr">4</ref> To be able to leverage sequence prediction mod- els, we can associate with each derivation tree DT its leftmost derivation sequence DS, which corre- sponds to a preorder traversal of the tree. For the tree of <ref type="figure" target="#fig_2">Figure 3</ref>, this sequence is [s0, np0, np1, typenp0, cp0, relnp0, entitynp0]. When the gram- mar is known (in fact, as soon as the CFG core of the grammar is known), two properties of the DS hold (we omit the easy algorithms underlying these properties; they involve using a prefix of the DS for constructing a partial derivation tree in a top-down fashion):</p><p>1. knowing the DS uniquely identifies the derivation tree.</p><p>2. knowing a prefix of the DS (for instance [s0, np0, np1, typenp0]) completely determines the type of the next item (here, this type is cp).</p><p>The first property implies that if we are able to pre- dict DS, we are also able to predict DT, and there- fore also LF and CF. The second property implies that the sequential prediction of DS is strongly constrained by a priori knowledge of the underly- ing grammar: instead of having to select the next item among all the possible rules in the grammar, we only have to select among those rules that are headed by a specific nonterminal. Under a simple condition on the grammar (namely that there are no "unproductive" rules, rules that can never pro- duce an output 5 ), following such constrained se- lection for the next rule guarantees that the deriva- tion sequence will always lead to a valid derivation tree. At this point, a theoretical observation should be made: there is no finite-state mechanism on the sequence of rule-names that can control whether the next rule-name is valid or not. <ref type="bibr">6</ref> The relevance of that observation for us is that the RNNs that we use are basically finite-state devices (with a huge number of states, but still finite-state), and there- fore we do not expect them in principle to be able ciated with lower nodes in the derivation tree. In our DCG grammars, this composition actually involves more complex operations (such as "beta-reduction") than the simple copy- ings illustrated in the small excerpt of <ref type="figure" target="#fig_1">Fig. 2</ref>. <ref type="bibr">5</ref> The general grammar ensures a good coverage of possi- ble logical and canonical forms. However, when this general grammar is used in particular domains, some rules are not rel- evant any more (i.e. become "unproductive"), but these can be easily eliminated at compile time.</p><p>6 This is easy to see by considering a CFG generating the non finite-state language a n b n .</p><p>to always produce valid derivation sequences un- less they can exploit the underlying grammar for constraining the next choice.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.2">Sequence prediction models</head><p>In all these models, we start from a natural utter- ance NL and we predict a sequence of target items, according to a common sequence prediction archi- tecture that will be described in section 3.3.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.2.1">Predicting logical form (LFP model)</head><p>The most direct approach is to directly pre- dict a linearization of the logical form from NL, the input question. While an LF such as that of <ref type="figure">Figure 1</ref> is really a structured ob- ject respecting certain implicit constraints (bal- anced parentheses, consistency of the variables bound by lambda expressions, and more gener- ally, conformity with the underlying grammar), the linearization treats it simply as a sequence of tokens: get [ [ lambda s [ filter s pubDate <ref type="bibr">= 1950 ]</ref> ] article ]. At training time, the LFP model only sees such se- quences, and at test time, the next token in the target sequence is then predicted without taking into account any structural constraints. The train- ing regime is the standard one attempting to mini- mize the cross-entropy of the model relative to the logical forms in the training set.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.2.2">Predicting derivation sequence (DSP-X models)</head><p>Rather than predicting LF directly, we can choose to predict a derivation sequence DS, that is, a se- quence of rule-names, and then project it onto LF. We consider three variants of this model. DSP This basic derivation sequence prediction model is trained on pairs (NL, DS) with the stan- dard training regime. At test time, it is possible for this model to predict ill-formed sequences, which do not correspond to grammatical derivation trees, and therefore do not project onto any logical form.</p><p>DSP-C This is a Constrained variant of DSP where we use the underlying grammar to constrain the next rule-name. We train this model exactly as the previous one, but at test time, when sampling the next rule-name inside the RNN, we reject any rule that is not a possible continuation. two previous models), the incremental loss when predicting the next item y t of the sequence is com- puted as − log p(y t ), where p(y t ) is the probabil- ity of y t according to the RNN model, normalized (through the computation of a softmax) over all the potential values of y t (namely, here, all the rules in the grammar). By contrast, in the CL learning regime, the incremental loss is computed as − log p (y t ), where p (y t ) is normalized only over the values of y t that are possible continu- ations once the grammar-induced constraints are taken into account, ignoring whatever weights the RNN predictor may (wrongly) believe should be put on impossible continuations. In other words, the DSP-CL model incorporates the prior knowl- edge about well-formed derivation sequences that we have thanks to the grammar. It computes the actual cross-entropy loss according to the under- lying generative process of the model that is used once the constraints are taken into account.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>DSP-CL</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.2.3">Predicting canonical form (CFP model)</head><p>The last possibility we explore is to predict the sequence of words in the canonical form CF, and then use our grammar to parse this CF into its cor- responding LF, which we then execute against the knowledge base. <ref type="bibr">7</ref> Table 1 provides length and vocabulary-size statistics for the LFP, DSP and CFP tasks.</p><p>We see that, typically, for the different domains, DS is a shorter sequence than LF or CF, but its vo- cabulary size (i.e. number of rules) is larger than that of LF or CF. However DS is unique in allow- ing us to easily validate grammatical constraints. We also note that the CF is less lengthy than the <ref type="bibr">7</ref> Although the general intention of SPO is to unambigu- ously reflect the logical form through the canonical form (which is the basis on which Turkers provide their para- phrases), we do encounter some cases where, although the CF is well-formed and therefore parsable by the grammar, several parses are actually possible, some of which do not correspond to queries for which the KB can return an answer. In these cases, we return the first parse whose logical form does return an answer. Such situations could be eliminated by refining the SPO grammar to a moderate extent, but we did not pursue this. LF, which uses a number of non "word-like" sym- bols such as parentheses, lambda variables, and the like.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.3">Sequence prediction architecture</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.3.1">Neural network model</head><p>The goal of our neural network is to estimate the conditional probability p(y 1 , . . . , y T |x 1 , . . . , x T ) where (x 1 , . . . , x T ) is a natural language question and (y 1 , . . . , y T ) is a target sequence (linearized LF, CF or derivation sequence). In all three cases, we use the same neural network model, which we explain in this subsection. Suppose that the content of the NL is captured in a real-valued vector u b , while the prefix of the target sequence up to time t is captured in another real-valued vector u l,t . Now, the probability of the target sequence given the input question can be es- timated as:</p><formula xml:id="formula_0">p(y 1 , . . . y T |x 1 , . . . , x T ) = T t=1 p(y t |u b , y 1 , . . . y t−1 ) = T t=1 p(y t |u b , u l,t−1 )</formula><p>In all our systems, the u b capturing the content of the NL is calculated from the concatenation of a vector u 1 reading the sentence based on unigrams and another vector u 2 reading the sentence based on bigrams. Mathematically, u 1 = tanh(W 1 v 1 ) where v 1 is the 1-hot unigram encoding of the NL and u 2 = tanh(W 2 v 2 ) where v 2 is its 1-hot bi- gram encoding. Then u b = tanh(W u), where u is the concatenation of u 1 and u 2 . W 1 , W 2 and W are among the parameters to be learnt. For regular- ization purposes, a dropout procedure ( <ref type="bibr" target="#b18">Srivastava et al., 2014</ref>) is applied to u 1 and u 2 .</p><p>The prefix of the target sequence up to time t is modelled with the vector u l,t generated by the latest hidden state of an LSTM <ref type="bibr" target="#b9">(Hochreiter and Schmidhuber, 1997)</ref>; LSTM is appropriate here in order to capture the long distance dependencies in- side the target sequence. The vector u l,t is then concatenated with u b (forming u bl in the equation below) before passing through a two-layer MLP (Multi-Layer Perceptron) for the final prediction:</p><formula xml:id="formula_1">p(y t+1 |u l,t , u b ) = softmax(W 2 tanh(W 1 u bl ))</formula><p>Using deep structures such as this MLP for RNN prediction has been shown to be beneficial in pre- vious work ( <ref type="bibr" target="#b11">Pascanu et al., 2013</ref>). The overall network architecture is summarized in <ref type="figure" target="#fig_4">Figure 5</ref>. We train the whole network to min- imize the cross entropy between the predicted se- quence of items and the reference sequence.</p><p>This network architecture can easily support other representations for the input sentence than unigrams and bigrams, as long as they are real- valued vectors of fixed length. We can just con- catenate them with u 1 and u 2 and generate u b as previously. In fact, in initial experiments, we did concatenate an additional representation which reads the sentence through an LSTM, but the per- formance was not improved.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.3.2">Decoding the target sequence</head><p>We implemented a uniform-cost search algorithm ( <ref type="bibr" target="#b15">Russell and Norvig, 2003)</ref> to decode the best de- cision sequence as the sequence with the highest probability. The algorithm finishes in a reasonable time for two reasons: 1) as indicated by <ref type="table">Table 1</ref>, the vocabulary size of each domain is relatively small, and 2) we found that our model predicts rel- atively peaked distributions. Of course, it would also be easy to use a beam-search procedure, for situations where these conditions would not hold.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4">Experiments</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.1">Setup</head><p>We conduct our experiments on the SPO dataset. To test the overall performance of a semantic parser, the SPO dataset contains seven domains fo- cusing on different linguistic phenomena such as multi-arity relations, sublexical compositionality etc. The utterances in each domain are annotated both with logical forms (LFs) and canonical forms (CFs). The number of such utterances vary from 800 to 4000 depending on the domain. The size of training data is indeed small but as the target vo- cabulary is always in the domain, thus very small as well, it is actually possible to learn a reasonable semantic parser.</p><p>In the SPO dataset, the natural utterances were split randomly into 80%-20% for training and test, and we use the same sets. We perform an addi- tional 80%-20% random split on the SPO train- ing data and keep the 20% as development set to choose certain hyperparameters of our model. Once the hyperparameters are chosen, we retrain on the whole training data before testing.</p><p>For LFP experiments, we directly tokenize the LF, as explained earlier, and for CFP experiments we directly use the CF. For DSP experiments (DSP, DSP-C, DSP-CL) where our training data consist of (NL, DS) pairs, the derivation sequences are obtained by parsing each canonical form using the DCG grammar of section 3.</p><p>We compare our different systems to SPO. While we only use unigram and bigram features on the NL, SPO uses a number of features of dif- ferent kinds: linguistic features on NL such as POS tags, lexical features computing the similarity between words in NL and words in CF, semantic features on types and denotations, and also fea- tures based on PPDB ( <ref type="bibr" target="#b8">Ganitkevitch et al., 2013)</ref>.</p><p>At test time, like SPO, we evaluate our system on the proportion of questions for which the sys- tem is able to find the correct answer in the knowl- edge base.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.2">Implementation details</head><p>We choose the embedding vectors u 1 for unigrams and u 2 for bigrams to have 50 dimensions. The vector u b representing the sentence content has 200 dimensions. The word embedding layer has 100 dimensions, which is also the case of the hid- den layer of the LSTM u l,t . Thus u bl which is the concatenation of u b and u l,t has 300 dimensions and we fix the next layer to u bl to have 100 dimen- sions. The model is implemented in Keras 8 on top of Theano ( <ref type="bibr" target="#b3">Bergstra et al., 2010)</ref>. For all the exper-iments, we train our models using rmsprop <ref type="bibr" target="#b20">(Tieleman and Hinton., 2012</ref>) as the backpropagation al- gorithm <ref type="bibr">9</ref> . We use our development set to select the number of training epochs, the dropout factor over unigrams representation and the dropout fac- tor over bigrams representation, by employing a grid search over these hyperparameters: epochs in {20, 40, 60}, unigrams dropout in {0.05, 0.1} and bigrams dropout in {0.1, 0.2, 0.3}. <ref type="table">Table 2</ref> shows the test results of SPO and of our different systems over the seven domains.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.3">Experimental results</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.3.1">Results on test data</head><p>It can be seen that all of our sequence-based sys- tems are performing better than SPO by a large margin on these tests. When averaging over the seven domains, our 'worst' system DSP scores at 64.7% compared to SPO at 57.1%.</p><p>We note that these positive results hold despite the fact that DSP has the handicap that it may generate ungrammatical sequences relative to the underlying grammar, which do not lead to inter- pretable LFs. The LFP and CFP models, with higher performance than DSP, also may generate ungrammatical sequences.</p><p>The best results overall are obtained by the DSP-C system, which does take into account the grammatical constraints. This model performs not only considerably better than its DSP base- line (72.7% over 64.7%), but also better than the models LFP and CFP. Somewhat contrary to our expectations, the DSP-CL model, which exploits constraints not only during decoding, but also dur- ing training, performs somewhat worse than the DSP-C, which only exploits them during decod- ing.</p><p>We note that, for all the sequence based models, we strictly base our results on the performance of the first sequence predicted by the model. It would probably be possible to improve them further by reranking n-best sequence lists using a set of fea- tures similar to those used by SPO.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.4">Analysis of results</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.4.1">Grammatical errors</head><p>We just observed that CFP and LFP perform well on test data although the sequences generated are <ref type="bibr">9</ref> All the hyperparameters of rmsprop as well as options for initializing the neural network are left at their default values in Keras.</p><p>Basketball Publication Housing LFP 6.6 3.7 1.6 CFP 1.8 1.9 2.2 DSP 9.5 11.8 5.8 DSP-C(L) 0.0 0.0 0.0 not guaranteed to be grammatical. We analysed the percentage of grammatical errors made by these models and also by DSP for three domains, which we report in <ref type="table" target="#tab_1">Table 3</ref>. <ref type="bibr">10</ref> The table shows that LFP and especially CFP make few grammatical errors while DSP makes them more frequently. For DSP-C and DSP-CL, the error rate is always 0 since by construction, the derivations must be well-formed. Note that as DSP is not constrained by prior knowledge about the grammar, the grammatical error rate can be high -even higher than CFP or LFP because DSP typically has to choose among more symbols, see <ref type="table">Table 1</ref>.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.4.2">Difference between DSP-C and DSP-CL</head><p>We observed that the DSP-CL model performs somewhat worse than DSP-C in our experiments. While we were a bit surprised by that behav- ior, given that the DSP-CL has strong theoreti- cal motivations, let us note that the two models are quite different. To stress the difference, sup- pose that, for a certain prediction step, only two rules are considered as possible by the grammar, among the many rules of the grammar. Suppose that the LSTM gives probabilities 0.004 and 0.006 respectively to these two rules, the rest of the mass being on the ungrammatical rules. While the DSP-C model associates respective losses of − log 0.004, − log 0.006 with the two rules, the DSP-CL model normalizes the probabilites first, resulting in smaller losses − log 0.4, − log 0.6.</p><p>As we choose the best complete sequence dur- ing decoding, it means that DSP-C will be more likely to prefer to follow a different path in such a case, in order not to incur a loss of at least − log 0.006. Intuitively, this means that DSP- C will prefer paths where the LSTM on its own  <ref type="table">Table 2</ref>: Test results over different domains on SPO dataset. The numbers reported correspond to the pro- portion of cases in which the predicted LF is interpretable against the KB and returns the correct answer. LFP = Logical Form Prediction, CFP = Canonical Form Prediction, DSP = Derivation Sequence Predic- tion, DSP-C = Derivation Sequence constrained using grammatical knowledge, DSP-CL = Derivation Sequence using a loss function constrained by grammatical knowledge.</p><p>gives small probability to ungrammatical choices, a property not shared by DSP-CL. However, a more complete understanding of the difference will need more investigation.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5">Related Work and Discussion</head><p>In recent work on developing semantic parsers for open-domain and domain-specific question an- swering, various methods have been proposed to handle the mismatch between natural language questions and knowledge base representations in- cluding, graph matching, paraphrasing and em- beddings techniques. <ref type="bibr" target="#b14">Reddy et al. (2014)</ref> exploits a weak supervision signal to learn a mapping between the logical form associated by a CCG based semantic parser with the input question and the appropriate logical form in Freebase ( <ref type="bibr" target="#b4">Bollacker et al., 2008)</ref>.</p><p>Paraphrase-based approaches <ref type="bibr" target="#b7">(Fader et al., 2013;</ref><ref type="bibr" target="#b1">Berant and Liang, 2014</ref>) generate variants of the input question using a simple hand-written grammar and then rank these using a paraphrase model. That is, in their setting, the logical form assigned to the input question is that of the gen- erated sentence which is most similar to the input question.</p><p>Finally, <ref type="bibr" target="#b6">Bordes et al. (2014b;</ref><ref type="bibr" target="#b5">2014a</ref>) learn a similarity function between a natural language question and the knowledge base formula encod- ing its answer.</p><p>We depart from these approaches in that we learn a direct mapping between natural language questions and their corresponding logical form or equivalently, their corresponding derivation and canonical form. This simple, very direct ap- proach to semantic parsing eschews the need for complex feature engineering and large exter- nal resources required by such paraphrase-based approaches as <ref type="bibr" target="#b7">(Fader et al., 2013;</ref><ref type="bibr" target="#b1">Berant and Liang, 2014)</ref>. It is conceptually simpler than the two steps, graph matching approach proposed by <ref type="bibr" target="#b14">Reddy et al. (2014)</ref>. And it can capture much more complex semantic representations than <ref type="bibr" target="#b6">Bordes et al. (2014b;</ref><ref type="bibr" target="#b5">2014a)</ref>'s embeddings based method. <ref type="bibr">11</ref> At a more abstract level, our approach differs from previous work in that it exploits the fact that logical forms are structured objects whose shape is determined by an underlying grammar. Using the power of RNN as sequence predictors, we learn to predict, from more or less explicit representations of this underlying grammar, equivalent but differ- ent representations of a sentence content namely, its canonical form, its logical form and its deriva- tion sequence.</p><p>We observe that the best results are obtained by using the derivation sequence, when also exploit- ing the underlying grammatical constraints. How- ever the results obtained by predicting directly the linearization of the logical form or canonical form are not far behind; we show that often, the pre- dicted linearizations actually satisfy the underly- ing grammar. This observation can be related to the results obtained by , who use an RNN-based model to map a sentence to the linearization of its parse tree, <ref type="bibr">12</ref> and find that in most cases, the predicted sequence produces well-balanced parentheses. It would be interest-ing to see if our observation would be maintained for more complex LFs than the ones we tested on, where it might be more difficult for the RNN to predict not only the parentheses, but also the de- pendencies between several lambda variables in- side the overall structure of the LF.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6">Conclusion and Future Work</head><p>We propose a sequence-based approach for the task of semantic parsing. We encode the target logical form, a structured object, through three types of sequences: direct linearization of the log- ical form, canonical form, derivation sequence in an underlying grammar. In all cases, we obtain competitive results with previously reported ex- periments. The most effective model is one using derivation sequences and taking into account the grammatical constraints.</p><p>In order to encode the underlying derivation tree, we chose to use a leftmost derivation se- quence. But there are other possible choices that might make the encoding even more easily learn- able by the LSTM, and we would like to explore those in future work.</p><p>In order to improve performance, other promis- ing directions would involve adding re-reranking techniques and extending our neural networks with attention models in the spirit of ( <ref type="bibr" target="#b0">Bahdanau et al., 2015</ref>).</p></div><figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_0"><head>s0: s(S)</head><label></label><figDesc>→ np(S). np0: np(get[CP,NP]) → np(NP), cp(CP). np1: np(NP) → typenp(NP). cp0: cp([lambda,s,[filter,s,RELNP,=,ENTNP]]) → [whose], relnp(RELNP), [is], entitynp(ENTNP). ... typenp0: typenp(article) → [article]. relnp0: relnp(pubDate) → [publication, date] entitynp0: entitynp(1950) → [1950]. ...</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_1"><head>Figure 2 :</head><label>2</label><figDesc>Figure 2: Some general rules (top) and domainspecific rules (bottom) in DCG format.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_2"><head>Figure 3 :</head><label>3</label><figDesc>Figure 3: A derivation tree. Its leftmost derivation sequence is [s0, np0, np1, typenp0, cp0, relnp0, entitynp0]. typenp0 article article relnp0 publication date pubDate entitynp0 1950 1950 cp0 whose publication date is 1950 [lambda,s,[filter,s,pubDate,=,1950] np1 article article np0 article whose publication date is 1950 get[[lambda,s,[filter,s,pubDate,=,1950]],article] s0 article whose publication date is 1950 get[[lambda,s,[filter,s,pubDate,=,1950]],article]</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_3"><head>Figure 4 :</head><label>4</label><figDesc>Figure 4: Projection of the derivation tree nodes into (i) a canonical form and (ii) a logical form.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_4"><head>Figure 5 :</head><label>5</label><figDesc>Figure 5: Our neural network model which is shared between all the systems. An MLP encodes the sentence in unigrams and bigrams and produces u b. An LSTM encodes the prefix of the predicted sequence generating u l,t for each step t. The two representations are then fed into a final MLP to predict the next choice of the target sequence.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_0" validated="false"><head></head><label></label><figDesc>This last model is also constrained, but uses a different training regime, with Constrained Loss. In the standard learning regime (used for the</figDesc><table>Target sequence 
+
+DS 
+CF 
+LF 
+Length 
+10.5 11.8 47.0 
+Vocabulary Size 106.0 55.8 59.9 
+
+Table 1: Characteristics of different target se-
+quences. 
+
+</table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_1" validated="false"><head>Table 3 :</head><label>3</label><figDesc></figDesc><table>Grammatical error rate of different sys-
+tems on test. 
+
+</table></figure>
+
+			<note place="foot" n="1"> https://github.com/percyliang/sempre</note>
+
+			<note place="foot" n="3"> This logical form is written here in DCG list notation; in the more &quot;Lispian&quot; format used by SPO, it would be written (lambda s (filter s RELNP = ENTNP)). 4 The term &apos;projection&apos; is borrowed from the notion of bimorphism in formal language theory (Shieber, 2014) and refers in particular to the fact that the overall logical form is constructed by bottom-up composition of logical forms asso</note>
+
+			<note place="foot" n="8"> https://github.com/fchollet/keras</note>
+
+			<note place="foot" n="10"> Our DCG permits to compute this error rate directly for canonical forms and derivation sequences. For logical forms, we made an estimation by executing them against the knowledge base and eliminating the cases where the errors are not due to the ungrammaticality of the logical form.</note>
+
+			<note place="foot" n="11"> In (Bordes et al., 2014b; Bordes et al., 2014a), the logical forms denoting the question answers involve only few RDF triples consisting of a subject, a property and an object i.e., a binary relation and its arguments. 12 Note a crucial difference with our approach. While in their case the underlying (&quot;syntactic&quot;) grammar is only partially and implicitly represented by a set of parse annotations, in our case the explicit (&quot;semantic&quot;) grammar is known a priori and can be exploited as such.</note>
+		</body>
+		<back>
+
+			<div type="acknowledgement">
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Acknowledgements</head><p>We would like to thank Guillaume Bouchard for his advice on a previous version of this work, as well as the anonymous reviewers for their con-structive feedback. The authors gratefully ac-knowledge the support of the Association Na-tionale de la Recherche Technique (ANRT), Con-vention Industrielle de Formation par la Recherche (CIFRE) No. 2014/0476 .</p></div>
+			</div>
+
+			<div type="references">
+
+				<listBibl>
+
+<biblStruct xml:id="b0">
+	<analytic>
+		<title level="a" type="main">Neural machine translation by jointly learning to align and translate</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Dzmitry</forename><surname>Bahdanau</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kyunghyun</forename><surname>Cho</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yoshua</forename><surname>Bengio</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">International Conference on Learning Representations (ICLR)</title>
+		<imprint>
+			<date type="published" when="2015" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b1">
+	<analytic>
+		<title level="a" type="main">Semantic parsing via paraphrasing</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">J</forename><surname>Berant</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">P</forename><surname>Liang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Annual Meeting for the Association for Computational Linguistics (ACL)</title>
+		<imprint>
+			<date type="published" when="2014" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b2">
+	<analytic>
+		<title level="a" type="main">Semantic parsing on freebase from question-answer pairs</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">J</forename><surname>Berant</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">A</forename><surname>Chou</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">R</forename><surname>Frostig</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">P</forename><surname>Liang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Empirical Methods in Natural Language Processing (EMNLP)</title>
+		<imprint>
+			<date type="published" when="2013" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b3">
+	<analytic>
+		<title level="a" type="main">Theano: a CPU and GPU math expression compiler</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">James</forename><surname>Bergstra</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Olivier</forename><surname>Breuleux</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Frédéric</forename><surname>Bastien</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Pascal</forename><surname>Lamblin</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Razvan</forename><surname>Pascanu</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Guillaume</forename><surname>Desjardins</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Joseph</forename><surname>Turian</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yoshua</forename><surname>Bengio</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Python for Scientific Computing Conference (SciPy), jun. Oral</title>
+		<meeting>the Python for Scientific Computing Conference (SciPy), jun. Oral</meeting>
+		<imprint>
+			<date type="published" when="2010" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b4">
+	<analytic>
+		<title level="a" type="main">Freebase: a collaboratively created graph database for structuring human knowledge</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kurt</forename><surname>Bollacker</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Colin</forename><surname>Evans</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Praveen</forename><surname>Paritosh</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Tim</forename><surname>Sturge</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jamie</forename><surname>Taylor</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">SIGMOD Conference</title>
+		<imprint>
+			<date type="published" when="2008" />
+			<biblScope unit="page" from="1247" to="1250" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b5">
+	<analytic>
+		<title level="a" type="main">Question answering with subgraph embeddings</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Antoine</forename><surname>Bordes</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Sumit</forename><surname>Chopra</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jason</forename><surname>Weston</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Empirical Methods in Natural Language Processing (EMNLP)</title>
+		<imprint>
+			<date type="published" when="2014" />
+			<biblScope unit="page" from="615" to="620" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b6">
+	<analytic>
+		<title level="a" type="main">Open question answering with weakly supervised embedding models</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Antoine</forename><surname>Bordes</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jason</forename><surname>Weston</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Nicolas</forename><surname>Usunier</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">European Conference on Machine Learning and Principles and Practice of Knowledge Discovery (ECML-PKDD)</title>
+		<imprint>
+			<date type="published" when="2014" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b7">
+	<analytic>
+		<title level="a" type="main">Paraphrase-driven learning for open question answering</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Anthony</forename><surname>Fader</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Luke</forename><surname>Zettlemoyer</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Oren</forename><surname>Etzioni</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 51st Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 51st Annual Meeting of the Association for Computational Linguistics</meeting>
+		<imprint>
+			<publisher>Long Papers</publisher>
+			<date type="published" when="2013" />
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="1608" to="1618" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b8">
+	<analytic>
+		<title level="a" type="main">Ppdb: The paraphrase database</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Juri</forename><surname>Ganitkevitch</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Benjamin</forename><surname>Van Durme</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Chris</forename><surname>Callison-Burch</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">North American Chapter of the Association for Computational Linguistics: Human Language Technologies (NAACL-HLT)</title>
+		<imprint>
+			<date type="published" when="2013" />
+			<biblScope unit="page" from="758" to="764" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b9">
+	<analytic>
+		<title level="a" type="main">Long short-term memory</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Sepp</forename><surname>Hochreiter</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jürgen</forename><surname>Schmidhuber</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Neural Computation</title>
+		<imprint>
+			<biblScope unit="volume">9</biblScope>
+			<biblScope unit="issue">8</biblScope>
+			<biblScope unit="page" from="1735" to="1780" />
+			<date type="published" when="1997" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b10">
+	<analytic>
+		<title level="a" type="main">Scaling semantic parsers with on-the-fly ontology matching</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Tom</forename><surname>Kwiatkowski</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Eunsol</forename><surname>Choi</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yoav</forename><surname>Artzi</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Luke</forename><forename type="middle">S</forename><surname>Zettlemoyer</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Empirical Methods in Natural Language Processing</title>
+		<imprint>
+			<date type="published" when="2013" />
+			<biblScope unit="page" from="1545" to="1556" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b11">
+	<monogr>
+		<title level="m" type="main">How to construct deep recurrent neural networks</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Razvan</forename><surname>Pascanu</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kyunghyun</forename><surname>Gülçehre</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yoshua</forename><surname>Cho</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Bengio</surname></persName>
+		</author>
+		<idno>abs/1312.6026</idno>
+		<imprint>
+			<date type="published" when="2013" />
+			<publisher>CoRR</publisher>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b12">
+	<analytic>
+		<title level="a" type="main">Compositional semantic parsing on semi-structured tables</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Panupong</forename><surname>Pasupat</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Percy</forename><surname>Liang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Annual Meeting of the Association for Computational Linguistics and the 7th International Joint Conference on Natural Language Processing of the Asian Federation of Natural Language Processing</title>
+		<imprint>
+			<publisher>Long Papers</publisher>
+			<date type="published" when="2015" />
+			<biblScope unit="volume">1</biblScope>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b13">
+	<analytic>
+		<title level="a" type="main">Definite clause grammars for language analysis a survey of the formalism and a comparison with augmented transition networks</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">C</forename><forename type="middle">N</forename><surname>Fernando</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Pereira</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">H</forename><forename type="middle">D</forename><surname>David</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Warren</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Artificial Intelligence</title>
+		<imprint>
+			<biblScope unit="volume">13</biblScope>
+			<biblScope unit="page" from="231" to="278" />
+			<date type="published" when="1980" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b14">
+	<analytic>
+		<title level="a" type="main">Large-scale semantic parsing without question-answer pairs</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Siva</forename><surname>Reddy</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Mirella</forename><surname>Lapata</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Mark</forename><surname>Steedman</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Transactions of the Association for Computational Linguistics</title>
+		<imprint>
+			<date type="published" when="2014" />
+			<biblScope unit="volume">2</biblScope>
+			<biblScope unit="page" from="377" to="392" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b15">
+	<monogr>
+		<title level="m" type="main">Artificial Intelligence: A Modern Approach</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">J</forename><surname>Stuart</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Peter</forename><surname>Russell</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Norvig</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2003" />
+		</imprint>
+	</monogr>
+	<note>2 edition</note>
+</biblStruct>
+
+<biblStruct xml:id="b16">
+	<monogr>
+		<title level="m" type="main">Bimorphisms and synchronous grammars</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">M</forename><surname>Stuart</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Shieber</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2014" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b17">
+	<analytic>
+		<title/>
+	</analytic>
+	<monogr>
+		<title level="j">J. Language Modelling</title>
+		<imprint>
+			<biblScope unit="volume">2</biblScope>
+			<biblScope unit="issue">1</biblScope>
+			<biblScope unit="page" from="51" to="104" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b18">
+	<analytic>
+		<title level="a" type="main">Dropout: A simple way to prevent neural networks from overfitting</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Nitish</forename><surname>Srivastava</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Geoffrey</forename><surname>Hinton</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Alex</forename><surname>Krizhevsky</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ilya</forename><surname>Sutskever</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ruslan</forename><surname>Salakhutdinov</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Journal of Machine Learning Research</title>
+		<imprint>
+			<biblScope unit="volume">15</biblScope>
+			<biblScope unit="issue">1</biblScope>
+			<biblScope unit="page" from="1929" to="1958" />
+			<date type="published" when="2014" />
+			<publisher>JMLR</publisher>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b19">
+	<analytic>
+		<title level="a" type="main">Sequence to sequence learning with neural networks</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ilya</forename><surname>Sutskever</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Oriol</forename><surname>Vinyals</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Quoc V</forename><surname>Le</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Advances in Neural Information Processing Systems (NIPS)</title>
+		<imprint>
+			<date type="published" when="2014" />
+			<biblScope unit="page" from="3104" to="3112" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b20">
+	<monogr>
+		<title level="m" type="main">Lecture 6.5rmsprop: Divide the gradient by a running average of its recent magnitude</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">T</forename><surname>Tieleman</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">G</forename><forename type="middle">E</forename><surname>Hinton</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2012" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b21">
+	<analytic>
+		<title level="a" type="main">Grammar as a foreign language</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Oriol</forename><surname>Vinyals</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Lukasz</forename><surname>Kaiser</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Terry</forename><surname>Koo</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Slav</forename><surname>Petrov</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ilya</forename><surname>Sutskever</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Geoffrey</forename><forename type="middle">E</forename><surname>Hinton</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Neural Information Processing Systems (NIPS)</title>
+		<imprint>
+			<date type="published" when="2014" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b22">
+	<analytic>
+		<title level="a" type="main">Building a semantic parser overnight</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yushi</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jonathan</forename><surname>Berant</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Percy</forename><surname>Liang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Annual Meeting of the Association for Computational Linguistics and the 7th International Joint Conference on Natural Language Processing of the Asian Federation of Natural Language Processing</title>
+		<imprint>
+			<publisher>Long Papers</publisher>
+			<date type="published" when="2015" />
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="1332" to="1342" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b23">
+	<analytic>
+		<title level="a" type="main">Semantically conditioned lstm-based natural language generation for spoken dialogue systems</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Milica</forename><surname>Tsung-Hsien Wen</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Nikola</forename><surname>Gasic</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Peihao</forename><surname>Mrksic</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">David</forename><surname>Su</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Steve</forename><forename type="middle">J</forename><surname>Vandyke</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Young</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Empirical Methods in Natural Language Processing</title>
+		<imprint>
+			<publisher>EMNLP</publisher>
+			<date type="published" when="2015" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+				</listBibl>
+			</div>
+		</back>
+	</text>
+</TEI>

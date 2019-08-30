@@ -1,0 +1,841 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<TEI xmlns="http://www.tei-c.org/ns/1.0" 
+xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+xsi:schemaLocation="http://www.tei-c.org/ns/1.0 /home/ana/installs/grobid/grobid-0.5.1/grobid-home/schemas/xsd/Grobid.xsd"
+ xmlns:xlink="http://www.w3.org/1999/xlink">
+	<teiHeader xml:lang="en">
+		<encodingDesc>
+			<appInfo>
+				<application version="0.5.1-SNAPSHOT" ident="GROBID" when="2019-04-18T12:17+0000">
+					<ref target="https://github.com/kermitt2/grobid">GROBID - A machine learning software for extracting information from scholarly documents</ref>
+				</application>
+			</appInfo>
+		</encodingDesc>
+		<fileDesc>
+			<titleStmt>
+				<title level="a" type="main">A Minimal Span-Based Neural Constituency Parser</title>
+			</titleStmt>
+			<publicationStmt>
+				<publisher>Association for Computational Linguistics</publisher>
+				<availability status="unknown"><p>Copyright Association for Computational Linguistics</p>
+				</availability>
+				<date>July 30-August 4, 2017. July 30-August 4, 2017</date>
+			</publicationStmt>
+			<sourceDesc>
+				<biblStruct>
+					<analytic>
+						<author>
+							<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Mitchell</forename><surname>Stern</surname></persName>
+						</author>
+						<author>
+							<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jacob</forename><surname>Andreas</surname></persName>
+						</author>
+						<author>
+							<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Dan</forename><surname>Klein</surname></persName>
+						</author>
+						<title level="a" type="main">A Minimal Span-Based Neural Constituency Parser</title>
+					</analytic>
+					<monogr>
+						<title level="m">Proceedings of the 55th Annual Meeting of the Association for Computational Linguistics (Volume 1: Long Papers)</title>
+						<meeting>the 55th Annual Meeting of the Association for Computational Linguistics (Volume 1: Long Papers) <address><addrLine>Vancouver, Canada; Vancouver, Canada</addrLine></address>
+						</meeting>
+						<imprint>
+							<publisher>Association for Computational Linguistics</publisher>
+							<biblScope unit="page" from="818" to="827"/>
+							<date type="published">July 30-August 4, 2017. July 30-August 4, 2017</date>
+						</imprint>
+					</monogr>
+					<idno type="DOI">10.18653/v1/p17-1076</idno>
+				</biblStruct>
+			</sourceDesc>
+		</fileDesc>
+		<profileDesc>
+			<abstract>
+				<p>In this work, we present a minimal neural model for constituency parsing based on independent scoring of labels and spans. We show that this model is not only compatible with classical dynamic programming techniques, but also admits a novel greedy top-down inference algorithm based on recursive partitioning of the input. We demonstrate empirically that both prediction schemes are competitive with recent work, and when combined with basic extensions to the scoring model are capable of achieving state-of-the-art single-model performance on the Penn Treebank (91.79 F1) and strong performance on the French Treebank (82.23 F1).</p>
+			</abstract>
+		</profileDesc>
+	</teiHeader>
+	<text xml:lang="en">
+		<body>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="1">Introduction</head><p>This paper presents a minimal but surprisingly ef- fective span-based neural model for constituency parsing. Recent years have seen a great deal of interest in parsing architectures that make use of recurrent neural network (RNN) representations of input sentences <ref type="bibr" target="#b26">(Vinyals et al., 2015</ref>). Despite evidence that linear RNN decoders are implicitly able to respect some nontrivial well-formedness constraints on structured outputs <ref type="bibr" target="#b12">(Graves, 2013)</ref>, researchers have consistently found that the best performance is achieved by systems that explicitly require the decoder to generate well-formed tree structures <ref type="bibr" target="#b3">(Chen and Manning, 2014)</ref>.</p><p>There are two general approaches to ensuring this structural consistency. The most common is to encode the output as a sequence of operations within a transition system which constructs trees incrementally. This transforms the parsing prob- lem back into a sequence-to-sequence problem, while making it easy to force the decoder to take only actions guaranteed to produce well-formed outputs. However, transition-based models do not admit fast dynamic programs and require careful feature engineering to support exact search-based inference ( <ref type="bibr" target="#b24">Thang et al., 2015)</ref>. Moreover, models with recurrent state require complex training pro- cedures to benefit from anything other than greedy decoding <ref type="bibr" target="#b29">(Wiseman and Rush, 2016</ref>).</p><p>An alternative line of work focuses on chart parsers, which use log-linear or neural scoring potentials to parameterize a tree-structured dy- namic program for maximization or marginal- ization ( <ref type="bibr" target="#b9">Finkel et al., 2008;</ref><ref type="bibr" target="#b7">Durrett and Klein, 2015)</ref>. These models enjoy a number of appeal- ing formal properties, including support for ex- act inference and structured loss functions. How- ever, previous chart-based approaches have re- quired considerable scaffolding beyond a simple well-formedness potential, e.g. pre-specification of a complete context-free grammar for generat- ing output structures and initial pruning of the out- put space with a weaker model ( <ref type="bibr" target="#b13">Hall et al., 2014</ref>). Additionally, we are unaware of any recent chart- based models that achieve results competitive with the best transition-based models.</p><p>In this work, we present an extremely simple chart-based neural parser based on independent scoring of labels and spans, and show how this model can be adapted to support a greedy top- down decoding procedure. Our goal is to preserve the basic algorithmic properties of span-oriented (rather than transition-oriented) parse representa- tions, while exploring the extent to which neural representational machinery can replace the addi- tional structure required by existing chart parsers. On the Penn Treebank, our approach outperforms a number of recent models for chart-based and transition-based parsing-including the state-of- the-art models of <ref type="bibr" target="#b5">Cross and Huang (2016)</ref> and <ref type="bibr" target="#b18">Liu and Zhang (2016)</ref>-achieving an F1 score of 91.79. We additionally obtain a strong F1 score of 82.23 on the French Treebank.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2">Model</head><p>A constituency tree can be regarded as a collec- tion of labeled spans over a sentence. Taking this view as a guiding principle, we propose a model with two components, one which assigns scores to span labels and one which assigns scores directly to span existence. The former is used to determine the labeling of the output, and the latter provides its structure.</p><p>At the core of both of these components is the issue of span representation. Given that a span's correct label and its quality as a constituent de- pend heavily on the context in which it appears, we naturally turn to recurrent neural networks as a starting point, since they have previously been shown to capture contextual information suitable for use in a variety of natural language applica- tions ( <ref type="bibr" target="#b0">Bahdanau et al., 2014;</ref><ref type="bibr" target="#b27">Wang et al., 2015)</ref> In particular, we run a bidirectional LSTM over the input to obtain context-sensitive forward and backward encodings for each position i, denoted by f i and b i , respectively. Our representation of the span (i, j) is then the concatenatation the vec- tor differences f j − f i and b i − b j . This corre- sponds to a bidirectional version of the LSTM- Minus features first proposed by <ref type="bibr" target="#b28">Wang and Chang (2016)</ref>.</p><p>On top of this base, our label and span scoring functions are implemented as one-layer feedfor- ward networks, taking as input the concatenated span difference and producing as output either a vector of label scores or a single span score. More formally, letting s ij denote the vector representa- tion of span (i, j), we define</p><formula xml:id="formula_0">s labels (i, j) = V g(W s ij + b ), s span (i, j) = v s g(W s s ij + b s )</formula><p>, where g denotes an elementwise nonlinearity. For notational convenience, we also let the score of an individual label be denoted by</p><formula xml:id="formula_1">s label (i, j, ) = [s labels (i, j)] ,</formula><p>where the right-hand side is the corresponding el- ement of the label score vector.</p><p>One potential issue is the existence of unary chains, corresponding to nested labeled spans with the same endpoints. We take the common ap- proach of treating these as additional atomic labels alongside all elementary nonterminals. To accom- modate n-ary trees, our inventory additionally in- cludes a special empty label ∅ used for spans that are not themselves full constituents but arise dur- ing the course of implicit binarization.</p><p>Our model shares several features in common with that of <ref type="bibr" target="#b5">Cross and Huang (2016)</ref>. In particu- lar, our representation of spans and the form of our label scoring function were directly inspired by their work, as were our handling of unary chains and our use of an empty label. However, our ap- proach differs in its treatment of structural deci- sions, and consequently, the inference algorithms we describe below diverge significantly from their transition-based framework.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3">Chart Parsing</head><p>Our basic model is compatible with traditional chart-based dynamic programming. Representing a constituency tree T by its labeled spans,</p><formula xml:id="formula_2">T := {( t , (i t , j t )) : t = 1, . . . , |T |},</formula><p>we define the score of a tree to be the sum of its constituent label and span scores,</p><formula xml:id="formula_3">s tree (T ) = (,(i,j))∈T [s label (i, j, ) + s span (i, j)] .</formula><p>To find the tree with the highest score for a given sentence, we use a modified CKY recursion. As with classical chart parsing, the running time of our procedure is O(n 3 ) for a sentence of length n.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.1">Dynamic Program for Inference</head><p>The base case is a span (i, i + 1) consisting of a single word. Since every valid tree must include all singleton spans, possibly with an empty label, we need not consider the span score in this case and perform only a single maximization over the choice of label:</p><formula xml:id="formula_4">s best (i, i + 1) = max [s label (i, i + 1, )] .</formula><p>For a general span (i, j), we define the score of the split (i, k, j) as the sum of its subspan scores,</p><formula xml:id="formula_5">s split (i, k, j) = s span (i, k) + s span (k, j). (1)</formula><p>For convenience, we also define an augmented split score incorporating the scores of the corre- sponding subtrees,</p><formula xml:id="formula_6">˜ s split (i, k, j) = s split (i, k, j) + s best (i, k) + s best (k, j).</formula><p>Using these quantities, we can then write the gen- eral joint label and split decision as</p><formula xml:id="formula_7">s best (i, j) = max ,k [s label (i, j, ) + ˜ s split (i, k, j)] .<label>(2)</label></formula><p>Because our model assigns independent scores to labels and spans, this maximization decomposes into two disjoint subproblems, greatly reducing the size of the state space:</p><formula xml:id="formula_8">s best (i, j) = max [s label (i, j, )] + max k [˜ s split (i, k, j)] .</formula><p>We also note that the span scores s span (i, j) for each span (i, j) in the sentence can be computed once at the beginning of the procedure and shared across different subproblems with common left or right endpoints, allowing for a quadratic rather than cubic number of span score computations.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.2">Margin Training</head><p>Training the model under this inference scheme is accomplished using a margin-based approach. When presented with an example sentence and its corresponding parse tree T * , we compute the best prediction under the current model using the above dynamic program,</p><formula xml:id="formula_9">T = argmax T [s tree (T )] .</formula><p>If T = T * , then our prediction was correct and no changes need to be made. Otherwise, we incur a hinge penalty of the form</p><formula xml:id="formula_10">max 0, 1 − s tree (T * ) + s tree ( T )</formula><p>to encourage the model to keep a margin of at least 1 between the gold tree and the best alternative. The loss to be minimized is then the sum of penal- ties across all training examples. Prior work has found that it can be beneficial in a variety of applications to incorporate a structured loss function into this margin objective, replacing the hinge penalty above with one of the form</p><formula xml:id="formula_11">max 0, ∆( T , T * ) − s tree (T * ) + s tree ( T )</formula><p>for a loss function ∆ that measures the similar- ity between the prediction T and the reference T * . Here we take ∆ to be a Hamming loss on la- beled spans. To incorporate this loss into the train- ing objective, we modify the dynamic program of Section 3.1 to support loss-augmented decoding <ref type="bibr" target="#b23">(Taskar et al., 2005</ref>). Since the label decisions are isolated from the structural decisions, it suffices to replace every occurrence of the label scoring func- tion s label (i, j, ) by</p><formula xml:id="formula_12">s label (i, j, ) + 1( = * ij ),</formula><p>where * ij is the label of span (i, j) in the gold tree T * . This has the effect of requiring larger margins between the gold tree and predictions that contain more mistakes, offering a greater degree of robust- ness and better generalization.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4">Top-Down Parsing</head><p>While we have so far motivated our model from the perspective of classical chart parsing, it also al- lows for a novel inference algorithm in which trees are constructed greedily from the top down. At a high level, given a span, we independently assign it a label and pick a split point, then repeat this process for the left and right subspans; the recur- sion bottoms out with length-one spans that can no longer be split. <ref type="figure" target="#fig_1">Figure 1</ref> gives an illustration of the process, which we describe in more detail below.</p><p>The base case is again a singleton span (i, i+1), and follows the same form as the base case for the chart parser. In particular, we select the label that satisfies = argmax</p><formula xml:id="formula_13">[s label (i, i + 1, )] ,</formula><p>omitting span scores from consideration since sin- gleton spans cannot be split. To construct a tree over a general span (i, j), we aim to solve the maximization problem</p><formula xml:id="formula_14">( , k) = argmax ,k [s label (i, j, ) + s split (i, k, j)] ,</formula><p>where s split (i, k, j) is defined as in Equation <ref type="formula">(1)</ref>. The independence of our label and span scoring functions again yields the decomposed form = argmax</p><formula xml:id="formula_15">[s label (i, j, )] , k = argmax k [s split (i, k, j)] ,<label>(3)</label></formula><p>leading to a significant reduction in the size of the state space.</p><p>To generate a tree for the whole sentence, we call this procedure on the full sentence span (0, n) and return the result. As there are O(n) spans each   An execution of our top-down parsing algorithm (a) and the resulting parse tree (b) for the sentence "She enjoys playing tennis." Part-of-speech tags, shown here together with the words, are predicted externally and are included as part of the input to our system. Beginning with the full sentence span (0, 5), the label S and the split point 1 are predicted, and recursive calls are made on the child spans (0, 1) and (1, 5). The left child span (0, 1) is assigned the label NP, and with no further splits to make, recursion terminates on this branch. The right child span (1, 5) is assigned the empty label ∅, indicating that it does not represent a constituent in the tree. A split point of 4 is selected, and further recursive calls are made on the grandchild spans (1, 4) and <ref type="bibr">(4,</ref><ref type="bibr">5)</ref>. This process of labeling and splitting continues until every branch of recursion bottoms out in singleton spans, at which point the full parse tree can be returned. Note that the unary chain S-VP is produced in a single labeling step.</p><p>requiring one label evaluation and at most n − 1 split point evaluations, the running time of the pro- cedure is O(n 2 ).</p><p>The algorithm outlined here bears a strong re- semblance to the chart parsing dynamic program discussed in Section 3, but differs in one key as- pect. When performing inference from the bot- tom up, we have already computed the scores of all of the subtrees below the current span, and we can take this knowledge into consideration when selecting a split point. In contrast, when produc- ing a tree from the top down, we can only select a split point based on top-level evaluations of span quality, without knowing anything about the sub- trees that will be generated below them. This dif- ference is manifested in the augmented split score˜s score˜ score˜s split used in the definition of s best in Equation <ref type="formula" target="#formula_7">(2)</ref>, where the scores of the subtrees associated with a split point are included in the chart recursion but necessarily excluded from the top-down recursion.</p><p>While this apparent deficiency may be a cause for concern, we demonstrate the surprising empir- ical result in Section 6 that there is no loss in per- formance when moving from the globally-optimal chart parser to the greedy top-down procedure.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.1">Margin Training</head><p>As with the chart parsing formulation, we also use a margin-based method for learning under the top- down model. However, rather than requiring sep- aration between the scores of full trees, we instead enforce a local margin at every decision point.</p><p>For a span (i, j) occurring in the gold tree, let * and k * represent the correct label and split point, and let and k be the predictions made by comput- ing the maximizations in Equation (3). If = * , meaning the prediction is incorrect, we incur a hinge penalty of the form</p><formula xml:id="formula_16">max 0, 1 − s label (i, j, * ) + s label (i, j, ) .</formula><p>Similarly, if k = k * , we incur a hinge penalty of the form</p><formula xml:id="formula_17">max 0, 1 − s split (i, k * , j) + s split (i, k, j) .</formula><p>To obtain the loss for a given training example, we trace out the actions corresponding to the gold tree and accumulate the above penalties over all deci- sion points. As before, the total loss to be mini- mized is the sum of losses across all training ex- amples. Loss augmentation is also beneficial for the lo- cal decisions made by the top-down model, and can be implemented in a manner akin to the one discussed in Section 3.2.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.2">Training with Exploration</head><p>The hinge penalties given above are only defined for spans (i, j) that appear in the example tree. The model must therefore be constrained at train- ing time to follow decisions that exactly reproduce the gold tree, since supervision cannot be provided otherwise. As a result, the model is never exposed to its mistakes, which can lead to a lack of calibra- tion and poor performance at test time.</p><p>To circumvent this issue, a dynamic oracle can be defined to inform the model about correct be- havior even after it has deviated from the gold tree. <ref type="bibr" target="#b5">Cross and Huang (2016)</ref> propose such an oracle for a related transition-based parsing system, and prove its optimality for the F1 metric on labeled spans. We adapt their result here to obtain a dy- namic oracle for the present model with similar guarantees.</p><p>The oracle for labeling decisions carries over without modification: the correct label for a span is the label assigned to that span if it is part of the gold tree, or the empty label ∅ otherwise.</p><p>For split point decisions, the oracle can be bro- ken down into two cases. If a span (i, j) appears as a constituent in the gold tree T , we let b(i, j) de- note the collection of its interior boundary points. For example, if the constituent over (1, 7) has children spanning (1, 3), (3, 6), and (6, 7), then we would have the two interior boundary points, b(1, 7) = {3, 6}. The oracle for a span appear- ing in the gold tree is then precisely the output of this function. Otherwise, for spans (i, j) not cor- responding to gold constituents, we must instead identify the smallest enclosing gold constituent:</p><formula xml:id="formula_18">(i * , j * ) = min{(i , j ) ∈ T : i ≤ i &lt; j ≤ j },</formula><p>where the minimum is taken with respect to the partial ordering induced by span length. The out- put of the oracle is then the set of interior bound- ary points of this enclosing span that also lie in- side the original, {k ∈ b(i * , j * ) : i &lt; k &lt; j}.</p><p>The proof of correctness is similar to the proof in <ref type="bibr" target="#b5">Cross and Huang (2016)</ref>; we refer to the Dynamic Oracle section in their paper for a more detailed discussion.</p><p>As presented, the dynamic oracle for split point decisions returns a collection of one or more splits rather than a single correct answer. Any of these is a valid choice, with different splits corresponding to different binarizations of the original n-ary tree. We choose to use the leftmost split point for con- sistency in our implementation, but remark that the oracle split with the highest score could also be chosen at training time to allow for additional flexibility.</p><p>Having defined the dynamic oracle for our sys- tem, we note that training with exploration can be implemented by a single modification to the procedure described in Section 4.1. Local penal- ties are accumulated as before, but instead of trac- ing out the decisions required to produce the gold tree, we instead follow the decisions predicted by the model. In this way, supervision is provided at states within the prediction procedure that are more likely to arise at test time when greedy infer- ence is performed.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5">Scoring and Loss Alternatives</head><p>The model presented in Section 2 is designed to be as simple as possible. However, there are many variations of the label and span scoring functions that could be explored; we discuss some of the op- tions here.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.1">Top-Middle-Bottom Label Scoring</head><p>Our basic model treats the empty label, elementary nonterminals, and unary chains each as atomic units, obscuring similarities between unary chains and their component nonterminals or between dif- ferent unary chains with common prefixes or suf- fixes. To address this lack of structure, we con- sider an alternative scoring scheme in which la- bels are predicted in three parts: a top nontermi- nal, a middle unary chain, and a bottom nonter- minal (each of which is possibly empty). <ref type="bibr">1</ref> This not only allows for parameter sharing across la- bels with common subcomponents, but also has the added benefit of allowing the model to produce novel unary chains at test time.</p><p>More precisely, we introduce the decomposition</p><formula xml:id="formula_19">s label (i, j, ( t , m , b )) = s top (i, j, t ) + s middle (i, j, m ) + s bottom (i, j, b ),</formula><p>where s top , s middle , and s bottom are independent one-layer feedforward networks of the same form as s label that output vectors of scores for all la- bel tops, label middle chains, and label bottoms encountered in the training corpus, respectively. The best label for a span (i, j) is then computed by solving the maximization problem</p><formula xml:id="formula_20">max t,,m,, b [s label (i, j, ( t , m , b ))] ,</formula><p>which decomposes into three independent sub- problems corresponding to the three label compo- nents. The final label is obtained by concatenating t , m , and b , with empty components being omit- ted from the concatenation.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.2">Left and Right Span Scoring</head><p>The basic model uses the same span scoring func- tion s span to assign a score to the left and right subspans of a given span. One simple extension is to replace this by a pair of distinct left and right feedforward networks of the same form, giving the decomposition</p><formula xml:id="formula_21">s split (i, k, j) = s left (i, k) + s right (k, j).</formula></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.3">Span Concatenation Scoring</head><p>Since span scores are only used to score splits in our model, we also consider directly scoring a split by feeding the concatenation of the span represen- tations of the left and right subspans through a sin- gle feedforward network, giving</p><formula xml:id="formula_22">s split (i, k, j) = v s g (W s [s ik ; s kj ] + b s ) .</formula><p>This is similar to the structural scoring func- tion used by <ref type="bibr" target="#b5">Cross and Huang (2016)</ref>, although whereas they additionally include features for the outside spans (0, i) and (j, n) in their concatena- tion, we omit these from our implementation, find- ing that they do not improve performance.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.4">Deep Biaffine Span Scoring</head><p>Inspired by the success of deep biaffine scoring in recent work by <ref type="bibr" target="#b6">Dozat and Manning (2016)</ref> for de- pendency parsing, we also consider a split scor- ing function of a similar form for our model. Specifically, we let h ik = f left (s ik ) and h kj = f right (s kj ) be deep left and right span repre- sentations obtained by passing the child vectors through corresponding left and right feedforward networks. We then define the biaffine split scoring function</p><formula xml:id="formula_23">s split (i, k, j) = h ik W s h kj + v left h ik + v right h kj ,</formula><p>which consists of the sum of a bilinear form between the two hidden representations together with two inner products.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.5">Structured Label Loss</head><p>The three-way label scoring scheme described in Section 5.1 offers one path towards the incorpora- tion of label structure into the model. We addition- ally consider a structured Hamming loss on labels. More specifically, given two labels 1 and 2 con- sisting of zero or more nonterminals, we define the loss as | 1 \ 2 | + | 2 \ 1 |, treating each label as a multiset of nonterminals. This structured loss can be incorporated into the training process using the methods described in Sections 3.2 and 4.1.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6">Experiments</head><p>We first describe the general setup used for our experiments. We use the Penn Treebank (Mar- cus et al., 1993) for our English experiments, with standard splits of sections 2-21 for training, sec- tion 22 for development, and section 23 for test- ing. We use the French Treebank from the SPMRL 2014 shared task ( <ref type="bibr" target="#b22">Seddah et al., 2014</ref>) with its pro- vided splits for our French experiments. No to- ken preprocessing is performed, and only a sin- gle &lt;UNK&gt; token is used for unknown words at test time. The inputs to our system are concate- nations of 100-dimensional word embeddings and 50-dimensional part-of-speech embeddings. In the case of the French Treebank, we also include 50-dimensional embeddings of each morphologi- cal tag. We use automatically predicted tags for training and testing, obtaining predicted part-of- speech tags for the Penn Treebank using the Stan- ford tagger ( <ref type="bibr" target="#b25">Toutanova et al., 2003</ref>) with 10-way jackknifing, and using the provided predicted part- of-speech and morphological tags for the French Treebank. Words are replaced by &lt;UNK&gt; with probability 1/(1+freq(w)) during training, where freq(w) is the frequency of w in the training data. We use a two-layer bidirectional LSTM for our base span features. Dropout with a ratio selected from {0.2, 0.3, 0.4} is applied to all non-recurrent  <ref type="table">Table 1</ref>: Development F1 scores on the Penn Treebank. Each table corresponds to a particular choice of label loss (either the basic 0-1 loss or the structured Hamming label loss of Section 5.5) and labeling scheme (either the basic atomic scheme or the top-middle-bottom labeling scheme of Section 5.1). The columns within each table correspond to different split scoring schemes: basic minimal scoring, the left- right scoring of Section 5.2, the concatenation scoring of Section 5.3, and the deep biaffine scoring of Section 5.4.</p><note type="other">WSJ Dev, Atomic Labels, Basic 0-1 Label Loss Parser Minimal</note><p>connections of the LSTM, including its inputs and outputs. We tie the hidden dimension of the LSTM and all feedforward networks, selecting a size from {150, 200, 250}. All parameters (including word and tag embeddings) are randomly initial- ized using Glorot initialization <ref type="bibr" target="#b10">(Glorot and Bengio, 2010)</ref>, and are tuned on development set per- formance. We use the Adam optimizer ( <ref type="bibr" target="#b15">Kingma and Ba, 2014</ref>) with its default settings for opti- mization, with a batch size of 10. Our system is implemented in C++ using the DyNet neural net- work library ( <ref type="bibr">Neubig et al., 2017)</ref>. We begin by training the minimal version of our proposed chart and top-down parsers on the Penn Treebank. Out of the box, we obtain test F1 scores of 91.69 for the chart parser and 91.58 for the top- down parser. The higher of these matches the re- cent state-of-the-art score of 91.7 reported by <ref type="bibr" target="#b18">Liu and Zhang (2016)</ref>, demonstrating that our simple neural parsing system is already capable of achiev- ing strong results.</p><p>Building on this, we explore the effects of dif- ferent split scoring functions when using either the basic 0-1 label loss or the structured label loss dis- cussed in Section 5.5. Our results are presented in <ref type="table">Tables 1a and 1b</ref>.</p><p>We observe that regardless of the label loss, the minimal and deep biaffine split scoring schemes perform a notch below the left-right and concate- nation scoring schemes. That the minimal scoring scheme performs worse than the left-right scheme is unsurprising, since the latter is a strict gener- alization of the former. It is evident, however, that joint scoring of left and right subspans is not required for strong results-in fact, the left-right scheme which scores child subspans in isolation slightly outperforms the concatenation scheme in all but one case, and is stronger than the deep bi- affine scoring function across the board.</p><p>Comparing results across the choice of label loss, however, we find that fewer trends are ap- parent. The scores obtained by training with a 0-1 loss are all within 0.1 of those obtained using a structured Hamming loss, being slightly higher in four out of eight cases and slightly lower in the other half. This leads us to conclude that the more elementary approach is sufficient when selecting atomic labels from a fixed inventory.</p><p>We also perform the same set of experiments under the setting where the top-middle-bottom la- bel scoring function described in Section 5.1 is used in place of an atomic label scoring function. These results are shown in <ref type="table">Tables 1c and 1d.</ref> A priori, we might expect that exposing addi- tional structure would allow the model to make better predictions, but on the whole we find that the scores in this set of experiments are worse than those in the previous set. Trends similar to before hold across the different choices of scoring func- tions, though in this case the minimal setting has scores closer to those of the left-right setting, even exceeding its performance in the case of a chart parser with a 0-1 label loss.</p><p>Our final test results are given in   achieve a new state-of-the-art F1 score of 91.79 with our best model. Interestingly, we observe that our parsers have a noticeably higher gap between precision and recall than do other top parsers, likely owing to the structured label loss which pe- nalizes mismatching nonterminals more heavily than it does a nonterminal and empty label mis- match. In addition, there is little difference be- tween the best top-down model and the best chart model, indicating that global normalization is not required to achieve strong results. Processing one sentence at a time on a c4.4xlarge Amazon EC2 instance, our best chart and top-down parsers operate at speeds of 20.3 sentences per second and 75.5 sentences per second, respectively, as mea- sured on the test set.</p><p>We additionally train parsers on the French Treebank using the same settings from our English experiments, selecting the best model of each type based on development performance. We list our test results along with those of several other recent papers in <ref type="table" target="#tab_4">Table 3</ref>. Although we fall short of the scores obtained by <ref type="bibr" target="#b5">Cross and Huang (2016)</ref>, we achieve competitive performance relative to the neural CRF parser of <ref type="bibr" target="#b7">Durrett and Klein (2015)</ref>.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="7">Related Work</head><p>Many early successful approaches to constituency parsing focused on rich modeling of correlations in the output space, typically by engineering proa- bilistic context-free grammars with state spaces enriched to capture long-distance dependencies and lexical phenomena <ref type="bibr" target="#b4">(Collins, 2003;</ref><ref type="bibr" target="#b21">Petrov and Klein, 2007)</ref>. By con- trast, the approach we have described here contin- ues a recent line of work on direct modeling of cor- relations in the input space, by using rich feature representations to parameterize local potentials that interact with a comparatively unconstrained structured decoder. As noted in the introduction, this class of feature-based tree scoring functions can be implemented with either a linear transition system <ref type="bibr" target="#b3">(Chen and Manning, 2014</ref>) or a global de- coder ( <ref type="bibr" target="#b9">Finkel et al., 2008)</ref>. <ref type="bibr" target="#b16">Kiperwasser and Goldberg (2016)</ref> describe an approach closely related to ours but targeted at dependency formalisms, and which easily accommodates both sparse log-linear scoring models ( <ref type="bibr" target="#b13">Hall et al., 2014</ref>) and deep neu- ral potentials <ref type="bibr" target="#b14">(Henderson, 2004;</ref>.</p><p>The best-performing constituency parsers in the last two years have largely been transition-based rather than global; examples include the models of , <ref type="bibr" target="#b5">Cross and Huang (2016)</ref> and <ref type="bibr" target="#b18">Liu and Zhang (2016)</ref>. The present work takes many of the insights developed in these models (e.g. the recurrent representation of spans <ref type="bibr" target="#b16">(Kiperwasser and Goldberg, 2016)</ref>, and the use of a dy- namic oracle and exploration policy during train- ing ( <ref type="bibr" target="#b11">Goldberg and Nivre, 2013)</ref>) and extends these insights to span-oriented models, which support a wider range of decoding procedures. Our ap- proach differs from other recent chart-based neu- ral models (e.g. <ref type="bibr" target="#b7">Durrett and Klein (2015)</ref>) in the use of a recurrent input representation, structured loss function, and comparatively simple param- eterization of the scoring function. In addition to the globally optimal decoding procedures for which these models were designed, and in contrast to the left-to-right decoder typically employed by transition-based models, our model admits an additional greedy top-to-bottom inference proce- dure.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="8">Conclusion</head><p>We have presented a minimal span-oriented parser that uses a recurrent input representation to score trees with a sum of independent potentials on their constituent spans and labels. Our model sup- ports both exact chart-based decoding and a novel top-down inference procedure. Both approaches achieve state-of-the-art performance on the Penn Treebank, and our best model achieves competi- tive performance on the French Treebank. Our ex- periments show that many of the key insights from recent neural transition-based approaches to pars- ing can be easily ported to the chart parsing set- ting, resulting in a pair of extremely simple models that nonetheless achieve excellent performance.</p></div><figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_1"><head>Figure 1 :</head><label>1</label><figDesc>Figure 1: An execution of our top-down parsing algorithm (a) and the resulting parse tree (b) for the sentence "She enjoys playing tennis." Part-of-speech tags, shown here together with the words, are predicted externally and are included as part of the input to our system. Beginning with the full sentence span (0, 5), the label S and the split point 1 are predicted, and recursive calls are made on the child spans (0, 1) and (1, 5). The left child span (0, 1) is assigned the label NP, and with no further splits to make, recursion terminates on this branch. The right child span (1, 5) is assigned the empty label ∅, indicating that it does not represent a constituent in the tree. A split point of 4 is selected, and further recursive calls are made on the grandchild spans (1, 4) and (4, 5). This process of labeling and splitting continues until every branch of recursion bottoms out in singleton spans, at which point the full parse tree can be returned. Note that the unary chain S-VP is produced in a single labeling step.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_2" validated="false"><head>Table 2 ,</head><label>2</label><figDesc>along with the results of other recent single-model parsers trained without external parse data. We</figDesc><table>Final Parsing Results on Penn Treebank 
+Parser 
+LR 
+LP 
+F1 
+Durrett and Klein (2015) 
+-
+-
+91.1 
+Vinyals et al. (2015) 
+-
+-
+88.3 
+Dyer et al. (2016) 
+-
+-
+89.8 
+Cross and Huang (2016) 
+90.5 
+92.1 
+91.3 
+Liu and Zhang (2016) 
+91.3 
+92.1 
+91.7 
+Best Chart Parser 
+90.63 92.98 91.79 
+Best Top-Down Parser 
+90.35 93.23 91.77 
+
+</table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_3" validated="false"><head>Table 2 :</head><label>2</label><figDesc></figDesc><table>Comparison of final test F1 scores on 
+the Penn Treebank. Here we only include scores 
+from single-model parsers trained without external 
+parse data. 
+
+Final Parsing Results on French Treebank 
+Parser 
+LR 
+LP 
+F1 
+Björkelund et al. (2014) 
+-
+-
+82.53 
+Durrett and Klein (2015) 
+-
+-
+81.25 
+Cross and Huang (2016) 81.90 84.77 83.11 
+Best Chart Parser 
+80.26 84.12 82.14 
+Best Top-Down Parser 
+79.60 85.05 82.23 
+
+</table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_4" validated="false"><head>Table 3 :</head><label>3</label><figDesc></figDesc><table>Comparison of final test F1 scores on the 
+French Treebank. 
+
+</table></figure>
+
+			<note place="foot" n="1"> In more detail, ∅ decomposes as (∅, ∅, ∅), X decomposes as (X, ∅, ∅), X-Y decomposes as (X, ∅, Y ), and X-Z1-· · ·-Z k-Y decomposes as (X, Z1-· · ·-Z k , Y ).</note>
+		</body>
+		<back>
+
+			<div type="acknowledgement">
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Acknowledgments</head><p>We would like to thank Nick Altieri and the anony-mous reviewers for their valuable comments and suggestions. MS is supported by an NSF Grad-uate Research Fellowship. JA is supported by a Facebook graduate fellowship and a Berkeley AI / Huawei fellowship.</p></div>
+			</div>
+
+			<div type="references">
+
+				<listBibl>
+
+<biblStruct xml:id="b0">
+	<monogr>
+		<title level="m" type="main">Neural machine translation by jointly learning to align and translate</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Dzmitry</forename><surname>Bahdanau</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kyunghyun</forename><surname>Cho</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yoshua</forename><surname>Bengio</surname></persName>
+		</author>
+		<idno>CoRR abs/1409.0473</idno>
+		<ptr target="http://arxiv.org/abs/1409.0473" />
+		<imprint>
+			<date type="published" when="2014" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b1">
+	<monogr>
+		<title level="m" type="main">Training with exploration improves a greedy stack-lstm parser</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Miguel</forename><surname>Ballesteros</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yoav</forename><surname>Goldberg</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Chris</forename><surname>Dyer</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Noah A</forename><surname>Smith</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1603.03793</idno>
+		<imprint>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b2">
+	<monogr>
+		<title level="m" type="main">The imswrocław-szeged-cis entry at the spmrl 2014 shared task: Reranking and morphosyntax meet unlabeled data</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Anders</forename><surname>Björkelund</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ozlem</forename><surname>Cetinoglu</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Agnieszka</forename><surname>Falenska</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Richárd</forename><surname>Farkas</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Thomas</forename><surname>Müller</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2014" />
+		</imprint>
+	</monogr>
+	<note>Wolfgang Seeker, and Zsolt Szántó. Notes of the SPMRL</note>
+</biblStruct>
+
+<biblStruct xml:id="b3">
+	<analytic>
+		<title level="a" type="main">A fast and accurate dependency parser using neural networks</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Danqi</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Christopher</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Manning</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">EMNLP</title>
+		<imprint>
+			<date type="published" when="2014" />
+			<biblScope unit="page" from="740" to="750" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b4">
+	<analytic>
+		<title level="a" type="main">Head-driven statistical models for natural language parsing</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Michael</forename><surname>Collins</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Computational linguistics</title>
+		<imprint>
+			<biblScope unit="volume">29</biblScope>
+			<biblScope unit="issue">4</biblScope>
+			<biblScope unit="page" from="589" to="637" />
+			<date type="published" when="2003" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b5">
+	<analytic>
+		<title level="a" type="main">Span-based constituency parsing with a structure-label system and provably optimal dynamic oracles</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">James</forename><surname>Cross</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Liang</forename><surname>Huang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">EMNLP</title>
+		<imprint>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b6">
+	<monogr>
+		<title level="m" type="main">Deep biaffine attention for neural dependency parsing</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Timothy</forename><surname>Dozat</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Christopher</forename><forename type="middle">D</forename><surname>Manning</surname></persName>
+		</author>
+		<idno>CoRR abs/1611.01734</idno>
+		<imprint>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b7">
+	<monogr>
+				<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Greg</forename><surname>Durrett</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Dan</forename><surname>Klein</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1507.03641</idno>
+		<title level="m">Neural crf parsing</title>
+		<imprint>
+			<date type="published" when="2015" />
+		</imprint>
+	</monogr>
+<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b8">
+	<monogr>
+				<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Chris</forename><surname>Dyer</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Adhiguna</forename><surname>Kuncoro</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Miguel</forename><surname>Ballesteros</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Noah A</forename><surname>Smith</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1602.07776</idno>
+		<title level="m">Recurrent neural network grammars</title>
+		<imprint>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b9">
+	<analytic>
+		<title level="a" type="main">Efficient, feature-based, conditional random field parsing</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jenny</forename><forename type="middle">Rose</forename><surname>Finkel</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Alex</forename><surname>Kleeman</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Christopher D</forename><surname>Manning</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">ACL</title>
+		<imprint>
+			<date type="published" when="2008" />
+			<biblScope unit="volume">46</biblScope>
+			<biblScope unit="page" from="959" to="967" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b10">
+	<analytic>
+		<title level="a" type="main">Understanding the difficulty of training deep feedforward neural networks</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Xavier</forename><surname>Glorot</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yoshua</forename><surname>Bengio</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the International Conference on Artificial Intelligence and Statistics (AISTATS10). Society for Artificial Intelligence and Statistics</title>
+		<meeting>the International Conference on Artificial Intelligence and Statistics (AISTATS10). Society for Artificial Intelligence and Statistics</meeting>
+		<imprint>
+			<date type="published" when="2010" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b11">
+	<analytic>
+		<title level="a" type="main">Training deterministic parsers with non-deterministic oracles</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yoav</forename><surname>Goldberg</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Joakim</forename><surname>Nivre</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Transactions of the association for Computational Linguistics</title>
+		<imprint>
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="403" to="414" />
+			<date type="published" when="2013" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b12">
+	<monogr>
+				<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Alex</forename><surname>Graves</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1308.0850</idno>
+		<title level="m">Generating sequences with recurrent neural networks</title>
+		<imprint>
+			<date type="published" when="2013" />
+		</imprint>
+	</monogr>
+<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b13">
+	<analytic>
+		<title level="a" type="main">Less grammar, more features</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">David Leo Wright</forename><surname>Hall</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Greg</forename><surname>Durrett</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Dan</forename><surname>Klein</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">ACL (1)</title>
+		<imprint>
+			<date type="published" when="2014" />
+			<biblScope unit="page" from="228" to="237" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b14">
+	<analytic>
+		<title level="a" type="main">Discriminative training of a neural network statistical parser</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">James</forename><surname>Henderson</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 42nd Annual Meeting on Association for Computational Linguistics</title>
+		<meeting>the 42nd Annual Meeting on Association for Computational Linguistics</meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2004" />
+			<biblScope unit="page">95</biblScope>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b15">
+	<monogr>
+		<title level="m" type="main">Adam: A method for stochastic optimization</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">P</forename><surname>Diederik</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jimmy</forename><surname>Kingma</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Ba</surname></persName>
+		</author>
+		<idno>CoRR abs/1412.6980</idno>
+		<ptr target="http://arxiv.org/abs/1412.6980" />
+		<imprint>
+			<date type="published" when="2014" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b16">
+	<monogr>
+				<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Eliyahu</forename><surname>Kiperwasser</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yoav</forename><surname>Goldberg</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1603.04351</idno>
+		<title level="m">Simple and accurate dependency parsing using bidirectional lstm feature representations</title>
+		<imprint>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b17">
+	<analytic>
+		<title level="a" type="main">Accurate unlexicalized parsing</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Dan</forename><surname>Klein</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Christopher</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Manning</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the Annual Meeting of the Association for Computational Linguistics</meeting>
+		<imprint>
+			<date type="published" when="2003" />
+			<biblScope unit="page" from="423" to="430" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b18">
+	<monogr>
+		<title level="m" type="main">Shiftreduce constituent parsing with neural lookahead features</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jiangming</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yue</forename><surname>Zhang</surname></persName>
+		</author>
+		<idno>CoRR abs/1612.00567</idno>
+		<imprint>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b19">
+	<analytic>
+		<title level="a" type="main">Building a large annotated corpus of english: The penn treebank</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Mitchell</forename><forename type="middle">P</forename><surname>Marcus</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Mary</forename><forename type="middle">Ann</forename><surname>Marcinkiewicz</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Beatrice</forename><surname>Santorini</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Comput. Linguist</title>
+		<imprint>
+			<biblScope unit="volume">19</biblScope>
+			<biblScope unit="issue">2</biblScope>
+			<biblScope unit="page" from="313" to="330" />
+			<date type="published" when="1993" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b20">
+	<monogr>
+				<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Graham</forename><surname>Neubig</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Chris</forename><surname>Dyer</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yoav</forename><surname>Goldberg</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Austin</forename><surname>Matthews</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Waleed</forename><surname>Ammar</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Antonios</forename><surname>Anastasopoulos</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Miguel</forename><surname>Ballesteros</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">David</forename><surname>Chiang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Daniel</forename><surname>Clothiaux</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Trevor</forename><surname>Cohn</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kevin</forename><surname>Duh</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Manaal</forename><surname>Faruqui</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Cynthia</forename><surname>Gan</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Dan</forename><surname>Garrette</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yangfeng</forename><surname>Ji</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Lingpeng</forename><surname>Kong</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Adhiguna</forename><surname>Kuncoro</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Gaurav</forename><surname>Kumar</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Chaitanya</forename><surname>Malaviya</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Paul</forename><surname>Michel</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1701.03980</idno>
+		<title level="m">Swabha Swayamdipta, and Pengcheng Yin. 2017. Dynet: The dynamic neural network toolkit</title>
+		<meeting><address><addrLine>Yusuke Oda, Matthew Richardson, Naomi Saphra</addrLine></address></meeting>
+		<imprint/>
+	</monogr>
+<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b21">
+	<analytic>
+		<title level="a" type="main">Improved inference for unlexicalized parsing</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Slav</forename><surname>Petrov</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Dan</forename><surname>Klein</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Human Language Technology Conference of the North American Chapter of the Association for Computational Linguistics. Assocation for Computational Linguistics</title>
+		<meeting>the Human Language Technology Conference of the North American Chapter of the Association for Computational Linguistics. Assocation for Computational Linguistics</meeting>
+		<imprint>
+			<date type="published" when="2007" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b22">
+	<analytic>
+		<title level="a" type="main">Introducing the spmrl 2014 shared task on parsing morphologically-rich languages</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Djamé</forename><surname>Seddah</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Sandra</forename><surname>Kübler</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Reut</forename><surname>Tsarfaty</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the First Joint Workshop on Statistical Parsing of Morphologically Rich Languages and Syntactic Analysis of Non-Canonical Languages</title>
+		<meeting>the First Joint Workshop on Statistical Parsing of Morphologically Rich Languages and Syntactic Analysis of Non-Canonical Languages</meeting>
+		<imprint>
+			<date type="published" when="2014" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b23">
+	<analytic>
+		<title level="a" type="main">Learning structured prediction models: A large margin approach</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ben</forename><surname>Taskar</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Vassil</forename><surname>Chatalbashev</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Daphne</forename><surname>Koller</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Carlos</forename><surname>Guestrin</surname></persName>
+		</author>
+		<idno type="doi">10.1145/1102351.1102464</idno>
+		<ptr target="https://doi.org/10.1145/1102351.1102464" />
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 22Nd International Conference on Machine Learning</title>
+		<meeting>the 22Nd International Conference on Machine Learning<address><addrLine>New York, NY, USA</addrLine></address></meeting>
+		<imprint>
+			<publisher>ACM</publisher>
+			<date type="published" when="2005" />
+			<biblScope unit="page" from="896" to="903" />
+		</imprint>
+	</monogr>
+	<note>ICML &apos;05</note>
+</biblStruct>
+
+<biblStruct xml:id="b24">
+	<analytic>
+		<title level="a" type="main">Optimal shift-reduce constituent parsing with structured perceptron</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Hiroshi</forename><surname>Le Quang Thang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yusuke</forename><surname>Noji</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Miyao</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the Annual Meeting of the Association for Computational Linguistics</meeting>
+		<imprint>
+			<date type="published" when="2015" />
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="1534" to="1544" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b25">
+	<analytic>
+		<title level="a" type="main">Feature-rich part-of-speech tagging with a cyclic dependency network</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kristina</forename><surname>Toutanova</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Dan</forename><surname>Klein</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Christopher</forename><forename type="middle">D</forename><surname>Manning</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yoram</forename><surname>Singer</surname></persName>
+		</author>
+		<idno type="doi">10.3115/1073445.1073478</idno>
+		<ptr target="https://doi.org/10.3115/1073445.1073478" />
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2003 Conference of the North American Chapter of the Association for Computational Linguistics on Human Language Technology</title>
+		<meeting>the 2003 Conference of the North American Chapter of the Association for Computational Linguistics on Human Language Technology<address><addrLine>Stroudsburg, PA, USA, NAACL &apos;03</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2003" />
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="173" to="180" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b26">
+	<analytic>
+		<title level="a" type="main">Grammar as a foreign language</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Oriol</forename><surname>Vinyals</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Łukasz</forename><surname>Kaiser</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Terry</forename><surname>Koo</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Slav</forename><surname>Petrov</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ilya</forename><surname>Sutskever</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Geoffrey</forename><surname>Hinton</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Advances in Neural Information Processing Systems</title>
+		<imprint>
+			<date type="published" when="2015" />
+			<biblScope unit="page" from="2773" to="2781" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b27">
+	<monogr>
+		<title level="m" type="main">A unified tagging solution: Bidirectional LSTM recurrent neural network with word embedding</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Peilu</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yao</forename><surname>Qian</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Frank</forename><forename type="middle">K</forename><surname>Soong</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Lei</forename><surname>He</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Hai</forename><surname>Zhao</surname></persName>
+		</author>
+		<idno>CoRR abs/1511.00215</idno>
+		<ptr target="http://arxiv.org/abs/1511.00215" />
+		<imprint>
+			<date type="published" when="2015" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b28">
+	<analytic>
+		<title level="a" type="main">Graphbased dependency parsing with bidirectional LSTM</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Wenhui</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Baobao</forename><surname>Chang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 54th Annual Meeting of the Association for Computational Linguistics, ACL 2016</title>
+		<meeting>the 54th Annual Meeting of the Association for Computational Linguistics, ACL 2016<address><addrLine>Berlin, Germany</addrLine></address></meeting>
+		<imprint>
+			<publisher>Long Papers</publisher>
+			<date type="published" when="2016-08-07" />
+			<biblScope unit="volume">1</biblScope>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b29">
+	<monogr>
+		<title level="m" type="main">Sequence-to-sequence learning as beam-search optimization</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Sam</forename><surname>Wiseman</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Alexander M</forename><surname>Rush</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1606.02960</idno>
+		<imprint>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+				</listBibl>
+			</div>
+		</back>
+	</text>
+</TEI>

@@ -1,0 +1,622 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<TEI xmlns="http://www.tei-c.org/ns/1.0" 
+xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+xsi:schemaLocation="http://www.tei-c.org/ns/1.0 /home/ana/installs/grobid/grobid-0.5.1/grobid-home/schemas/xsd/Grobid.xsd"
+ xmlns:xlink="http://www.w3.org/1999/xlink">
+	<teiHeader xml:lang="en">
+		<encodingDesc>
+			<appInfo>
+				<application version="0.5.1-SNAPSHOT" ident="GROBID" when="2019-04-18T12:01+0000">
+					<ref target="https://github.com/kermitt2/grobid">GROBID - A machine learning software for extracting information from scholarly documents</ref>
+				</application>
+			</appInfo>
+		</encodingDesc>
+		<fileDesc>
+			<titleStmt>
+				<title level="a" type="main">N-gram language models for massively parallel devices</title>
+			</titleStmt>
+			<publicationStmt>
+				<publisher/>
+				<availability status="unknown"><licence/></availability>
+				<date>August 7-12, 2016</date>
+			</publicationStmt>
+			<sourceDesc>
+				<biblStruct>
+					<analytic>
+						<author>
+							<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Nikolay</forename><surname>Bogoychev</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="institution">University of Edinburgh Edinburgh</orgName>
+								<address>
+									<country key="GB">United Kingdom</country>
+								</address>
+							</affiliation>
+						</author>
+						<author>
+							<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Adam</forename><surname>Lopez</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="institution">University of Edinburgh Edinburgh</orgName>
+								<address>
+									<country key="GB">United Kingdom</country>
+								</address>
+							</affiliation>
+						</author>
+						<title level="a" type="main">N-gram language models for massively parallel devices</title>
+					</analytic>
+					<monogr>
+						<title level="m">Proceedings of the 54th Annual Meeting of the Association for Computational Linguistics</title>
+						<meeting>the 54th Annual Meeting of the Association for Computational Linguistics <address><addrLine>Berlin, Germany</addrLine></address>
+						</meeting>
+						<imprint>
+							<biblScope unit="page" from="1944" to="1953"/>
+							<date type="published">August 7-12, 2016</date>
+						</imprint>
+					</monogr>
+				</biblStruct>
+			</sourceDesc>
+		</fileDesc>
+		<profileDesc>
+			<abstract>
+				<p>For many applications, the query speed of N-gram language models is a computational bottleneck. Although massively parallel hardware like GPUs offer a potential solution to this bottleneck, exploiting this hardware requires a careful rethinking of basic algorithms and data structures. We present the first language model designed for such hardware, using B-trees to maximize data parallelism and minimize memory footprint and latency. Compared with a single-threaded instance of KenLM (Heafield, 2011), a highly optimized CPU-based language model, our GPU implementation produces identical results with a smaller memory footprint and a sixfold increase in throughput on a batch query task. When we saturate both devices, the GPU delivers nearly twice the throughput per hardware dollar even when the CPU implementation uses faster data structures. Our implementation is freely available at https://github.com/XapaJIaMnu/gLM</p>
+			</abstract>
+		</profileDesc>
+	</teiHeader>
+	<text xml:lang="en">
+		<body>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="1">Introduction</head><p>N -gram language models are ubiquitous in speech and language processing applications such as ma- chine translation, speech recognition, optical char- acter recognition, and predictive text. Because they operate over large vocabularies, they are often a computational bottleneck. For example, in ma- chine translation, <ref type="bibr" target="#b14">Heafield (2013)</ref> estimates that decoding a single sentence requires a million lan- guage model queries, and <ref type="bibr" target="#b9">Green et al. (2014)</ref> esti- mate that this accounts for more than 50% of de- coding CPU time.</p><p>To address this problem, we turn to mas- sively parallel hardware architectures, exempli- fied by general purpose graphics processing units (GPUs), whose memory bandwidth and compu- tational throughput has rapidly outpaced that of CPUs over the last decade <ref type="figure" target="#fig_0">(Figure 1</ref>). Exploiting this increased power is a tantalizing prospect for any computation-bound problem, so GPUs have begun to attract attention in natural language pro- cessing, in problems such as parsing <ref type="bibr" target="#b2">(Canny et al., 2013;</ref><ref type="bibr" target="#b10">Hall et al., 2014</ref>), speech recognition ( <ref type="bibr" target="#b6">Chong et al., 2009;</ref><ref type="bibr" target="#b5">Chong et al., 2008)</ref>, and phrase extraction for machine translation <ref type="bibr" target="#b11">(He et al., 2015)</ref>. As these efforts have shown, it is not trivial to exploit this computational power, be- cause the GPU computational model rewards data parallelism, minimal branching, and minimal ac- cess to global memory, patterns ignored by many classic NLP algorithms (Section 2).</p><p>We present the first language model data struc- ture designed for this computational model. Our data structure is a trie in which individual nodes are represented by B-trees, which are searched in parallel (Section 3) and arranged compactly in memory <ref type="bibr">(Section 4)</ref>. Our experiments across a range of parameters in a batch query setting show that this design achieves a throughput six times higher than <ref type="bibr">KenLM (Heafield, 2011)</ref>, a highly effi- cient CPU implementation (Section 5). They also show the effects of device saturation and of data structure design decisions.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2">GPU computational model</head><p>GPUs and other parallel hardware devices have a different computational profile from widely-used x86 CPUs, so data structures designed for serial models of computation are not appropriate. To produce efficient software for a GPU we must be familiar with its design <ref type="figure">(Figure 2</ref>).</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.1">GPU design</head><p>A GPU consists of many simple computational cores, which have neither complex caches nor branch predictors to hide latencies. Because they have far fewer circuits than CPU cores, GPU cores are much smaller, and many more of them can fit on a device. So the higher throughput of a GPU is due to the sheer number of cores, each executing a single thread of computation <ref type="figure">(Figure 2</ref>). Each core belongs to a Streaming Multiprocessor (SM), and all cores belonging to a SM must execute the same instruction at each time step, with exceptions for branching described below. This execution model is very similar to single instruction, multiple data (SIMD) parallelism. <ref type="bibr">1</ref> Computation on a GPU is performed by an in- herently parallel function or kernel, which defines a grid of data elements to which it will be applied, each processed by a block of parallel threads. Once scheduled, the kernel executes in parallel on all cores allocated to blocks in the grid. At min- imum, it is allocated to a single warp-32 cores on our experimental GPU. If fewer cores are re- quested, a full warp is still allocated, and the un- used cores idle.</p><p>A GPU offers several memory types, which dif- fer in size and latency <ref type="table">(Table 1)</ref>. Unlike a CPU program, which can treat memory abstractly, a GPU program must explicitly specify in which physical memory each data element resides. This choice has important implications for efficiency that entail design tradeoffs, since memory closer <ref type="figure">Figure 2</ref>: GPU memory hierarchy and computa- tional model <ref type="bibr">(Nvidia Corporation, 2015</ref> to a core is small and fast, while memory further away is large and slow <ref type="table">(Table 1)</ref>.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.2">Designing efficient GPU algorithms</head><p>To design an efficient GPU application we must observe the constraints imposed by the hardware, which dictate several important design principles. Avoid branching instructions. If a branching instruction occurs, threads that meet the branch condition run while the remainder idle (a warp di- vergence). When the branch completes, threads that don't meet the condition run while the first group idles. So, to maximize performance, code must be designed with little or no branching.</p><p>Use small data structures. Total memory on a state-of-the-art GPU is 12GB, expected to rise to 24GB in the next generation. Language models that run on CPU frequently exceed these sizes, so our data structures must have the smallest possible memory footprint.</p><p>Minimize global memory accesses. Data in the CPU memory must first be transferred to the device. This is very slow, so data structures must reside in GPU memory. But even when they  reside in global GPU memory, latency is high, so wherever possible, data should be accessed from shared or register memory.</p><p>Access memory with coalesced reads. When a thread requests a byte from global memory, it is copied to shared memory along with many surrounding bytes (between 32 and 128 depending on the architecture). So, if consecutive threads request consecutive data elements, the data is copied in a single operation (a coalesced read), and the delay due to latency is incurred only once for all threads, increasing throughput.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3">A massively parallel language model</head><p>Let w be a sentence, w i its ith word, and N the order of our model. An N -gram language model defines the probability of w as:</p><formula xml:id="formula_0">P (w) = |w| i=1 P (w i |w i−1 ...w i−N +1 )<label>(1)</label></formula><p>A backoff language model ( <ref type="bibr" target="#b4">Chen and Goodman, 1999</ref>) is defined in terms of n-gram probabil- ities P (w i |w i−1 ...w i−n+1 ) for all n from 1 to N , which are in turn defined by n-gram pa- rametersˆPrametersˆ rametersˆP (w i ...w i−n+1 ) and backoff parameters β(w i−1 ...w i−n+1 ). UsuallyˆPUsuallyˆ UsuallyˆP (w i ...w i−n+1 ) and β(w i−1 ...w i−n+1 ) are probabilities conditioned on w i−1 ...w i−n+1 , but to simplify the following exposition, we will simply treat them as numeric parameters, each indexed by a reversed n-gram. If parameterˆPparameterˆ parameterˆP (w i ...w i−n+1 ) is nonzero, then:</p><formula xml:id="formula_1">P (w i |w i−1 ...w i−n+1 ) = ˆ P (w i ...w i−n+1 )</formula><p>Otherwise:</p><formula xml:id="formula_2">P (w i |w i−1 ...w i−n+1 ) = P (w i |w i−1 ...w i−n+2 ) × β(w i−1 ...w i−n+1 )</formula><p>This recursive definition means that the probabil- ity P (w i |w i−1 ...w i−N +1 ) required for Equation 1 may depend on multiple parameters. If r (&lt; N ) is the largest value for whichˆPwhichˆ whichˆP (w i |w i−1 ...w i−r+1 ) is nonzero, then we have:</p><formula xml:id="formula_3">P (w i |w i−1 ...w i−N +1 ) = (2) ˆ P (w i ...w i−r+1 ) N n=r+1 β(w i−1 ...w i−n+1 )</formula><p>Our data structure must be able to efficiently ac- cess these parameters.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.1">Trie language models</head><p>With this computation in mind, we surveyed sev- eral popular data structures that have been used to implement N -gram language models on CPU, considering their suitability for adaptation to GPU <ref type="table" target="#tab_2">(Table 2)</ref>. Since a small memory footprint is cru- cial, we implemented a variant of the trie data structure of Heafield (2011). We hypothesized that its slower query speed compared to a probing hash table would be compensated for by the throughput of the GPU, a question we return to in Section 5. A trie language model exploits two impor- tant guarantees of backoff estimators: first, ifˆP ifˆ ifˆP (w i ...w i−n+1 ) is nonzero, thenˆPthenˆ thenˆP (w i ...w i−m+1 ) is also nonzero, for all m &lt; n; second, if</p><formula xml:id="formula_4">β(w i−1 ...w i−n+1 ) is one, then β(w i−1 ...w i−p+1 ) is one, for all p &gt; n.</formula><p>Zero-valued n- gram parameters and one-valued backoff pa- rameters are not explicitly stored. To com- pute P (w i |w i−1 ...w i−N +1 ), we iteratively retrievêretrievê P (w i ...w i−m+1 ) for increasing values of m un- til we fail to find a match, with the final nonzero value becomingˆPbecomingˆ becomingˆP (w i ...w i−r+1 ) in Equation 2. We then iteratively retrieve β(w i−1 ...w i−n+1 ) for increasing values of n starting from r + 1 and continuing until n = N or we fail to find a match, multiplying all retrieved terms to compute P (w i |w i−1 ...w i−N +1 ) (Equation 2). The trie is designed to execute these iterative parameter re- trievals efficiently.</p><p>Let Σ be a our vocabulary, Σ n the set of all n-grams over the vocabulary, and Σ <ref type="bibr">[N ]</ref> the A query for the N -gram every one of traverses the same path, but since ev- ery is not among the keys in the final node, it re- turns the n-gram parameterˆPparameterˆ parameterˆP (of|one) and returns to the root to seek the backoff parameter β(every one). Based on image from <ref type="bibr" target="#b8">Federico et al. (2008)</ref>.</p><formula xml:id="formula_5">set Σ 1 ∪ ... ∪ Σ N . Given an n-gram key w i ...w i−n+1 ∈ Σ [N ] , our goal is to retrieve valuêvaluê P (w i ...w i−n+1 ), β(w i ...w i−n+1 ).</formula><p>We assume a bijection from Σ to integers in the range 1, ..., |Σ|, so in practice all keys are sequences of integers.</p><p>When n = 1, the set of all possible keys is just Σ. For this case, we can store keys with nontriv- ial values in a sorted array A and their associated values in an array V of equal length so that V [j] is the value associated with key A <ref type="bibr">[j]</ref>. To retrieve the value associated with key k, we seek j for which A[j] = k and return V <ref type="bibr">[j]</ref>. Since A is sorted, j can be found efficiently with binary or interpolated search <ref type="figure" target="#fig_2">(Figure 4</ref>).</p><p>When n &gt; 1, queries are recursive. For n &lt; N , for every w i ...w i−n+1 for whichˆP whichˆ whichˆP (w i ...w i−n+1 ) &gt; 0 or β(w i ...w i−n+1 ) &lt; 1, our data structure contains associated arrays</p><formula xml:id="formula_6">K w i ...w i−n+1 and V w i ...w i−n+1 .</formula><p>When key k is located in A w i ...w i−n+1 <ref type="bibr">[j]</ref>, the value stored at V w i ...w i−n+1 <ref type="bibr">[j]</ref> includes the address of arrays A w i ...w i−n+1 k and V w i ...w i−n+1 k . To find the values associated with an n-gram w i ...w i−n+1 , we first search the root array A for j 1 such that A[j 1 ] = w i . We retrieve the address of A w i from V [j 1 ], and we then search for j 2 such that A w i [j 2 ] = w i−1 . We continue to iterate this process until we find the value associated with the longest suffix of our n- gram stored in the trie. We therefore iteratively retrieve the parameters needed to compute Equa- tion 2, returning to the root exactly once if backoff parameters are required.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.1.1">K-ary search and B-trees</head><p>On a GPU, the trie search algorithm described above is not efficient because it makes extensive use of binary search, an inherently serial algo- rithm. However, there is a natural extension of binary search that is well-suited to GPU: K-ary search (Hwu, 2011). Rather than divide an array in two as in binary search, K-ary search divides it into K equal parts and performs K − 1 compar- isons simultaneously ( <ref type="figure" target="#fig_3">Figure 5</ref>).</p><p>To accommodate large language models, the complete trie must reside in global memory, and in this setting, K-ary search on an array is inef- ficient, since the parallel threads will access non- consecutive memory locations. To avoid this, we require a data structure that places the K elements compared by K-ary search in consecutive memory locations so that they can be copied from global to shared memory with a coalesced read. This data structure is a B-tree ( <ref type="bibr" target="#b0">Bayer and McCreight, 1970)</ref>, which is widely used in databases, filesystems and information retrieval.</p><p>Informally, a B-tree generalizes binary trees in exactly the same way that K-ary search general- izes binary search ( <ref type="figure" target="#fig_4">Figure 6</ref>). More formally, a B-tree is a recursive data structure that replaces arrays A and V at each node of the trie. A B- tree node of size K consists of three arrays: a 1- indexed array B of K − 1 keys; a 1-indexed array V of K − 1 associated values so that V [j] is the value associated with key B <ref type="bibr">[j]</ref>; and, if the node is not a leaf, a 0-indexed array C of K addresses to child B-trees. The keys in B are sorted, and the subtree at address pointed to by child C <ref type="bibr">[j]</ref> </p><note type="other">repre- sents only key-value pairs for keys between B[j] and B[j + 1] when 1 ≤ j &lt; K, keys less than B[1] when j = 0, or keys greater than B[K] when j = K.</note><p>To find a key k in a B-tree, we start at the root node, and we seek j such that</p><formula xml:id="formula_7">B[j] ≤ k &lt; B[j + 1]. If B[j] = k we return V [j]</formula><p>, otherwise if the node is not a leaf node we return the result of recursively querying the B-tree node at the address</p><formula xml:id="formula_8">C[j] (C[0] if k &lt; B[1] or C[K] if k &gt; B[K]).</formula><p>If the key is not found in array B of a leaf, the query fails.</p><p>Our complete data structure is a trie in which each node except the root is a B-tree ( <ref type="figure" target="#fig_5">Figure 7)</ref>. Since the root contains all possible keys, its keys are simply represented by an array A, which can be indexed in constant time without any search.   </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4">Memory layout and implementation</head><p>Each trie node represents a unique n-gram w i ...w i−n+1 , and if a B-tree node within the trie node contains key w i−n , then it must also contain the associated valuesˆPvaluesˆ valuesˆP (w i ...w i−n ), β(w i ...w i−n ), and the address of the trie node rep- resenting w i ...w i−n ( <ref type="figure" target="#fig_1">Figure 6, Figure 3</ref>). The en- tire language model is laid out in memory as a single byte array in which trie nodes are visited in breadth-first order and the B-tree representation of each node is also visited in breadth-first order <ref type="figure" target="#fig_5">(Figure 7)</ref>.</p><p>Since our device has a 64-bit architecture, point- ers can address 18.1 exabytes of memory, far more than available. To save space, our data struc- ture does not store global addresses; it instead stores the difference in addresses between the par- ent node and each child. Since the array is aligned to four bytes, these relative addresses are divided by four in the representation, and multiplied by four at runtime to obtain the true offset. This en- ables us to encode relative addresses of 16GB, still larger than the actual device memory. We esti- mate that relative addresses of this size allow us to store a model containing around one billion n- grams. <ref type="bibr">2</ref> Unlike CPU language model implementa- tions such as those of Heafield (2011) and <ref type="bibr" target="#b20">Watanabe et al. (2009)</ref>, we do not employ further com- pression techniques such as variable-byte encod- ing or LOUDS, because their runtime decompres- sion algorithms require branching code, which our implementation must avoid.</p><p>We optimize the node representation for coa- lesced reads by storing the keys of each B-tree consecutively in memory, followed by the corre- sponding values, also stored consecutively ( <ref type="figure" target="#fig_4">Figure  6</ref>). When the data structure is traversed, only key arrays are iteratively copied to shared memory un- til a value array is needed. This design minimizes the number of reads from global memory.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.1">Construction</head><p>The canonical B-tree construction algorithm <ref type="bibr" target="#b7">(Cormen et al., 2009</ref>) produces nodes that are not fully saturated, which is desirable for B-trees that  support insertion. However, our B-trees are im- mutable, and unsaturated nodes of unpredictable size lead to underutilization of threads, warp di- vergence, and deeper trees that require more iter- ations to query. So, we use a construction algo- rithm inspired by <ref type="bibr" target="#b3">Cesarini and Soda (1983)</ref> and <ref type="bibr" target="#b18">Rosenberg and Snyder (1981)</ref>. It is implemented on CPU, and the resulting array is copied to GPU memory to perform queries.</p><p>Since the entire set of keys and values is known in advance for each n-gram, our construction al- gorithm receives them in sorted order as the array A described in Section 3.1. The procedure then splits this array into K consecutive subarrays of equal size, leaving K − 1 individual keys between each subarray. 3 These K −1 keys become the keys of the root B-tree. The procedure is then applied recursively to each subarray. When applied to an array whose size is less than K, the algorithm re- turns a leaf node. When applied to an array whose size is greater than or equal to K but less than 2K, it splits the array into a node containing the first K − 1 keys, and a single leaf node containing the remaining keys, which becomes a child of the first.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.2">Batch queries</head><p>To fully saturate our GPU we execute many queries simultaneously. A grid receives the com- plete set of N -gram queries and each block pro- cesses a single query by performing a sequence of K-ary searches on B-tree nodes.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5">Experiments</head><p>We compared our open-source GPU language model gLM with the CPU language model <ref type="bibr">KenLM (Heafield, 2011</ref>). 45 KenLM can use two quite different language model data structures: a fast probing hash table, and a more compact but slower trie, which inspired our own language model design. Except where noted, our B-tree node size K = 31, and we measure throughput in terms of query speed, which does not include the cost of initializing or copying data structures, or the cost of moving data to or from the GPU.</p><p>We performed our GPU experiments on an Nvidia Geforce GTX, a state-of-the-art GPU, re- leased in the first quarter of 2015 and costing 1000 USD. Our CPU experiments were performed on two different devices: one for single-threaded tests and one for multi-threaded tests. For the single- threaded CPU tests, we used an Intel Quad Core i7 4720HQ CPU released in the first quarter of 2015, costing 280 USD, and achieving 85% of the speed of a state-of-the-art consumer-grade CPU when single-threaded. For the multi-threaded CPU tests we used two Intel Xeon E5-2680 CPUs, offering a combined 16 cores and 32 threads, costing at the time of their release 3,500 USD together. To- gether, their performance specifications are sim- ilar to the recently released Intel Xeon E5-2698 v3 (16 cores, 32 threads, costing 3,500USD). The different CPU configurations are favorable to the CPU implementation in their tested condition: the consumer-grade CPU has higher clock speeds in single-threaded mode than the professional-grade CPU; while the professional-grade CPUs provide many more cores (though at lower clock speeds) when fully saturated. Except where noted, CPU throughput is reported for the single-threaded con- dition.</p><p>Except where noted, our language model is the Moses 3.0 release English 5-gram language model, containing 88 million n-grams. <ref type="bibr">6</ref> Our benchmark task computes perplexity on data ex- tracted from the Common Crawl dataset used for the 2013 Workshop on Machine Translation, which contains 74 million words across 3.2 mil- lion sentences. <ref type="bibr">7</ref> Both gLM and KenLM produce identical perplexities, so we are certain that our implementation is correct. Except where noted, the faster KenLM Probing backend is used. The perplexity task has been used as a basic test of other language model implementations ( <ref type="bibr" target="#b17">Osborne et al., 2014;</ref><ref type="bibr" target="#b12">Heafield et al., 2015</ref>).</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.1">Query speed</head><p>When compared to single-threaded KenLM, our results <ref type="table">(Table 3)</ref> show that gLM is just over six LM (threads) Throughput Size (GB) KenLM probing <ref type="formula" target="#formula_0">(1)</ref> 10.3M 1.8 KenLM probing <ref type="formula" target="#formula_0">(16)</ref> 49.8M 1.8 KenLM probing <ref type="formula">(32)</ref> 120.4M 1.8 KenLM trie <ref type="formula" target="#formula_0">(1)</ref> 4.5M 0.8 gLM 65.5M 1.2 <ref type="table">Table 3</ref>: Comparison of gLM and KenLM on throughput (N -gram queries per second) and data structure size.</p><p>times faster than the fast probing hash table, and nearly fifteen times faster than the trie data struc- ture, which is quite similar to our own, though slightly smaller due to the use of compression. The raw speed of the GPU is apparent, since we were able to obtain our results with a relatively short engineering effort when compared to that of KenLM, which has been optimized over several years.</p><p>When we fully saturate our professional-grade CPU, using all sixteen cores and sixteen hyper- threads, KenLM is about twice as fast as gLM. However, our CPU costs nearly four times as much as our GPU, so economically, this comparison fa- vors the GPU.</p><p>On first glance, the scaling from one to six- teen threads is surprisingly sublinear. This is not due to vastly different computational power of the individual cores, which are actually very simi- lar. It is instead due to scheduling, cache con- tention, and-most importantly-the fact that our CPUs implement dynamic overclocking: the base clock rate of 2.7 GHz at full saturation increases to 3.5 GHz when the professional CPU is under- utilized, as when single-threaded; the rates for the consumer-grade CPU similarly increase from 2.6 to 3.6 GHz. <ref type="bibr">8</ref> </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.2">Effect of B-tree node size</head><p>What is the optimal K for our B-tree node size? We hypothesized that the optimal size would be one that approaches the size of a coalesced mem- ory read, which should allow us to maximize parallelism while minimizing global memory ac- cesses and B-tree depth. Since the size of a coa- lesced read is 128 bytes and keys are four bytes, we hypothesized that the optimal node size would be around K = 32, which is also the size of a warp. We tested this by running experiments that varied K from 5 to 59, and the results <ref type="figure" target="#fig_7">(Fig- ure 9</ref>) confirmed our hypothesis. As the node size increases, throughput increases until we reach a node size of 33, where it steeply drops. This re- sult highlights the importance of designing data structures that minimize global memory access and maximize parallelism.</p><p>We were curious about what effect this node size had on the depth of the B-trees representing each trie node. Measuring this, we discovered that for bigrams, 88% of the trie nodes have a depth of one-we call these B-stumps, and they can be ex- haustively searched in a single parallel operation. For trigrams, 97% of trie nodes are B-stumps, and for higher order n-grams the percentage exceeds 99%.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.3">Saturating the GPU</head><p>A limitation of our approach is that it is only ef- fective in high-throughput situations that continu- ally saturate the GPU. In situations where a lan- guage model is queried only intermittently or only in short bursts, a GPU implementation may not be useful. We wanted to understand the point at which this saturation occurs, so we ran ex- periments varying the batch size sent to our lan- guage model, comparing its behavior with that of KenLM. To understand situations in which the GPU hosts the language model for query by an external GPU, we measure query speed with and without the cost of copying queries to the device.</p><p>Our results <ref type="figure" target="#fig_0">(Figure 10</ref>) suggest that the device is nearly saturated once the batch size reaches a thousand queries, and fully saturated by ten thou- sand queries. Throughput remains steady as batch size increases beyond this point. Even with the cost of copying batch queries to GPU memory,   <ref type="figure" target="#fig_0">Figure 10</ref> but they are similar to the single- threaded case: throughput (as shown on <ref type="table">Table  3</ref>) plateaus at around one hundred sentences per thread.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.4">Effect of model size</head><p>To understand the effect of model size on query speed, we built a language model with 423 million n-grams, five times larger than our basic model. The results <ref type="table" target="#tab_3">(Table 4)</ref> show an 18% slowdown for gLM and 20% slowdown for KenLM, showing that model size affects both implementations sim- ilarly.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.5">Effect of N -gram order on performance</head><p>All experiments so far use an N -gram order of five. We hypothesized that lowering the ngram or- der of the model would lead to faster query time <ref type="table">(Table 5)</ref>. We observe that N -gram order af- fects throughput of the GPU language model much more than the CPU one. This is likely due to ef- fects of backoff queries, which are more optimized in KenLM. At higher orders, more backoff queries occur, which reduces throughput for gLM.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>5-gram 4-gram 3-gram KenLM</head><p>10.2M 9.8M 11.5M KenLM Trie 4.5M 4.5M 5.2M gLM 65.5M 71.9M 93.7M <ref type="table">Table 5</ref>: Throughput comparison (ngram queries per second) achieved using lower order ngram models.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.6">Effect of templated code</head><p>Our implementation initially relied on hard-coded values for parameters such as B-tree node size and N -gram order, which we later replaced with parameters. Surprisingly, we observed that this led to a reduction in throughput from 65.6 mil- lion queries per second to 59.0 million, which we traced back to the use of dynamically allocated shared memory, as well as compiler optimizations that only apply to compile-time constants. To re- move this effect, we heavily templated our code, using as many compile-time constants as possi- ble, which improves throughput but enables us to change parameters through recompilation.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.7">Bottlenecks: computation or memory?</head><p>On CPU, language models are typically memory- bound: most cycles are spent in random mem- ory accesses, with little computation between ac- cesses. To see if this is true in gLM we exper- imented with two variants of the benchmark in <ref type="figure" target="#fig_1">Figure 3</ref>: one in which the GPU core was under- clocked, and one in which the memory was un- derclocked. This effectively simulates two varia- tions in our hardware: A GPU with slower cores but identical memory, and one with slower mem- ory, but identical processing speed. We found that throughput decreases by about 10% when under- clocking the cores by 10%. On the other hand, underclocking memory by 25% reduced through- put by 1%. We therefore conclude that gLM is computation-bound. We expect that gLM will continue to improve on parallel devices offering higher theoretical floating point performance.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6">Conclusion</head><p>Our language model is implemented on a GPU, but its general design (and much of the actual code) is likely to be useful to other hardware that supports SIMD parallelism, such as the Xeon Phi. Because it uses batch processing, our on-chip language model could be integrated into a ma- chine translation decoder using strategies similar to those used to integrate an on-network language model nearly a decade ago ( <ref type="bibr" target="#b1">Brants et al., 2007</ref>). An alternative method of integration would be to move the decoder itself to GPU. For phrase-based translation, this would require a translation model and dynamic programming search algorithm on GPU. Translation models have been implemented on GPU by <ref type="bibr" target="#b11">He et al. (2015)</ref>, while related search algorithms for ( <ref type="bibr" target="#b6">Chong et al., 2009;</ref><ref type="bibr" target="#b5">Chong et al., 2008</ref>) and parsing <ref type="bibr" target="#b2">(Canny et al., 2013;</ref><ref type="bibr" target="#b10">Hall et al., 2014</ref>) have been developed for GPU. We intend to explore these possibilities in future work.</p></div><figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_0"><head>Figure 1 :</head><label>1</label><figDesc>Figure 1: Theoretical floating point performance of CPU and GPU hardware over time (Nvidia Corporation, 2015).</figDesc><graphic url="image-1.png" coords="1,307.28,222.54,213.16,165.45" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_1"><head>Figure 3 :</head><label>3</label><figDesc>Figure 3: Fragment of a trie showing the path of N-gram is one of in bold. A query for the N-gram every one of traverses the same path, but since every is not among the keys in the final node, it returns the n-gram parameterˆPparameterˆ parameterˆP (of|one) and returns to the root to seek the backoff parameter β(every one). Based on image from Federico et al. (2008).</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_2"><head>Figure 4 :</head><label>4</label><figDesc>Figure 4: Execution of a binary search for key 15. Each row represents a time step and highlights the element compared to the key. Finding key 15 requires four time steps and four comparisons.</figDesc><graphic url="image-3.png" coords="5,72.00,62.81,453.54,91.88" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_3"><head>Figure 5 :</head><label>5</label><figDesc>Figure 5: Execution of K-ary search with the same input as Figure 4, for K = 8. The first time step executes seven comparisons in parallel, and the query is recovered in two time steps.</figDesc><graphic url="image-5.png" coords="5,72.00,301.34,453.53,68.28" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_4"><head>Figure 6 :</head><label>6</label><figDesc>Figure 6: In a B-tree, the elements compared in K-ary search are consecutive in memory. We also show the layout of an individual entry.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_5"><head>Figure 7 :</head><label>7</label><figDesc>Figure 7: Illustration of the complete data structure, showing a root trie node as an array representing unigrams, and nine B-trees, each representing a single trie node. The trie nodes are numbered according to the order in which they are laid out in memory.</figDesc><graphic url="image-6.png" coords="6,72.00,62.80,453.54,129.65" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_6"><head>Figure 8 :</head><label>8</label><figDesc>Figure 8: Layout of a single B-tree node for K = 4. Relative addresses of the four child B-tree nodes (array C) are followed by three keys (array B), and three values (array V ), each consisting of an n-gram probability, backoff, and address of the child trie node.</figDesc><graphic url="image-7.png" coords="6,72.00,257.38,453.54,126.80" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_7"><head>Figure 9 :</head><label>9</label><figDesc>Figure 9: Effect of BTree node size on throughput (ngram queries per second)</figDesc><graphic url="image-8.png" coords="8,72.00,62.81,213.16,136.31" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_8"><head>Figure 10 :</head><label>10</label><figDesc>Figure 10: Throughput (N-gram queries per second) vs. batch size for gLM, KenLM probing, and KenLM trie. Regular LM Big LM KenLM 10.2M 8.2M KenLM Trie 4.5M 3.0M gLM 65.5M 55M</figDesc><graphic url="image-9.png" coords="8,307.28,62.81,213.16,123.10" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_0" validated="false"><head>) .</head><label>.</label><figDesc></figDesc><table>Memory type Latency 
+Size 
+Register 
+0 
+4B 
+Shared 
+4-8 
+16KB-96KB 
+Global GPU 
+200-800 2GB-12GB 
+CPU 
+10K+ 
+16GB-1TB 
+
+Table 1: Latency (in clock cycles) and size of dif-
+ferent GPU memory types. Estimates are adapted 
+from Nvidia Corporation (2015) and depend on 
+several aspects of hardware configuration. 
+
+</table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_2" validated="false"><head>Table 2 :</head><label>2</label><figDesc></figDesc><table>A survey of language model data structures and their computational properties. 
+
+</table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_3" validated="false"><head>Table 4 :</head><label>4</label><figDesc></figDesc><table>Throughput comparison (ngram queries 
+per second) between gLM and KenLM with a 5 
+times larger model and a regular language model. 
+
+throughput is more than three times higher than 
+that of single threaded KenLM. We have not in-
+cluded results of multi-threaded KenLM scaling 
+on </table></figure>
+
+			<note place="foot" n="1"> Due to differences in register usage and exceptions for branching, this model is not pure SIMD. Nvidia calls it SIMT (single instruction, multiple threads).</note>
+
+			<note place="foot" n="2"> We estimate this by observing that a model containing 423M n-grams takes 3.8Gb of memory, and assuming an approximately linear scaling, though there is some variance depending on the distribution of the n-grams.</note>
+
+			<note place="foot" n="3"> Since the size of the array may not be exactly divisible by K, some subarrays may differ in length by one.</note>
+
+			<note place="foot" n="4"> https://github.com/XapaJIaMnu/gLM 5 https://github.com/kpu/kenlm/commit/9495443</note>
+
+			<note place="foot" n="6"> http://www.statmt.org/moses/RELEASE-3.0/models/fren/lm/europarl.lm.1 7 http://www.statmt.org/wmt13/training-parallelcommoncrawl.tgz</note>
+
+			<note place="foot" n="8"> Intel calls this Intel Turbo Boost.</note>
+		</body>
+		<back>
+
+			<div type="acknowledgement">
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Acknowledgements</head><p>This work was conducted within the scope of the Horizon 2020 Innovation Ac-tion Modern MT, which has received funding from the European Unions Horizon 2020 research and innovation programme under grant agreement No 645487.</p><p>We thank Kenneth Heafield, Ulrich Germann, Rico Sennrich, Hieu Hoang, Federico Fancellu, Nathan Schneider, Naomi Saphra, Sorcha Gilroy, Clara Vania and the anonymous reviewers for pro-ductive discussion of this work and helpful com-ments on previous drafts of the paper. Any errors are our own.</p></div>
+			</div>
+
+			<div type="references">
+
+				<listBibl>
+
+<biblStruct xml:id="b0">
+	<analytic>
+		<title level="a" type="main">Organization and maintenance of large ordered indices</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">R</forename><surname>Bayer</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">E</forename><surname>Mccreight</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 1970 ACM SIGFIDET (Now SIGMOD) Workshop on Data Description, Access and Control, SIGFIDET &apos;70</title>
+		<meeting>the 1970 ACM SIGFIDET (Now SIGMOD) Workshop on Data Description, Access and Control, SIGFIDET &apos;70</meeting>
+		<imprint>
+			<date type="published" when="1970" />
+			<biblScope unit="page" from="107" to="141" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b1">
+	<analytic>
+		<title level="a" type="main">Large language models in machine translation</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">T</forename><surname>Brants</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">A</forename><forename type="middle">C</forename><surname>Popat</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">P</forename><surname>Xu</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">F</forename><forename type="middle">J</forename><surname>Och</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">J</forename><surname>Dean</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of EMNLP-CoNLL</title>
+		<meeting>EMNLP-CoNLL</meeting>
+		<imprint>
+			<date type="published" when="2007" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b2">
+	<analytic>
+		<title level="a" type="main">A multi-teraflop constituency parser using GPUs</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">J</forename><surname>Canny</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">D</forename><surname>Hall</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">D</forename><surname>Klein</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of EMNLP</title>
+		<meeting>EMNLP</meeting>
+		<imprint>
+			<date type="published" when="2013" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b3">
+	<analytic>
+		<title level="a" type="main">An algorithm to construct a compact B-tree in case of ordered keys</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">F</forename><surname>Cesarini</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">G</forename><surname>Soda</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Information Processing Letters</title>
+		<imprint>
+			<biblScope unit="volume">17</biblScope>
+			<biblScope unit="issue">1</biblScope>
+			<biblScope unit="page" from="13" to="16" />
+			<date type="published" when="1983" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b4">
+	<analytic>
+		<title level="a" type="main">An empirical study of smoothing techniques for language modeling</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">S</forename><forename type="middle">F</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">J</forename><surname>Goodman</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Computer Speech &amp; Language</title>
+		<imprint>
+			<biblScope unit="volume">13</biblScope>
+			<biblScope unit="issue">4</biblScope>
+			<biblScope unit="page" from="359" to="393" />
+			<date type="published" when="1999" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b5">
+	<monogr>
+		<title level="m" type="main">Data-parallel large vocabulary continuous speech recognition on graphics processors</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">J</forename><surname>Chong</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Y</forename><surname>Yi</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">A</forename><surname>Faria</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">N</forename><forename type="middle">R</forename><surname>Satish</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">K</forename><surname>Keutzer</surname></persName>
+		</author>
+		<idno>UCB/EECS-2008-69</idno>
+		<imprint>
+			<date type="published" when="2008-05" />
+		</imprint>
+		<respStmt>
+			<orgName>EECS Department, University of California, Berkeley</orgName>
+		</respStmt>
+	</monogr>
+<note type="report_type">Technical Report</note>
+</biblStruct>
+
+<biblStruct xml:id="b6">
+	<analytic>
+		<title level="a" type="main">A fully data parallel WFST-based large vocabulary continuous speech recognition on a graphics processing unit</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">J</forename><surname>Chong</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">E</forename><surname>Gonina</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Y</forename><surname>Yi</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">K</forename><surname>Keutzer</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of Interspeech</title>
+		<meeting>Interspeech</meeting>
+		<imprint>
+			<date type="published" when="2009" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b7">
+	<monogr>
+		<title level="m" type="main">Introduction to Algorithms, Third Edition</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">T</forename><forename type="middle">H</forename><surname>Cormen</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">C</forename><forename type="middle">E</forename><surname>Leiserson</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">R</forename><forename type="middle">L</forename><surname>Rivest</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">C</forename><surname>Stein</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2009" />
+			<publisher>The MIT Press</publisher>
+		</imprint>
+	</monogr>
+	<note>3rd edition</note>
+</biblStruct>
+
+<biblStruct xml:id="b8">
+	<analytic>
+		<title level="a" type="main">IRSTLM: an open source toolkit for handling large scale language models</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">M</forename><surname>Federico</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">N</forename><surname>Bertoldi</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">M</forename><surname>Cettolo</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of Interspeech</title>
+		<meeting>Interspeech</meeting>
+		<imprint>
+			<date type="published" when="2008" />
+			<biblScope unit="page" from="1618" to="1621" />
+		</imprint>
+	</monogr>
+	<note>ISCA</note>
+</biblStruct>
+
+<biblStruct xml:id="b9">
+	<analytic>
+		<title level="a" type="main">Phrasal: A toolkit for new directions in statistical machine translation</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">S</forename><surname>Green</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">D</forename><surname>Cer</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">C</forename><surname>Manning</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of WMT</title>
+		<meeting>WMT</meeting>
+		<imprint>
+			<date type="published" when="2014" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b10">
+	<analytic>
+		<title level="a" type="main">Sparser, better, faster GPU parsing</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">D</forename><surname>Hall</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">T</forename><surname>Berg-Kirkpatrick</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">D</forename><surname>Klein</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of ACL</title>
+		<meeting>ACL</meeting>
+		<imprint>
+			<date type="published" when="2014" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b11">
+	<analytic>
+		<title level="a" type="main">Gappy pattern matching on GPUs for on-demand extraction of hierarchical translation grammars</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">H</forename><surname>He</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">J</forename><surname>Lin</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">A</forename><surname>Lopez</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">TACL</title>
+		<imprint>
+			<biblScope unit="volume">3</biblScope>
+			<biblScope unit="page" from="87" to="100" />
+			<date type="published" when="2015" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b12">
+	<analytic>
+		<title level="a" type="main">Language identification and modeling in specialized hardware</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">K</forename><surname>Heafield</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">R</forename><surname>Kshirsagar</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">S</forename><surname>Barona</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of ACL-IJCNLP</title>
+		<meeting>ACL-IJCNLP</meeting>
+		<imprint>
+			<date type="published" when="2015-07" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b13">
+	<analytic>
+		<title level="a" type="main">KenLM: faster and smaller language model queries</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">K</forename><surname>Heafield</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of WMT</title>
+		<meeting>WMT</meeting>
+		<imprint>
+			<date type="published" when="2011-07" />
+			<biblScope unit="page" from="187" to="197" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b14">
+	<monogr>
+		<title level="m" type="main">Efficient Language Modeling Algorithms with Applications to Statistical Machine Translation</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">K</forename><surname>Heafield</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2013-09" />
+		</imprint>
+		<respStmt>
+			<orgName>Carnegie Mellon University</orgName>
+		</respStmt>
+	</monogr>
+<note type="report_type">Ph.D. thesis</note>
+</biblStruct>
+
+<biblStruct xml:id="b15">
+	<monogr>
+		<title level="m" type="main">GPU Computing Gems Emerald Edition</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">W.-M</forename><forename type="middle">W</forename><surname>Hwu</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2011" />
+			<publisher>Morgan Kaufmann Publishers Inc</publisher>
+			<pubPlace>San Francisco, CA, USA</pubPlace>
+		</imprint>
+	</monogr>
+	<note>1st edition</note>
+</biblStruct>
+
+<biblStruct xml:id="b16">
+	<monogr>
+		<title level="m" type="main">Nvidia Corporation. 2015. Nvidia CUDA Compute Unified Device Architecture Programming Guide</title>
+		<imprint>
+			<publisher>Nvidia Corporation</publisher>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b17">
+	<analytic>
+		<title level="a" type="main">Exponential reservoir sampling for streaming language models</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">M</forename><surname>Osborne</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">A</forename><surname>Lall</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">B</forename><forename type="middle">V</forename><surname>Durme</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of ACL</title>
+		<meeting>ACL</meeting>
+		<imprint>
+			<date type="published" when="2014" />
+			<biblScope unit="page" from="687" to="692" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b18">
+	<analytic>
+		<title level="a" type="main">Time-and space-optimality in B-trees</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">A</forename><forename type="middle">L</forename><surname>Rosenberg</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">L</forename><surname>Snyder</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">ACM Trans. Database Syst</title>
+		<imprint>
+			<biblScope unit="volume">6</biblScope>
+			<biblScope unit="issue">1</biblScope>
+			<biblScope unit="page" from="174" to="193" />
+			<date type="published" when="1981-03" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b19">
+	<analytic>
+		<title level="a" type="main">Smoothed Bloom filter language models: Tera-scale LMs on the cheap</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">D</forename><surname>Talbot</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">M</forename><surname>Osborne</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of EMNLP-CoNLL</title>
+		<meeting>EMNLP-CoNLL</meeting>
+		<imprint>
+			<date type="published" when="2007" />
+			<biblScope unit="page" from="468" to="476" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b20">
+	<analytic>
+		<title level="a" type="main">A succinct N-gram language model</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">T</forename><surname>Watanabe</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">H</forename><surname>Tsukada</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">H</forename><surname>Isozaki</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. of ACLIJCNLP</title>
+		<meeting>of ACLIJCNLP</meeting>
+		<imprint>
+			<date type="published" when="2009" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b21">
+	<analytic>
+		<title level="a" type="main">An efficient language model using double-array structures</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">M</forename><surname>Yasuhara</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">T</forename><surname>Tanaka</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">J</forename><surname>Ya Norimatsu</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">M</forename><surname>Yamamoto</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">EMNLP</title>
+		<imprint>
+			<date type="published" when="2013" />
+			<biblScope unit="page" from="222" to="232" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+				</listBibl>
+			</div>
+		</back>
+	</text>
+</TEI>

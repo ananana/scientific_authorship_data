@@ -1,0 +1,811 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<TEI xmlns="http://www.tei-c.org/ns/1.0" 
+xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+xsi:schemaLocation="http://www.tei-c.org/ns/1.0 /home/ana/installs/grobid/grobid-0.5.1/grobid-home/schemas/xsd/Grobid.xsd"
+ xmlns:xlink="http://www.w3.org/1999/xlink">
+	<teiHeader xml:lang="en">
+		<encodingDesc>
+			<appInfo>
+				<application version="0.5.1-SNAPSHOT" ident="GROBID" when="2019-04-18T10:31+0000">
+					<ref target="https://github.com/kermitt2/grobid">GROBID - A machine learning software for extracting information from scholarly documents</ref>
+				</application>
+			</appInfo>
+		</encodingDesc>
+		<fileDesc>
+			<titleStmt>
+				<title level="a" type="main">Leveraging Linguistic Structure For Open Domain Information Extraction</title>
+			</titleStmt>
+			<publicationStmt>
+				<publisher>Association for Computational Linguistics</publisher>
+				<availability status="unknown"><p>Copyright Association for Computational Linguistics</p>
+				</availability>
+				<date>July 26-31, 2015. 2015</date>
+			</publicationStmt>
+			<sourceDesc>
+				<biblStruct>
+					<analytic>
+						<author>
+							<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Gabor</forename><surname>Angeli</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="department">Department of Computer Science</orgName>
+								<orgName type="institution">Stanford University</orgName>
+							</affiliation>
+						</author>
+						<author>
+							<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Melvin</forename><forename type="middle">Johnson</forename><surname>Premkumar</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="department">Department of Computer Science</orgName>
+								<orgName type="institution">Stanford University</orgName>
+							</affiliation>
+						</author>
+						<author>
+							<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Christopher</forename><forename type="middle">D</forename><surname>Manning</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="department">Department of Computer Science</orgName>
+								<orgName type="institution">Stanford University</orgName>
+							</affiliation>
+						</author>
+						<title level="a" type="main">Leveraging Linguistic Structure For Open Domain Information Extraction</title>
+					</analytic>
+					<monogr>
+						<title level="m">Proceedings of the 53rd Annual Meeting of the Association for Computational Linguistics and the 7th International Joint Conference on Natural Language Processing</title>
+						<meeting>the 53rd Annual Meeting of the Association for Computational Linguistics and the 7th International Joint Conference on Natural Language Processing <address><addrLine>Beijing, China</addrLine></address>
+						</meeting>
+						<imprint>
+							<publisher>Association for Computational Linguistics</publisher>
+							<biblScope unit="page" from="344" to="354"/>
+							<date type="published">July 26-31, 2015. 2015</date>
+						</imprint>
+					</monogr>
+				</biblStruct>
+			</sourceDesc>
+		</fileDesc>
+		<profileDesc>
+			<abstract>
+				<p>Relation triples produced by open domain information extraction (open IE) systems are useful for question answering, inference , and other IE tasks. Traditionally these are extracted using a large set of patterns ; however, this approach is brittle on out-of-domain text and long-range dependencies , and gives no insight into the sub-structure of the arguments. We replace this large pattern set with a few patterns for canonically structured sentences, and shift the focus to a classifier which learns to extract self-contained clauses from longer sentences. We then run natural logic inference over these short clauses to determine the maximally specific arguments for each candidate triple. We show that our approach outperforms a state-of-the-art open IE system on the end-to-end TAC-KBP 2013 Slot Filling task.</p>
+			</abstract>
+		</profileDesc>
+	</teiHeader>
+	<text xml:lang="en">
+		<body>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="1">Introduction</head><p>Open information extraction (open IE) has been shown to be useful in a number of NLP tasks, such as question answering <ref type="bibr" target="#b13">(Fader et al., 2014</ref>), rela- tion extraction <ref type="bibr">(Soderland et al., 2010)</ref>, and infor- mation retrieval <ref type="bibr" target="#b10">(Etzioni, 2011)</ref>. Conventionally, open IE systems search a collection of patterns over either the surface form or dependency tree of a sentence. Although a small set of patterns covers most simple sentences (e.g., subject verb object constructions), relevant relations are often spread across clauses (see <ref type="figure">Figure 1</ref>) or presented in a non-canonical form.</p><p>Systems like Ollie ( <ref type="bibr" target="#b23">Mausam et al., 2012</ref>) ap- proach this problem by using a bootstrapping method to create a large corpus of broad-coverage partially lexicalized patterns. Although this is effective at capturing many of these patterns, it visits; the US) <ref type="figure">Figure 1</ref>: Open IE extractions produced by the system, alongside extractions from the state- of-the-art Ollie system. Generating coherent clauses before applying patterns helps reduce false matches such as (Honolulu; be born in; Hawaii). Inference over the sub-structure of arguments, in turn, allows us to drop unnecessary information (e.g., of Austria), but only when it is warranted (e.g., keep fake in fake praise).</p><p>can lead to unintuitive behavior on out-of-domain text. For instance, while Obama is president is extracted correctly by Ollie as (Obama; is; pres- ident), replacing is with are in cats are felines produces no extractions. Furthermore, existing systems struggle at producing canonical argument forms -for example, in <ref type="figure">Figure 1</ref> the argument Heinz Fischer of Austria is likely less useful for downstream applications than Heinz Fischer.</p><p>In this paper, we shift the burden of extracting informative and broad coverage triples away from this large pattern set. Rather, we first pre-process the sentence in linguistically motivated ways to produce coherent clauses which are (1) logically entailed by the original sentence, and (2) easy to segment into open IE triples. Our approach con- sists of two stages: we first learn a classifier for splitting a sentence into shorter utterances (Sec- tion 3), and then appeal to natural logic <ref type="bibr">(Sánchez Valencia, 1991)</ref> to maximally shorten these utter- ances while maintaining necessary context (Sec- tion 4.1). A small set of 14 hand-crafted patterns can then be used to segment an utterance into an open IE triple.</p><p>We treat the first stage as a greedy search prob- lem: we traverse a dependency parse tree recur- sively, at each step predicting whether an edge should yield an independent clause. Importantly, in many cases na¨ıvelyna¨ıvely yielding a clause on a de- pendency edge produces an incomplete utterance (e.g., Born in Honolulu, Hawaii, from <ref type="figure">Figure 1</ref>). These are often attributable to control relation- ships, where either the subject or object of the governing clause controls the subject of the sub- ordinate clause. We therefore allow the produced clause to sometimes inherit the subject or object of its governor. This allows us to capture a large variety of long range dependencies with a concise classifier.</p><p>From these independent clauses, we then extract shorter sentences, which will produce shorter ar- guments more likely to be useful for downstream applications. A natural framework for solving this problem is natural logic -a proof system built on the syntax of human language (see Section 4.1). We can then observe that Heinz Fischer of Aus- tria visits China entails that Heinz Fischer visits China. On the other hand, we respect situations where it is incorrect to shorten an argument. For example, No house cats have rabies should not en- tail that cats have rabies, or even that house cats have rabies.</p><p>When careful attention to logical validity is nec- essary -such as textual entailment -this approach captures even more subtle phenomena. For exam- ple, whereas all rabbits eat fresh vegetables yields (rabbits; eat; vegetables), the apparently similar sentence all young rabbits drink milk does not yield (rabbits; drink; milk).</p><p>We show that our new system performs well on a real world evaluation -the TAC KBP Slot Filling challenge <ref type="bibr">(Surdeanu, 2013)</ref>. We outperform both an official submission on open IE, and a baseline of replacing our extractor with Ollie, a state-of- the-art open IE systems.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2">Related Work</head><p>There is a large body of work on open information extraction. One line of work begins with Text- Runner ( <ref type="bibr">Yates et al., 2007)</ref> and <ref type="bibr">ReVerb (Fader et al., 2011</ref>), which make use of computation- ally efficient surface patterns over tokens. With the introduction of fast dependency parsers, Ol- lie ( <ref type="bibr" target="#b23">Mausam et al., 2012</ref>) continues in the same spirit but with learned dependency patterns, im- proving on the earlier WOE system ( <ref type="bibr">Wu and Weld, 2010)</ref>. The Never Ending Language Learning project <ref type="bibr" target="#b5">(Carlson et al., 2010</ref>) has a similar aim, iteratively learning more facts from the internet from a seed set of examples. <ref type="bibr">Exemplar (Mesquita et al., 2013</ref>) adapts the open IE framework to n- ary relationships similar to semantic role labeling, but without the expensive machinery.</p><p>Open IE triples have been used in a number of applications -for example, learning entail- ment graphs for new triples <ref type="bibr" target="#b3">(Berant et al., 2011)</ref>, and matrix factorization for unifying open IE and structured relations ( <ref type="bibr">Yao et al., 2012;</ref><ref type="bibr">Riedel et al., 2013)</ref>. In each of these cases, the concise ex- tractions provided by open IE allow for efficient symbolic methods for entailment, such as Markov logic networks or matrix factorization.</p><p>Prior work on the KBP challenge can be cate- gorized into a number of approaches. The most common of these are distantly supervised relation extractors <ref type="bibr" target="#b8">(Craven and Kumlien, 1999;</ref><ref type="bibr">Wu and Weld, 2007;</ref><ref type="bibr" target="#b26">Mintz et al., 2009;</ref><ref type="bibr">Sun et al., 2011)</ref>, and rule based systems <ref type="bibr">(Soderland, 1997;</ref><ref type="bibr" target="#b15">Grishman and Min, 2010;</ref><ref type="bibr" target="#b7">Chen et al., 2010)</ref>. However, both of these approaches require careful tuning to the task, and need to be trained explicitly on the KBP relation schema. <ref type="bibr">Soderland et al. (2013)</ref> sub- mitted a system to KBP making use of open IE re- lations and an easily constructed mapping to KBP relations; we use this as a baseline for our empiri- cal evaluation.</p><p>Prior work has used natural logic for RTE-style textual entailment, as a formalism well-suited for formal semantics in neural networks, and as a framework for common-sense reasoning <ref type="bibr" target="#b22">(MacCartney and Manning, 2009;</ref><ref type="bibr">Watanabe et al., 2012;</ref><ref type="bibr" target="#b4">Bowman et al., 2014;</ref><ref type="bibr" target="#b0">Angeli and Manning, 2013)</ref>. We adopt the precise semantics of <ref type="bibr" target="#b16">Icard and Moss (2014)</ref>. Our approach of finding short entailments from a longer utterance is similar in spirit to work on textual entailment for informa- tion extraction ( <ref type="bibr">Romano et al., 2006</ref>).</p><p>Born in a small town, she took the midnight train going anywhere.  Figure 2: An illustration of our approach. From left to right, a sentence yields a number of independent clauses (e.g., she Born in a small town -see Section 3). From top to bottom, each clause produces a set of entailed shorter utterances, and segments the ones which match an atomic pattern into a relation triple (see Section 4.1).</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3">Inter-Clause Open IE</head><p>In the first stage of our method, we produce a set of self-contained clauses from a longer utterance. Our objective is to produce a set of clauses which can stand on their own syntactically and seman- tically, and are entailed by the original sentence (see <ref type="figure">Figure 2</ref>). Note that this task is not specific to extracting open IE triples. Conventional relation extractors, entailment systems, and other NLP ap- plications may also benefit from such a system. We frame this task as a search problem. At a given node in the parse tree, we classify each out- going arc e = p l − → c, from the governor p to a de- pendent c with [collapsed] Stanford Dependency label l, into an action to perform on that arc. Once we have chosen an action to take on that arc, we can recurse on the dependent node. We decom- pose the action into two parts: (1) the action to take on the outgoing edge e, and (2) the action to take on the governor p. For example, in our motivating example, we are considering the arc: e = took vmod − −− → born. In this case, the correct action is to (1) yield a new clause rooted at born, and (2) interpret the subject of born as the subject of took.</p><p>We proceed to describe this action space in more detail, followed by an explanation of our training data, and finally our classifier.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.1">Action Space</head><p>The three actions we can perform on a dependency edge are: Recurse Recurse on this dependency arc, but do not yield it as a new clause. For example, in the sentence faeries are dancing in the field where I lost my bike, we must recurse through the intermediate constituent the field where I lost my bike -which itself is not relevant -to get to the clause of interest: I lost my bike.</p><formula xml:id="formula_0">Yield</formula><p>Stop Do not recurse on this arc, as the subtree under this arc is not entailed by the parent sen- tence. This is the case, for example, for most leaf nodes (furry cats are cute should not entail the clause furry), and is an important action for the efficiency of the algorithm.</p><p>With these three actions, a search path through the tree becomes a sequence of Recurse and Find- ing all such sequences is in general exponential in the size of the tree. In practice, during training we run breadth first search to collect the first 10 000 sequences. During inference we run uniform cost search until our classifier predictions fall below a given threshold.</p><p>For the Stop action, we do not need to further specify an action to take on the parent node. How- ever, for both of the other actions, it is often the case that we would like to capture a controller in the higher clause. We define three such common actions:</p><p>Subject Controller If the arc we are consider- ing is not already a subject arc, we can copy the subject of the parent node and attach it as a sub- ject of the child node. This is the action taken in the example Born in a small town, she took the midnight train.</p><p>Object Controller Analogous to the subject controller action above, but taking the object in- stead. This is the intended action for examples like I persuaded Fred to leave the room. 1</p><p>Parent Subject If the arc we are taking is the only outgoing arc from a node, we take the par- ent node as the (passive) subject of the child. This is the action taken in the example Obama, our 44 th president to yield a clause with the se- mantics of Obama [is] our 44 th president.</p><p>Although additional actions are easy to imagine, we found empirically that these cover a wide range of applicable cases. We turn our attention to the training data for learning these actions.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.2">Training</head><p>We collect a noisy dataset to train our clause gen- eration model. We leverage the distant supervision assumption for relation extraction, which creates a noisy corpus of sentences annotated with relation mentions (subject and object spans in the sentence with a known relation). Then, we take this anno- tation as itself distant supervision for a correct se- quence of actions to take: any sequence which re- covers the known relation is correct.</p><p>We use a small subset of the KBP source doc- uments for 2010 ( ) and 2013 (Sur- deanu, 2013) as our distantly supervised corpus. To try to maximize the density of known relations in the training sentences, we take all sentences which have at least one known relation for ev- ery 10 tokens in the sentence, resulting in 43 155 sentences. In addition, we incorporate the 23 725 manually annotated examples from .</p><p>Once we are given a collection of labeled sen- tences, we assume that a sequence of actions which leads to a correct extraction of a known relation is a positive sequence. A correct ex- traction is any extraction we produce from our model (see Section 4) which has the same argu- ments as the known relation. For instance, if we know that Obama was born in Hawaii from the sentence Born in Hawaii, Obama . . . , and an ac- tion sequence produces the triple (Obama, born in, Hawaii), then we take that action sequence as a positive sequence.</p><p>Any sequence of actions which results in a clause which produces no relations is in turn con- sidered a negative sequence. The third case to con- sider is a sequence of actions which produces a relation, but it is not one of the annotated rela- tions. This arises from the incomplete negatives problem in distantly supervised relation extraction ( <ref type="bibr" target="#b25">Min et al., 2013)</ref>: since our knowledge base is not exhaustive, we cannot be sure if an extracted relation is incorrect or correct but previously un- known. Although many of these unmatched re- lations are indeed incorrect, the dataset is suffi- ciently biased towards the STOP action that the occasional false negative hurts end-to-end perfor- mance. Therefore, we simply discard such se- quences.</p><p>Given a set of noisy positive and negative se- quences, we construct training data for our action classifier. All but the last action in a positive se- quence are added to the training set with the label Recurse; the last action is added with the label Split. Only the last action in a negative sequence is added with the label Stop. We partition the fea- ture space of our dataset according to the action applied to the parent node.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.3">Inference</head><p>We train a multinomial logistic regression classi- fier on our noisy training data, using the features in <ref type="table">Table 1</ref>. The most salient features are the label of the edge being taken, the incoming edge to the parent of the edge being taken, neighboring edges for both the parent and child of the edge, and the part of speech tag of the endpoints of the edge. The dataset is weighted to give 3× weight to ex- amples in the Recurse class, as precision errors in this class are relatively harmless for accuracy, while recall errors are directly harmful to recall.</p><p>Inference now reduces to a search problem. Be-</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Feature Class</head><p>Feature Templates Edge taken {l, short name(l)} Last edge taken {incoming edge(p)} Neighbors of parent {nbr(p), (p, nbr(p))} Grandchild edges {out edge(c), (e, out edge(c))} Grandchild count {count (nbr(e child )) (e, count (nbr(e child )))} Has subject/object ∀ e∈{e,e child } ∀ l∈{subj,obj} 1(l ∈ nbr(e))</p><p>POS tag signature {pos(p), pos(c), (pos(p), pos(c))} Features at root {1(p = root), POS(p)} <ref type="table">Table 1</ref>: Features for the clause splitter model, de- ciding to split on the arc e = p l − → c. The fea- ture class is a high level description of features; the feature templates are the particular templates used. For instance, the POS signature contains the tag of the parent, the tag of the child, and both tags joined in a single feature. Note that all features are joined with the action to be taken on the parent.</p><p>ginning at the root of the tree, we consider every outgoing edge. For every possible action to be performed on the parent (i.e., clone subject, clone root, no action), we apply our trained classifier to determine whether we (1) split the edge off as a clause, and recurse; (2) do not split the edge, and recurse; or (3) do not recurse. In the first two cases, we recurse on the child of the arc, and con- tinue until either all arcs have been exhausted, or all remaining candidate arcs have been marked as not recursable.</p><p>We will use the scores from this classifier to inform the score assigned to our generated open IE extractions (Section 4). The score of a clause is the product of the scores of actions taken to reach the clause. The score of an extraction will be this score multiplied by the score of the extrac- tion given the clause.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4">Intra-Clause Open IE</head><p>We now turn to the task of generating a maximally compact sentence which retains the core seman- tics of the original utterance, and parsing the sen- tence into a conventional open IE subject verb ob- ject triple. This is often a key component in down- stream applications, where extractions need to be not only correct, but also informative. Whereas an argument like Heinz Fischer of Austria is often correct, a downstream application must apply fur- ther processing to recover information about either Heinz Fischer, or Austria. Moreover, it must do so without the ability to appeal to the larger context of the sentence.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.1">Validating Deletions with Natural Logic</head><p>We adopt a subset of natural logic semantics dic- tating contexts in which lexical items can be re- moved. Natural logic as a formalism captures common logical inferences appealing directly to the form of language, rather than parsing to a spe- cialized logical syntax. It provides a proof theory for lexical mutations to a sentence which either preserve or negate the truth of the premise.</p><p>For instance, if all rabbits eat vegetables then all cute rabbits eat vegetables, since we are al- lowed to mutate the lexical item rabbit to cute rabbit. This is done by observing that rabbit is in scope of the first argument to the operator all. Since all induces a downward polarity environ- ment for its first argument, we are allowed to re- place rabbit with an item which is more specific - in this case cute rabbit. To contrast, the operator some induces an upward polarity environment for its first argument, and therefore we may derive the inference from cute rabbit to rabbit in: some cute rabbits are small therefore some rabbits are small. For a more comprehensive introduction to natural logic, see van <ref type="bibr">Benthem (2008)</ref>.</p><p>We mark the scopes of all operators (all, no, many, etc.) in a sentence, and from this deter- mine whether every lexical item can be replaced by something more general (has upward polarity), more specific (downward polarity), or neither. In the absence of operators, all items have upwards polarity.</p><p>Each dependency arc is then classified into whether deleting the dependent of that arc makes the governing constituent at that node more general, more specific (a rare case), or nei- ther. <ref type="bibr">2</ref> For example, removing the amod edge in cute amod ← −− − rabbit yields the more general lexical item rabbit. However, removing the nsubj edge in  most dependencies, this semantics can be hard-coded with high accuracy. However, there are at least two cases where more attention is war- ranted. The first of these concerns non-subsective adjectives: for example a fake gun is not a gun. For this case, we make use of the list of non-subsective adjectives collected in <ref type="bibr" target="#b27">Nayak et al. (2014)</ref>, and prohibit their deletion as a hard constraint.</p><p>The second concern is with prepositional at- tachment, and direct object edges. For example, whereas Alice went to the playground We learn these attachment affinities empirically from the syntactic n-grams corpus of <ref type="bibr" target="#b14">Goldberg and Orwant (2013)</ref>. This gives us counts for how often object and preposition edges occur in the context of the governing verb and relevant neigh- boring edges. We hypothesize that edges which are frequently seen to co-occur are likely to be essential to the meaning of the sentence. To this end, we compute the probability of seeing an arc of a given type, conditioned on the most specific context we have statistics for. These contexts, and the order we back off to more general contexts, is given in <ref type="figure">Figure 3</ref>.</p><p>To compute a score s of deleting the edge from the affinity probability p collected from the syn- tactic n-grams, we simply cap the affinity and sub- tract it from 1:</p><formula xml:id="formula_1">s = 1 − min(1, p K )</formula><p>where K is a hyperparameter denoting the mini- mum fraction of the time an edge should occur in a context to be considered entirely unremovable.</p><p>In our experiments, we set K = 1 3 . The score of an extraction, then, is the product of the scores of each deletion multiplied by the score from the clause splitting step in Section 3.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.2">Atomic Patterns</head><p>Once a set of short entailed sentences is produced, it becomes straightforward to segment them into conventional open IE triples. We employ 6 sim- ple dependency patterns, given in  <ref type="figure">Figure 3</ref>: The ordered list of backoff probabilities when deciding to drop a prepositional phrase or di- rect object. The most specific context is chosen for which an empirical probability exists; if no con- text is found then we allow dropping prepositional phrases and disallow dropping direct objects. Note that this backoff arbitrarily orders contexts of the same size.  cover the majority of atomic relations we are in- terested in.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Input Extraction</head><p>When information is available to disambiguate the substructure of compound nouns (e.g., named entity segmentation), we extract additional re- lations with 5 dependency and 3 TokensRegex ( <ref type="bibr" target="#b6">Chang and Manning, 2014</ref>) surface form patterns. These are given in <ref type="table">Table 3</ref>; we refer to these as nominal relations. Note that the constraint of named entity information is by no means required for the system. In other applications -for exam- ple, applications in vision -the otherwise trivial nominal relations could be quite useful.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>KBP Relation Open IE Relation</head><note type="other">PMI 2 KBP Relation Open IE Relation PMI 2</note><p>Org:Founded found in 1.  <ref type="table">Table 4</ref>: A selection of the mapping from KBP to lemmatized open IE relations, conditioned on the types of the arguments being correct. The top one or two relations are shown for 7 person and 6 organization relations. Incorrect or dubious mappings are marked with an asterisk. Our president, Obama, (Our president; be; Obama) <ref type="table">Table 3</ref>: The eight patterns used to segment a noun phrase into an open IE triple. The first five are de- pendency patterns; the last three are surface pat- terns.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Input Extraction</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5">Mapping OpenIE to a Known Relation Schema</head><p>A common use case for open IE systems is to map them to a known relation schema. This can either be done manually with minimal annotation effort, or automatically from available training data. We use both methods in our TAC-KBP evaluation. A collection of relation mappings was constructed by a single annotator in approximately a day, <ref type="bibr">3</ref> and a relation mapping was learned using the proce- dure described in this section. We map open IE relations to the KBP schema by searching for co-occurring relations in a large distantly-labeled corpus, and marking open IE and <ref type="bibr">3</ref> The official submission we compare against claimed two weeks for constructing their manual mapping, although a ver- sion of their system constructed in only 3 hours performs nearly as well.</p><p>KBP relation pairs which have a high PMI 2 value <ref type="bibr" target="#b2">(Béatrice, 1994;</ref><ref type="bibr" target="#b11">Evert, 2005</ref>) conditioned on their type signatures matching. To compute PMI 2 , we collect probabilities for the open IE and KBP re- lation co-occurring, the probability of the open IE relation occurring, and the probability of the KBP relation occurring. Each of these probabilities is conditioned on the type signature of the relation. For example, the joint probability of KBP relation r k and open IE relation r o , given a type signature of t 1 , t 2 , would be</p><formula xml:id="formula_2">p(r k , r o | t 1 , t 2 ) = count(r k , r o , t 1 , t 2 ) r k ,r o count(r k , r o , t 1 , t 2 ) .</formula><p>Omitting the conditioning on the type signature for notational convenience, and defining p(r k ) and p(r o ) analogously, we can then compute The PMI 2 value between the two relations:</p><formula xml:id="formula_3">PMI 2 (r k , r o ) = log p(r k , r o ) 2 p(r k ) · p(r o )</formula><p>Note that in addition to being a measure related to PMI, this captures a notion simi- lar to alignment by agreement ( <ref type="bibr" target="#b20">Liang et al., 2006</ref>); the formula can be equivalently written as log [p(r k | r o )p(r o | r k )]. It is also function- ally the same as the JC WordNet distance measure <ref type="bibr" target="#b18">(Jiang and Conrath, 1997)</ref>.</p><p>Some sample type checked relation mappings are given in <ref type="table">Table 4</ref>. In addition to intuitive map- pings (e.g., found in → Org:Founded), we can note some rare, but high precision pairs (e.g., invest fund of → Org:Founded By). We can also see the noise in distant supervision occasionally per- meate the mapping, e.g., with elect president of → Per:LOC Of Death -a president is likely to die in his own country.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6">Evaluation</head><p>We evaluate our approach in the context of a real- world end-to-end relation extraction task -the TAC KBP Slot Filling challenge. In Slot Filling, we are given a large unlabeled corpus of text, a fixed schema of relations (see Section 5), and a set of query entities. The task is to find all rela- tion triples in the corpus that have as a subject the query entity, and as a relation one of the defined relations. This can be viewed intuitively as popu- lating Wikipedia Infoboxes from a large unstruc- tured corpus of text.</p><p>We compare our approach to the University of Washington submission to <ref type="bibr">TAC-KBP 2013</ref><ref type="bibr">(Soderland et al., 2013</ref>. Their system used OpenIE v4.0 (a successor to Ollie) run over the KBP corpus and then they generated a mapping from the extracted relations to the fixed schema. Unlike our system, Open IE v4.0 employs a se- mantic role component extracting structured SRL frames, alongside a conventional open IE system. Furthermore, the UW submission allows for ex- tracting relations and entities from substrings of an open IE triple argument. For example, from the triple (Smith; was appointed; acting director of Acme Corporation), they extract that Smith is em- ployed by Acme Corporation. We disallow such extractions, passing the burden of finding correct precise extractions to the open IE system itself (see Section 4).</p><p>For entity linking, the UW submission uses Tom Lin's entity linker ( <ref type="bibr" target="#b21">Lin et al., 2012)</ref>; our sub- mission uses the Illinois Wikifier ( <ref type="bibr">Ratinov et al., 2011</ref>) without the relational inference component, for efficiency. For coreference, UW uses the Stan- ford coreference system (Lee et al., 2011); we em- ploy a variant of the simple coref system described in <ref type="bibr" target="#b28">(Pink et al., 2014</ref>).</p><p>We report our results in <ref type="table">Table 5</ref>. <ref type="bibr">4</ref> UW Offi- cial refers to the official submission in the 2013 challenge; we show a 3.1 F 1 improvement (to 22.7 <ref type="bibr">4</ref> All results are reported with the anydoc flag set to true in the evaluation script, meaning that only the truth of the extracted knowledge base entry and not the associated prove- nance is scored. In absence of human evaluators, this is in order to not penalize our system unfairly for extracting a new correct provenance.  <ref type="table">Table 5</ref>: A summary of our results on the end- to-end KBP Slot Filling task. UW official is the submission made to the 2013 challenge. The sec- ond row is the accuracy of Ollie embedded in our framework, and of Ollie evaluated with nom- inal relations from our system. Lastly, we report our system, our system with nominal relations re- moved, and our system combined with an alternate names detector and rule-based website detector. Comparable systems are marked with a dagger † or asterisk * . F 1 ) over this submission, evaluated using a com- parable approach. A common technique in KBP systems but not employed by the official UW sub- mission in 2013 is to add alternate names based on entity linking and coreference. Additionally, websites are often extracted using heuristic name- matching as they are hard to capture with tradi- tional relation extraction techniques. If we make use of both of these, our end-to-end accuracy be- comes 28.2 F 1 .</p><p>We attempt to remove the variance in scores from the influence of other components in an end- to-end KBP system. We ran the Ollie open IE sys- tem ( <ref type="bibr" target="#b23">Mausam et al., 2012</ref>) in an identical frame- work to ours, and report accuracy in <ref type="table">Table 5</ref>. Note that when an argument to an Ollie extraction con- tains a named entity, we take the argument to be that named entity. The low performance of this system can be partially attributed to its inability to extract nominal relations. To normalize for this, we report results when the Ollie extractions are supplemented with the nominal relations produced by our system (Ollie + Nominal Rels in <ref type="table">Table 5</ref>). Conversely, we can remove the nominal relation extractions from our system; in both cases we out- perform Ollie on the task. Our System (without nominals) <ref type="figure">Figure 4</ref>: A precision/recall curve for Ollie and our system (without nominals). For clarity, recall is plotted on a range from 0 to 0.15.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6.1">Discussion</head><p>We plot a precision/recall curve of our extractions in <ref type="figure">Figure 4</ref> in order to get an informal sense of the calibration of our confidence estimates. Since confidences only apply to standard extractions, we plot the curves without including any of the nom- inal relations. The confidence of a KBP extrac- tion in our system is calculated as the sum of the confidences of the open IE extractions that support it. So, for instance, if we find (Obama; be bear in; Hawaii) n times with confidences c 1 . . . c n , the confidence of the KBP extraction would be n i=0 c i . It is therefore important to note that the curve in <ref type="figure">Figure 4</ref> necessarily conflates the confidences of individual extractions, and the fre- quency of an extraction.</p><p>With this in mind, the curves lend some inter- esting insights. Although our system is very high precision on the most confident extractions, it has a large dip in precision early in the curve. This suggests that the model is extracting multiple in- stances of a bad relation. Systematic errors in the clause splitter are the likely cause of these er- rors. While the approach of splitting sentences into clauses generalizes better to out-of-domain text, it is reasonable that the errors made in the clause splitter manifest across a range of sentences more often than the fine-grained patterns of Ollie would.</p><p>On the right half of the PR curve, however, our system achieves both higher precision and extends to a higher recall than Ollie. Furthermore, the curve is relatively smooth near the tail, suggesting that indeed we are learning a reasonable estimate of confidence for extractions that have only one supporting instance in the text -empirically, 46% of our extractions.</p><p>In total, we extract 42 662 862 open IE triples which link to a pair of entities in the corpus (i.e., are candidate KBP extractions), covering 1 180 770 relation types. 202 797 of these rela- tion types appear in more than 10 extraction in- stances; 28 782 in more than 100 instances, and 4079 in more than 1000 instances. 308 293 rela- tion types appear only once. Note that our system over-produces extractions when both a general and specific extraction are warranted; therefore these numbers are an overestimate of the number of se- mantically meaningful facts.</p><p>For comparison, Ollie extracted 12 274 319 triples, covering 2 873 239 relation types. 1 983 300 of these appeared only once; 69 010 appeared in more than 10 instances, 7951 in more than 100 instances, and 870 in more than 1000 instances.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="7">Conclusion</head><p>We have presented a system for extracting open domain relation triples by breaking a long sen- tence into short, coherent clauses, and then find- ing the maximally simple relation triples which are warranted given each of these clauses. This allows the system to have a greater awareness of the con- text of each extraction, and to provide informative triples to downstream applications. We show that our approach performs well on one such down- stream application: the KBP Slot Filling task.</p></div><figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_0"><head>prep</head><label></label><figDesc></figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_1"><head></head><label></label><figDesc>Yields a new clause on this depen- dency arc. A canonical case of this action is the arc suggest ccomp − −−− → brush in Dentists suggest that you should brush your teeth, yielding you should brush your teeth.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_2"><head></head><label></label><figDesc>Yield actions, terminated by a Stop action (or leaf node). For example, a search sequence A Recurse − −−−− → B Y ield − −− → C Stop − −− → D would yield a clause rooted at C. A sequence A Y ield − −− → B Y ield − −− → C Stop − −− → D would yield clauses rooted at both B and C.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_3"><head></head><label></label><figDesc>Fido nsubj ←−−− runs would yield the unentailed (and nonsensical) phrase runs. The last, rare, case is an edge that causes the resulting item to be more specific -e.g., quantmod: about quantmod ← −−−−− − 200 is more general than 200.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_4"><head>For</head><label></label><figDesc></figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_5"><head></head><label></label><figDesc>Bob entails that Alice went to the playground, it is not meaningful to infer that Alice is friends prep with − −−−−− → Bob entails Alice is friends. Analo- gously, Alice played dobj −−→ baseball on Sunday en- tails that Alice played on Sunday; but, Obama signed dobj −−→ the bill on Sunday should not entail the awkward phrase *Obama signed on Sunday.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_6"><head></head><label></label><figDesc>Durin, son of Thorin (Durin; is son of; Thorin) Thorin's son, Durin (Thorin; 's son; Durin) IBM CEO Rometty (Rometty; is CEO of; IBM) President Obama (Obama; is; President) Fischer of Austria (Fischer; is of; Austria) IBM's research group (IBM; 's; research group) US president Obama (Obama; president of; US)</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_2" validated="false"><head>Table 2 , which Obama signed the bill into law on Friday</head><label>2</label><figDesc></figDesc><table>nsubj 
+dobj 
+det 
+
+prep into 
+
+prep on 
+
+prep backoff 
+
+ 
+      
+
+      
+
+p 
+
+prep on | Obama signed bill 
+
+nsubj 
+dobj 
+
+p 
+
+prep on | Obama signed law 
+
+nsubj 
+
+prep into 
+
+p 
+
+prep on | Obama signed 
+
+nsubj 
+
+p 
+
+prep on | signed 
+
+
+dobj backoff 
+
+p 
+
+dobj | Obama signed bill 
+
+nsubj 
+dobj 
+
+p 
+
+dobj | signed 
+
+
+</table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_4" validated="false"><head>Table 2 :</head><label>2</label><figDesc>The six dependency patterns used to seg- ment an atomic sentence into an open IE triple.</figDesc><table></table></figure>
+
+			<note place="foot" n="1"> The system currently misses most most such cases due to insufficient support in the training data.</note>
+
+			<note place="foot" n="2"> We use the Stanford Dependencies representation (de Marneffe and Manning, 2008).</note>
+		</body>
+		<back>
+
+			<div type="acknowledgement">
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Acknowledgments</head><p>We thank the anonymous reviewers for their thoughtful feedback. Stanford University grate-fully acknowledges the support of a Natural Lan-guage Understanding-focused gift from Google Inc. and the Defense Advanced Research Projects Agency (DARPA) Deep Exploration and Filter-ing of Text (DEFT) Program under Air Force Re-search Laboratory (AFRL) contract no. FA8750-13-2-0040. Any opinions, findings, and conclu-sion or recommendations expressed in this mate-rial are those of the authors and do not necessarily reflect the view of the DARPA, AFRL, or the US government.</p></div>
+			</div>
+
+			<div type="annex">
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Alexander Yates, Michael Cafarella, Michele Banko, Oren Etzioni, Matthew Broadhead, and Stephen</head><p>Soderland. 2007. TextRunner: Open information extraction on the web. In ACL-HLT.</p></div>			</div>
+			<div type="references">
+
+				<listBibl>
+
+<biblStruct xml:id="b0">
+	<monogr>
+		<title level="m" type="main">Philosophers are mortal: Inferring the truth of unseen facts</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Gabor</forename><surname>Angeli</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Christopher</forename><forename type="middle">D</forename><surname>Manning</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2013" />
+		</imprint>
+	</monogr>
+	<note>In CoNLL</note>
+</biblStruct>
+
+<biblStruct xml:id="b1">
+	<analytic>
+		<title level="a" type="main">Combining distant and partial supervision for relation extraction</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Gabor</forename><surname>Angeli</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Julie</forename><surname>Tibshirani</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jean</forename><forename type="middle">Y</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Christopher</forename><forename type="middle">D</forename><surname>Manning</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">EMNLP</title>
+		<imprint>
+			<date type="published" when="2014" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b2">
+	<monogr>
+		<title level="m" type="main">Approche mixte pour l&apos;extraction automatique de terminologie: statistique lexicale et filtres linguistiques</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Daille Béatrice</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="1994" />
+		</imprint>
+		<respStmt>
+			<orgName>Thèse de Doctorat. Université de Paris VII</orgName>
+		</respStmt>
+	</monogr>
+<note type="report_type">Ph.D. thesis</note>
+</biblStruct>
+
+<biblStruct xml:id="b3">
+	<analytic>
+		<title level="a" type="main">Global learning of typed entailment rules</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jonathan</forename><surname>Berant</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ido</forename><surname>Dagan</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jacob</forename><surname>Goldberger</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of ACL</title>
+		<meeting>ACL<address><addrLine>Portland, OR</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2011" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b4">
+	<monogr>
+		<title level="m" type="main">Recursive neural networks can learn logical semantics</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">R</forename><surname>Samuel</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Christopher</forename><surname>Bowman</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Christopher</forename><forename type="middle">D</forename><surname>Potts</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Manning</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1406.1827</idno>
+		<imprint>
+			<date type="published" when="2014" />
+			<publisher>CoRR</publisher>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b5">
+	<analytic>
+		<title level="a" type="main">Toward an architecture for neverending language learning</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Andrew</forename><surname>Carlson</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Justin</forename><surname>Betteridge</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Bryan</forename><surname>Kisiel</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Burr</forename><surname>Settles</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Tom M</forename><surname>Estevam R Hruschka</surname><genName>Jr</genName></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Mitchell</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">AAAI</title>
+		<imprint>
+			<date type="published" when="2010" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b6">
+	<monogr>
+		<title level="m" type="main">TokensRegex: Defining cascaded regular expressions over tokens</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">X</forename><surname>Angel</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Christopher</forename><forename type="middle">D</forename><surname>Chang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Manning</surname></persName>
+		</author>
+		<idno>CSTR 2014-02</idno>
+		<imprint>
+			<date type="published" when="2014" />
+		</imprint>
+		<respStmt>
+			<orgName>Department of Computer Science, Stanford University</orgName>
+		</respStmt>
+	</monogr>
+<note type="report_type">Technical Report</note>
+</biblStruct>
+
+<biblStruct xml:id="b7">
+	<analytic>
+		<title/>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Zheng</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Suzanne</forename><surname>Tamang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Adam</forename><surname>Lee</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Xiang</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Wen-Pin</forename><surname>Lin</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Matthew</forename><surname>Snover</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Javier</forename><surname>Artiles</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Marissa</forename><surname>Passantino</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Heng</forename><surname>Ji</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">CUNYBLENDER</title>
+		<editor>TAC-KBP</editor>
+		<imprint>
+			<date type="published" when="2010" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b8">
+	<analytic>
+		<title level="a" type="main">Constructing biological knowledge bases by extracting information from text sources</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Mark</forename><surname>Craven</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Johan</forename><surname>Kumlien</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">AAAI</title>
+		<imprint>
+			<date type="published" when="1999" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b9">
+	<analytic>
+		<title level="a" type="main">The Stanford typed dependencies representation</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Marie-Catherine</forename><surname>De Marneffe</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Christopher</forename><forename type="middle">D</forename><surname>Manning</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Coling 2008: Proceedings of the workshop on Cross-Framework and Cross-Domain Parser Evaluation</title>
+		<imprint>
+			<date type="published" when="2008" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b10">
+	<analytic>
+		<title level="a" type="main">Search needs a shake-up</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Oren</forename><forename type="middle">Etzioni</forename></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Nature</title>
+		<imprint>
+			<biblScope unit="volume">476</biblScope>
+			<biblScope unit="issue">7358</biblScope>
+			<biblScope unit="page" from="25" to="26" />
+			<date type="published" when="2011" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b11">
+	<monogr>
+				<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Stefan</forename><forename type="middle">Evert</forename></persName>
+		</author>
+		<title level="m">The statistics of word cooccurrences: word pairs and collocations</title>
+		<imprint>
+			<date type="published" when="2005" />
+		</imprint>
+		<respStmt>
+			<orgName>Universit at Stuttgart</orgName>
+		</respStmt>
+	</monogr>
+<note type="report_type">Ph.D. thesis</note>
+</biblStruct>
+
+<biblStruct xml:id="b12">
+	<monogr>
+		<title level="m" type="main">Identifying relations for open information extraction</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Anthony</forename><surname>Fader</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Stephen</forename><surname>Soderland</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Oren</forename><surname>Etzioni</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2011" />
+		</imprint>
+	</monogr>
+	<note>In EMNLP</note>
+</biblStruct>
+
+<biblStruct xml:id="b13">
+	<analytic>
+		<title level="a" type="main">Open question answering over curated and extracted knowledge bases</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Anthony</forename><surname>Fader</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Luke</forename><surname>Zettlemoyer</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Oren</forename><surname>Etzioni</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">KDD</title>
+		<imprint>
+			<date type="published" when="2014" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b14">
+	<analytic>
+		<title level="a" type="main">A dataset of syntactic-ngrams over time from a very large corpus of english books</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yoav</forename><surname>Goldberg</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jon</forename><surname>Orwant</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">*SEM</title>
+		<imprint>
+			<date type="published" when="2013" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b15">
+	<analytic>
+		<title level="a" type="main">New York University KBP 2010 slot-filling system</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ralph</forename><surname>Grishman</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Bonan</forename><surname>Min</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. TAC 2010 Workshop</title>
+		<meeting>TAC 2010 Workshop</meeting>
+		<imprint>
+			<date type="published" when="2010" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b16">
+	<monogr>
+		<title level="m" type="main">Recent progress on monotonicity. Linguistic Issues in Language Technology</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Thomas</forename><surname>Icard</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">,</forename><surname>Iii</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Lawrence</forename><surname>Moss</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2014" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b17">
+	<analytic>
+		<title level="a" type="main">Overview of the tac 2010 knowledge base population track</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Heng</forename><surname>Ji</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ralph</forename><surname>Grishman</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Hoa</forename><forename type="middle">Trang</forename><surname>Dang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kira</forename><surname>Griffitt</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Joe</forename><forename type="middle">Ellis</forename></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Third Text Analysis Conference</title>
+		<imprint>
+			<date type="published" when="2010" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b18">
+	<analytic>
+		<title level="a" type="main">Semantic similarity based on corpus statistics and lexical taxonomy</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">J</forename><surname>Jay</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">David W</forename><surname>Jiang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Conrath</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 10th International Conference on Research on Computational Linguistics</title>
+		<meeting>the 10th International Conference on Research on Computational Linguistics</meeting>
+		<imprint>
+			<date type="published" when="1997" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b19">
+	<analytic>
+		<title level="a" type="main">Stanford&apos;s multi-pass sieve coreference resolution system at the conll-2011 shared task</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Heeyoung</forename><surname>Lee</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yves</forename><surname>Peirsman</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Angel</forename><surname>Chang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Nathanael</forename><surname>Chambers</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Mihai</forename><surname>Surdeanu</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Dan</forename><surname>Jurafsky</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">CoNLL Shared Task</title>
+		<imprint>
+			<date type="published" when="2011" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b20">
+	<monogr>
+		<title level="m" type="main">Alignment by agreement</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Percy</forename><surname>Liang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ben</forename><surname>Taskar</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Dan</forename><surname>Klein</surname></persName>
+		</author>
+		<editor>NAACL-HLT</editor>
+		<imprint>
+			<date type="published" when="2006" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b21">
+	<analytic>
+		<title level="a" type="main">No noun phrase left behind: detecting and typing unlinkable entities</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Thomas</forename><surname>Lin</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Mausam</forename></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Oren</forename><surname>Etzioni</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">EMNLP-CoNLL</title>
+		<imprint>
+			<date type="published" when="2012" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b22">
+	<analytic>
+		<title level="a" type="main">An extended model of natural logic</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Bill</forename><surname>Maccartney</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Christopher</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Manning</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the eighth international conference on computational semantics</title>
+		<meeting>the eighth international conference on computational semantics</meeting>
+		<imprint>
+			<date type="published" when="2009" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b23">
+	<analytic>
+		<title level="a" type="main">Open language learning for information extraction</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Michael</forename><surname>Mausam</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Robert</forename><surname>Schmitz</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Stephen</forename><surname>Bart</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Oren</forename><surname>Soderland</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Etzioni</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">EMNLP</title>
+		<imprint>
+			<date type="published" when="2012" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b24">
+	<analytic>
+		<title level="a" type="main">Effectiveness and efficiency of open relation extraction</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Filipe</forename><surname>Mesquita</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jordan</forename><surname>Schmidek</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Denilson</forename><surname>Barbosa</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">EMNLP</title>
+		<imprint>
+			<date type="published" when="2013" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b25">
+	<monogr>
+		<title level="m" type="main">Distant supervision for relation extraction with an incomplete knowledge base</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Bonan</forename><surname>Min</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ralph</forename><surname>Grishman</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Li</forename><surname>Wan</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Chang</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">David</forename><surname>Gondek</surname></persName>
+		</author>
+		<editor>NAACL-HLT</editor>
+		<imprint>
+			<date type="published" when="2013" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b26">
+	<analytic>
+		<title level="a" type="main">Distant supervision for relation extraction without labeled data</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Mike</forename><surname>Mintz</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Steven</forename><surname>Bills</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">ACL</title>
+		<imprint>
+			<date type="published" when="2009" />
+		</imprint>
+	</monogr>
+	<note>Rion Snow, and Dan Jurafsky</note>
+</biblStruct>
+
+<biblStruct xml:id="b27">
+	<monogr>
+		<title level="m" type="main">A dictionary of nonsubsective adjectives</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Neha</forename><surname>Nayak</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Mark</forename><surname>Kowarsky</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Gabor</forename><surname>Angeli</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Christopher</forename><forename type="middle">D</forename><surname>Manning</surname></persName>
+		</author>
+		<idno>CSTR 2014-04</idno>
+		<imprint>
+			<date type="published" when="2014-10" />
+		</imprint>
+		<respStmt>
+			<orgName>Department of Computer Science, Stanford University</orgName>
+		</respStmt>
+	</monogr>
+<note type="report_type">Technical Report</note>
+</biblStruct>
+
+<biblStruct xml:id="b28">
+	<analytic>
+		<title level="a" type="main">Analysing recall loss in named entity slot filling</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Glen</forename><surname>Pink</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Joel</forename><surname>Nothman</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">R</forename><forename type="middle">James</forename><surname>Curran</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">EMNLP</title>
+		<imprint>
+			<date type="published" when="2014" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+				</listBibl>
+			</div>
+		</back>
+	</text>
+</TEI>

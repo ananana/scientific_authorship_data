@@ -1,0 +1,762 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<TEI xmlns="http://www.tei-c.org/ns/1.0" 
+xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+xsi:schemaLocation="http://www.tei-c.org/ns/1.0 /home/ana/installs/grobid/grobid-0.5.1/grobid-home/schemas/xsd/Grobid.xsd"
+ xmlns:xlink="http://www.w3.org/1999/xlink">
+	<teiHeader xml:lang="en">
+		<encodingDesc>
+			<appInfo>
+				<application version="0.5.1-SNAPSHOT" ident="GROBID" when="2019-04-18T10:36+0000">
+					<ref target="https://github.com/kermitt2/grobid">GROBID - A machine learning software for extracting information from scholarly documents</ref>
+				</application>
+			</appInfo>
+		</encodingDesc>
+		<fileDesc>
+			<titleStmt>
+				<title level="a" type="main">Strategies for Training Large Vocabulary Neural Language Models</title>
+			</titleStmt>
+			<publicationStmt>
+				<publisher/>
+				<availability status="unknown"><licence/></availability>
+				<date>August 7-12, 2016</date>
+			</publicationStmt>
+			<sourceDesc>
+				<biblStruct>
+					<analytic>
+						<author>
+							<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Wenlin</forename><surname>Chen</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="department">Facebook</orgName>
+								<address>
+									<settlement>Menlo Park</settlement>
+									<region>CA</region>
+								</address>
+							</affiliation>
+						</author>
+						<author>
+							<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">David</forename><surname>Grangier</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="department">Facebook</orgName>
+								<address>
+									<settlement>Menlo Park</settlement>
+									<region>CA</region>
+								</address>
+							</affiliation>
+						</author>
+						<author>
+							<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Michael</forename><surname>Auli</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="department">Facebook</orgName>
+								<address>
+									<settlement>Menlo Park</settlement>
+									<region>CA</region>
+								</address>
+							</affiliation>
+						</author>
+						<title level="a" type="main">Strategies for Training Large Vocabulary Neural Language Models</title>
+					</analytic>
+					<monogr>
+						<title level="m">Proceedings of the 54th Annual Meeting of the Association for Computational Linguistics</title>
+						<meeting>the 54th Annual Meeting of the Association for Computational Linguistics <address><addrLine>Berlin, Germany</addrLine></address>
+						</meeting>
+						<imprint>
+							<biblScope unit="page" from="1975" to="1985"/>
+							<date type="published">August 7-12, 2016</date>
+						</imprint>
+					</monogr>
+				</biblStruct>
+			</sourceDesc>
+		</fileDesc>
+		<profileDesc>
+			<abstract>
+				<p>Training neural network language models over large vocabularies is computa-tionally costly compared to count-based models such as Kneser-Ney. We present a systematic comparison of neural strategies to represent and train large vocabularies , including softmax, hierarchical soft-max, target sampling, noise contrastive estimation and self normalization. We extend self normalization to be a proper esti-mator of likelihood and introduce an efficient variant of softmax. We evaluate each method on three popular benchmarks, examining performance on rare words, the speed/accuracy trade-off and complemen-tarity to Kneser-Ney.</p>
+			</abstract>
+		</profileDesc>
+	</teiHeader>
+	<text xml:lang="en">
+		<body>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="1">Introduction</head><p>Neural network language models ( <ref type="bibr" target="#b5">Bengio et al., 2003;</ref><ref type="bibr">Mikolov et al., 2010</ref>) have gained popular- ity for tasks such as automatic speech recognition ( <ref type="bibr" target="#b1">Arisoy et al., 2012</ref>) and statistical machine trans- lation ( <ref type="bibr" target="#b20">Schwenk et al., 2012;</ref><ref type="bibr" target="#b23">Vaswani et al., 2013;</ref><ref type="bibr" target="#b3">Baltescu and Blunsom, 2014</ref>). Similar models are also developed for translation ( <ref type="bibr" target="#b16">Le et al., 2012;</ref><ref type="bibr" target="#b10">Devlin et al., 2014;</ref><ref type="bibr" target="#b2">Bahdanau et al., 2015)</ref>, summa- rization ( <ref type="bibr" target="#b9">Chopra et al., 2015)</ref> and language gener- ation ( <ref type="bibr" target="#b21">Sordoni et al., 2015)</ref>.</p><p>Language models assign a probability to a word given a context of preceding, and possibly sub- sequent, words. The model architecture deter- mines how the context is represented and there are several choices including recurrent neural net- works ( <ref type="bibr">Mikolov et al., 2010;</ref><ref type="bibr" target="#b15">Jozefowicz et al., 2016)</ref>, or log-bilinear models <ref type="bibr">(Mnih and Hinton, 2010)</ref>. This paper does not focus on architec- ture or context representation but rather on how to efficiently deal with large output vocabularies, a problem common to all approaches to neural lan- guage modeling and related tasks (machine trans- lation, language generation). We therefore experi- ment with a classical feed-forward neural network model similar to <ref type="bibr" target="#b5">Bengio et al. (2003)</ref>.</p><p>Practical training speed for these models quickly decreases as the vocabulary grows. This is due to three combined factors: (i) model evaluation and gradient computation become more time con- suming, mainly due to the need of computing nor- malized probabilities over a large vocabulary; (ii) large vocabularies require more training data in order to observe enough instances of infrequent words which increases training times; (iii) a larger training set often allows for larger models which requires more training iterations.</p><p>This paper provides an overview of popular strategies to model large vocabularies for language modeling. This includes the classical softmax over all output classes, hierarchical softmax which in- troduces latent variables, or clusters, to simplify normalization, target sampling which only con- siders a random subset of classes for normaliza- tion, noise contrastive estimation which discrim- inates between genuine data points and samples from a noise distribution, and infrequent normal- ization, also referred as self-normalization, which computes the partition function at an infrequent rate. We also extend self-normalization to be a proper estimator of likelihood. Furthermore, we introduce differentiated softmax, a novel variation of softmax which assigns more parameters, or ca- pacity, to frequent words and which we show to be faster and more accurate than softmax ( §2).</p><p>Our comparison assumes a reasonable budget of one week for training models on a high end GPU (Nvidia K40). We evaluate on three benchmarks differing in the amount of training data and vocab- ulary size, that is Penn Treebank, Gigaword and the Billion Word benchmark ( §3).</p><p>Our results show that conclusions drawn from small datasets do not always generalize to larger settings. For instance, hierarchical softmax is less accurate than softmax on the small vocabulary Penn Treebank task but performs best on the very large vocabulary Billion Word benchmark. This is because hierarchical softmax is the fastest method for training and can perform more training updates in the same period of time. Furthermore, our re-sults with differentiated softmax demonstrate that assigning capacity where it has the most impact allows to train better models in our time budget ( §4). Our analysis also shows clearly that tradi- tional Kneser-Ney models are competitive on rare words, contrary to the common belief that neural models are better on infrequent words ( §5).</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2">Modeling Large Vocabularies</head><p>We first introduce our model architecture with a classical softmax and then describe various other methods including a novel variation of softmax.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.1">Softmax Neural Language Model</head><p>Our feed-forward neural network implements an n-gram language model, i.e., it is a parametric function estimating the probability of the next word w t given n − 1 previous context words, w t−1 , . . . , w t−n+1 . Formally, we take as input a sequence of discrete indexes representing the n−1 previous words and output a vocabulary-sized vec- tor of probability estimates, i.e.,</p><formula xml:id="formula_0">f : {1, . . . , V } n−1 → [0, 1] V ,</formula><p>where V is the vocabulary size. This function re- sults from the composition of simple differentiable functions or layers.</p><p>Specifically, f composes an input mapping from discrete word indexes to continuous vectors, a suc- cession of linear operations followed by hyper- bolic tangent non-linearities, plus one final linear operation, followed by a softmax normalization.</p><p>The input layer maps each context word index to a continuous d 0 -dimensional vector. It relies on a matrix W 0 ∈ R V ×d 0 to convert the input</p><formula xml:id="formula_1">x = [w t−1 , . . . , w t−n+1 ] ∈ {1, . . . , V } n−1 to n − 1 vectors of dimension d 0 . These vectors are concatenated into a single (n − 1) × d 0 matrix, h 0 = [W 0 w t−1 ; . . . ; W 0 w t−n+1 ] ∈ R n−1×d 0 .</formula><p>This state h 0 is considered as a d 0 = (n − 1) × d 0 vector by the next layer. The subsequent states are computed through k layers of linear mappings followed by hyperbolic tangents, i.e.</p><formula xml:id="formula_2">∀i = 1, . . . , k, h i = tanh(W i h i−1 + b i ) ∈ R d i</formula><p>where W i ∈ R d i ×d i−1 , b ∈ R d i are learn- able weights and biases and tanh denotes the component-wise hyperbolic tangent. Finally, the last layer performs a linear operation followed by a softmax normalization, i.e.,</p><formula xml:id="formula_3">h k+1 = W k+1 h k + b k+1 ∈ R V and y = 1 Z exp(h k+1 ) ∈ [0, 1] V<label>(1)</label></formula><p>where Z = V j=1 exp(h k+1 j ) and exp denotes the component-wise exponential. The network output y is therefore a vocabulary-sized vector of proba- bility estimates. We use the standard cross-entropy loss with respect to the computed log probabilities ∂ log y i ∂h k+1 j = δ ij − y j where δ ij = 1 if i = j and 0 otherwise The gra- dient update therefore increases the score of the correct output h k+1 i and decreases the score of all other outputs h k+1 j for j = i. A downside of the classical softmax formulation is that it requires computation of the activations for all output words, Eq. (1). The output layer with V activations is much larger than any other layer in the network and its matrix multiplication domi- nates the complexity of the entire network.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.2">Hierarchical Softmax</head><p>Hierarchical Softmax (HSM) organizes the out- put vocabulary into a tree where the leaves are the words and the intermediate nodes are latent variables, or classes (Morin and <ref type="bibr">Bengio, 2005</ref>). The tree has potentially many levels and there is a unique path from the root to each word. The prob- ability of a word is the product of the probabilities of the latent variables along the path from the root to the leaf, including the probability of the leaf.</p><p>We follow Goodman (2001) and <ref type="bibr">Mikolov et al. (2011b)</ref> and model a two-level tree. Given context x, HSM predicts the class of the next word c t and the actual word w t</p><formula xml:id="formula_4">p(w t |x) = p(c t |x) p(w t |c t , x)<label>(2)</label></formula><p>If the number of classes is O( √ V ) and classes are balanced, then we only need to compute O(2 √ V )</p><p>outputs. In practice, this strategy results in weight matrices whose largest dimension is &lt; 1, 000, a setting for which GPU hardware is fast. A popular strategy is frequency clustering. It sorts the vocabulary by frequency and then forms clusters of words with similar frequency. Each cluster contains an equal share of the total unigram probability. We compare this strategy to random class assignment and to clustering based on word <ref type="figure">Figure 1</ref>: Output weight matrix W k+1 and hid- den layer h k for differentiated softmax for vocab- ulary partitions A, B, C with embedding dimen- sions d A , d B , d C ; non-shaded areas are zero.</p><formula xml:id="formula_5">W k+1 h k d A d B d C |A| |B| |C| d A d B d C</formula><p>contexts, relying on PCA ( <ref type="bibr" target="#b17">Lebret and Collobert, 2014)</ref>. A full comparison of context-based clus- tering is beyond the scope of this work <ref type="bibr" target="#b6">(Brown et al., 1992;</ref><ref type="bibr" target="#b7">Mikolov et al., 2013</ref>).</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.3">Differentiated Softmax</head><p>This section introduces a novel variation of soft- max that assigns a variable number of parameters to each word in the output layer. The weight ma- trix of the final layer W k+1 ∈ R d k ×V stores out- put embeddings of size d k for the V words the language model may predict:</p><formula xml:id="formula_6">W k+1 1 ; . . . ; W k+1 V .</formula><p>Differentiated softmax (D-Softmax) varies the di- mension of the output embeddings d k across words depending on how much model capacity, or parameters, are deemed suitable for a given word. We assign more parameters to frequent words than to rare words since more training occurrences al- low for fitting more parameters.</p><p>We partition the output vocabulary based on word frequency and the words in each partition share the same embedding size. Partitioning the vocabulary in this way results in a sparse final weight matrix W k+1 which arranges the embed- dings of the output words in blocks, each block corresponding to a separate partition ( <ref type="figure">Figure 1</ref>). The size of the final hidden layer h k is the sum of the embedding sizes of the partitions. The fi- nal hidden layer is effectively a concatenation of separate features for each partition which are used to compute the dot product with the correspond- ing embedding type in W k+1 . In practice, we effi- ciently compute separate matrix-vector products, or in batched form, matrix-matrix products, for each partition in W k+1 and h k .</p><p>Overall, differentiated softmax can lead to large speed-ups as well as accuracy gains since we can greatly reduce the complexity of computing the output layer. Most significantly, this strategy speeds up both training and inference. This is in contrast to hierarchical softmax which is fast during training but requires even more effort than softmax for computing the most likely next word.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.4">Target Sampling</head><p>Sampling-based methods approximate the soft- max normalization, Eq. <ref type="formula" target="#formula_3">(1)</ref>, by summing over a sub-sample of impostor classes. This can signif- icantly speed-up each training iteration, depend- ing on the size of the impostor set. Target sam- pling builds upon the importance sampling work of <ref type="bibr" target="#b4">Bengio and Senécal (2008)</ref>. We follow <ref type="bibr" target="#b14">Jean et al. (2014)</ref> who choose as impostors all positive examples in a mini-batch as well as a subset of the remaining words. This subset is sampled uni- formly and its size is chosen by validation.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.5">Noise Contrastive Estimation</head><p>Noise contrastive estimation (NCE) is another sampling-based technique <ref type="bibr" target="#b13">(Hyvärinen, 2010;</ref><ref type="bibr">Mnih and Teh, 2012;</ref><ref type="bibr" target="#b8">Chen et al., 2015</ref>). Contrary to target sampling, it does not maximize the train- ing data likelihood directly. Instead, it solves a two-class problem of distinguishing genuine data from noise samples. The training algorithm sam- ples a word w given the preceding context x from a mixture</p><formula xml:id="formula_7">p(w|x) = 1 k + 1 p train (w|x) + k k + 1 p noise (w|x)</formula><p>where p train is the empirical distribution of the training set and p noise is a known noise distri- bution which is typically a context-independent unigram distribution. The training algorithm fits the modeî p(w|x) to recover whether a mixture sample came from the data or the noise distribu- tion, this amounts to minimizing the binary cross- entropy −y logˆplogˆ logˆp(y = 1|w, x)−(1−y) logˆplogˆ logˆp(y = 0|w, x) where y is a binary variable indicating where the current sample originates fromˆp</p><formula xml:id="formula_8">fromˆ fromˆp(y = 1|w, x) = ˆ p(w|x) ˆ p(w|x)+kp noise (w|x) (data) ˆ p(y = 0|w, x) = 1 − ˆ p(y = 1|w, x) (noise).</formula><p>This formulation still involves a softmax over the vocabulary to computê p(w|x). However, Mnih and Teh (2012) suggest to forego normalization and replacê p(w|x) with unnormalized exponen- tiated scores. This makes the training complex- ity independent of the vocabulary size. At test time, softmax normalization is reintroduced to get a proper distribution. We also follow Mnih and Teh (2012) recommendations for p noise and rely on a unigram distribution of the training set.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.6">Infrequent Normalization</head><p>Devlin et al.</p><p>(2014), followed by <ref type="bibr" target="#b0">Andreas and Klein (2015)</ref>, proposed to relax score nor- malization.</p><p>Their strategy (here referred to as WeaknormSQ) associates unnormalized likeli- hood maximization with a penalty term that favors normalized predictions. This yields the following loss over the training set T</p><formula xml:id="formula_9">L (2) α = − (w,x)∈T s(w|x) + α (w,x)∈T (log Z(x)) 2</formula><p>where s(w|x) refers to the unnormalized score of word w given context x and Z(x) = w exp(s(w|x)) refers to the partition function for context x. This strategy therefore pushes the log partition towards zero. For efficient training, the second term can be down-sampled</p><formula xml:id="formula_10">L (2) α,γ = − (w,x)∈T s(w|x)+ α γ (w,x)∈Tγ (log Z(x)) 2</formula><p>where T γ is the training set sampled at rate γ. A small rate implies computing the partition function only for a small fraction of the training data. We extend this strategy to the case where the log partition term is not squared (Weaknorm), i.e.,</p><formula xml:id="formula_11">L (1) α,γ = − (w,x)∈T s(w|x) + α γ (w,x)∈Tγ log Z(x)</formula><p>For α = 1, this loss is an unbiased estimator of the negative log-likelihood of the training data L</p><formula xml:id="formula_12">1 = − (w,x)∈T s(w|x) + log Z(x).<label>(2)</label></formula></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3">Experimental Setup</head><p>Datasets We run experiments over three news datasets of different sizes: Penn Treebank (PTB), WMT11-lm (billionW) and English Gigaword, version 5 (gigaword is a trade-off between being able to do a compre- hensive exploration of the various settings for each method and good accuracy. The chosen training times are not long enough to observe over-fitting, i.e. validation performance is still improving -al- beit very slowly -at the end of the training session. As a general observation, even on the small PTB where 24 hours is rather long, we always found better results using the full training time, possibly increasing the dropout rate.</p><p>A concern may be that a fixing the training time favors models with better implementations. How- ever, all models are very similar and their core computations are always matrix/matrix products. Training differs mostly in the size and frequency of large matrix/matrix products. Matrix products rely on CuBLAS 3 , using torch 4 . For the matrix sizes involved (&gt; 500×1, 000), the time complex- ity of matrix product is linear in each dimension, both on CPU (Intel MKL 5 ) and GPU (CuBLAS), with a 10X speedup for GPU (Nvidia K40) com- pared to CPU (Intel Xeon E5-2680). Therefore, the speed trade-off applies to both CPU and GPU hardware, albeit with a different time scale.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4">Results</head><p>The test perplexities <ref type="table" target="#tab_2">(Table 2</ref>) and validation learning curves <ref type="figure" target="#fig_0">(Figures 2, 3, and 4)</ref> show that the competitiveness of softmax diminishes with larger vocabularies. Softmax does well on the small vo- cabulary PTB but poorly on the large vocabulary billionW corpus. Faster methods such as sam- pling, hierarchical softmax, and infrequent nor- malization (Weaknorm, WeaknormSQ) are much better in the large vocabulary setting of billionW. D-Softmax is performing well on all sets and shows that assigning higher capacity where it ben- efits most results in better models. Target sam- pling performs worse than softmax on gigaword but better on billionW. Hierarchical softmax per- forms poorly on Penn Treebank which is in stark contrast to billionW where it does well. Noise contrastive estimation has good accuracy on bil- lionW, where speed is essential to achieving good accuracy.</p><p>Of all the methods, hierarchical softmax pro- cesses most training examples in a given time frame <ref type="table" target="#tab_3">(Table 3)</ref>   scoring next word rather than rescoring an exist- ing string. This scenario requires scoring all out- put words and D-Softmax can process nearly twice as many tokens per second than the other methods whose complexity is similar to softmax.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.1">Softmax</head><p>Despite being our baseline, softmax ranks among the most accurate methods on PTB and it is sec- ond best on gigaword after D-Softmax (with Wea- knormSQ performing similarly). For billionW, the extremely large vocabulary makes softmax training too slow to compete with faster alterna-    However, of all the methods softmax has the simplest implementation and it has no additional hyper-parameters compared to other methods. <ref type="figure" target="#fig_3">Figure 5</ref> shows that target sampling is most accu- rate for distractor sets that amount to a large frac- tion of the vocabulary, i.e. &gt; 30% on gigaword (billionW best setting &gt; 50% is even higher). Tar- get sampling is faster and performs more itera- tions than softmax in the same time. However, its perplexity reduction per iteration is less than soft- max. Overall, it is not much better than softmax. A reason might be that sampling chooses distrac- tors independently from context and current model performance. This does not favor distractors the model incorrectly considers likely for the current context. These distractors would yield higher gra- dients that could update the model faster.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.2">Target Sampling</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.3">Hierarchical Softmax</head><p>Hierarchical softmax is very efficient for large vo- cabularies and it is the best method on billionW.</p><p>On the other hand, HSM does poorly on small vo- cabularies as seen on PTB. We found that a good word clustering structure is crucial: when clusters gather words occurring in similar contexts, clus- ter likelihoods are easier to learn; when the cluster structure is uninformative, cluster likelihoods con- verge to the uniform distribution. This affects ac- curacy since words cannot have higher probability than their clusters, Eq. (2). Our experiments organize words into a two level hierarchy and compare four clustering strate- gies on billionW and gigaword ( §2.2). Random clustering shuffles the vocabulary and splits it into equally sized partitions. Frequency-based clustering first orders words based on their fre- quency and assigns words to clusters such that each cluster represents an equal share of the total frequency ( <ref type="bibr">Mikolov et al., 2011b</ref>). K- means runs the well-known clustering algorithm on Hellinger PCA word embeddings. Weighted k- means weights each word by its frequency. <ref type="bibr">7</ref> Random clusters perform worst <ref type="table">(Table 4)</ref> fol- lowed by frequency-based clustering but k-means does best; weighted k-means performs similarly to its unweighted version. In earlier experiments, plain k-means performed very poorly since the most frequent cluster captured up to 40% of the billionW gigaword random 98.51 62,27 frequency-based 92.02 59.47 k-means 85.70 57.52 weighted k-means 85.24 57.09 <ref type="table">Table 4</ref>: HSM with different clustering.</p><p>token occurrences. We then explicitly capped the frequency budget of each cluster to 10% which brought k-means on par with weighted k-means.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.4">Differentiated Softmax</head><p>D-Softmax is the best technique on gigaword and second best on billionW after HSM. On PTB it ranks among the best techniques whose per- plexities cannot be reliably distinguished. The variable-capacity scheme of D-Softmax can as- sign large embeddings to frequent words, while keeping computational complexity manageable through small embeddings for rare words. Unlike for hierarchical softmax, NCE or Wea- knorm, the computational advantage of D- Softmax is preserved at test time <ref type="table" target="#tab_3">(Table 3)</ref>. D- Softmax is the fastest technique at test time, while ranking among the most accurate methods. This speed advantage is due to the low dimensional rep- resentation of rare words which negatively affects the model accuracy on these words <ref type="table">(Table 5</ref>).</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.5">Noise Contrastive Estimation</head><p>Although we report better perplexities than the original NCE paper on PTB (Mnih and Teh, 2012), we found NCE difficult to use for large vocabular- ies. In order to work in this setting where mod- els are larger, we had to dissociate the number of noise samples from the data to noise ratio in the modeled mixture. For instance, a data/noise ra- tio of 1/50 gives good performance in our exper- iments but estimating only 50 noise sample pos- teriors per data point is wasteful given the cost of network evaluation. Moreover, 50 samples do not allow frequent sampling of every word in a large vocabulary. Our setting considers more noise sam- ples and up-weights the data sample. This allows to set the data/noise ratio independently from the number of noise samples.</p><p>Overall, NCE results are better than softmax only for billionW, a setting for which softmax is very slow due to the very large vocabulary. Why does NCE perform so poorly? <ref type="figure" target="#fig_4">Figure 6</ref> shows en- tropy on the validation set versus the NCE loss for several models. The results clearly show that sim- </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.6">Infrequent Normalization</head><p>Infrequent normalization (Weaknorm and Wea- knormSQ) performs better than softmax on bil- lionW and comparably to softmax on Penn Tree- bank and gigaword <ref type="table" target="#tab_2">(Table 2</ref>). The speedup from skipping partition function computations is sub- stantial. For instance, WeaknormSQ on billionW evaluates the partition only on 10% of the exam- ples. In one week, the model is evaluated and up- dated on 868M tokens (with 86.8M partition eval- uations) compared to 156M tokens for softmax. Although referred to as self-normalizing <ref type="bibr" target="#b0">(Andreas and Klein, 2015)</ref>, the trained models still need normalization after training. The partition varies greatly between data samples. On billionW, the partition ranges between 9.4 to 10.3 in log scale for 10th to 90th percentile, i.e. a ratio of 2.5.</p><p>We observed the squared version (Wea- knormSQ) to be unstable at times. Regularization strength could be found too low (collapse) or too high (blow-up) after a few days of training. We added an extra unit to bound unnormalized predictions x → 10 tanh(x/5), which yields stable training and better generalization. For the non-squared Weaknorm, stability was not an issue. A regularization strength of 1 was the best setting for Weaknorm. This choice makes the loss an unbiased estimator of the data likelihood.  <ref type="table">Table 5</ref>: Test entropy on gigaword over subsets of the frequency ranked vocabulary; rank 1 is the most frequent word.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>1-4K 4-20K 20-40K 40-70K 70-100K</head><note type="other">Kneser-Ney 3.48 7.85 9.76 10.76 11.</note></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5">Analysis</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.1">Model Capacity</head><p>Training neural language models over large cor- pora highlights that training time, not training data, is the main factor limiting performance. The learning curves on gigaword and billionW indicate that most models are still making progress after one week. Training time has therefore to be taken into account when considering increasing capac- ity. <ref type="figure" target="#fig_5">Figure 7</ref> shows validation perplexity versus the number of iterations for a week of training. This figure shows that a softmax model with 1024 hidden units in the last layer could perform bet- ter than the 512-hidden unit model with a longer training horizon. However, in the allocated time, 512 hidden units yield the best validation perfor- mance. D-softmax shows that it is possible to se- lectively increase capacity, i.e., to allocate more hidden units to the most frequent words at the ex- pense of rarer words. This captures most of the benefit of a larger softmax model while staying within a reasonable training budget.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.2">Effect of Initialization</head><p>We consider initializing both the input word em- beddings and the output matrix from Hellinger PCA embeddings. Several alternative tech- niques for pre-training embeddings have been pro- posed ( <ref type="bibr" target="#b7">Mikolov et al., 2013;</ref><ref type="bibr" target="#b17">Lebret and Collobert, 2014;</ref><ref type="bibr">Pennington et al., 2014</ref>). Our experiment highlights the advantage of initialization and do not aim to compare embedding techniques. <ref type="figure" target="#fig_7">Figure 8</ref> shows that PCA is better than random for initializing both input and output word rep- resentations; initializing both from PCA is even better. We see that even after long training ses- sions, the initial conditions still impact the valida- tion perplexity. We observed this trend also with other strategies than softmax. After one week of training, HSM is the only method which can reach comparable accuracy to PCA initialization when the output matrix is randomly initialized.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.3">Training Set Size</head><p>Large training sets and a fixed training time in- troduce competition between slower models with more capacity and observing more training data. This trade-off only applies to iterative SGD op- timization and does not apply to classical count- based models, which visit the training set once and then solve training in closed form. We compare Kneser-Ney and softmax, trained for one week, with gigaword on differently sized subsets of the training data. For each setting we take care to include all data from the smaller sub- sets. <ref type="figure" target="#fig_8">Figure 9</ref> shows that the performance of the neural model improves very little on more than Input: PCA, Output: PCA Input: PCA, Output: Random Input: Random, Output: PCA Input: Random, Output: Random  500M tokens. In order to benefit from the full training set we would require a much higher train- ing budget, faster hardware, or parallelization. Scaling training to large datasets can have a sig- nificant impact on perplexity, even when data from the distribution of interest is limited. As an illus- tration, we adapted a softmax model trained on bil- lionW to Penn Treebank and achieved a perplexity of 96 -a far better result than with any model we trained from scratch on PTB (cf. <ref type="table" target="#tab_2">Table 2</ref>).</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.4">Rare Words</head><p>How well do neural models perform on rare words? To answer this question, we computed entropy across word frequency bands for Kneser- Ney and neural models. <ref type="table">Table 5</ref> reports entropy for the 4, 000 most frequent words, then the next most frequent 16, 000 words, etc. For frequent words, neural models are on par or better than Kneser-Ney. For rare words, Kneser-Ney is very competitive. Although neural models might even- tually close this gap with much longer training, one should consider that Kneser-Ney trains on gi- gaword in only 8 hours on CPU which contrasts with 168 hours of training for neural models on high end GPUs. This result highlights the comple- mentarity of both approaches, as observed in our interpolation experiments <ref type="table" target="#tab_2">(Table 2)</ref>.</p><p>For neural models, D-Softmax excels on fre- quent words but performs poorly on rare ones. This is because D-Softmax assigns more capacity to frequent words at the expense of rare words. Overall, hierarchical softmax is the best neural technique for rare words. HSM does more itera- tions than any other technique and so it can ob- serve every rare word more often.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6">Conclusions</head><p>This paper presents a comprehensive analysis of strategies to train neural language models with large vocabularies. This setting is very challeng- ing for neural networks as they need to compute the partition function over the entire vocabulary at each evaluation.</p><p>We compared classical softmax to hierarchical softmax, target sampling, noise contrastive esti- mation and infrequent normalization, commonly referred to as self-normalization. Furthermore, we extend infrequent normalization to be a proper es- timator of likelihood and we introduce differenti- ated softmax, a novel variant of softmax assigning less capacity to rare words to reduce computation.</p><p>Our results show that methods which are ef- fective on small vocabularies are not necessarily equally so on large vocabularies. In our setting, target sampling and noise contrastive estimation failed to outperform the softmax baseline. Over- all, differentiated softmax and hierarchical soft- max are the best strategies for large vocabularies. Compared to classical Kneser-Ney models, neural models are better at modeling frequent words, but are less effective for rare words. A combination of the two is therefore very effective.</p><p>We conclude that there is a lot to explore in train- ing from a combination of normalized and unnor- malized objectives. An interesting future direc- tion is to combine complementary approaches, ei- ther through combined parameterization (e.g. hi- erarchical softmax with differentiated capacity per word) or through a curriculum (e.g. transitioning from target sampling to regular softmax as training progresses). Further promising areas are parallel training as well as better rare word modeling.</p></div><figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_0"><head>Figure 2 :</head><label>2</label><figDesc>Figure 2: PTB validation learning curve.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_1"><head>Figure 3 :</head><label>3</label><figDesc>Figure 3: Gigaword validation learning curve.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_2"><head></head><label></label><figDesc>Figure 4: Billion Word validation learning curve.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_3"><head>Figure 5 :</head><label>5</label><figDesc>Figure 5: Number of Distractors versus Perplexity for Target Sampling over Gigaword</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_4"><head>Figure 6 :</head><label>6</label><figDesc>Figure 6: Validation entropy versus NCE loss on gigaword for experiments differing only in learning rates and initial weights. Each color corresponds to one experiment, with one point per hour.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_5"><head>Figure 7 :</head><label>7</label><figDesc>Figure 7: Validation perplexity per iteration on billionW for softmax and D-softmax. Softmax uses the same number of units for all words. The first D-Softmax experiment uses 1024 units for the 50K most frequent words, 512 for the next 100K, and 64 units for the rest; similarly for the second experiment. All experiments end after one week.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_7"><head>Figure 8 :</head><label>8</label><figDesc>Figure 8: Effect of random initialization and with Hellinger PCA on gigaword for softmax.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_8"><head>Figure 9 :</head><label>9</label><figDesc>Figure 9: Effect of training set size measured on test of gigaword for Softmax and Kneser-Ney.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_1" validated="false"><head></head><label></label><figDesc>. Our test time speed compari- son assumes that we would like to find the highest</figDesc><table>3 http://docs.nvidia.com/cuda/cublas/ 
+4 http://torch.ch 
+5 https://software.intel.com/en-us/intel-mkl 
+
+PTB gigaW billionW 
+KN 
+141.2 
+57.1 
+70.2 6 
+Softmax 
+123.8 
+56.5 
+108.3 
+D-Softmax 
+121.1 
+52.0 
+91.2 
+Sampling 
+124.2 
+57.6 
+101.0 
+HSM 
+138.2 
+57.1 
+85.2 
+NCE 
+143.1 
+78.4 
+104.7 
+Weaknorm 
+124.4 
+56.9 
+98.7 
+WeaknormSQ 
+122.1 
+56.1 
+94.9 
+KN+Softmax 
+108.5 
+43.6 
+59.4 
+KN+D-Softmax 
+107.0 
+42.0 
+56.3 
+KN+Sampling 
+109.4 
+43.8 
+58.1 
+KN+HSM 
+115.0 
+43.9 
+55.6 
+KN+NCE 
+114.6 
+49.0 
+58.8 
+KN+Weaknorm 
+109.2 
+43.8 
+58.1 
+KN+WeaknormSQ 108.8 
+43.8 
+57.7 
+
+</table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_2" validated="false"><head>Table 2 :</head><label>2</label><figDesc>Test perplexity of individual models and interpolation with Kneser-Ney.</figDesc><table></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_3" validated="false"><head>Table 3 :</head><label>3</label><figDesc>Training and test speed on billionW in to- kens per second for generation of the next word. Most techniques are identical to softmax at test time. HSM can be faster for rescoring.</figDesc><table></table></figure>
+
+			<note place="foot" n="6"> This perplexity is higher than reported in (Chelba et al., 2013), in which Kneser Ney is not trained on the 800m token training set, but on a larger corpus of 1.1B tokens.</note>
+
+			<note place="foot" n="7"> The time to compute the clustering (multi-threaded word co-occurrence counts, PCA and k-means) is under one hour, which is negligible given a one week training budget.</note>
+		</body>
+		<back>
+			<div type="references">
+
+				<listBibl>
+
+<biblStruct xml:id="b0">
+	<analytic>
+		<title level="a" type="main">When and why are log-linear models self-normalizing?</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jacob</forename><surname>Andreas</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Dan</forename><surname>Klein</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. of NAACL</title>
+		<meeting>of NAACL</meeting>
+		<imprint>
+			<date type="published" when="2015" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b1">
+	<analytic>
+		<title level="a" type="main">Deep Neural Network Language Models</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ebru</forename><surname>Arisoy</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Tara</forename><forename type="middle">N</forename><surname>Sainath</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Brian</forename><surname>Kingsbury</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Bhuvana</forename><surname>Ramabhadran</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">NAACL-HLT Workshop on the Future of Language Modeling for HLT</title>
+		<meeting><address><addrLine>Stroudsburg, PA, USA</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2012" />
+			<biblScope unit="page" from="20" to="28" />
+		</imprint>
+	</monogr>
+	<note>Association for Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b2">
+	<analytic>
+		<title level="a" type="main">Neural machine translation by jointly learning to align and translate</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Dzmitry</forename><surname>Bahdanau</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kyunghyun</forename><surname>Cho</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yoshua</forename><surname>Bengio</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. of ICLR. Association for Computational Linguistics</title>
+		<meeting>of ICLR. Association for Computational Linguistics</meeting>
+		<imprint>
+			<date type="published" when="2015-05" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b3">
+	<monogr>
+		<title level="m" type="main">Pragmatic neural language modelling in machine translation</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Paul</forename><surname>Baltescu</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Phil</forename><surname>Blunsom</surname></persName>
+		</author>
+		<idno>arXiv 1412.7119</idno>
+		<imprint>
+			<date type="published" when="2014" />
+		</imprint>
+	</monogr>
+<note type="report_type">Technical Report</note>
+</biblStruct>
+
+<biblStruct xml:id="b4">
+	<analytic>
+		<title level="a" type="main">Adaptive importance sampling to accelerate training of a neural probabilistic language model</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yoshua</forename><surname>Bengio</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jean-Sébastien</forename><surname>Senécal</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">IEEE Transactions on Neural Networks</title>
+		<imprint>
+			<date type="published" when="2008" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b5">
+	<analytic>
+		<title level="a" type="main">A Neural Probabilistic Language Model</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yoshua</forename><surname>Bengio</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Réjean</forename><surname>Ducharme</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Pascal</forename><surname>Vincent</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Christian</forename><surname>Jauvin</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Journal of Machine Learning Research</title>
+		<imprint>
+			<biblScope unit="volume">3</biblScope>
+			<biblScope unit="page" from="1137" to="1155" />
+			<date type="published" when="2003" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b6">
+	<analytic>
+		<title level="a" type="main">Class-based n-gram models of natural language</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">F</forename><surname>Peter</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Peter</forename><forename type="middle">V</forename><surname>Brown</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Robert</forename><forename type="middle">L</forename><surname>Desouza</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Vincent</forename><forename type="middle">J</forename><surname>Mercer</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jenifer</forename><forename type="middle">C</forename><surname>Della Pietra</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Lai</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Computational Linguistics</title>
+		<imprint>
+			<biblScope unit="volume">18</biblScope>
+			<biblScope unit="issue">4</biblScope>
+			<biblScope unit="page" from="467" to="479" />
+			<date type="published" when="1992-12" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b7">
+	<monogr>
+		<title level="m" type="main">One billion word benchmark for measuring progress in statistical language modeling</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ciprian</forename><surname>Chelba</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Tomáš</forename><surname>Mikolov</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Mike</forename><surname>Schuster</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Qi</forename><surname>Ge</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2013" />
+			<pubPlace>Google</pubPlace>
+		</imprint>
+	</monogr>
+<note type="report_type">Technical report</note>
+	<note>Thorsten Brants, Phillipp Koehn, and Tony Robinson</note>
+</biblStruct>
+
+<biblStruct xml:id="b8">
+	<analytic>
+		<title level="a" type="main">Recurrent neural network language model training with noise contrastive estimation for speech recognition</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Xie</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Xunying</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Mjf</forename><surname>Gales</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">P</forename><forename type="middle">C</forename><surname>Woodland</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Acoustics, Speech and Signal Processing</title>
+		<imprint>
+			<date type="published" when="2015" />
+		</imprint>
+	</monogr>
+	<note>ICASSP</note>
+</biblStruct>
+
+<biblStruct xml:id="b9">
+	<analytic>
+		<title level="a" type="main">Tuning as ranking</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Sumit</forename><surname>Chopra</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jason</forename><surname>Weston</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Alexander</forename><forename type="middle">M</forename><surname>Rush</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. of EMNLP. Association for Computational Linguistics</title>
+		<meeting>of EMNLP. Association for Computational Linguistics</meeting>
+		<imprint>
+			<date type="published" when="2015-09" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b10">
+	<analytic>
+		<title level="a" type="main">Fast and Robust Neural Network Joint Models for Statistical Machine Translation</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jacob</forename><surname>Devlin</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Rabih</forename><surname>Zbib</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Zhongqiang</forename><surname>Huang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Thomas</forename><surname>Lamar</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Richard</forename><surname>Schwartz</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">John</forename><surname>Makhoul</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. of ACL</title>
+		<meeting>of ACL</meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2014-06" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b11">
+	<analytic>
+		<title level="a" type="main">Classes for Fast Maximum Entropy Training</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Joshua</forename><surname>Goodman</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. of ICASSP</title>
+		<meeting>of ICASSP</meeting>
+		<imprint>
+			<date type="published" when="2001" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b12">
+	<analytic>
+		<title level="a" type="main">KenLM: Faster and Smaller Language Model Queries</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kenneth</forename><surname>Heafield</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Workshop on Statistical Machine Translation</title>
+		<imprint>
+			<date type="published" when="2011" />
+			<biblScope unit="page" from="187" to="197" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b13">
+	<analytic>
+		<title level="a" type="main">Noisecontrastive estimation: A new estimation principle for unnormalized statistical models</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Aapo</forename><surname>Michael Gutmann</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Hyvärinen</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. of AISTATS</title>
+		<meeting>of AISTATS</meeting>
+		<imprint>
+			<date type="published" when="2010" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b14">
+	<monogr>
+		<title level="m" type="main">On Using Very Large Target Vocabulary for Neural Machine Translation. CoRR, abs/1412</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Sébastien</forename><surname>Jean</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kyunghyun</forename><surname>Cho</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Roland</forename><surname>Memisevic</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yoshua</forename><surname>Bengio</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2007" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b15">
+	<monogr>
+		<title level="m" type="main">Exploring the limits of language modeling</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Rafal</forename><surname>Jozefowicz</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Oriol</forename><surname>Vinyals</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Mike</forename><surname>Schuster</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Noam</forename><surname>Shazeer</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yonghui</forename><surname>Wu</surname></persName>
+		</author>
+		<idno>arXiv 1602.02410</idno>
+		<imprint>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+<note type="report_type">Technical Report</note>
+</biblStruct>
+
+<biblStruct xml:id="b16">
+	<analytic>
+		<title level="a" type="main">Continuous Space Translation Models with Neural Networks</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Hai-Son</forename><surname>Le</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Alexandre</forename><surname>Allauzen</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">François</forename><surname>Yvon</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Association for Computational Linguistics</title>
+		<meeting><address><addrLine>Montréal, Canada</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2012" />
+			<biblScope unit="page" from="39" to="48" />
+		</imprint>
+	</monogr>
+	<note>Proc. of HLT-NAACL</note>
+</biblStruct>
+
+<biblStruct xml:id="b17">
+	<analytic>
+		<title level="a" type="main">Word Embeddings through Hellinger PCA</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Remi</forename><surname>Lebret</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ronan</forename><surname>Collobert</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. of EACL</title>
+		<meeting>of EACL</meeting>
+		<imprint>
+			<date type="published" when="2014" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b18">
+	<analytic>
+		<title level="a" type="main">Efficient BackProp</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yann</forename><surname>Lecun</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Leon</forename><surname>Bottou</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Genevieve</forename><surname>Orr</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Klausrobert</forename><surname>Mueller</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Neural Networks: Tricks of the trade</title>
+		<editor>Genevieve Orr and Klaus-Robert Muller</editor>
+		<imprint>
+			<publisher>Springer</publisher>
+			<date type="published" when="1998" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b19">
+	<analytic>
+		<title level="a" type="main">Building a Large Annotated Corpus of English: The Penn Treebank</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Mitchell</forename><forename type="middle">P</forename><surname>Marcus</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Mary</forename><forename type="middle">Ann</forename><surname>Marcinkiewicz</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Beatrice</forename><surname>Santorini</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Computational Linguistics</title>
+		<imprint>
+			<biblScope unit="volume">19</biblScope>
+			<biblScope unit="issue">2</biblScope>
+			<biblScope unit="page" from="314" to="330" />
+			<date type="published" when="1993-06" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b20">
+	<analytic>
+		<title level="a" type="main">Large, Pruned or Continuous Space Language Models on a GPU for Statistical Machine Translation</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Holger</forename><surname>Schwenk</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Anthony</forename><surname>Rousseau</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Mohammed</forename><surname>Attik</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">NAACL-HLT Workshop on the Future of Language Modeling for HLT</title>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2012" />
+			<biblScope unit="page" from="11" to="19" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b21">
+	<analytic>
+		<title level="a" type="main">A Neural Network Approach to Context-Sensitive Generation of Conversational Responses</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Alessandro</forename><surname>Sordoni</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Michel</forename><surname>Galley</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Michael</forename><surname>Auli</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Chris</forename><surname>Brockett</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yangfeng</forename><surname>Ji</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Margaret</forename><surname>Mitchell</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jianyun</forename><surname>Nie1</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jianfeng</forename><surname>Gao</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Bill</forename><surname>Dolan</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. of NAACL</title>
+		<meeting>of NAACL</meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2015-05" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b22">
+	<analytic>
+		<title level="a" type="main">Dropout: A simple way to prevent neural networks from overfitting</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Nitish</forename><surname>Srivastava</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Geoffrey</forename><surname>Hinton</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Alex</forename><surname>Krizhevsky</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ilya</forename><surname>Sutskever</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ruslan</forename><surname>Salakhutdinov</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Journal of Machine Learning Research</title>
+		<imprint>
+			<date type="published" when="2014" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b23">
+	<analytic>
+		<title level="a" type="main">Decoding with Largescale Neural Language Models improves Translation</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ashish</forename><surname>Vaswani</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yinggong</forename><surname>Zhao</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Victoria</forename><surname>Fossum</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">David</forename><surname>Chiang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. of EMNLP. Association for Computational Linguistics</title>
+		<meeting>of EMNLP. Association for Computational Linguistics</meeting>
+		<imprint>
+			<date type="published" when="2013-10" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+				</listBibl>
+			</div>
+		</back>
+	</text>
+</TEI>

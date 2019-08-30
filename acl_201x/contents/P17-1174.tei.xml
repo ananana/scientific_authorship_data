@@ -1,0 +1,1181 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<TEI xmlns="http://www.tei-c.org/ns/1.0" 
+xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+xsi:schemaLocation="http://www.tei-c.org/ns/1.0 /home/ana/installs/grobid/grobid-0.5.1/grobid-home/schemas/xsd/Grobid.xsd"
+ xmlns:xlink="http://www.w3.org/1999/xlink">
+	<teiHeader xml:lang="en">
+		<encodingDesc>
+			<appInfo>
+				<application version="0.5.1-SNAPSHOT" ident="GROBID" when="2019-04-18T12:20+0000">
+					<ref target="https://github.com/kermitt2/grobid">GROBID - A machine learning software for extracting information from scholarly documents</ref>
+				</application>
+			</appInfo>
+		</encodingDesc>
+		<fileDesc>
+			<titleStmt>
+				<title level="a" type="main">Chunk-based Decoder for Neural Machine Translation</title>
+			</titleStmt>
+			<publicationStmt>
+				<publisher>Association for Computational Linguistics</publisher>
+				<availability status="unknown"><p>Copyright Association for Computational Linguistics</p>
+				</availability>
+				<date>July 30-August 4, 2017. July 30-August 4, 2017</date>
+			</publicationStmt>
+			<sourceDesc>
+				<biblStruct>
+					<analytic>
+						<author>
+							<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Shonosuke</forename><surname>Ishiwatari</surname></persName>
+						</author>
+						<author>
+							<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jingtao</forename><surname>Yao</surname></persName>
+						</author>
+						<author>
+							<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Shujie</forename><surname>Liu</surname></persName>
+						</author>
+						<author>
+							<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Mu</forename><surname>Li</surname></persName>
+						</author>
+						<author>
+							<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ming</forename><surname>Zhou</surname></persName>
+						</author>
+						<author>
+							<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Naoki</forename><surname>Yoshinaga</surname></persName>
+						</author>
+						<author>
+							<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Masaru</forename><surname>Kitsuregawa</surname></persName>
+						</author>
+						<author>
+							<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Weijia</forename><surname>Jia</surname></persName>
+						</author>
+						<title level="a" type="main">Chunk-based Decoder for Neural Machine Translation</title>
+					</analytic>
+					<monogr>
+						<title level="m">Proceedings of the 55th Annual Meeting of the Association for Computational Linguistics (Volume 1: Long Papers)</title>
+						<meeting>the 55th Annual Meeting of the Association for Computational Linguistics (Volume 1: Long Papers) <address><addrLine>Vancouver, Canada; Vancouver, Canada</addrLine></address>
+						</meeting>
+						<imprint>
+							<publisher>Association for Computational Linguistics</publisher>
+							<biblScope unit="page" from="1901" to="1912"/>
+							<date type="published">July 30-August 4, 2017. July 30-August 4, 2017</date>
+						</imprint>
+					</monogr>
+					<idno type="DOI">10.18653/v1/p17-1174</idno>
+				</biblStruct>
+			</sourceDesc>
+		</fileDesc>
+		<profileDesc>
+			<abstract>
+				<p>Chunks (or phrases) once played a piv-otal role in machine translation. By using a chunk rather than a word as the basic translation unit, local (intra-chunk) and global (inter-chunk) word orders and dependencies can be easily mod-eled. The chunk structure, despite its importance , has not been considered in the decoders used for neural machine translation (NMT). In this paper, we propose chunk-based decoders for NMT, each of which consists of a chunk-level decoder and a word-level decoder. The chunk-level decoder models global dependencies while the word-level decoder decides the local word order in a chunk. To output a target sentence, the chunk-level decoder generates a chunk representation containing global information, which the word-level decoder then uses as a basis to predict the words inside the chunk. Experimental results show that our proposed de-coders can significantly improve translation performance in a WAT &apos;16 English-to-Japanese translation task.</p>
+			</abstract>
+		</profileDesc>
+	</teiHeader>
+	<text xml:lang="en">
+		<body>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="1">Introduction</head><p>Neural machine translation (NMT) performs end- to-end translation based on a simple encoder- decoder model <ref type="bibr" target="#b12">(Kalchbrenner and Blunsom, 2013;</ref><ref type="bibr" target="#b33">Sutskever et al., 2014;</ref><ref type="bibr" target="#b3">Cho et al., 2014b</ref>) and has now overtaken the classical, complex statis- tical machine translation (SMT) in terms of perfor- mance and simplicity <ref type="bibr" target="#b30">(Sennrich et al., 2016;</ref><ref type="bibr" target="#b19">Luong and Manning, 2016;</ref><ref type="bibr" target="#b4">Cromieres et al., 2016;</ref><ref type="bibr" target="#b24">Neubig, 2016)</ref>. In NMT, an encoder first maps a source sequence into vector representations and * Contribution during internship at Microsoft Research.  a decoder then maps the vectors into a target se- quence ( § 2). This simple framework allows re- searchers to incorporate the structure of the source sentence as in SMT by leveraging various architec- tures as the encoder <ref type="bibr" target="#b12">(Kalchbrenner and Blunsom, 2013;</ref><ref type="bibr" target="#b33">Sutskever et al., 2014;</ref><ref type="bibr" target="#b3">Cho et al., 2014b;</ref><ref type="bibr" target="#b6">Eriguchi et al., 2016b</ref>). Most of the NMT models, however, still rely on a sequential decoder based on a recurrent neural network (RNN) due to the difficulty in capturing the structure of a target sen- tence that is unseen during translation. With the sequential decoder, however, there are two problems to be solved. First, it is difficult to model long-distance dependencies ( <ref type="bibr" target="#b1">Bahdanau et al., 2015)</ref>. A hidden state h t in an RNN is only conditioned by its previous output y t−1 , pre- vious hidden state h t−1 , and current input x t . This makes it difficult to capture the dependencies be- tween an older output y t−N if they are too far from the current output. This problem can become more serious when the target sequence becomes longer. For example, in <ref type="figure" target="#fig_1">Figure 1</ref>, when we trans- late the English sentence into the Japanese one, af- ter the decoder predicts the content word " (go back)", it has to predict four function words " (suffix)", " (perfect tense)", " (de- sire)", and " (to)" before predicting the next content word " (feel)". In such a case, the decoder is required to capture the longer depen- dencies in a target sentence.</p><p>Another problem with the sequential decoder is that it is expected to cover multiple possible word orders simply by memorizing the local word se-quences in the limited training data. This problem can be more serious in free word-order languages such as Czech, German, Japanese, and Turkish. In the case of the example in <ref type="figure" target="#fig_1">Figure 1</ref>, the order of the phrase " (early)" and the phrase " (to home)" is flexible. This means that simply memo- rizing the word order in training data is not enough to train a model that can assign a high probability to a correct sentence regardless of its word order.</p><p>In the past, chunks (or phrases) were utilized to handle the above problems in statistical machine translation (SMT) ( <ref type="bibr" target="#b35">Watanabe et al., 2003;</ref><ref type="bibr" target="#b15">Koehn et al., 2003)</ref> and in example-based machine trans- lation (EBMT) ( <ref type="bibr" target="#b13">Kim et al., 2010)</ref>. By using a chunk rather than a word as the basic translation unit, one can treat a sentence as a shorter sequence. This makes it easy to capture the longer dependen- cies in a target sentence. The order of words in a chunk is relatively fixed while that in a sentence is much more flexible. Thus, modeling intra-chunk (local) word orders and inter-chunk (global) de- pendencies independently can help capture the dif- ference of the flexibility between the word order and the chunk order in free word-order languages.</p><p>In this paper, we refine the original RNN de- coder to consider chunk information in NMT. We propose three novel NMT models that capture and utilize the chunk structure in the target language ( § 3). Our focus is the hierarchical structure of a sentence: each sentence consists of chunks, and each chunk consists of words. To encourage an NMT model to capture the hierarchical structure, we start from a hierarchical RNN that consists of a chunk-level decoder and a word-level decoder (Model 1). Then, we improve the word-level de- coder by introducing inter-chunk connections to capture the interaction between chunks (Model 2). Finally, we introduce a feedback mechanism to the chunk-level decoder to enhance the memory ca- pacity of previous outputs (Model 3).</p><p>We evaluate the three models on the WAT '16 English-to-Japanese translation task ( § 4). The ex- perimental results show that our best model out- performs the best single NMT model reported in WAT '16 ( <ref type="bibr" target="#b6">Eriguchi et al., 2016b</ref>).</p><p>Our contributions are twofold: (1) chunk infor- mation is introduced into NMT to improve transla- tion performance, and (2) a novel hierarchical de- coder is devised to model the properties of chunk structure in the encoder-decoder framework.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2">Preliminaries: Attention-based Neural Machine Translation</head><p>In this section, we briefly introduce the architec- ture of the attention-based NMT model ( <ref type="bibr" target="#b1">Bahdanau et al., 2015)</ref>, which is the basis of our proposed models.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.1">Neural Machine Translation</head><p>An NMT model usually consists of two connected neural networks: an encoder and a decoder. Af- ter the encoder maps a source sentence into a fixed-length vector, the decoder maps the vector into a target sentence. The implementation of the encoder can be a convolutional neural net- work (CNN) <ref type="bibr" target="#b12">(Kalchbrenner and Blunsom, 2013</ref>), a long short-term memory (LSTM) ( <ref type="bibr" target="#b33">Sutskever et al., 2014;</ref><ref type="bibr" target="#b19">Luong and Manning, 2016)</ref>, a gated recur- rent unit (GRU) ( <ref type="bibr" target="#b3">Cho et al., 2014b;</ref><ref type="bibr" target="#b1">Bahdanau et al., 2015)</ref>, or a Tree-LSTM ( <ref type="bibr" target="#b6">Eriguchi et al., 2016b</ref>). While various architectures are leveraged as an en- coder to capture the structural information in the source language, most of the NMT models rely on a standard sequential network such as LSTM or GRU as the decoder. Following ( <ref type="bibr" target="#b1">Bahdanau et al., 2015</ref>), we use GRU as the recurrent unit in this paper. A GRU unit com- putes its hidden state vector h i given an input vec- tor x i and the previous hidden state h i−1 :</p><formula xml:id="formula_0">h i = GRU(h i−1 , x i ).<label>(1)</label></formula><p>The function GRU(·) is calculated as</p><formula xml:id="formula_1">r i = σ(W r x i + U r h i−1 + b r ),<label>(2)</label></formula><formula xml:id="formula_2">z i = σ(W z x i + U z h i−1 + b z ),<label>(3)</label></formula><formula xml:id="formula_3">˜ h i = tanh(W x i + U (r i h i−1 + b)),<label>(4)</label></formula><formula xml:id="formula_4">h i = (1 − z i ) ˜ h i + z i h i−1 ,<label>(5)</label></formula><p>where vectors r i and z i are reset gate and update gate, respectively. While the former gate allows the model to forget the previous states, the latter gate decides how much the model updates its con- tent. All the W s and U s, or the bs above are train- able matrices or vectors. σ(·) and denote the sigmoid function and element-wise multiplication operator, respectively. In this simple model, we train a GRU function that encodes a source sentence {x 1 , · · · , x I } into a single vector h I . At the same time, we jointly train another GRU function that decodes h I to the target sentence {y 1 , · · · , y J }. Here, the j-th word in the</p><formula xml:id="formula_5">! " # " !"#$%&amp;'( )*%%&amp;"( +,-,&amp;+ $ % . / )&amp;-'% &amp; ' . . $ ( $ ' . . ) % ) ( ) " )* % )* ( )* "</formula><p>Figure 2: Standard word-based decoder.</p><p>target sentence y j can be predicted with this de- coder GRU and a nonlinear function g(·) followed by a softmax layer, as</p><formula xml:id="formula_6">c = h I ,<label>(6)</label></formula><formula xml:id="formula_7">s j = GRU(s j−1 , [y j−1 ; c]),<label>(7)</label></formula><formula xml:id="formula_8">˜ s j = g(y j−1 , s j , c),<label>(8)</label></formula><formula xml:id="formula_9">P (y j |y &lt;j , x) = softmax(˜ s j ),<label>(9)</label></formula><p>where c is a context vector of the encoded sen- tence and s j is a hidden state of the decoder GRU. Following <ref type="bibr" target="#b1">Bahdanau et al. (2015)</ref>, we use a mini-batch stochastic gradient descent (SGD) algo- rithm with ADADELTA <ref type="bibr" target="#b40">(Zeiler, 2012)</ref> to train the above two GRU functions (i.e., the encoder and the decoder) jointly. The objective is to minimize the cross-entropy loss of the training data D, as</p><formula xml:id="formula_10">J = (x,y)∈D − log P (y|x).<label>(10)</label></formula></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.2">Attention Mechanism for Neural Machine Translation</head><p>To use all the hidden states of the encoder and improve the translation performance of long sen- tences, <ref type="bibr" target="#b1">Bahdanau et al. (2015)</ref> proposed using an attention mechanism. In the attention model, the context vector is not simply the last encoder state h I but rather the weighted sum of all hidden states of the bidirectional GRU, as follows:</p><formula xml:id="formula_11">c j = I i=1 α ji h i .<label>(11)</label></formula><p>Here, the weight α ji decides how much a source word x i contributes to the target word y j . α ji is computed by a feedforward layer and a softmax layer as where W e , U e are trainable matrices and the v, b e are trainable vectors. <ref type="bibr">1</ref> In a decoder using the attention mechanism, the obtained context vector c j in each time step replaces cs in Eqs. <ref type="formula" target="#formula_7">(7)</ref> and <ref type="bibr">(8)</ref>. An illustration of the NMT model with the attention mechanism is shown in <ref type="figure">Figure 2</ref>. The attention mechanism is expected to learn alignments between source and target words, and plays a similar role to the translation model in phrase-based SMT ( <ref type="bibr" target="#b15">Koehn et al., 2003</ref>).</p><formula xml:id="formula_12">e ji = v · tanh(W e h i + U e s j + b e ),<label>(12)</label></formula><formula xml:id="formula_13">α ji = exp(e ji ) J j =1 exp(e j i ) ,<label>(13)</label></formula><formula xml:id="formula_14">!"#$% !"&amp;$'($% !"&amp;)'*+), ($% !"#-' .+-% &amp;$ &amp;/ ! ! !"&amp;/' *+/, (-% ! ! !"&amp;0'*+0, ($% ! ! !"&amp;$'(-%</formula></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3">Neural Machine Translation with Chunk-based Decoder</head><p>Taking non-sequential information such as chunks (or phrases) structure into consideration has proved helpful for SMT ( <ref type="bibr" target="#b35">Watanabe et al., 2003;</ref><ref type="bibr" target="#b15">Koehn et al., 2003</ref>) and EBMT ( <ref type="bibr" target="#b13">Kim et al., 2010)</ref>. Here, we focus on two important properties of chunks <ref type="bibr" target="#b0">(Abney, 1991)</ref>: <ref type="formula" target="#formula_0">(1)</ref> The word order in a chunk is almost always fixed, and (2) A chunk consists of a few (typically one) content words sur- rounded by zero or more function words. To fully utilize the above properties of a chunk, we propose modeling the intra-chunk and the inter-chunk dependencies independently with a "chunk-by-chunk" decoder (See <ref type="figure" target="#fig_2">Figure 3</ref>). In the standard word-by-word decoder described in § 2, a target word y j in the target sentence y is predicted by taking the previous outputs y &lt;j and the source sentence x as input:</p><formula xml:id="formula_15">P (y|x) = J j=1 P (y j |y &lt;j , x),<label>(14)</label></formula><p>where J is the length of the target sentence. Not assuming any structural information of the target language, the sequential decoder has to memorize long dependencies in a sequence. To release the model from the pressure of memorizing the long dependencies over a sentence, we redefine this problem as the combination of a word prediction problem and a chunk generation problem:</p><formula xml:id="formula_16">! "#$ !"#$%&amp;'('&amp; )'*"$'#+ ,!-./.0+ 1 % "#&amp; '() % "#* '() 23456++ 23456+, -+ 23456+, % "#$ '() %. "#$ '() %. "#&amp; '() %. "#* '() / "#$ % "0&amp;# 1 '() / "0&amp;#1234 5 23456%&amp;'('&amp; )'*"$'#+ ,!-././+ 1 7 7 7</formula></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>!"#$%&amp; '(&amp;)*+$,-./0*1&amp; ."**$2+3"*&amp; 456</head><formula xml:id="formula_17">P (y|x) = K k=1    P (c k |c &lt;k , x) J k j=1 P (y j |y &lt;j , c k , x)    ,<label>(15)</label></formula><p>where K is the number of chunks in the target sen- tence and J k is the length of the k-th chunk (see <ref type="figure" target="#fig_2">Figure 3</ref>). The first term represents the generation probability of a chunk c k and the second term in- dicates the probability of a word y j in the chunk. We model the former term as a chunk-level de- coder and the latter term as a word-level decoder. As demonstrated later in § 4, both K and J k are much shorter than the sentence length J, which is why our decoders do not have to capture the long dependencies like the standard decoder does.</p><p>In the above formulation, we model the in- formation of words and their orders in a chunk. No matter which language we target, we can as- sume that a chunk usually consists of some con- tent words and function words, and the word or- der in the chunk is almost always fixed <ref type="bibr" target="#b0">(Abney, 1991)</ref>. Although our idea can be used in sev- eral languages, the optimal network architecture could depend on the word order of the target lan- guage. In this work, we design models for lan- guages in which content words are followed by function words, such as Japanese and Korean. The details of our models are described in the follow- ing sections.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.1">Model 1: Basic Chunk-based Decoder</head><p>The model described in this section is the basis of our proposed decoders. It consists of two parts: a chunk-level decoder ( § 3.1.1) and a word-level de- coder ( § 3.1.2). The part drawn in black solid lines in <ref type="figure" target="#fig_3">Figure 4</ref> illustrates the architecture of Model 1.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.1.1">Chunk-level Decoder</head><p>Our chunk-level decoder (see <ref type="figure" target="#fig_2">Figure 3</ref>) outputs a chunk representation. The chunk representation contains the information about words that should be predicted by the word-level decoder.</p><p>To generate the representation of the k-th chunk˜s chunk˜ chunk˜s </p><formula xml:id="formula_18">s (c) k = GRU(s (c) k−1 , s (w) k−1,J k−1 ),<label>(16)</label></formula><formula xml:id="formula_19">˜ s (c) k = W c s (c) k + b c .<label>(17)</label></formula><p>The obtained chunk representatioñ s (c) k continues to be fed into the word-level decoder until it out- puts all the words in the current chunk.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.1.2">Word-level Decoder</head><p>Our word-level decoder (see <ref type="figure" target="#fig_3">Figure 4</ref>) differs from the standard sequential decoder described in § 2 in that it takes the chunk representatioñ s (c) k as input:</p><formula xml:id="formula_20">s (w) k,j = GRU(s (w) k,j−1 , [˜ s (c) k ; y k,j−1 ; c k,j−1 ]), (18) ˜ s (w) k,j = g(y k,j−1 , s (w) k,j , c k,j ),<label>(19)</label></formula><formula xml:id="formula_21">P (y k,j |y &lt;j , x) = softmax(˜ s (w) k,j ).<label>(20)</label></formula><p>In a standard sequential decoder, the hidden state iterates over the length of a target sentence and then generates an end-of-sentence token. In other words, its hidden layers are required to mem- orize the long-term dependencies and orders in the target language. In contrast, in our word-level de- coder, the hidden state iterates only over the length of a chunk and then generates an end-of-chunk token. Thus, our word-level decoder is released from the pressure of memorizing the long (inter- chunk) dependencies and can focus on learning the short (intra-chunk) dependencies.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.2">Model 2: Inter-Chunk Connection</head><p>The second term in Eq. <ref type="formula" target="#formula_0">(15)</ref> only iterates over one chunk (j = 1 to J k ). This means that the last state and the last output of a chunk are not being fed into the word-level decoder at the next time step (see the black part in <ref type="figure" target="#fig_3">Figure 4)</ref>. In other words, <ref type="formula" target="#formula_0">(18)</ref> is always initialized before gen- erating the first word in a chunk. This may have a bad influence on the word-level decoder because it cannot access any previous information at the first word of each chunk.</p><formula xml:id="formula_22">s (w) k,1 in Eq.</formula><p>To address this problem, we add new connec- tions to Model 1 between the first state in a chunk and the last state in the previous chunk, as</p><formula xml:id="formula_23">s (w) k,1 = GRU(s (w) k−1,J k−1 , [˜ s (c) k ; y k−1,J k−1 ; c k−1,J k−1 ]).<label>(21)</label></formula><p>The dashed blue arrows in <ref type="figure" target="#fig_3">Figure 4</ref> illustrate the added inter-chunk connections.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.3">Model 3: Word-to-Chunk Feedback</head><p>The chunk-level decoder in Eq. (16) is only con- ditioned by s , the last word state in each chunk (see the black part in <ref type="figure" target="#fig_3">Figure 4</ref>). This may affect the chunk-level decoder because it cannot memorize what kind of information has already been generated by the word-level decoder. The information about the words in a chunk should not be included in the representation of the next chunk; otherwise, it may generate the same chunks multiple times, or forget to translate some words in the source sentence.</p><p>To encourage the chunk-level decoder to mem- orize the information about the previous outputs more carefully, we add feedback states to our chunk-level decoder in Model 2. The feedback state in the chunk-level decoder is updated at every time step j(&gt; 1) in k-th chunk, as</p><formula xml:id="formula_24">s (c) k,j = GRU(s (c) k,j−1 , s (w) k,j ).<label>(22)</label></formula><p>The red part in <ref type="figure" target="#fig_3">Figure 4</ref> illustrate the added feedback states and their connections. The con- nections in the thick black arrows are replaced with the dotted red arrows in Model 3.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4">Experiments</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.1">Setup</head><p>Data To examine the effectiveness of our de- coders, we chose Japanese, a free word-order language, as the target language. Japanese sen- tences are easy to break into well-defined chunks (called bunsetsus <ref type="bibr" target="#b10">(Hashimoto, 1934</ref>) in Japanese). For example, the accuracy of bunsetsu-chunking on newspaper articles is reported to be over 99% ( <ref type="bibr" target="#b22">Murata et al., 2000;</ref><ref type="bibr" target="#b38">Yoshinaga and Kitsuregawa, 2014</ref>). The effect of chunking errors in training the decoder can be suppressed, which means we can accurately evaluate the potential of our method. We used the English-Japanese train- ing corpus in the Asian Scientific Paper Excerpt Corpus (ASPEC) ( , which was provided in WAT '16. To remove inaccurate translation pairs, we extracted the first two million out of the 3 million pairs following the setting that gave the best performances in WAT '15 ( <ref type="bibr" target="#b25">Neubig et al., 2015</ref>).</p><p>Preprocessings For Japanese sentences, we per- formed tokenization using KyTea 0.4.7 2 (Neu- big et al., 2011). Then we performed bunsetsu- chunking with J.DepP 2015.10.05 <ref type="bibr">3 (Yoshinaga and Kitsuregawa, 2009</ref>. Special end- of-chunk tokens were inserted at the end of the chunks. Our word-level decoders described in § 3 will stop generating words after each end- of-chunk token. For English sentences, we per- formed the same preprocessings described on the WAT '16 Website. <ref type="bibr">4</ref> To suppress having possible  <ref type="table" target="#tab_0"># chunks # sentences  Train  49,671,230 15,934,129  1,663,780  Dev.  54,287  - 1,790  Test  54,088  - 1,812   Table 1</ref>: Statistics of the target language (Japanese) in extracted corpus after preprocessing.</p><p>chunking errors affect the translation quality, we removed extremely long chunks from the train- ing data. Specifically, among the 2 million pre- processed translation pairs, we excluded sentence pairs that matched any of following conditions: <ref type="formula" target="#formula_0">(1)</ref> The length of the source sentence or target sen- tence is larger than 64 (3% of whole data); <ref type="formula" target="#formula_1">(2)</ref> The maximum length of a chunk in the target sen- tence is larger than 8 (14% of whole data); and <ref type="formula" target="#formula_2">(3)</ref> The maximum number of chunks in the target sen- tence is larger than 20 (3% of whole data). <ref type="table">Table 1</ref> shows the details of the extracted data.</p><p>Postprocessing To perform unknown word re- placement (Luong et al., 2015a), we built a bilin- gual English-Japanese dictionary from all of the three million translation pairs. The dictionary was extracted with the MGIZA++ 0.7.0 5 <ref type="bibr" target="#b27">(Och and Ney, 2003;</ref><ref type="bibr" target="#b8">Gao and Vogel, 2008)</ref> word alignment tool by automatically extracting the alignments between English words and Japanese words.</p><p>Model Architecture Any encoder can be com- bined with our decoders. In this work, we adopted a single-layer bidirectional GRU (Cho et al., 2014b; <ref type="bibr" target="#b1">Bahdanau et al., 2015)</ref> as the encoder to focus on confirming the impact of the proposed decoders. We used single layer GRUs for the word- level decoder and the chunk-level decoder. The vocabulary sizes were set to 40k for source side and 30k for target side, respectively. The condi- tional probability of each target word was com- puted with a deep-output ( <ref type="bibr" target="#b29">Pascanu et al., 2014</ref>) layer with maxout (Goodfellow et al., 2013) units following ( <ref type="bibr" target="#b1">Bahdanau et al., 2015</ref>). The maximum number of output chunks was set to 20 and the maximum length of a chunk was set to 8.</p><p>Training Details The models were optimized using ADADELTA following ( <ref type="bibr" target="#b1">Bahdanau et al., 2015)</ref>. The hyperparameters of the training pro- cedure were fixed to the values given in   <ref type="bibr">8</ref> with length-normalized log-probability to decode target sentences. We saved the trained models that performed best on the development set dur- ing training and used them to evaluate the systems with the test set.</p><p>Baseline Systems The baseline systems and the important hyperparamters are listed in <ref type="table" target="#tab_3">Table 3</ref>. Eriguchi et al. (2016a)'s baseline system (the first line in <ref type="table" target="#tab_3">Table 3</ref>) was the best single (w/o en- sembling) word-based NMT system that were re- ported in WAT '16. For a more fair evaluation, we also reimplemented a standard attention-based NMT system that uses exactly the same encoder, training procedure, and the hyperparameters as our proposed models, but has a word-based de- coder. We trained this system on the training data without chunk segmentations (the second line in <ref type="table" target="#tab_3">Table 3</ref>) and with chunk segmentations given by J.DepP (the third line in <ref type="table" target="#tab_3">Table 3</ref>). The chun- ked corpus fed to the third system is exactly the same as the training data of our proposed sys- tems (sixth to eighth lines in <ref type="table" target="#tab_3">Table 3</ref>). In addi- tion, we also include the Tree-to-Sequence mod- els ( <ref type="bibr" target="#b5">Eriguchi et al., 2016a</ref>,b) (the fourth and fifth lines in <ref type="table" target="#tab_3">Table 3</ref>) to compare the impact of captur- ing the structure in the source language and that in  the target language. Note that all systems listed in <ref type="table" target="#tab_3">Table 3</ref>, including our models, are single models without ensemble techniques.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.2">Results</head><p>Proposed Models vs. Baselines <ref type="table" target="#tab_3">Table 3</ref> shows the experimental results on the ASPEC test set. We can observe that our best model (Model 3) out- performed all the single NMT models reported in WAT '16. The gain obtained by switching Word- based decoder to Chunk-based decoder (+0.93 BLEU and +1.01 RIBES) is larger than the gain ob- tained by switching word-based encoder to Tree- based encoder (+0.27 BLEU and +0.06 RIBES). This result shows that capturing the chunk struc- ture in the target language is more effective than capturing the syntax structure in the source lan- guage. Compared with the character-based NMT model (Eriguchi et al., 2016a), our Model 3 per- formed better by +5.74 BLEU score and +2.84 RIBES score. One possible reason for this is that using a character-based model rather than a word- based model makes it more difficult to capture long-distance dependencies because the length of a target sequence becomes much longer in the character-based model.</p><p>Comparison between Baselines Among the five baselines, our reimplementation without chunk segmentations (the second line in <ref type="table" target="#tab_3">Table 3</ref>) achieved the best BLEU score while the Eriguchi et al. (2016b)'s system (the fourth line in <ref type="table" target="#tab_3">Table 3</ref>) achieved the best RIBES score. The most probable reasons for the superiority of our reimplementa- tion over the <ref type="bibr" target="#b5">Eriguchi et al. (2016a)</ref>'s word-based baseline (the first line in <ref type="table" target="#tab_3">Table 3</ref>) is that the dimen- sions of word embeddings and hidden states in our systems are higher than theirs.</p><p>Feeding chunked training data to our baseline system (the third line in <ref type="table" target="#tab_3">Table 3</ref>) instead of a normal data caused bad effects by −0.62 BLEU score and by −0.33 RIBES score. We evaluated the chunking ability of this system by comparing the positions of end-of-chunk tokens generated by this system with the chunk boundaries obtained by J.DepP. To our surprise, this word-based de- coder could output chunk separations as accurate as our proposed Model 3 (both systems achieved F 1 -score &gt; 97). The results show that even a stan- dard word-based decoder has the ability to predict chunk boundaries if they are given in training data. However, it is difficult for the word-based decoder to utilize the chunk information to improve the translation quality.</p><p>Decoding Speed Although the chunk-based de- coder runs 2x slower than our word-based decoder, it is still practically acceptable (6 sentences per second). The character-based decoder (the fifth line in <ref type="table" target="#tab_3">Table 3</ref>) is less time-consuming mainly be- cause of its small vocabulary size (|V trg | = 3k).</p><p>Chunk-level Evaluation To confirm that our models can capture local (intra-chunk) and global (inter-chunk) word orders well, we evaluated the translation quality at the chunk level. First, we performed bunsetsu-chunking on the reference translations in the test set. Then, for both refer- ence translations and the outputs of our systems, we combined all the words in each chunk into a single token to regard a chunk as the basic trans- lation unit instead of a word. Finally, we com- puted the chunk-based BLEU (C-BLEU) and RIBES</p><formula xml:id="formula_25">!"# $%&amp;!'(# )*# "+'&amp;',- !"# $%&amp;!'(# !.'# # !'/.+012' &amp;3'/0%,# %452&amp;!$'+! !"# $%&amp;!'(# "6+# !'/.+012' &amp;3'/0%,,*# 40--0/2,! &amp;3'/0%,,*# 40--0/2,! !"# $%&amp;!'(# "6+# !'/.+012' &amp;3'/0%,,*# 40--0/2,! &amp;3'/0%,# 7%458# 40--0/2,! !"# $%&amp;!'(# !.'# !'/.+012'# )*#"+'&amp;',- 90+/'#&amp;3'/0%,,*#40--0/2,!#3"0+!&amp;#%('#-'6#-"(#!.'#%452&amp;!$'+!#:#0!#0&amp;#0$3"(!%+!#!"#$%&amp;!'(#!.'#!'/.+012'#)*#"+'&amp;',-#; !"#$%&amp;&lt;</formula></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>'&amp;(&amp;$&amp;)%&amp;&lt; !" # $# %&amp; ' ( ) * +, ) -. / *"$+,-./&amp;+0 !" 0 1 ' 2 # 3 $* %&amp; ' 45 3 * 67 ) -. / 12#)3,-./&amp;+&lt; 45 0 =#8</head><formula xml:id="formula_26">9 2 =#:; &amp; =#$ * =#%&amp; ' =#45 3 =# 45 45 45 * =#67 ) -. / 6"+&amp;78&lt; !&lt; 0 # =# 45 =# $ * =#%&amp; ' ( ) 3 =# 4545 45 45 * =#67 ) -. / 6"+&amp;79&lt; !" 0 # =# =# =#$ * =#%&amp; ' =#45 3 =# 45 45 45 * =#67 ) -. /</formula><p>Figure 5: Translation examples. "/" denote chunk boundaries that are automatically determined by our decoders. Words colored blue and red respectively denote correct translations and wrong translations.  (C-RIBES). The results are listed in <ref type="table" target="#tab_4">Table 4</ref>. For the word-based decoder (the first line in <ref type="table" target="#tab_4">Table 4</ref>), we performed bunsetsu-chunking by J.DepP on its outputs to obtain chunk boundaries. As another baseline (the second line in <ref type="table" target="#tab_4">Table 4</ref>), we used the chunked sentences as training data instead of performing chunking after decoding. The results show that our models (Model 2 and Model 3) out- perform the word-based decoders in both C-BLEU and C-RIBES. This indicates that our chunk-based decoders can produce more correct chunks in a more correct order than the word-based models.</p><p>Qualitative Analysis To clarify the qualitative difference between the word-based decoder and our chunk-based decoders, we show translation examples in <ref type="figure">Figure 5</ref>. Words in blue and red re- spectively denote correct translations and wrong translations. The word-based decoder (our im- plementation) has completely dropped the trans- lation of "by oneself." On the other hand, Model 1 generated a slightly wrong translation " (to master own technique)." In addition, Model 1 has made an- other serious word-order error " (spe- cial adjustment)." These results suggest that Model 1 can capture longer dependencies in a long sequence than the word-based decoder. However, Model 1 is not good at modeling global word or- der because it cannot access enough information about previous outputs. The weakness of model- ing word order was overcome in Model 2 thanks to the inter-chunk connections. However, Model 2 still suffered from the errors of function words: it still generates a wrong chunk " (special)" instead of the correct one " (specially)" and a wrong chunk " " instead of " ." Although these errors seem trivial, such mistakes with function words bring serious changes of sen- tence meaning. However, all of these problems have disappeared in Model 3. This phenomenon supports the importance of the feedback states to provide the decoder with a better ability to choose more accurate words in chunks.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5">Related Work</head><p>Much work has been done on using chunk (or phrase) structure to improve machine translation quality. The most notable work involved phrase- based SMT ( <ref type="bibr" target="#b15">Koehn et al., 2003)</ref>, which has been the basis for a huge amount of work on SMT for more than ten years. Apart from this, <ref type="bibr" target="#b35">Watanabe et al. (2003)</ref> proposed a chunk-based translation model that generates output sentences in a chunk- by-chunk manner. The chunk structure is effective not only for SMT but also for example-based ma- chine translation (EBMT). <ref type="bibr" target="#b13">Kim et al. (2010)</ref> pro- posed a chunk-based EBMT and showed that using chunk structures can help with finding better word alignments. Our work is different from theirs in that our models are based on NMT, but not SMT or EBMT. The decoders in the above studies can model the chunk structure by storing chunk pairs in a large table. In contrast, we do that by indi- vidually training a chunk generation model and a word prediction model with two RNNs. While most of the NMT models focus on the conversion between sequential data, some works have tried to incorporate non-sequential informa-tion into <ref type="bibr">NMT (Eriguchi et al., 2016b;</ref><ref type="bibr" target="#b32">Su et al., 2017)</ref>. <ref type="bibr" target="#b6">Eriguchi et al. (2016b)</ref> use a Tree-based LSTM <ref type="bibr" target="#b34">(Tai et al., 2015</ref>) to encode input sentence into context vectors. Given a syntactic tree of a source sentence, their tree-based encoder encodes words from the leaf nodes to the root nodes recur- sively. <ref type="bibr" target="#b32">Su et al. (2017)</ref> proposed a lattice-based encoder that considers multiple tokenization re- sults while encoding the input sentence. To pre- vent the tokenization errors from propagating to the whole NMT system, their attice-based encoder can utilize multiple tokenization results. These works focus on the encoding process and propose better encoders that can exploit the structures of the source language. In contrast, our work focuses on the decoding process to capture the structure of the target language. The encoders described above and our proposed decoders are complementary so they can be combined into a single network.</p><p>Considering that our Model 1 described in § 3.1 can be seen as a hierarchical RNN, our work is also related to previous studies that utilize multi-layer RNNs to capture hierarchical structures in data. Hierarchical RNNs are used for various NLP tasks such as machine translation <ref type="bibr" target="#b19">(Luong and Manning, 2016)</ref>, document modeling ( <ref type="bibr" target="#b18">Lin et al., 2015)</ref>, dialog generation ( <ref type="bibr" target="#b31">Serban et al., 2017)</ref>, image captioning ( <ref type="bibr" target="#b16">Krause et al., 2016)</ref>, and video captioning ( <ref type="bibr" target="#b39">Yu et al., 2016</ref>). In particular,  and <ref type="bibr" target="#b19">Luong and Manning (2016)</ref> use hierarchical encoder-decoder models, but not for the purpose of learning syntactic structures of target sentences.  build hierarchi- cal models at the sentence-word level to obtain better document representations. <ref type="bibr" target="#b19">Luong and Manning (2016)</ref> build the word-character level to cope with the out-of-vocabulary problem. In contrast, we build a hierarchical models at the chunk-word level to explicitly capture the syntactic structure based on chunk segmentation.</p><p>In addition, the architecture of Model 3 is also related to stacked RNN, which has shown to be ef- fective in improving the translation quality ( <ref type="bibr" target="#b20">Luong et al., 2015a;</ref><ref type="bibr" target="#b33">Sutskever et al., 2014</ref>). Although these architectures look similar to each other, there is a fundamental difference between the directions of the connection between two layers. A stacked RNN consists of multiple RNN layers that are con- nected from the input side to the output side at ev- ery time step. In contrast, our Model 3 has a dif- ferent connection at each time step. Before it gen- erates a chunk, there is a feed-forward connection from the chunk-level decoder to the word-level de- coder. However, after generating a chunk repre- sentation, the connection is to be reversed to feed back the information from the word-level decoder to the chunk-level decoder. By switching the con- nections between two layers, our model can cap- ture the chunk structure explicitly. This is the first work that proposes decoders for NMT that can cap- ture plausible linguistic structures such as chunk.</p><p>Finally, we noticed that ( <ref type="bibr" target="#b41">Zhou et al., 2017</ref>) (which is accepted at the same time as this pa- per) have also proposed a chunk-based decoder for NMT. Their good experimental result on Chinese to English translation task also indicates the effec- tiveness of "chunk-by-chunk" decoders. Although their architecture is similar to our Model 2, there are several differences: (1) they adopt chunk-level attention instead of word-level attention; (2) their model predicts chunk tags (such as noun phrase), while ours only predicts chunk boundaries; and (3) they employ a boundary gate to decide the chunk boundaries, while we do that by simply having the model generate end-of-chunk tokens.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6">Conclusion</head><p>In this paper, we propose chunk-based decoders for NMT. As the attention mechanism in NMT plays a similar role to the translation model in phrase-based SMT, our chunk-based decoders are intended to capture the notion of chunks in chunk- based (or phrase-based) SMT. We utilize the chunk structure to efficiently capture long-distance de- pendencies and cope with the problem of free word-order languages such as Japanese. We de- signed three models that have hierarchical RNN- like architectures, each of which consists of a word-level decoder and a chunk-level decoder. We performed experiments on the WAT '16 English- to-Japanese translation task and found that our best model outperforms the strongest baselines by +0.93 BLEU score and by +0.57 RIBES score.</p><p>In future work, we will explore the optimal structures of chunk-based decoder for other free word-order languages such as Czech, German, and Turkish. In addition, we plan to combine our decoder with other encoders that capture lan- guage structure, such as a hierarchical RNN <ref type="bibr" target="#b19">(Luong and Manning, 2016)</ref>, a Tree-LSTM ( <ref type="bibr" target="#b6">Eriguchi et al., 2016b)</ref>, or an order-free encoder, such as a CNN <ref type="bibr" target="#b12">(Kalchbrenner and Blunsom, 2013</ref>).</p></div><figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_1"><head>Figure 1 :</head><label>1</label><figDesc>Figure 1: Translation from English to Japanese. The function words are underlined.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_2"><head>Figure 3 :</head><label>3</label><figDesc>Figure 3: Chunk-based decoder. The top layer (word-level decoder) illustrates the first term in Eq. (15) and the bottom layer (chunk-level decoder) denotes the second term.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_3"><head>Figure 4 :</head><label>4</label><figDesc>Figure 4: Proposed model: NMT with chunk-based decoder. A chunk-level decoder generates a chunk representation for each chunk while a word-level decoder uses the representation to predict each word. The solid lines in the figure illustrate Model 1. The dashed blue arrows in the word-level decoder denote the connections added in Model 2. The dotted red arrows in the chunk-level decoder denote the feedback states added in Model 3; the connections in the thick black arrows are replaced with the dotted red arrows.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_4"><head>k</head><label></label><figDesc>, the chunk-level decoder (see the bottom layer in Figure 4) takes the last states of the word-level decoder s (w) k−1,J k−1 and updates its hidden state s (c) k as:</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_0" validated="true"><head>Table 2 .</head><label>2</label><figDesc></figDesc><table>Note that the learning rate was halved when the 
+BLEU score on the development set did not in-
+
+5 https://github.com/moses-smt/mgiza 
+
+</table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_1" validated="false"><head>Table 2 :</head><label>2</label><figDesc>Hyperparameters for training. crease for 30,000 batches. All the parameters were initialized randomly with Gaussian distribution. It took about a week to train each model with an NVIDIA TITAN X (Pascal) GPU. Evaluation Following the WAT '16 evaluation procedure, we used BLEU (Papineni et al., 2002) and RIBES (Isozaki et al., 2010) to evaluate our models. The BLEU scores were calculated with multi-bleu.pl in Moses 2.1.1 6 (Koehn et al., 2007); RIBES scores were calculated with RIBES.py 1.03.1 7 (Isozaki et al., 2010). Follow- ing Cho et al. (2014a), we performed beam search</figDesc><table></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_3" validated="false"><head>Table 3 :</head><label>3</label><figDesc></figDesc><table>The settings and results of the baseline systems and our systems. |V src | and |V trg | denote the 
+vocabulary size of the source language and the target language, respectively. d emb and d hid are the 
+dimension size of the word embeddings and hidden states, respectively. Only single NMT models (w/o 
+ensembling) reported in WAT '16 are listed here. Full results are available on the WAT '16 Website. 10 
+
+</table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_4" validated="false"><head>Table 4 :</head><label>4</label><figDesc></figDesc><table>Chunk-based BLEU and RIBES with the 
+systems using the word-based encoder. 
+
+</table></figure>
+
+			<note place="foot" n="1"> We choose this implementation following (Luong et al., 2015b), while (Bahdanau et al., 2015) use sj−1 instead of sj in Eq. (12).</note>
+
+			<note place="foot" n="2"> http://www.phontron.com/kytea/ 3 http://www.tkl.iis.u-tokyo.ac.jp/ ˜ ynaga/jdepp/ 4 http://lotus.kuee.kyoto-u.ac.jp/WAT/ baseline/dataPreparationJE.html</note>
+
+			<note place="foot" n="6"> http://www.statmt.org/moses/ 7 http://www.kecl.ntt.co.jp/icl/lirg/ ribes/index.html 8 Beam size is set to 20.</note>
+
+			<note place="foot" n="9"> Tree-to-Seq models are tested on CPUs instead of GPUs. 10 http://lotus.kuee.kyoto-u.ac.jp/WAT/ evaluation</note>
+		</body>
+		<back>
+
+			<div type="acknowledgement">
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Acknowledgements</head><p>This research was partially supported by the Re-search and Development on Real World Big Data Integration and Analysis program of the Min-istry of Education, Culture, Sports, Science and Technology (MEXT) and RIKEN, Japan, and by the Chinese National Research Fund (NSFC) Key Project No. 61532013 and National China 973 Project No. 2015CB352401.</p><p>The authors appreciate Dongdong Zhang, Shuangzhi Wu, and Zhirui Zhang for the fruit-ful discussions during the first and second authors were interns at Microsoft Research Asia. We also thank Masashi Toyoda and his group for letting us use their computing resources. Finally, we thank the anonymous reviewers for their careful reading of our paper and insightful comments.</p></div>
+			</div>
+
+			<div type="references">
+
+				<listBibl>
+
+<biblStruct xml:id="b0">
+	<analytic>
+		<title level="a" type="main">Parsing by chunks</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">P</forename><surname>Steven</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Abney</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Principle-based parsing</title>
+		<imprint>
+			<publisher>Springer</publisher>
+			<date type="published" when="1991" />
+			<biblScope unit="page" from="257" to="278" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b1">
+	<analytic>
+		<title level="a" type="main">Neural machine translation by jointly learning to align and translate</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Dzmitry</forename><surname>Bahdanau</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kyunghyun</forename><surname>Cho</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yoshua</forename><surname>Bengio</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Third International Conference on Learning Representations</title>
+		<meeting>the Third International Conference on Learning Representations</meeting>
+		<imprint>
+			<date type="published" when="2015" />
+		</imprint>
+	</monogr>
+	<note>ICLR</note>
+</biblStruct>
+
+<biblStruct xml:id="b2">
+	<analytic>
+		<title level="a" type="main">On the properties of neural machine translation: Encoder-decoder approaches</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kyunghyun</forename><surname>Cho</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Bart</forename><surname>Van Merriënboer</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Dzmitry</forename><surname>Bahdanau</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yoshua</forename><surname>Bengio</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Eighth Workshop on Syntax, Semantics and Structure in Statistical Translation (SSST)</title>
+		<meeting>the Eighth Workshop on Syntax, Semantics and Structure in Statistical Translation (SSST)</meeting>
+		<imprint>
+			<date type="published" when="2014" />
+			<biblScope unit="page" from="103" to="111" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b3">
+	<analytic>
+		<title level="a" type="main">Learning phrase representations using RNN encoder-decoder for statistical machine translation</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kyunghyun</forename><surname>Cho</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Bart</forename><surname>Van Merriënboer</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Caglar</forename><surname>Gulcehre</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Dzmitry</forename><surname>Bahdanau</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Fethi</forename><surname>Bougares</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Holger</forename><surname>Schwenk</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yoshua</forename><surname>Bengio</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2014 Conference on Empirical Methods in Natural Language Processing (EMNLP)</title>
+		<meeting>the 2014 Conference on Empirical Methods in Natural Language Processing (EMNLP)</meeting>
+		<imprint>
+			<date type="published" when="2014" />
+			<biblScope unit="page" from="1724" to="1734" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b4">
+	<analytic>
+		<title level="a" type="main">Kyoto university participation to WAT 2016</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Fabien</forename><surname>Cromieres</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Chenhui</forename><surname>Chu</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Toshiaki</forename><surname>Nakazawa</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Sadao</forename><surname>Kurohashi</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Third Workshop on Asian Translation (WAT)</title>
+		<meeting>the Third Workshop on Asian Translation (WAT)</meeting>
+		<imprint>
+			<date type="published" when="2016" />
+			<biblScope unit="page" from="166" to="174" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b5">
+	<analytic>
+		<title level="a" type="main">Character-based decoding in treeto-sequence attention-based neural machine translation</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Akiko</forename><surname>Eriguchi</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kazuma</forename><surname>Hashimoto</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yoshimasa</forename><surname>Tsuruoka</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Third Workshop on Asian Translation (WAT)</title>
+		<meeting>the Third Workshop on Asian Translation (WAT)</meeting>
+		<imprint>
+			<date type="published" when="2016" />
+			<biblScope unit="page" from="175" to="183" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b6">
+	<analytic>
+		<title level="a" type="main">Tree-to-sequence attentional neural machine translation</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Akiko</forename><surname>Eriguchi</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kazuma</forename><surname>Hashimoto</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yoshimasa</forename><surname>Tsuruoka</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 54th</title>
+		<meeting>the 54th</meeting>
+		<imprint>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b7">
+	<monogr>
+				<title level="m">Annual Meeting of the Association for Computational Linguistics (ACL)</title>
+		<imprint>
+			<biblScope unit="page" from="823" to="833" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b8">
+	<analytic>
+		<title level="a" type="main">Parallel implementations of word alignment tool</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Qin</forename><surname>Gao</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Stephan</forename><surname>Vogel</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Software Engineering, Testing, and Quality Assurance for Natural Language Processing</title>
+		<imprint>
+			<date type="published" when="2008" />
+			<biblScope unit="page" from="49" to="57" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b9">
+	<analytic>
+		<title level="a" type="main">Maxout networks</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ian</forename><forename type="middle">J</forename><surname>Goodfellow</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">David</forename><surname>Warde-Farley</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Mehdi</forename><surname>Mirza</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Aaron</forename><surname>Courville</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yoshua</forename><surname>Bengio</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 30th International Conference on Machine Learning (ICML)</title>
+		<meeting>the 30th International Conference on Machine Learning (ICML)</meeting>
+		<imprint>
+			<date type="published" when="2013" />
+			<biblScope unit="page" from="1319" to="1327" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b10">
+	<analytic>
+		<title/>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Shinkichi</forename><surname>Hashimoto</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Kokugoho Yosetsu. Meiji Shoin</title>
+		<imprint>
+			<date type="published" when="1934" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b11">
+	<analytic>
+		<title level="a" type="main">Automatic evaluation of translation quality for distant language pairs</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Hideki</forename><surname>Isozaki</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Tsutomu</forename><surname>Hirao</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kevin</forename><surname>Duh</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Katsuhito</forename><surname>Sudoh</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Hajime</forename><surname>Tsukada</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2010 Conference on Empirical Methods in Natural Language Processing (EMNLP)</title>
+		<meeting>the 2010 Conference on Empirical Methods in Natural Language Processing (EMNLP)</meeting>
+		<imprint>
+			<date type="published" when="2010" />
+			<biblScope unit="page" from="944" to="952" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b12">
+	<analytic>
+		<title level="a" type="main">Recurrent continuous translation models</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Nal</forename><surname>Kalchbrenner</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Phil</forename><surname>Blunsom</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2013 Conference on Empirical Methods in Natural Language Processing (EMNLP)</title>
+		<meeting>the 2013 Conference on Empirical Methods in Natural Language Processing (EMNLP)</meeting>
+		<imprint>
+			<date type="published" when="2013" />
+			<biblScope unit="page" from="1700" to="1709" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b13">
+	<analytic>
+		<title level="a" type="main">Chunk-based EBMT</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jae</forename><forename type="middle">Dong</forename><surname>Kim</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ralf</forename><forename type="middle">D</forename><surname>Brown</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jaime</forename><forename type="middle">G</forename><surname>Carbonell</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 14th workshop of the European Association for Machine Translation (EAMT)</title>
+		<meeting>the 14th workshop of the European Association for Machine Translation (EAMT)</meeting>
+		<imprint>
+			<date type="published" when="2010" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b14">
+	<analytic>
+		<title level="a" type="main">Moses: Open source toolkit for statistical machine translation</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Philipp</forename><surname>Koehn</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Hieu</forename><surname>Hoang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Alexandra</forename><surname>Birch</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Chris</forename><surname>Callison-Burch</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Marcello</forename><surname>Federico</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Nicola</forename><surname>Bertoldi</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Brooke</forename><surname>Cowan</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Wade</forename><surname>Shen</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Christine</forename><surname>Moran</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Richard</forename><surname>Zens</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Chris</forename><surname>Dyer</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ondrej</forename><surname>Bojar</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Alexandra</forename><surname>Constantin</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Evan</forename><surname>Herbst</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 45th Annual Meeting of the Association for Computational Linguistics (ACL)</title>
+		<meeting>the 45th Annual Meeting of the Association for Computational Linguistics (ACL)</meeting>
+		<imprint>
+			<date type="published" when="2007" />
+			<biblScope unit="page" from="177" to="180" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b15">
+	<analytic>
+		<title level="a" type="main">Statistical phrase-based translation</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Philipp</forename><surname>Koehn</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Franz</forename><forename type="middle">J</forename><surname>Och</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Daniel</forename><surname>Marcu</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2003 Human Language Technology Conference of the North American Chapter of the Association for Computational Linguistics (HLT-NAACL)</title>
+		<meeting>the 2003 Human Language Technology Conference of the North American Chapter of the Association for Computational Linguistics (HLT-NAACL)</meeting>
+		<imprint>
+			<date type="published" when="2003" />
+			<biblScope unit="page" from="48" to="54" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b16">
+	<monogr>
+		<title level="m" type="main">A hierarchical approach for generating descriptive image paragraphs</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jonathan</forename><surname>Krause</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Justin</forename><surname>Johnson</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ranjay</forename><surname>Krishna</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Li</forename><surname>Fei-Fei</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1611.06607</idno>
+		<imprint>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+	<note>cs.CV</note>
+</biblStruct>
+
+<biblStruct xml:id="b17">
+	<analytic>
+		<title level="a" type="main">A hierarchical neural autoencoder for paragraphs and documents</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jiwei</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Minh-Thang</forename><surname>Luong</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Dan</forename><surname>Jurafsky</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 53rd Annual Meeting of the Association for Computational Linguistics and the 7th International Joint Conference on Natural Language Processing (ACL-IJCNLP)</title>
+		<meeting>the 53rd Annual Meeting of the Association for Computational Linguistics and the 7th International Joint Conference on Natural Language Processing (ACL-IJCNLP)</meeting>
+		<imprint>
+			<date type="published" when="2015" />
+			<biblScope unit="page" from="1106" to="1115" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b18">
+	<analytic>
+		<title level="a" type="main">Hierarchical recurrent neural network for document modeling</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Rui</forename><surname>Lin</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Shujie</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Muyun</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Mu</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ming</forename><surname>Zhou</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Sheng</forename><surname>Li</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2015 Conference on Empirical Methods in Natural Language Processing (EMNLP)</title>
+		<meeting>the 2015 Conference on Empirical Methods in Natural Language Processing (EMNLP)</meeting>
+		<imprint>
+			<date type="published" when="2015" />
+			<biblScope unit="page" from="899" to="907" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b19">
+	<analytic>
+		<title level="a" type="main">Achieving open vocabulary neural machine translation with hybrid word-character models</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Minh-Thang</forename><surname>Luong</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Christopher</forename><forename type="middle">D</forename><surname>Manning</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 54th Annual Meeting of the Association for Computational Linguistics (ACL)</title>
+		<meeting>the 54th Annual Meeting of the Association for Computational Linguistics (ACL)</meeting>
+		<imprint>
+			<date type="published" when="2016" />
+			<biblScope unit="page" from="1054" to="1063" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b20">
+	<analytic>
+		<title level="a" type="main">Addressing the rare word problem in neural machine translation</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Minh-Thang</forename><surname>Luong</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ilya</forename><surname>Sutskever</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Quoc</forename><surname>Le</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Oriol</forename><surname>Vinyals</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Wojciech</forename><surname>Zaremba</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 53rd Annual Meeting of the Association for Computational Linguistics and the Seventh International Joint Conference on Natural Language Processing (ACL-IJCNLP)</title>
+		<meeting>the 53rd Annual Meeting of the Association for Computational Linguistics and the Seventh International Joint Conference on Natural Language Processing (ACL-IJCNLP)</meeting>
+		<imprint>
+			<date type="published" when="2015" />
+			<biblScope unit="page" from="11" to="19" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b21">
+	<analytic>
+		<title level="a" type="main">Effective approaches to attentionbased neural machine translation</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Thang</forename><surname>Luong</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Hieu</forename><surname>Pham</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Christopher</forename><forename type="middle">D</forename><surname>Manning</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2015 Conference on Empirical Methods in Natural Language Processing (EMNLP)</title>
+		<meeting>the 2015 Conference on Empirical Methods in Natural Language Processing (EMNLP)</meeting>
+		<imprint>
+			<date type="published" when="2015" />
+			<biblScope unit="page" from="1412" to="1421" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b22">
+	<analytic>
+		<title level="a" type="main">Bunsetsu identification using category-exclusive rules</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Masaki</forename><surname>Murata</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kiyotaka</forename><surname>Uchimoto</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Qing</forename><surname>Ma</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Hitoshi</forename><surname>Isahara</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 18th International Conference on Computational Linguistics (COLING)</title>
+		<meeting>the 18th International Conference on Computational Linguistics (COLING)</meeting>
+		<imprint>
+			<date type="published" when="2000" />
+			<biblScope unit="page" from="565" to="571" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b23">
+	<analytic>
+		<title level="a" type="main">ASPEC: Asian scientific paper excerpt corpus</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Toshiaki</forename><surname>Nakazawa</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Manabu</forename><surname>Yaguchi</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kiyotaka</forename><surname>Uchimoto</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Masao</forename><surname>Utiyama</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Eiichiro</forename><surname>Sumita</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Sadao</forename><surname>Kurohashi</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Hitoshi</forename><surname>Isahara</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Ninth International Conference on Language Resources and Evaluation (LREC)</title>
+		<meeting>the Ninth International Conference on Language Resources and Evaluation (LREC)</meeting>
+		<imprint>
+			<date type="published" when="2016" />
+			<biblScope unit="page" from="2204" to="2208" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b24">
+	<analytic>
+		<title level="a" type="main">Lexicons and minimum risk training for neural machine translation: NAISTCMU at WAT2016</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Graham</forename><surname>Neubig</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Third Workshop on Asian Translation (WAT)</title>
+		<meeting>the Third Workshop on Asian Translation (WAT)</meeting>
+		<imprint>
+			<date type="published" when="2016" />
+			<biblScope unit="page" from="119" to="125" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b25">
+	<analytic>
+		<title level="a" type="main">Neural reranking improves subjective quality of machine translation: NAIST at WAT2015</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Graham</forename><surname>Neubig</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Makoto</forename><surname>Morishita</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Satoshi</forename><surname>Nakamura</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Second Workshop on Asian Translation (WAT)</title>
+		<meeting>the Second Workshop on Asian Translation (WAT)</meeting>
+		<imprint>
+			<date type="published" when="2015" />
+			<biblScope unit="page" from="35" to="41" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b26">
+	<analytic>
+		<title level="a" type="main">Pointwise prediction for robust, adaptable Japanese morphological analysis</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Graham</forename><surname>Neubig</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yosuke</forename><surname>Nakata</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Shinsuke</forename><surname>Mori</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 49th Annual Meeting of the Association for Computational Linguistics: Human Language Technologies (ACL-HLT)</title>
+		<meeting>the 49th Annual Meeting of the Association for Computational Linguistics: Human Language Technologies (ACL-HLT)</meeting>
+		<imprint>
+			<date type="published" when="2011" />
+			<biblScope unit="page" from="529" to="533" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b27">
+	<analytic>
+		<title level="a" type="main">A systematic comparison of various statistical alignment models</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">J</forename><surname>Franz</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Hermann</forename><surname>Och</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Ney</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Computational Linguistics</title>
+		<imprint>
+			<biblScope unit="volume">29</biblScope>
+			<biblScope unit="issue">1</biblScope>
+			<biblScope unit="page" from="19" to="51" />
+			<date type="published" when="2003" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b28">
+	<analytic>
+		<title level="a" type="main">Bleu: a method for automatic evaluation of machine translation</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kishore</forename><surname>Papineni</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Salim</forename><surname>Roukos</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Todd</forename><surname>Ward</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Weijing</forename><surname>Zhu</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of 40th Annual Meeting of the Association for Computational Linguistics (ACL)</title>
+		<meeting>40th Annual Meeting of the Association for Computational Linguistics (ACL)</meeting>
+		<imprint>
+			<date type="published" when="2002" />
+			<biblScope unit="page" from="311" to="318" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b29">
+	<analytic>
+		<title level="a" type="main">How to construct deep recurrent neural networks</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Razvan</forename><surname>Pascanu</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Caglar</forename><surname>Gulcehre</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kyunghyun</forename><surname>Cho</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yoshua</forename><surname>Bengio</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Second International Conference on Learning Representations</title>
+		<meeting>the Second International Conference on Learning Representations</meeting>
+		<imprint>
+			<date type="published" when="2014" />
+		</imprint>
+	</monogr>
+	<note>ICLR</note>
+</biblStruct>
+
+<biblStruct xml:id="b30">
+	<analytic>
+		<title level="a" type="main">Edinburgh neural machine translation systems for WMT 16</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Rico</forename><surname>Sennrich</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Barry</forename><surname>Haddow</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Alexandra</forename><surname>Birch</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the First Conference on Machine Translation (WMT)</title>
+		<meeting>the First Conference on Machine Translation (WMT)</meeting>
+		<imprint>
+			<date type="published" when="2016" />
+			<biblScope unit="page" from="371" to="376" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b31">
+	<analytic>
+		<title level="a" type="main">A hierarchical latent variable encoder-decoder model for generating dialogues</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">V</forename><surname>Iulian</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Alessandro</forename><surname>Serban</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ryan</forename><surname>Sordoni</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Laurent</forename><surname>Lowe</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Joelle</forename><surname>Charlin</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Aaron</forename><surname>Pineau</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yoshua</forename><surname>Courville</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Bengio</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 31st AAAI Conference on Artificial Intelligence (AAAI)</title>
+		<meeting>the 31st AAAI Conference on Artificial Intelligence (AAAI)</meeting>
+		<imprint>
+			<date type="published" when="2017" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b32">
+	<analytic>
+		<title level="a" type="main">Lattice-based recurrent neural network encoders for neural machine translation</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jinsong</forename><surname>Su</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Zhixing</forename><surname>Tan</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Deyi</forename><surname>Xiong</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Rongrong</forename><surname>Ji</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Xiaodong</forename><surname>Shi</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yang</forename><surname>Liu</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 31st AAAI Conference on Artificial Intelligence (AAAI)</title>
+		<meeting>the 31st AAAI Conference on Artificial Intelligence (AAAI)</meeting>
+		<imprint>
+			<date type="published" when="2017" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b33">
+	<analytic>
+		<title level="a" type="main">Sequence to sequence learning with neural networks</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ilya</forename><surname>Sutskever</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Oriol</forename><surname>Vinyals</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">V</forename><surname>Quoc</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Le</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Advances in neural information processing systems (NIPS)</title>
+		<imprint>
+			<date type="published" when="2014" />
+			<biblScope unit="page" from="3104" to="3112" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b34">
+	<analytic>
+		<title level="a" type="main">Improved semantic representations from tree-structured long short-term memory networks</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kai Sheng</forename><surname>Tai</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Richard</forename><surname>Socher</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Christopher</forename><forename type="middle">D</forename><surname>Manning</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 53rd Annual Meeting of the Association for Computational Linguistics and the 7th International Joint Conference on Natural Language Processing (ACL-IJCNLP)</title>
+		<meeting>the 53rd Annual Meeting of the Association for Computational Linguistics and the 7th International Joint Conference on Natural Language Processing (ACL-IJCNLP)</meeting>
+		<imprint>
+			<date type="published" when="2015" />
+			<biblScope unit="page" from="1556" to="1566" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b35">
+	<analytic>
+		<title level="a" type="main">Chunk-based statistical translation</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Taro</forename><surname>Watanabe</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Eiichiro</forename><surname>Sumita</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Hiroshi</forename><forename type="middle">G</forename><surname>Okuno</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 41st Annual Meeting of the Association for Computational Linguistics (ACL)</title>
+		<meeting>the 41st Annual Meeting of the Association for Computational Linguistics (ACL)</meeting>
+		<imprint>
+			<date type="published" when="2003" />
+			<biblScope unit="page" from="303" to="310" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b36">
+	<analytic>
+		<title level="a" type="main">Polynomial to linear: Efficient classification with conjunctive features</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Naoki</forename><surname>Yoshinaga</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Masaru</forename><surname>Kitsuregawa</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2009 Conference on Empirical Methods in Natural Language Processing (EMNLP)</title>
+		<meeting>the 2009 Conference on Empirical Methods in Natural Language Processing (EMNLP)</meeting>
+		<imprint>
+			<date type="published" when="2009" />
+			<biblScope unit="page" from="1542" to="1551" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b37">
+	<analytic>
+		<title level="a" type="main">Kernel slicing: Scalable online training with conjunctive features</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Naoki</forename><surname>Yoshinaga</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Masaru</forename><surname>Kitsuregawa</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 23rd International Conference on Computational Linguistics (COLING)</title>
+		<meeting>the 23rd International Conference on Computational Linguistics (COLING)</meeting>
+		<imprint>
+			<date type="published" when="2010" />
+			<biblScope unit="page" from="1245" to="1253" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b38">
+	<analytic>
+		<title level="a" type="main">A self-adaptive classifier for efficient text-stream processing</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Naoki</forename><surname>Yoshinaga</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Masaru</forename><surname>Kitsuregawa</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 25th International Conference on Computational Linguistics (COLING)</title>
+		<meeting>the 25th International Conference on Computational Linguistics (COLING)</meeting>
+		<imprint>
+			<date type="published" when="2014" />
+			<biblScope unit="page" from="1091" to="1102" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b39">
+	<analytic>
+		<title level="a" type="main">Video paragraph captioning using hierarchical recurrent neural networks</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Haonan</forename><surname>Yu</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jiang</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Zhiheng</forename><surname>Huang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yi</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Wei</forename><surname>Xu</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2016 IEEE Conference on Computer Vision and Pattern Recognition (CVPR)</title>
+		<meeting>the 2016 IEEE Conference on Computer Vision and Pattern Recognition (CVPR)</meeting>
+		<imprint>
+			<date type="published" when="2016" />
+			<biblScope unit="page" from="4584" to="4593" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b40">
+	<monogr>
+		<title level="m" type="main">ADADELTA: An adaptive learning rate method</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">D</forename><surname>Matthew</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Zeiler</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1212.5701</idno>
+		<imprint>
+			<date type="published" when="2012" />
+		</imprint>
+	</monogr>
+	<note>cs.LG</note>
+</biblStruct>
+
+<biblStruct xml:id="b41">
+	<analytic>
+		<title level="a" type="main">Chunk-based biscale decoder for neural machine translation</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Hao</forename><surname>Zhou</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Zhaopeng</forename><surname>Tu</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Shujian</forename><surname>Huang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Xiaohua</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Hang</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jiajun</forename><surname>Chen</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 55th Annual Meeting of the Association for Computational Linguistics (ACL)</title>
+		<meeting>the 55th Annual Meeting of the Association for Computational Linguistics (ACL)</meeting>
+		<imprint>
+			<date type="published" when="2017" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+				</listBibl>
+			</div>
+		</back>
+	</text>
+</TEI>

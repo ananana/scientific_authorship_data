@@ -1,0 +1,1471 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<TEI xmlns="http://www.tei-c.org/ns/1.0" 
+xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+xsi:schemaLocation="http://www.tei-c.org/ns/1.0 /home/ana/installs/grobid/grobid-0.5.1/grobid-home/schemas/xsd/Grobid.xsd"
+ xmlns:xlink="http://www.w3.org/1999/xlink">
+	<teiHeader xml:lang="en">
+		<encodingDesc>
+			<appInfo>
+				<application version="0.5.1-SNAPSHOT" ident="GROBID" when="2019-04-18T13:03+0000">
+					<ref target="https://github.com/kermitt2/grobid">GROBID - A machine learning software for extracting information from scholarly documents</ref>
+				</application>
+			</appInfo>
+		</encodingDesc>
+		<fileDesc>
+			<titleStmt>
+				<title level="a" type="main">Token-level and sequence-level loss smoothing for RNN language models</title>
+			</titleStmt>
+			<publicationStmt>
+				<publisher>Association for Computational Linguistics</publisher>
+				<availability status="unknown"><p>Copyright Association for Computational Linguistics</p>
+				</availability>
+				<date>July 15-20, 2018. 2018. 2094</date>
+			</publicationStmt>
+			<sourceDesc>
+				<biblStruct>
+					<analytic>
+						<author>
+							<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Maha</forename><surname>Elbayad</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="institution" key="instit1">Univ. Grenoble Alpes</orgName>
+								<orgName type="institution" key="instit2">CNRS</orgName>
+								<orgName type="institution" key="instit3">Grenoble INP</orgName>
+								<orgName type="institution" key="instit4">Inria, LIG</orgName>
+								<address>
+									<postCode>F-38000</postCode>
+									<settlement>Grenoble</settlement>
+									<region>LJK</region>
+									<country key="FR">France</country>
+								</address>
+							</affiliation>
+						</author>
+						<author>
+							<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Laurent</forename><surname>Besacier</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="institution" key="instit1">Univ. Grenoble Alpes</orgName>
+								<orgName type="institution" key="instit2">CNRS</orgName>
+								<orgName type="institution" key="instit3">Grenoble INP</orgName>
+								<orgName type="institution" key="instit4">Inria, LIG</orgName>
+								<address>
+									<postCode>F-38000</postCode>
+									<settlement>Grenoble</settlement>
+									<region>LJK</region>
+									<country key="FR">France</country>
+								</address>
+							</affiliation>
+						</author>
+						<author>
+							<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jakob</forename><surname>Verbeek</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="institution" key="instit1">Univ. Grenoble Alpes</orgName>
+								<orgName type="institution" key="instit2">CNRS</orgName>
+								<orgName type="institution" key="instit3">Grenoble INP</orgName>
+								<orgName type="institution" key="instit4">Inria, LIG</orgName>
+								<address>
+									<postCode>F-38000</postCode>
+									<settlement>Grenoble</settlement>
+									<region>LJK</region>
+									<country key="FR">France</country>
+								</address>
+							</affiliation>
+						</author>
+						<title level="a" type="main">Token-level and sequence-level loss smoothing for RNN language models</title>
+					</analytic>
+					<monogr>
+						<title level="m">Proceedings of the 56th Annual Meeting of the Association for Computational Linguistics (Long Papers)</title>
+						<meeting>the 56th Annual Meeting of the Association for Computational Linguistics (Long Papers) <address><addrLine>Melbourne, Australia</addrLine></address>
+						</meeting>
+						<imprint>
+							<publisher>Association for Computational Linguistics</publisher>
+							<biblScope unit="page" from="2094" to="2103"/>
+							<date type="published">July 15-20, 2018. 2018. 2094</date>
+						</imprint>
+					</monogr>
+				</biblStruct>
+			</sourceDesc>
+		</fileDesc>
+		<profileDesc>
+			<abstract>
+				<p>Despite the effectiveness of recurrent neu-ral network language models, their maximum likelihood estimation suffers from two limitations. It treats all sentences that do not match the ground truth as equally poor, ignoring the structure of the output space. Second, it suffers from &quot;ex-posure bias&quot;: during training tokens are predicted given ground-truth sequences, while at test time prediction is conditioned on generated output sequences. To overcome these limitations we build upon the recent reward augmented maximum likelihood approach i.e. sequence-level smoothing that encourages the model to predict sentences close to the ground truth according to a given performance metric. We extend this approach to token-level loss smoothing, and propose improvements to the sequence-level smoothing approach. Our experiments on two different tasks, image captioning and machine translation, show that token-level and sequence-level loss smoothing are complementary, and significantly improve results.</p>
+			</abstract>
+		</profileDesc>
+	</teiHeader>
+	<text xml:lang="en">
+		<body>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="1">Introduction</head><p>Recurrent neural networks (RNNs) have recently proven to be very effective sequence modeling tools, and are now state of the art for tasks such as machine translation ( , image caption- ing ( <ref type="bibr" target="#b20">Kiros et al., 2014;</ref><ref type="bibr" target="#b0">Anderson et al., 2017</ref>) and automatic speech recognition ( <ref type="bibr" target="#b8">Chorowski et al., 2015;</ref><ref type="bibr" target="#b6">Chiu et al., 2017)</ref>.</p><p>The basic principle of RNNs is to iteratively compute a vectorial sequence representation, by applying at each time-step the same trainable func- tion to compute the new network state from the previous state and the last symbol in the sequence. These models are typically trained by maximizing the likelihood of the target sentence given an en- coded source (text, image, speech).</p><p>Maximum likelihood estimation (MLE), how- ever, has two main limitations. First, the training signal only differentiates the ground-truth target output from all other outputs. It treats all other output sequences as equally incorrect, regardless of their semantic proximity from the ground-truth target. While such a "zero-one" loss is probably acceptable for coarse grained classification of im- ages, e.g. across a limited number of basic ob- ject categories <ref type="bibr" target="#b12">(Everingham et al., 2010</ref>) it be- comes problematic as the output space becomes larger and some of its elements become semanti- cally similar to each other. This is in particular the case for tasks that involve natural language gener- ation (captioning, translation, speech recognition) where the number of possible outputs is practically unbounded. For natural language generation tasks, evaluation measures typically do take into account structural similarity, e.g. based on n-grams, but such structural information is not reflected in the MLE criterion. The second limitation of MLE is that training is based on predicting the next token given the input and preceding ground-truth output tokens, while at test time the model predicts condi- tioned on the input and the so-far generated output sequence. Given the exponentially large output space of natural language sentences, it is not obvi- ous that the learned RNNs generalize well beyond the relatively sparse distribution of ground-truth sequences used during MLE optimization. This phenomenon is known as "exposure bias" <ref type="bibr" target="#b38">(Ranzato et al., 2016;</ref>.</p><p>MLE minimizes the KL divergence between a target Dirac distribution on the ground-truth sen- tence(s) and the model's distribution. In this pa-per, we build upon the "loss smoothing" approach by <ref type="bibr" target="#b31">Norouzi et al. (2016)</ref>, which smooths the Dirac target distribution over similar sentences, increas- ing the support of the training data in the output space. We make the following main contributions:</p><p>• We propose a token-level loss smooth- ing approach, using word-embeddings, to achieve smoothing among semantically sim- ilar terms, and we introduce a special proce- dure to promote rare tokens.</p><p>• For sequence-level smoothing, we propose to use restricted token replacement vocabular- ies, and a "lazy evaluation" method that sig- nificantly speeds up training.</p><p>• We experimentally validate our approach on the MSCOCO image captioning task and the WMT'14 English to French machine trans- lation task, showing that on both tasks com- bining token-level and sequence-level loss smoothing improves results significantly over maximum likelihood baselines. In the remainder of the paper, we review the ex- isting methods to improve RNN training in Sec- tion 2. Then, we present our token-level and sequence-level approaches in Section 3. Experi- mental evaluation results based on image caption- ing and machine translation tasks are laid out in Section 4.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2">Related work</head><p>Previous work aiming to improve the generaliza- tion performance of RNNs can be roughly divided into three categories: those based on regulariza- tion, data augmentation, and alternatives to maxi- mum likelihood estimation.</p><p>Regularization techniques are used to increase the smoothness of the function learned by the network, e.g. by imposing an 2 penalty on the network weights, also known as "weight decay". More recent approaches mask network activations during training, as in dropout ( <ref type="bibr" target="#b40">Srivastava et al., 2014</ref>) and its variants adapted to recurrent mod- els ( <ref type="bibr" target="#b37">Pham et al., 2014;</ref><ref type="bibr" target="#b23">Krueger et al., 2017)</ref>. In- stead of masking, batch-normalization ( <ref type="bibr" target="#b16">Ioffe and Szegedy, 2015)</ref> rescales the network activations to avoid saturating the network's non-linearities. Instead of regularizing the network parameters or activations, it is also possible to directly regular- ize based on the entropy of the output distribution ( <ref type="bibr" target="#b36">Pereyra et al., 2017)</ref>.</p><p>Data augmentation techniques improve the ro- bustness of the learned models by applying trans- formations that might be encountered at test time to the training data. In computer vision, this is common practice, and implemented by, e.g., scal- ing, cropping, and rotating training images ( <ref type="bibr" target="#b26">LeCun et al., 1998;</ref><ref type="bibr" target="#b22">Krizhevsky et al., 2012;</ref><ref type="bibr" target="#b33">Paulin et al., 2014</ref>). In natural language processing, ex- amples of data augmentation include input noising by randomly dropping some input tokens <ref type="bibr" target="#b17">(Iyyer et al., 2015;</ref><ref type="bibr" target="#b3">Bowman et al., 2015;</ref><ref type="bibr" target="#b24">Kumar et al., 2016)</ref>, and randomly replacing words with sub- stitutes sampled from the model ( . <ref type="bibr" target="#b45">Xie et al. (2017)</ref> introduced data augmenta- tion schemes for RNN language models that lever- age n-gram statistics in order to mimic Kneser- Ney smoothing of n-grams models. In the con- text of machine translation, <ref type="bibr" target="#b13">Fadaee et al. (2017)</ref> modify sentences by replacing words with rare ones when this is plausible according to a pre- trained language model, and substitutes its equiv- alent in the target sentence using automatic word alignments. This approach, however, relies on the availability of additional monolingual data for lan- guage model training.</p><p>The de facto standard way to train RNN lan- guage models is maximum likelihood estimation (MLE) ( ). The sequential factoriza- tion of the sequence likelihood generates an ad- ditive structure in the loss, with one term corre- sponding to the prediction of each output token given the input and the preceding ground-truth output tokens. In order to directly optimize for sequence-level structured loss functions, such as measures based on n-grams like BLEU or CIDER, <ref type="bibr" target="#b38">Ranzato et al. (2016)</ref> use reinforcement learn- ing techniques that optimize the expectation of a sequence-level reward. In order to avoid early con- vergence to poor local optima, they pre-train the model using MLE. <ref type="bibr" target="#b25">Leblond et al. (2018)</ref> build on the learn- ing to search approach to structured prediction <ref type="bibr" target="#b10">(Daumé III et al., 2009;</ref><ref type="bibr" target="#b5">Chang et al., 2015)</ref> and adapts it to RNN training. The model generates candidate sequences at each time-step using all possible tokens, and scores these at sequence-level to derive a training signal for each time step. This leads to an approach that is structurally close to MLE, but computationally expensive. <ref type="bibr" target="#b31">Norouzi et al. (2016)</ref> introduce a reward augmented maxi- mum likelihood (RAML) approach, that incorpo-rates a notion of sequence-level reward without facing the difficulties of reinforcement learning. They define a target distribution over output sen- tences using a soft-max over the reward over all possible outputs. Then, they minimize the KL di- vergence between the target distribution and the model's output distribution. Training with a gen- eral reward distribution is similar to MLE train- ing, except that we use multiple sentences sam- pled from the target distribution instead of only the ground-truth sentences.</p><p>In our work, we build upon the work of <ref type="bibr" target="#b31">Norouzi et al. (2016)</ref> by proposing improvements to sequence-level smoothing, and extending it to token-level smoothing. Our token-level smooth- ing approach is related to the label smoothing ap- proach of <ref type="bibr" target="#b42">Szegedy et al. (2016)</ref> for image clas- sification. Instead of maximizing the probability of the correct class, they train the model to pre- dict the correct class with a large probability and all other classes with a small uniform probabil- ity. This regularizes the model by preventing over- confident predictions. In natural language gen- eration with large vocabularies, preventing such "narrow" over-confident distributions is impera- tive, since for many tokens there are nearly inter- changeable alternatives.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3">Loss smoothing for RNN training</head><p>We briefly recall standard recurrent neural net- work training, before presenting sequence-level and token-level loss smoothing below.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.1">Maximum likelihood RNN training</head><p>We are interested in modeling the conditional probability of a sequence y = (y 1 , . . . , y T ) given a conditioning observation x,</p><formula xml:id="formula_0">p θ (y|x) = T t=1 p θ (y t |x, y &lt;t ),<label>(1)</label></formula><p>where y &lt;t = (y 1 , . . . , y t−1 ), the model parame- ters are given by θ, and x is a source sentence or an image in the contexts of machine translation and image captioning, respectively. In a recurrent neural network, the sequence y is predicted based on a sequence of states h t ,</p><formula xml:id="formula_1">p θ (y t |x, y &lt;t ) = p θ (y t |h t ),<label>(2)</label></formula><p>where the RNN state is computed recursively as</p><formula xml:id="formula_2">h t = f θ (h t−1 , y t−1 , x) for t ∈ {1, ..T }, g θ (x) for t = 0. (3)</formula><p>The input is encoded by g θ and used to initialize the state sequence, and f θ is a non-linear function that updates the state given the previous state h t−1 , the last output token y t−1 , and possibly the input x. The state update function can take different forms, the ones including gating mechanisms such as LSTMs <ref type="bibr" target="#b15">(Hochreiter and Schmidhuber, 1997)</ref> and <ref type="bibr">GRUs (Chung et al., 2014</ref>) are particularly ef- fective to model long sequences.</p><p>In standard teacher-forced training, the hidden states will be computed by forwarding the ground truth sequence y * i.e. in Eq. <ref type="formula">(3)</ref>, the RNN has ac- cess to the true previous token y * t−1 . In this case we will note the hidden states h * t . Given a ground-truth target sequence y * , maxi- mum likelihood estimation (MLE) of the network parameters θ amounts to minimizing the loss</p><formula xml:id="formula_3">MLE (y * , x) = − ln p θ (y * |x) (4) = − T t=1 ln p θ (y * t |h * t ).<label>(5)</label></formula><p>The loss can equivalently be expressed as the KL- divergence between a Dirac centered on the target output (with δ a (x) = 1 at x = a and 0 otherwise) and the model distribution, either at the sequence- level or at the token-level:</p><formula xml:id="formula_4">MLE (y * , x) = D KL δ y * ||p θ (y|x)<label>(6)</label></formula><formula xml:id="formula_5">= T t=1 D KL δ y * t ||p θ (y t |h * t ) .<label>(7)</label></formula><p>Loss smoothing approaches considered in this pa- per consist in replacing the Dirac on the ground- truth sequence with distributions with larger sup- port. These distributions can be designed in such a manner that they reflect which deviations from ground-truth predictions are preferred over others.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.2">Sequence-level loss smoothing</head><p>The reward augmented maximum likelihood ap- proach of <ref type="bibr" target="#b31">Norouzi et al. (2016)</ref> consists in replac- ing the sequence-level Dirac δ y * in Eq. (6) with a distribution</p><formula xml:id="formula_6">r(y|y * ) ∝ exp r(y, y * )/τ,<label>(8)</label></formula><p>where r(y, y * ) is a "reward" function that mea- sures the quality of sequence y w.r.t. y * , e.g. met- rics used for evaluation of natural language pro- cessing tasks can be used, such as BLEU ( <ref type="bibr" target="#b32">Papineni et al., 2002</ref>) or CIDER ( <ref type="bibr" target="#b43">Vedantam et al., 2015</ref>). The temperature parameter τ controls the concentration of the distribution around y * . When m &gt; 1 ground-truth sequences are paired with the same input x, the reward function can be adapted to fit this setting and be defined as r(y, {y * (1) , . . . , y * (m) }). The sequence-level smoothed loss function is then given by</p><formula xml:id="formula_7">Seq (y * , x) = D KL r(y|y * )||p θ (y|x) = H(r(y|y * )) − E r [ln p θ (y|x)] ,<label>(9)</label></formula><p>where the entropy term H(r(y|y * )) does not de- pend on the model parameters θ.</p><p>In general, expectation in Eq. <ref type="formula" target="#formula_7">(9)</ref> is intractable due to the exponentially large output space, and replaced with a Monte-Carlo approximation:</p><formula xml:id="formula_8">E r [− ln p θ (y|x)] ≈ − L l=1 ln p θ (y l |x).<label>(10)</label></formula><p>Stratified sampling. <ref type="bibr" target="#b31">Norouzi et al. (2016)</ref> show that when using the Hamming or edit distance as a reward, we can sample directly from r(y|y * ) us- ing a stratified sampling approach. In this case sampling proceeds in three stages. Importance sampling. For a reward based on BLEU or CIDER , we cannot directly sample from r(y|y * ) since the normalizing constant, or "parti- tion function", of the distribution is intractable to compute. In this case we can resort to importance sampling. We first sample L sequences y l from a tractable proposal distribution q(y|y * ). We then compute the importance weights</p><formula xml:id="formula_9">ω l ≈ r(y l |y * )/q(y l |y * ) L k=1 r(y k |y * )/q(y k |y * ) ,<label>(11)</label></formula><p>where r(y k |y * ) is the un-normalized reward distri- bution in Eq. (8). We finally approximate the ex- pectation by reweighing the samples in the Monte Carlo approximation as</p><formula xml:id="formula_10">E r [− ln p θ (y|x)] ≈ − L l=1 ω l ln p θ (y l |x).<label>(12)</label></formula><p>In our experiments we use a proposal distribu- tion based on the Hamming distance, which al- lows for tractable stratified sampling, and gener- ates sentences that do not stray away from the ground truth.</p><p>We propose two modifications to the sequence- level loss smoothing of <ref type="bibr" target="#b31">Norouzi et al. (2016)</ref>: sampling to a restricted vocabulary (described in the following paragraph) and lazy sequence-level smoothing (described in section 3.4).</p><p>Restricted vocabulary sampling. In the strati- fied sampling method for Hamming and edit dis- tance rewards, instead of drawing from the large vocabulary V, containing typically in the order of 10 4 words or more, we can restrict ourselves to a smaller subset V sub more adapted to our task. We considered three different possibilities for V sub .</p><p>V : the full vocabulary from which we sample uniformly (default), or draw from our token-level smoothing distribution defined below in Eq. (13).</p><p>V ref s : uniformly sample from the set of tokens that appear in the ground-truth sentence(s) associ- ated with the current input.</p><p>V batch : uniformly sample from the tokens that appear in the ground-truth sentences across all in- puts that appear in a given training mini-batch.</p><p>Uniformly sampling from V batch has the effect of boosting the frequencies of words that appear in many reference sentences, and thus approxi- mates to some extent sampling substitutions from the uni-gram statistics of the training set.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.3">Token-level loss smoothing</head><p>While the sequence-level smoothing can be di- rectly based on performance measures of inter- est such as BLEU or CIDEr, the support of the smoothed distribution is limited to the number of samples drawn during training. We propose smoothing the token-level Diracs δ y * t in Eq. <ref type="formula" target="#formula_5">(7)</ref> to increase its support to similar tokens. Since we apply smoothing to each of the tokens indepen- dently, this approach implicitly increases the sup- port to an exponential number of sequences, un- like the sequence-level smoothing approach. This comes at the price, however, of a naive token-level independence assumption in the smoothing.</p><p>We define the smoothed token-level distribu- tion, similar as the sequence-level one, as a soft- max over a token-level "reward" function,</p><formula xml:id="formula_11">r(y t |y * t ) ∝ exp r(y t , y * t )/τ,<label>(13)</label></formula><p>where τ is again a temperature parameter. As a token-level reward r(y t , y * t ) we use the cosine similarity between y t and y * t in a semantic word- embedding space. In our experiments we use GloVe ( <ref type="bibr" target="#b35">Pennington et al., 2014</ref>); preliminary ex- periments with word2vec ( <ref type="bibr" target="#b30">Mikolov et al., 2013)</ref> yielded somewhat worse results.</p><p>Promoting rare tokens. We can further im- prove the token-level smoothing by promoting rare tokens. To do so, we penalize frequent tokens when smoothing over the vocabulary, by subtract- ing β freq(y t ) from the reward, where freq(·) de- notes the term frequency and β is a non-negative weight. This modification encourages frequent to- kens into considering the rare ones. We experi- mentally found that it is also beneficial for rare tokens to boost frequent ones, as they tend to have mostly rare tokens as neighbors in the word- embedding space. With this in mind, we define a new token-level reward as:</p><formula xml:id="formula_12">r freq (y t , y * t ) = r(y t , y * t )<label>(14)</label></formula><formula xml:id="formula_13">− β min freq(y t ) freq(y * t ) , freq(y * t ) freq(y t ) ,</formula><p>where the penalty term is strongest if both tokens have similar frequencies.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.4">Combining losses</head><p>In both loss smoothing methods presented above, the temperature parameter τ controls the concen- tration of the distribution. As τ gets smaller the distribution peaks around the ground-truth, while for large τ the uniform distribution is approached. We can, however, not separately control the spread of the distribution and the mass reserved for the ground-truth output. We therefore introduce a sec- ond parameter α ∈ [0, 1] to interpolate between the Dirac on the ground-truth and the smooth dis- tribution. Using ¯ α = 1 − α, the sequence-level and token-level loss functions are then defined as</p><formula xml:id="formula_14">α Seq (y * , x) = α Seq (y * , x) + ¯ α MLE (y * , x) (15) = αE r [ MLE (y, x)] + ¯ α MLE (y * , x) α Tok (y * , x) = α Tok (y * , x) + ¯ α MLE (y * , x)<label>(16)</label></formula><p>To benefit from both sequence-level and token- level loss smoothing, we also combine them by ap- plying token-level smoothing to the different se- quences sampled for the sequence-level smooth- ing. We introduce two mixing parameters α 1 and α 2 . The first controls to what extent sequence- level smoothing is used, while the second controls to what extent token-level smoothing is used. The combined loss is defined as</p><formula xml:id="formula_15">α 1 ,α 2 Seq, Tok (y * , x, r) = α 1 E r [ Tok (y, x)] + ¯ α 1 Tok (y * , x) = α 1 E r [α 2 Tok (y, x) + ¯ α 2 MLE (y, x)] + ¯ α 1 (α 2 Tok (y * , x) + ¯ α 2 MLE (y * , x)).<label>(17)</label></formula><p>In our experiments, we use held out validation data to set mixing and temperature parameters. </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>. , L} do</head><p>Sample</p><formula xml:id="formula_16">y l ∼ r( ˙ |y * ) if Lazy then Compute (y l , x) = − t log p θ (y l t |h * t ) else Forward y l in the RNN to get its hidden states h l t Compute (y l , x) = MLE(y l , x) end if end for α Seq (x, y * ) = ¯ αMLE(y * , x) + α L l (y l , x)</formula><p>Lazy sequence smoothing. Although sequence- level smoothing is computationally efficient com- pared to reinforcement learning approaches <ref type="bibr" target="#b38">(Ranzato et al., 2016;</ref><ref type="bibr" target="#b39">Rennie et al., 2017)</ref>, it is slower compared to MLE. In particular, we need to for- ward each of the samples y l through the RNN in teacher-forcing mode so as to compute its hidden states h l t , which are used to compute the sequence MLE loss as</p><formula xml:id="formula_17">MLE (y l , x) = − T t=1 ln p θ (y l t |h l t ).<label>(18)</label></formula><p>To speed up training, and since we already forward the ground truth sequence in the RNN to evaluate the MLE part of α Seq (y * , x), we propose to use the same hidden states h * t to compute both the MLE and the sequence-level smoothed loss. In this case:</p><formula xml:id="formula_18">lazy (y l , x) = − T t=1 ln p θ (y l t |h * t )<label>(19)</label></formula><p>In this manner, we only have a single instead of L + 1 forwards-passes in the RNN. We provide the pseudo-code for training in Algorithm 1.  </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4">Experimental evaluation</head><p>In this section, we compare sequence prediction models trained with maximum likelihood (MLE) with our token and sequence-level loss smoothing on two different tasks: image captioning and ma- chine translation.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.1">Image captioning</head><p>4.1.1 Experimental setup.</p><p>We use the MS-COCO datatset ( <ref type="bibr" target="#b28">Lin et al., 2014)</ref>, which consists of 82k training images each anno- tated with five captions. We use the standard splits of <ref type="bibr" target="#b18">Karpathy and Li (2015)</ref>, with 5k images for val- idation, and 5k for test. The test set results are generated via beam search (beam size 3) and are evaluated with the MS-COCO captioning evalu- ation tool. We report CIDER and BLEU scores on this internal test set. We also report results ob- tained on the official MS-COCO server that ad- ditionally measures METEOR <ref type="bibr" target="#b11">(Denkowski and Lavie, 2014</ref>) and ROUGE-L ( <ref type="bibr" target="#b27">Lin, 2004</ref>). We ex- periment with both non-attentive LSTMs ( ) and the ResNet baseline of the state- of-the-art top-down attention ( <ref type="bibr" target="#b0">Anderson et al., 2017)</ref>. The MS-COCO vocabulary consists of 9,800 words that occur at least 5 times in the training set. Additional details and hyperparameters can be found in Appendix B.1.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.1.2">Results and discussion</head><p>Restricted vocabulary sampling In this sec- tion, we evaluate the impact of the vocabulary subset from which we sample the modified sen- tences for sequence-level smoothing. We exper- iment with two rewards: CIDER , which scores w.r.t. all five available reference sentences, and Hamming distance reward taking only a single ref- erence into account. For each reward we train our (Seq) models with each of the three subsets de- tailed previously in Section 3.2, Restricted vocab- ulary sampling.</p><p>From the results in <ref type="table" target="#tab_1">Table 1</ref> we note that for the inattentive models, sampling from V ref s or V batch has a better performance than sampling from the full vocabulary on all metrics. In fact, using these subsets introduces a useful bias to the model and improves performance. This improvement is most notable using the CIDER reward that scores candidate sequences w.r.t. to multiple references, which stabilizes the scoring of the candidates.</p><p>With an attentive decoder, no matter the re- ward, re-sampling sentences with words from V ref rather than the full vocabulary V is better for both reward functions, and all metrics. Additional ex- perimental results, presented in Appendix B.2, ob- tained with a BLEU-4 reward, in its single and <ref type="table">c5  c40  c5  c40  c5  c40  c5  c40  c5  c40  c5  c40  c5  c40  c5  c40</ref> Google NIC + (  71.3 89.5 54.2 80.2 40.7 69.4 30.9 58.7 25.4 34.6 53.0 68.2 94.3 94.6 18.2 63.6 Hard-Attention ( <ref type="bibr" target="#b46">Xu et al., 2015)</ref> 70.5 88.1 52.8 77.9 38.3 65.8 27.7 53.7 24.1 32.2 51.6 65.4 86.5 89.3 17.2 59.8 ATT-FCN + ( <ref type="bibr" target="#b49">You et al., 2016)</ref> 73.1 90.0 56.5 81.5 42.4 70.9 31.6 59.9 25.0 33.5 53.5 68.2 94.3 95.8 18.2 63.1 Review Net + ( <ref type="bibr" target="#b47">Yang et al., 2016)</ref> 72.0 90.0 55.0 81.2 41.4 70.5 31.3 59.7 25.6 34.7 53.3 68.6 96.5 96.9 18.5 64.9 Adaptive + ( <ref type="bibr" target="#b29">Lu et al., 2017)</ref> 74.8 92.0 58.  <ref type="table">Table 2</ref>: MS-COCO 's server evaluation . ( + ) for ensemble submissions, ( † ) for submissions with CIDEr optimization and ( • ) for models using additional data.</p><formula xml:id="formula_19">BLEU-1 BLEU-2 BLEU-3 BLEU-4 METEOR ROUGE-L CIDER SPICE</formula><p>multiple references variants, further corroborate this conclusion.</p><p>Lazy training. From the results of <ref type="table" target="#tab_1">Table 1</ref>, we see that lazy sequence-level smoothing is compet- itive with exact non-lazy sequence-level smooth- ing, while requiring roughly equivalent training time as MLE. We provide detailed timing results in Appendix B.3.</p><p>Overall For reference, we include in <ref type="table" target="#tab_1">Table 1</ref> baseline results obtained using MLE, and our im- plementation of MLE with entropy regularization (MLE+γH) ( <ref type="bibr" target="#b36">Pereyra et al., 2017)</ref>, as well as the RAML approach of <ref type="bibr" target="#b31">Norouzi et al. (2016)</ref> which corresponds to sequence-level smoothing based on the Hamming reward and sampling replacements from the full vocabulary (Seq, Hamming, V) We observe that entropy smoothing is not able to improve performance much over MLE for the model without attention, and even deteriorates for the attention model. We improve upon RAML by choosing an adequate subset of vocabulary for substitutions.</p><p>We also report the performances of token-level smoothing, where the promotion of rare tokens boosted the scores in both attentive and non- attentive models.</p><p>For sequence-level smoothing, choosing a task- relevant reward with importance sampling yielded better results than plain Hamming distance.</p><p>Moreover, we used the two smoothing schemes (Tok-Seq) and achieved the best results with CIDER as a reward for sequence-level smoothing combined with a token-level smoothing that pro- motes rare tokens improving CIDER from 93.59 (MLE) to 99.92 for the model without attention, and improving from 101.63 to 103.81 with atten- tion.</p><p>Qualitative results. In <ref type="figure" target="#fig_1">Figure 1</ref> we showcase captions obtained with MLE and our three vari- ants of smoothing i.e. token-level (Tok), sequence- level (Seq) and the combination (Tok-Seq). We note that the sequence-level smoothing tend to generate lengthy captions overall, which is main- tained in the combination. On the other hand, the token-level smoothing allows for a better recogni- tion of objects in the image that stems from the robust training of the classifier e.g. the 'cement block' in the top right image or the carrots in the bottom right. More examples are available in <ref type="bibr">Appendix B.4</ref> Comparison to the state of the art. We com- pare our model to state-of-the-art systems on the MS-COCO evaluation server in <ref type="table">Table 2</ref>. We sub- mitted a single model (Tok-Seq, CIDER , V ref s ) as well as an ensemble of five models with differ- ent initializations trained on the training set plus 35k images from the dev set (a total of 117k im- ages) to the MS-COCO server. The three best results on the server ( <ref type="bibr" target="#b39">Rennie et al., 2017;</ref><ref type="bibr" target="#b48">Yao et al., 2017;</ref><ref type="bibr" target="#b0">Anderson et al., 2017)</ref> are trained in two stages where they first train using MLE, be- fore switching to policy gradient methods based on CIDEr. <ref type="bibr" target="#b0">Anderson et al. (2017)</ref> reported an in- crease of 5.8% of CIDER on the test split after the CIDER optimization. Moreover, <ref type="bibr" target="#b48">Yao et al. (2017)</ref>   For this task we validate the effectiveness of our approaches on two different datasets. The first is WMT'14 English to French, in its filtered version, with 12M sentence pairs obtained after dynami- cally selecting a "clean" subset of 348M words out of the original "noisy" 850M words ( ). The second benchmark is IWSLT'14 Ger- man to English consisting of around 150k pairs for training. In all our experiments we use the at- tentive model of ( ) The hy- perparameters of each of these models as well as any additional pre-processing can be found in Ap- pendix C.1</p><p>To assess the translation quality we report the BLEU-4 metric.  We present our results in <ref type="table" target="#tab_4">Table 3</ref>. On both benchmarks, we improve on both MLE and RAML approach of <ref type="bibr" target="#b31">Norouzi et al. (2016)</ref>  <ref type="bibr">(Seq, Hamming, V)</ref>: using the smaller batch-vocabulary for replacement improves results, and using im- portance sampling based on BLEU-4 further boosts results. In this case, unlike in the cap- tioning experiment, token-level smoothing brings smaller improvements. The combination of both smoothing approaches gives best results, similar to what was observed for image captioning, im- proving the MLE BLEU-4 from 30.03 to 31.39 on WMT'14 and from 27.55 to 28.74 on IWSLT'14. The outputs of our best model are compared to the MLE in some examples showcased in Ap- pendix C.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.2.2">Results and analysis</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5">Conclusion</head><p>We investigated the use of loss smoothing ap- proaches to improve over maximum likelihood es- timation of RNN language models. We gener- alized the sequence-level smoothing RAML ap- proach of <ref type="bibr" target="#b31">Norouzi et al. (2016)</ref> to the token- level by smoothing the ground-truth target across semantically similar tokens. For the sequence- level, which is computationally expensive, we in- troduced an efficient "lazy" evaluation scheme, and introduced an improved re-sampling strat- egy. Experimental evaluation on image captioning and machine translation demonstrates the comple- mentarity of sequence-level and token-level loss smoothing, improving over both the maximum likelihood and RAML.</p></div><figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_0"><head></head><label></label><figDesc>(i) Sample a distance d from {0, . . . , T } from a prior distribu- tion on d. (ii) Uniformly select d positions in the sequence to be modified. (iii) Sample the d substi- tutions uniformly from the token vocabulary. Details on the construction of the prior distri- bution on d for a reward based on the Hamming distance can be found in Appendix A.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_1"><head>Algorithm 1</head><label>1</label><figDesc>Sequence-level smoothing algorithm Input: x, y * Output: α seq (x, y * ) Encode x to initialize the RNN Forward y * in the RNN to compute the hidden states h * t Compute the MLE loss MLE(y * , x) for l ∈ {1, . .</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_2"><head></head><label></label><figDesc>uses additional information about image regions to train the attributes classifiers, while An- derson et al. (2017) pre-trains its bottom-up atten- tion model on the Visual Genome dataset (Krishna et al., 2017). Lu et al. (2017); Yao et al. (2017) use the same CNN encoder as ours (ResNet- 152), (Vinyals et al., 2015; Yang et al., 2016) use Inception-v3 (Szegedy et al., 2016) for image en- coding and Rennie et al. (2017); Anderson et al.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_3"><head>Figure 1 :</head><label>1</label><figDesc>Figure 1: Examples of generated captions with the baseline MLE and our models with attention.</figDesc><graphic url="image-3.png" coords="8,77.98,130.40,222.26,63.54" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_1" validated="false"><head>Table 1 : MS-COCO 's test set evaluation measures.</head><label>1</label><figDesc></figDesc><table></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_4" validated="false"><head>Table 3 :</head><label>3</label><figDesc></figDesc><table>Tokenized BLEU score on WMT'14 
+En-Fr evaluated on the news-test-2014 set. And 
+Tokenzied, case-insensitive BLEU on IWSLT'14 
+De-En. 
+
+</table></figure>
+		</body>
+		<back>
+
+			<div type="acknowledgement">
+			</div>
+
+			<div type="references">
+
+				<listBibl>
+
+<biblStruct xml:id="b0">
+	<monogr>
+				<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">P</forename><surname>Anderson</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">X</forename><surname>He</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">C</forename><surname>Buehler</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">D</forename><surname>Teney</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">M</forename><surname>Johnson</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">S</forename><surname>Gould</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">L</forename><surname>Zhang</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1707.07998</idno>
+		<title level="m">Bottomup and top-down attention for image captioning and visual question answering</title>
+		<imprint>
+			<date type="published" when="2017" />
+		</imprint>
+	</monogr>
+<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b1">
+	<analytic>
+		<title level="a" type="main">Neural machine translation by jointly learning to align and translate</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">D</forename><surname>Bahdanau</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">K</forename><surname>Cho</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Y</forename><surname>Bengio</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">ICLR</title>
+		<imprint>
+			<date type="published" when="2015" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b2">
+	<analytic>
+		<title level="a" type="main">Scheduled sampling for sequence prediction with recurrent neural networks</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">S</forename><surname>Bengio</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">O</forename><surname>Vinyals</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">N</forename><surname>Jaitly</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">N</forename><surname>Shazeer</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">NIPS</title>
+		<imprint>
+			<date type="published" when="2015" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b3">
+	<analytic>
+		<title level="a" type="main">Generating sentences from a continuous space</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">S</forename><surname>Bowman</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">L</forename><surname>Vilnis</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">O</forename><surname>Vinyals</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">A</forename><surname>Dai</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">R</forename><surname>Jozefowicz</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">S</forename><surname>Bengio</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">CoNLL</title>
+		<imprint>
+			<date type="published" when="2015" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b4">
+	<monogr>
+		<title level="m" type="main">An analysis of deep neural network models for practical applications</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">A</forename><surname>Canziani</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">A</forename><surname>Paszke</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">E</forename><surname>Culurciello</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1605.07678</idno>
+		<imprint>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b5">
+	<analytic>
+		<title level="a" type="main">Learning to search better than your teacher</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">K.-W</forename><surname>Chang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">A</forename><surname>Krishnamurthy</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">A</forename><surname>Agarwal</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">H</forename><surname>Daumé</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Iii</forename></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">J</forename><surname>Langford</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">ICML</title>
+		<imprint>
+			<date type="published" when="2015" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b6">
+	<monogr>
+		<title level="m" type="main">State-of-the-art speech recognition with sequence-to-sequence models</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">C.-C</forename><surname>Chiu</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">T</forename><surname>Sainath</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Y</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">R</forename><surname>Prabhavalkar</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">P</forename><surname>Nguyen</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Z</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">A</forename><surname>Kannan</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">R.-J</forename><surname>Weiss</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">K</forename><surname>Rao</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">E</forename><surname>Gonina</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">N</forename><surname>Jaitly</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">B</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">J</forename><surname>Chorowski</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">M</forename><surname>Bacchiani</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1712.01769</idno>
+		<imprint>
+			<date type="published" when="2017" />
+		</imprint>
+	</monogr>
+<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b7">
+	<analytic>
+		<title level="a" type="main">Learning phrase representations using RNN encoder-decoder for statistical machine translation</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">K</forename><surname>Cho</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">B</forename><surname>Van Merrienboer</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ç</forename><surname>Gülçehre</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">D</forename><surname>Bahdanau</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">F</forename><surname>Bougares</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">H</forename><surname>Schwenk</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Y</forename><surname>Bengio</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Empirical Methods in Natural Language Processing</title>
+		<imprint>
+			<date type="published" when="2014" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b8">
+	<analytic>
+		<title level="a" type="main">Attention-based models for speech recognition</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">J</forename><surname>Chorowski</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">D</forename><surname>Bahdanau</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">D</forename><surname>Serdyuk</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">K</forename><surname>Cho</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Y</forename><surname>Bengio</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">NIPS</title>
+		<imprint>
+			<date type="published" when="2015" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b9">
+	<analytic>
+		<title level="a" type="main">Empirical evaluation of gated recurrent neural networks on sequence modeling</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">J</forename><surname>Chung</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">C</forename><surname>Gulcehre</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">K</forename><surname>Cho</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Y</forename><surname>Bengio</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">NIPS Deep Learning Workshop</title>
+		<imprint>
+			<date type="published" when="2014" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b10">
+	<analytic>
+		<title level="a" type="main">Search-based structured prediction</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">H</forename><surname>Daumé</surname><genName>III</genName></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">J</forename><surname>Langford</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">D</forename><surname>Marcu</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Machine Learning</title>
+		<imprint>
+			<biblScope unit="volume">75</biblScope>
+			<biblScope unit="issue">3</biblScope>
+			<biblScope unit="page" from="297" to="325" />
+			<date type="published" when="2009" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b11">
+	<analytic>
+		<title level="a" type="main">Meteor universal: Language specific translation evaluation for any target language</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">M</forename><surname>Denkowski</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">A</forename><surname>Lavie</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Workshop on statistical machine translation</title>
+		<imprint>
+			<date type="published" when="2014" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b12">
+	<analytic>
+		<title level="a" type="main">The pascal visual object classes (VOC) challenge</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">M</forename><surname>Everingham</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">L</forename><surname>Van Gool</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">C</forename><surname>Williams</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">J</forename><surname>Winn</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">A</forename><surname>Zisserman</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">IJCV</title>
+		<imprint>
+			<biblScope unit="volume">88</biblScope>
+			<biblScope unit="issue">2</biblScope>
+			<biblScope unit="page" from="303" to="338" />
+			<date type="published" when="2010" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b13">
+	<analytic>
+		<title level="a" type="main">Data augmentation for low-resource neural machine translation</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">M</forename><surname>Fadaee</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">A</forename><surname>Bisazza</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">C</forename><surname>Monz</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">ACL</title>
+		<imprint>
+			<date type="published" when="2017" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b14">
+	<analytic>
+		<title level="a" type="main">Deep residual learning for image recognition</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">K</forename><surname>He</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">X</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">S</forename><surname>Ren</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">J</forename><surname>Sun</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">CVPR</title>
+		<imprint>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b15">
+	<analytic>
+		<title level="a" type="main">Long shortterm memory</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">S</forename><surname>Hochreiter</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">J</forename><surname>Schmidhuber</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Neural Computation</title>
+		<imprint>
+			<biblScope unit="volume">9</biblScope>
+			<biblScope unit="issue">8</biblScope>
+			<biblScope unit="page" from="1735" to="1780" />
+			<date type="published" when="1997" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b16">
+	<analytic>
+		<title level="a" type="main">Batch normalization: Accelerating deep network training by reducing internal covariate shift</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">S</forename><surname>Ioffe</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">C</forename><surname>Szegedy</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">ICML</title>
+		<imprint>
+			<date type="published" when="2015" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b17">
+	<analytic>
+		<title level="a" type="main">Deep unordered composition rivals syntactic methods for text classification</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">M</forename><surname>Iyyer</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">V</forename><surname>Manjunatha</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">J</forename><surname>Boyd-Graber</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">H</forename><surname>Daumé</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Iii</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">ACL</title>
+		<imprint>
+			<date type="published" when="2015" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b18">
+	<analytic>
+		<title level="a" type="main">Deep visualsemantic alignments for generating image descriptions</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">A</forename><surname>Karpathy</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Fei-Fei</forename><surname>Li</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">CVPR</title>
+		<imprint>
+			<date type="published" when="2015" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b19">
+	<analytic>
+		<title level="a" type="main">Adam: A method for stochastic optimization</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">D</forename><surname>Kingma</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">J</forename><surname>Ba</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">ICLR</title>
+		<imprint>
+			<date type="published" when="2015" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b20">
+	<analytic>
+		<title level="a" type="main">Multimodal neural language models</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">R</forename><surname>Kiros</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">R</forename><surname>Salakhutdinov</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">R</forename><surname>Zemel</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">ICML</title>
+		<imprint>
+			<date type="published" when="2014" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b21">
+	<analytic>
+		<title level="a" type="main">Visual genome: Connecting language and vision using crowdsourced dense image annotations</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">R</forename><surname>Krishna</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Y</forename><surname>Zhu</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">O</forename><surname>Groth</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">J</forename><surname>Johnson</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">K</forename><surname>Hata</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">J</forename><surname>Kravitz</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">S</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Y</forename><surname>Kalantidis</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">L.-J</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">D</forename><surname>Shamma</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">M</forename><surname>Bernstein</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">L</forename><surname>Fei-Fei</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">IJCV</title>
+		<imprint>
+			<biblScope unit="volume">123</biblScope>
+			<biblScope unit="issue">1</biblScope>
+			<biblScope unit="page" from="32" to="73" />
+			<date type="published" when="2017" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b22">
+	<monogr>
+		<title level="m" type="main">Imagenet classification with deep convolutional neural networks</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">A</forename><surname>Krizhevsky</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">I</forename><surname>Sutskever</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">G</forename><surname>Hinton</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2012" />
+		</imprint>
+	</monogr>
+	<note>In NIPS</note>
+</biblStruct>
+
+<biblStruct xml:id="b23">
+	<analytic>
+		<title level="a" type="main">Zoneout: Regularizing RNNs by randomly preserving hidden activations</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">D</forename><surname>Krueger</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">T</forename><surname>Maharaj</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">J</forename><surname>Kramár</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">M</forename><surname>Pezeshki</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">N</forename><surname>Ballas</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">N</forename><surname>Ke</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">A</forename><surname>Goyal</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Y</forename><surname>Bengio</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">H</forename><surname>Larochelle</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">A</forename><surname>Courville</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">C</forename><surname>Pal</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">ICLR</title>
+		<imprint>
+			<date type="published" when="2017" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b24">
+	<analytic>
+		<title level="a" type="main">Ask me anything: Dynamic memory networks for natural language processing</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">A</forename><surname>Kumar</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">O</forename><surname>Irsoy</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">P</forename><surname>Ondruska</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">M</forename><surname>Iyyer</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">J</forename><surname>Bradbury</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">I</forename><surname>Gulrajani</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">V</forename><surname>Zhong</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">R</forename><surname>Paulus</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">R</forename><surname>Socher</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">ICML</title>
+		<imprint>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b25">
+	<analytic>
+		<title level="a" type="main">SeaRnn: Training RNNs with globallocal losses</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">R</forename><surname>Leblond</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">J.-B</forename><surname>Alayrac</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">A</forename><surname>Osokin</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">S</forename><surname>Lacostejulien</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">ICLR</title>
+		<imprint>
+			<date type="published" when="2018" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b26">
+	<analytic>
+		<title level="a" type="main">Gradient-based learning applied to document recognition</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Y</forename><surname>Lecun</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">L</forename><surname>Bottou</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Y</forename><surname>Bengio</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">P</forename><surname>Haffner</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the IEEE</title>
+		<meeting>the IEEE</meeting>
+		<imprint>
+			<date type="published" when="1998" />
+			<biblScope unit="page" from="2278" to="2324" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b27">
+	<analytic>
+		<title level="a" type="main">Rouge: a package for automatic evaluation of summaries</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">C.-Y.</forename><surname>Lin</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">ACL Workshop Text Summarization Branches Out</title>
+		<imprint>
+			<date type="published" when="2004" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b28">
+	<analytic>
+		<title level="a" type="main">Microsoft COCO: common objects in context</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">T.-Y</forename><surname>Lin</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">M</forename><surname>Maire</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">S</forename><surname>Belongie</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">L</forename><surname>Bourdev</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">R</forename><surname>Girshick</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">J</forename><surname>Hays</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">P</forename><surname>Perona</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">D</forename><surname>Ramanan</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">P</forename><surname>Dollár</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">C</forename><surname>Zitnick</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">ECCV</title>
+		<imprint>
+			<date type="published" when="2014" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b29">
+	<analytic>
+		<title level="a" type="main">Knowing when to look: Adaptive attention via a visual sentinel for image captioning</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">J</forename><surname>Lu</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">C</forename><surname>Xiong</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">D</forename><surname>Parikh</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">R</forename><surname>Socher</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">CVPR</title>
+		<imprint>
+			<date type="published" when="2017" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b30">
+	<analytic>
+		<title level="a" type="main">Efficient estimation of word representations in vector space</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">T</forename><surname>Mikolov</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">K</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">G</forename><surname>Corrado</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">J</forename><surname>Dean</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">ICLR</title>
+		<imprint>
+			<date type="published" when="2013" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b31">
+	<analytic>
+		<title level="a" type="main">Reward augmented maximum likelihood for neural structured prediction</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">M</forename><surname>Norouzi</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">S</forename><surname>Bengio</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Z</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">N</forename><surname>Jaitly</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">M</forename><surname>Schuster</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Y</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">D</forename><surname>Schuurmans</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">NIPS</title>
+		<imprint>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b32">
+	<analytic>
+		<title level="a" type="main">BLEU: a method for automatic evaluation of machine translation</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">K</forename><surname>Papineni</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">S</forename><surname>Roukos</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">T</forename><surname>Ward</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">W.-J</forename><surname>Zhu</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the Annual Meeting of the Association for Computational Linguistics</meeting>
+		<imprint>
+			<date type="published" when="2002" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b33">
+	<analytic>
+		<title level="a" type="main">Transformation pursuit for image classification</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">M</forename><surname>Paulin</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">J</forename><surname>Revaud</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Z</forename><surname>Harchaoui</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">F</forename><surname>Perronnin</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">C</forename><surname>Schmid</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">CVPR</title>
+		<imprint>
+			<date type="published" when="2014" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b34">
+	<analytic>
+		<title level="a" type="main">Areas of attention for image captioning</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">M</forename><surname>Pedersoli</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">T</forename><surname>Lucas</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">C</forename><surname>Schmid</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">J</forename><surname>Verbeek</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">ICCV</title>
+		<imprint>
+			<date type="published" when="2017" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b35">
+	<analytic>
+		<title level="a" type="main">GloVe: Global vectors for word representation</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">J</forename><surname>Pennington</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">R</forename><surname>Socher</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">C</forename><surname>Manning</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Empirical Methods in Natural Language Processing</title>
+		<imprint>
+			<date type="published" when="2014" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b36">
+	<analytic>
+		<title level="a" type="main">Regularizing neural networks by penalizing confident output distributions</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">G</forename><surname>Pereyra</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">G</forename><surname>Tucker</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">J</forename><surname>Chorowski</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">L</forename><surname>Kaiser</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">G</forename><surname>Hinton</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">ICLR</title>
+		<imprint>
+			<date type="published" when="2017" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b37">
+	<analytic>
+		<title level="a" type="main">Dropout improves recurrent neural networks for handwriting recognition</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">V</forename><surname>Pham</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">T</forename><surname>Bluche</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">C</forename><surname>Kermorvant</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">J</forename><surname>Louradour</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Frontiers in Handwriting Recognition</title>
+		<imprint>
+			<date type="published" when="2014" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b38">
+	<monogr>
+		<title level="m" type="main">Sequence level training with recurrent neural networks</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">M</forename><surname>Ranzato</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">S</forename><surname>Chopra</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">M</forename><surname>Auli</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">W</forename><surname>Zaremba</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+	<note>In ICLR</note>
+</biblStruct>
+
+<biblStruct xml:id="b39">
+	<analytic>
+		<title level="a" type="main">Self-critical sequence training for image captioning</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">S</forename><surname>Rennie</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">E</forename><surname>Marcheret</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Y</forename><surname>Mroueh</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">J</forename><surname>Ross</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">V</forename><surname>Goel</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">CVPR</title>
+		<imprint>
+			<date type="published" when="2017" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b40">
+	<monogr>
+		<title level="m" type="main">Dropout: A simple way to prevent neural networks from overfitting</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">N</forename><surname>Srivastava</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">G</forename><surname>Hinton</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">A</forename><surname>Krizhevsky</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">I</forename><surname>Sutskever</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">R</forename><surname>Salakhutdinov</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2014" />
+			<publisher>JMLR</publisher>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b41">
+	<monogr>
+		<title level="m" type="main">Sequence to sequence learning with neural networks</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">I</forename><surname>Sutskever</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">O</forename><surname>Vinyals</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Q</forename><surname>Le</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2014" />
+		</imprint>
+	</monogr>
+	<note>In NIPS</note>
+</biblStruct>
+
+<biblStruct xml:id="b42">
+	<analytic>
+		<title level="a" type="main">Rethinking the inception architecture for computer vision</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">C</forename><surname>Szegedy</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">V</forename><surname>Vanhoucke</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">S</forename><surname>Ioffe</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">J</forename><surname>Shlens</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Z</forename><surname>Wojna</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">CVPR</title>
+		<imprint>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b43">
+	<analytic>
+		<title level="a" type="main">CIDEr: Consensus-based image description evaluation</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">R</forename><surname>Vedantam</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">C</forename><surname>Zitnick</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">D</forename><surname>Parikh</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">CVPR</title>
+		<imprint>
+			<date type="published" when="2015" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b44">
+	<analytic>
+		<title level="a" type="main">Show and tell: A neural image caption generator</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">O</forename><surname>Vinyals</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">A</forename><surname>Toshev</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">S</forename><surname>Bengio</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">D</forename><surname>Erhan</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">CVPR</title>
+		<imprint>
+			<date type="published" when="2015" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b45">
+	<analytic>
+		<title level="a" type="main">Data noising as smoothing in neural network language models</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Z</forename><surname>Xie</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">S</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">J</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">D</forename><surname>Lévy</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">A</forename><surname>Nie</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">D</forename><surname>Jurafsky</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">A</forename><surname>Ng</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">ICLR</title>
+		<imprint>
+			<date type="published" when="2017" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b46">
+	<analytic>
+		<title level="a" type="main">Show, attend and tell: Neural image caption generation with visual attention</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">K</forename><surname>Xu</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">J</forename><surname>Ba</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">R</forename><surname>Kiros</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">K</forename><surname>Cho</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">A</forename><surname>Courville</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">R</forename><surname>Salakhutdinov</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">R</forename><surname>Zemel</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Y</forename><surname>Bengio</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">ICML</title>
+		<imprint>
+			<date type="published" when="2015" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b47">
+	<analytic>
+		<title level="a" type="main">Encode, review, and decode: Reviewer module for caption generation</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Z</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Y</forename><surname>Yuan</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Y</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">R</forename><surname>Salakhutdinov</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">W</forename><surname>Cohen</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">NIPS</title>
+		<imprint>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b48">
+	<analytic>
+		<title level="a" type="main">Boosting image captioning with attributes</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">T</forename><surname>Yao</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Y</forename><surname>Pan</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Y</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Z</forename><surname>Qiu</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">T</forename><surname>Mei</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">ICLR</title>
+		<imprint>
+			<date type="published" when="2017" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b49">
+	<analytic>
+		<title level="a" type="main">Image captioning with semantic attention</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Q</forename><surname>You</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">H</forename><surname>Jin</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Z</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">C</forename><surname>Fang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">J</forename><surname>Luo</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">CVPR</title>
+		<imprint>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+				</listBibl>
+			</div>
+		</back>
+	</text>
+</TEI>

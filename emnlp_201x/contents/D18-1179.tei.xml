@@ -1,0 +1,1414 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<TEI xmlns="http://www.tei-c.org/ns/1.0" 
+xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+xsi:schemaLocation="http://www.tei-c.org/ns/1.0 /home/ana/installs/grobid/grobid-0.5.1/grobid-home/schemas/xsd/Grobid.xsd"
+ xmlns:xlink="http://www.w3.org/1999/xlink">
+	<teiHeader xml:lang="en">
+		<encodingDesc>
+			<appInfo>
+				<application version="0.5.1-SNAPSHOT" ident="GROBID" when="2019-04-18T12:55+0000">
+					<ref target="https://github.com/kermitt2/grobid">GROBID - A machine learning software for extracting information from scholarly documents</ref>
+				</application>
+			</appInfo>
+		</encodingDesc>
+		<fileDesc>
+			<titleStmt>
+				<title level="a" type="main">Dissecting Contextual Word Embeddings: Architecture and Representation</title>
+			</titleStmt>
+			<publicationStmt>
+				<publisher>Association for Computational Linguistics</publisher>
+				<availability status="unknown"><p>Copyright Association for Computational Linguistics</p>
+				</availability>
+				<date>October 31-November 4, 2018. 2018</date>
+			</publicationStmt>
+			<sourceDesc>
+				<biblStruct>
+					<analytic>
+						<author>
+							<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Matthew</forename><forename type="middle">E</forename><surname>Peters</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="institution">Allen Institute for Artificial Intelligence</orgName>
+								<address>
+									<settlement>Seattle</settlement>
+									<region>WA</region>
+									<country key="US">USA</country>
+								</address>
+							</affiliation>
+						</author>
+						<author>
+							<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Mark</forename><surname>Neumann</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="institution">Allen Institute for Artificial Intelligence</orgName>
+								<address>
+									<settlement>Seattle</settlement>
+									<region>WA</region>
+									<country key="US">USA</country>
+								</address>
+							</affiliation>
+						</author>
+						<author>
+							<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Luke</forename><surname>Zettlemoyer</surname></persName>
+							<affiliation key="aff1">
+								<orgName type="department">Paul G. Allen Computer Science &amp; Engineering</orgName>
+								<orgName type="institution">University of Washington</orgName>
+							</affiliation>
+						</author>
+						<author>
+							<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Wen-Tau</forename><surname>Yih</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="institution">Allen Institute for Artificial Intelligence</orgName>
+								<address>
+									<settlement>Seattle</settlement>
+									<region>WA</region>
+									<country key="US">USA</country>
+								</address>
+							</affiliation>
+						</author>
+						<title level="a" type="main">Dissecting Contextual Word Embeddings: Architecture and Representation</title>
+					</analytic>
+					<monogr>
+						<title level="m">Proceedings of the 2018 Conference on Empirical Methods in Natural Language Processing</title>
+						<meeting>the 2018 Conference on Empirical Methods in Natural Language Processing <address><addrLine>Brussels, Belgium</addrLine></address>
+						</meeting>
+						<imprint>
+							<publisher>Association for Computational Linguistics</publisher>
+							<biblScope unit="page" from="1499" to="1509"/>
+							<date type="published">October 31-November 4, 2018. 2018</date>
+						</imprint>
+					</monogr>
+					<note>1499</note>
+				</biblStruct>
+			</sourceDesc>
+		</fileDesc>
+		<profileDesc>
+			<abstract>
+				<p>Contextual word representations derived from pre-trained bidirectional language models (biLMs) have recently been shown to provide significant improvements to the state of the art for a wide range of NLP tasks. However , many questions remain as to how and why these models are so effective. In this paper, we present a detailed empirical study of how the choice of neural architecture (e.g. LSTM, CNN, or self attention) influences both end task accuracy and qualitative properties of the representations that are learned. We show there is a tradeoff between speed and accuracy, but all architectures learn high quality con-textual representations that outperform word embeddings for four challenging NLP tasks. Additionally, all architectures learn representations that vary with network depth, from exclusively morphological based at the word embedding layer through local syntax based in the lower contextual layers to longer range semantics such coreference at the upper layers. Together , these results suggest that unsupervised biLMs, independent of architecture, are learning much more about the structure of language than previously appreciated.</p>
+			</abstract>
+		</profileDesc>
+	</teiHeader>
+	<text xml:lang="en">
+		<body>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="1">Introduction</head><p>Contextualized word embeddings ( ) derived from pre-trained bidirectional lan- guage models (biLMs) have been shown to sub- stantially improve performance for many NLP tasks including question answering, entailment and sentiment classification ( , constituency parsing ( <ref type="bibr" target="#b18">Kitaev and Klein, 2018;</ref><ref type="bibr" target="#b13">Joshi et al., 2018)</ref>, named entity recognition <ref type="bibr" target="#b35">(Peters et al., 2017)</ref>, and text classification <ref type="bibr" target="#b12">(Howard and Ruder, 2018)</ref>. Despite large gains (typical rel- ative error reductions range from 10-25%), we do not yet fully understand why or how these models ⇤ These authors contributed equally to this <ref type="bibr">work.</ref> work in practice. In this paper, we take a step to- wards such understanding by empirically studying how the choice of neural architecture (e.g. LSTM, CNN, or self attention) influences both direct end- task accuracies and the types of neural represen- tations that are induced (e.g. how do they encode notions of syntax and semantics).</p><p>Previous work on learning contextual represen- tations has used LSTM-based biLMs, but there is no prior reason to believe this is the best possible architecture. More computationally efficient net- works have been introduced for sequence model- ing including including gated CNNs for language modeling (  and feed forward self-attention based approaches for machine trans- lation (Transformer; <ref type="bibr" target="#b46">Vaswani et al., 2017)</ref>. As RNNs are forced to compress the entire history into a hidden state vector before making predic- tions while CNNs with a large receptive field and the Transformer may directly reference previous tokens, each architecture will represent informa- tion in a different manner.</p><p>Given such differences, we study whether more efficient architectures can also be used to learn high quality contextual vectors. We show em- pirically that all three approaches provide large improvements over traditional word vectors when used in state-of-the-art models across four bench- mark NLP tasks. We do see the expected tradeoff between speed and accuracy between LSTMs and the other alternatives, but the effect is relatively modest and all three networks work well in prac- tice.</p><p>Given this result, it is important to better un- derstand what the different networks learn. In a detailed quantitative evaluation, we probe the learned representations and show that, in every case, they represent a rich hierarchy of contex- tual information throughout the layers of the net- work in an analogous manner to how deep CNNs trained for image classification learn a hierarchy of image features <ref type="bibr" target="#b49">(Zeiler and Fergus, 2014</ref>). For example, we show that in contrast to traditional word vectors which encode some semantic infor- mation, the word embedding layer of deep biLMs focuses exclusively on word morphology. Mov- ing upward in the network, the lowest contextual layers of biLMs focus on local syntax, while the upper layers can be used to induce more semantic content such as within-sentence pronominal coref- erent clusters. We also show that the biLM ac- tivations can be used to form phrase representa- tions useful for syntactic tasks. Together, these re- sults suggest that large scale biLMs, independent of architecture, are learning much more about the structure of language than previous appreciated.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2">Contextual word representations from biLMs</head><p>To learn contextual word representations, we fol- low previous work by first training a biLM on a large text corpus (Sec. 2.1). Then, the internal layer activations from the biLM are transferred to downstream tasks (Sec. 2.3).</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.1">Bidirectional language models</head><p>Given a sequence of N tokens, (t 1 , t 2 , ..., t N ), a biLM combines a forward and backward language model to jointly maximize the log likelihood of both directions:</p><formula xml:id="formula_0">N X k=1 ( log p(t k | t 1 , . . . , t k1 ; ! ⇥ ) + log p(t k | t k+1 , . . . , t N ; ⇥ ) ) ,</formula><p>where ! ⇥ and ⇥ are the parameters of the forward and backward LMs respectively.</p><p>To compute the probability of the next token, state-of-the-art neural LMs first produce a context- insensitive token representation or word embed- ding, x k , (with either an embedding lookup or in our case a character aware encoder, see below). Then, they compute L layers of context-dependent representations ! h k,i where i 2 [1, L] using a RNN, CNN or feed forward network (see Sec. 3). The top layer output ! h k,L is used to predict the next token using a Softmax layer. The backward LM operates in an analogous manner to the for- ward LM. Finally, we can concatenate the forward and backward states to form L layers of contex- tual representations, or context vectors, at each to-</p><formula xml:id="formula_1">ken position: h k,i = [ ! h k,i ; h k,i ].</formula><p>When training, we tie the weights of the word embedding layers and Softmax in each direction but maintain sepa- rate weights for the contextual layers.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.2">Character based language models</head><p>Fully character aware models ( <ref type="bibr" target="#b17">Kim et al., 2015</ref>) are considerably more parameter efficient then word based models but more computationally expensive then word embedding based methods when training. During inference, these differences can be largely eliminated by pre-computing em- beddings for a large vocabulary and only falling back to the full character based method for rare words. Overall, for a large English language news benchmark, character aware models have slightly better perplexities then word based ones, although the differences tend to be small <ref type="bibr">(Józefowicz et al., 2016)</ref>.</p><p>Similar to <ref type="bibr" target="#b17">Kim et al. (2015)</ref>, our character-to- word encoder is a five-layer sub-module that first embeds single characters with an embedding layer then passes them through 2048 character n-gram CNN filters with max pooling, two highway lay- ers ( <ref type="bibr" target="#b43">Srivastava et al., 2015)</ref>, and a linear projection down to the model dimension.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.3">Deep contextual word representations</head><p>After pre-training on a large data set, the internal representations from the biLM can be transferred to a downstream model of interest as contextual word representations. To effectively use all of the biLM layers,  introduced ELMo word representations, whereby all of the layers are combined with a weighted average pooling oper- ation, ELMo k = P L j=0 s j h k,j . The parameters s are optimized as part of the task model so that it may preferentially mix different types of contex- tual information represented in different layers of the biLM. In Sec. 4 we evaluate the relative ef- fectiveness of ELMo representations from three different biLM architectures vs. pre-trained word vectors in four different state-of-the-art models.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3">Architectures for deep biLMs</head><p>The primary design choice when training deep biLMs for learning context vectors is the choice of the architecture for the contextual layers. How- ever, it is unknown if the architecture choice is im- portant for the quality of learned representations.</p><p>To study this question, we consider two alterna-  <ref type="table" target="#tab_1">Table 1</ref>: Characteristics of the different biLMs in this study. For each model, the table shows the number of layers used for the contextual representations, the averaged forward and backward perplexities on the 1 Billion Word Benchmark, the number of parameters (in millions, excluding softmax) and the inference speed (in milliseconds with a Titan X GPU, for sentences with 20 tokens, excluding softmax). For the number of parameters and inference speeds we list both the values for just the contextual layers and all layers needed to compute context vectors.</p><p>tives to LSTMs as described below. See the ap- pendix for the hyperparameter details.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.1">LSTM</head><p>Among the RNN variants, LSTMs have been shown to provide state-of-the-art performance for several benchmark language modeling tasks <ref type="bibr" target="#b14">(Józefowicz et al., 2016;</ref><ref type="bibr" target="#b30">Merity et al., 2018;</ref><ref type="bibr" target="#b29">Melis et al., 2018</ref>). In particular, the LSTM with pro- jection introduced by <ref type="bibr" target="#b40">Sak et al. (2014)</ref> allows the model to use a large hidden state while reducing the total number of parameters.This is the archi- tecture adopted by  for com- puting ELMo representations. In addition to the pre-trained 2-layer biLM from that work, 1 we also trained a deeper 4-layer model to examine the im- pact of depth using the publicly available training code. <ref type="bibr">2</ref> To reduce the training time for this large 4-layer model, we reduced the number of parame- ters in the character encoder by first projecting the character CNN filters down to the model dimen- sion before the two highway layers.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.2">Transformer</head><p>The Transformer, introduced by <ref type="bibr" target="#b46">Vaswani et al. (2017)</ref>, is a feed forward self-attention based ar- chitecture. In addition to machine translation, it has also provided strong results for Penn Treebank constituency parsing <ref type="bibr" target="#b18">(Kitaev and Klein, 2018)</ref> and semantic role labeling ( <ref type="bibr" target="#b45">Tan et al., 2018)</ref>. Each identical layer in the encoder first computes a multi-headed attention between a given token and all other tokens in the history, then runs a position wise feed forward network.</p><p>To adapt the Transformer for bidirectional lan- guage modeling, we modified a PyTorch based 1 http://allennlp.org/elmo 2 https://github.com/allenai/bilm-tf re-implementation ( <ref type="bibr" target="#b19">Klein et al., 2017)</ref>  <ref type="bibr">3</ref> to mask out future tokens for the forward language model and previous tokens for the backward language model, in a similar manner to the decoder mask- ing in the original implementation. We adopted hyper-parameters from the "base" configuration in <ref type="bibr" target="#b46">Vaswani et al. (2017)</ref>, providing six layers of 512 dimensional representations for each direction.</p><p>Concurrent with our work, Radford et al. (2018) trained a large forward Transformer LM and fine tuned it for a variety of NLP tasks.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.3">Gated CNN</head><p>Convolutional architectures have also been shown to provide competitive results for sequence mod- eling including sequence-to-sequence machine translation ( <ref type="bibr" target="#b8">Gehring et al., 2017)</ref>.  showed that architectures using Gated Lin- ear Units (GLU) that compute hidden representa- tions as the element wise product of a convolution and sigmoid gate provide perplexities comparable to large LSTMs on large scale language modeling tasks.</p><p>To adapt the Gated CNN for bidirectional lan- guage modeling, we closely followed the publicly available ConvSeq2Seq implementation, 4 modi- fied to support causal convolutions (van den Oord et al., 2016) for both the forward and backward di- rections. In order to model a wide receptive field at the top layer, we used a 16-layer deep model, where each layer is a [4, 512] residual block.  The Transformer and CNN based models are faster than the LSTM based ones for our hyper- parameter choices, with speed ups of 3-5X for the contextual layers over the 2-layer LSTM model. <ref type="bibr">5</ref> Speed ups are relatively faster in the single ele- ment batch scenario where the sequential LSTM is most disadvantaged, but are still 2.3-3X for a 64 sentence batch. As the inference speed for the character based word embeddings could be mostly eliminated in a production setting, the table lists timings for both the contextual layers and all lay- ers of the biLM necessary to compute context vec- tors. We also note that the faster architectures will allow training to scale to large unlabeled corpora, which has been shown to improve the quality of biLM representations for syntactic tasks <ref type="bibr" target="#b50">(Zhang and Bowman, 2018</ref>).</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.4">Pre-trained biLMs</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4">Evaluation as word representations</head><p>In this section, we evaluate the quality of the pre-trained biLM representations as ELMo-like contextual word vectors in state-of-the-art mod-els across a suite of four benchmark NLP tasks. To do so, we ran a series of controlled trials by swapping out pre-trained GloVe vectors <ref type="bibr" target="#b34">(Pennington et al., 2014</ref>) for contextualized word vectors from each biLM computed by applying the learned weighted average ELMo pooling from . <ref type="bibr">6</ref> Each task model only includes one type of pre-trained word representation, either GloVe or ELMo-like, this is a direct test of the transfer- ability of the word representations. In addition, to isolate the general purpose LM representations from any task specific supervision, we did not fine tune the LM weights. <ref type="table" target="#tab_2">Table 2</ref> shows the results. Across all tasks, the LSTM architectures perform the best. All ar- chitectures improve significantly over the GloVe only baseline, with relative improvements of 13% -25% for most tasks and architectures. The gains for MultiNLI are more modest, with relative im- provements over GloVe ranging from 6% for the Gated CNN to 13% for the 4-layer LSTM. The re- mainder of this section provides a description of the individual tasks and models with details in the Appendix.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.1">MultiNLI</head><p>The MultiNLI dataset (Williams et al., 2018) con- tains crowd sourced textual entailment annotations across five diverse domains for training and an ad- ditional five domains for testing. Our model is a re-implementation of the ESIM sequence model <ref type="bibr" target="#b3">(Chen et al., 2017)</ref>. It first uses a biLSTM to encode the premise and hypothesis, then com- putes an attention matrix followed by a local in- ference layer, another biLSTM inference compo- sition layer, and finally a pooling operation before the output layer. With the 2-layer LSTM ELMo representations, it is state-of-the-art for SNLI ). As shown in <ref type="table" target="#tab_2">Table 2</ref>, the LSTMs perform the best, with the Transformer accura- cies 0.2% / 0.6% (matched/mismatched) less then the 2-layer LSTM. In addition, the contextual rep- resentations reduce the matched/mismatched per- formance differences showing that the biLMs can help mitigate domain effects. The ESIM model with the 4-layer LSTM ELMo-like embeddings sets a new state-of-the-art for this task, exceeding the highest previously published result by 1.3% matched and 1.9% mismatched from <ref type="bibr" target="#b9">Gong et al. (2018)</ref>.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.2">Semantic Role Labeling</head><p>The Ontonotes 5.0 Dataset (Pradhan et al., 2013) contains predicate argument annotations for a va- riety of types of text, including conversation logs, web data, and biblical extracts. For our model, we use the deep biLSTM from  who modeled SRL as a BIO tagging task. With ELMo representations, it is state-of-the-art for this task ( . For this task, the LSTM based word representations perform the best, with abso- lute improvements of 0.6% of the 4-layer LSTM over the Transformer and CNN.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.3">Constituency parsing</head><p>The Penn Treebank ( <ref type="bibr" target="#b27">Marcus et al., 1993</ref>) contains phrase structure annotation for approximately 40k sentences sourced from the Wall Street Journal. Our model is the Reconciled Span Parser (RSP; <ref type="bibr" target="#b13">Joshi et al., 2018)</ref>, which, using ELMo representa- tions, achieved state of the art performance for this task. As shown in <ref type="table" target="#tab_2">Table 2</ref>, the LSTM based mod- els demonstrate the best performance with a 0.2% and 1.0% improvement over the Transformer and CNN models, respectively. Whether the explicit recurrence structure modeled with the biLSTM in the RSP is important for parsing is explored in Sec. 5.3.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.4">Named entity recognition</head><p>The CoNLL 2003 NER task (Sang and Meul- der, 2003) provides entity annotations for approx- imately 20K sentences from the Reuters RCV1 news corpus. Our model is a re-implementation of the state-of-the-art system in  with a character based CNN word representation, two biLSTM layers and a conditional random field (CRF) loss ( <ref type="bibr" target="#b21">Lafferty et al., 2001</ref>). For this task, the 2-layer LSTM performs the best, with averaged F 1 0.4% -0.8% higher then the other biLMs averaged across five random seeds. </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5">Properties of contextual vectors</head><p>In this section, we examine the intrinsic properties of contextual vectors learned with biLMs, focus- ing on those that are independent of the architec- ture details. In particular, we seek to understand how familiar types of linguistic information such as syntactic or coreferent relationships are repre- sented throughout the depth of the network. Our experiments show that deep biLMs learn represen- tations that vary with network depth, from mor- phology in the word embedding layer, to local syn- tax in the lowest contextual layers, to semantic re- lationships such as coreference in the upper layers.</p><p>We gain intuition and motivate our analysis by first considering the inter-sentence contextual sim- ilarity of words and phrases (Sec. 5.1). Then, we show that, in contrast to traditional word vectors, the biLM word embeddings capture little semantic information (Sec. 5.2) that is instead represented in the contextual layers (Sec. 5.3). Our analy- sis moves beyond single tokens by showing that a simple span representation based on the context vectors captures elements of phrasal syntax.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.1">Contextual similarity</head><p>Nearest neighbors using cosine similarity are a popular way to visualize the relationships encoded in word vectors and we can apply a similar method to context vectors. As the biLMs use context vec- tors to pass information between layers in the net- work, this allows us to visualize how information is represented throughout the network.</p><p>Intra-sentence similarity <ref type="figure" target="#fig_0">Fig. 1</ref> shows the intra-sentence contextual similarity between all pairs of words in single sentence using the 4- layer LSTM. 7 From the figure, we make several observations. First, the lower layer (left) cap- tures mostly local information, while the top layer (right) represents longer range relationships. Sec- ond, at the lowest layer the biLM tends to place words from the same syntactic constituents in sim- ilar parts of the vector space. For example, the words in the noun phrase "the new international space station" are clustered together, similar to "can not" and "The Russian government".</p><p>In addition, we can see how the biLM is implic- itly learning other linguistic information in the up- per layer. For example, all of the verbs ("says", "can", "afford", "maintain", "meet") have high similarity suggesting the biLM is capturing part- of-speech information. We can also see some hints that the model is implicitly learning to per- form coreference resolution by considering the high contextual similarity of "it" to "government", the head of "it"s antecedent span. Section 5.3 pro- vides empirical support for these observations.</p><p>Span representations The observation that the biLM's context vectors abruptly change at syntac- tic boundaries suggests we can also use them to form representations of spans, or consecutive to- ken sequences. To do so, given a span of S tokens from indices s 0 to s 1 , we compute a span repre- sentation s (s 0 ,s 1 ),i at layer i by concatenating the first and last context vectors with the element wise product and difference of the first and last vectors:</p><formula xml:id="formula_2">s (s 0 ,s 1 ),i = [h s 0 ,i ; h s 1 ,i ; h s 0 ,i h s 1 ,i ; h s 0 ,i h s 1 ,i ].</formula><p>Figure 2 shows a t-SNE <ref type="bibr" target="#b26">(Maaten and Hinton, 2008</ref>) visualization of span representations of 3,000 labeled chunks and 500 spans not labeled as chunks from the CoNLL 2000 chunking dataset <ref type="bibr" target="#b41">(Sang and Buchholz, 2000</ref>), from the first layer of the 4-layer LSTM. As we can see, the spans are clustered by chunk type confirming our intuition that the span representations capture elements of syntax. Sec. 5.3 evaluates whether we can use these span representations for constituency pars- ing.</p><p>Unsupervised pronominal coref We hypothe- size that the contextual similarity of coreferential mentions should be similar, as in many cases it is possible to replace them with their referent. If true, we should be able to use contextual simi- larity to perform unsupervised coreference reso-   lution. To test this, we designed an experiment as follows. To rule out trivially high mention- mention similarities due to lexical overlap, we re- stricted to pronominal coreference resolution. We took all sentences from the development set of the OntoNotes annotations in the CoNLL 2012 shared task ( <ref type="bibr" target="#b38">Pradhan et al., 2012</ref>) that had a third-person personal pronoun 8 and antecedent in the same sen- tence (904 sentences), and tested whether a sys- tem could identify the head word of the antecedent span given the pronoun location. In addition, by restricting to pronouns, systems are forced to rely on context to form their representation of the pro- noun, as the surface form of the pronoun is unin- formative. As an upper bound on performance, the state-of-the-art coreference model from   <ref type="bibr">9</ref> finds an antecedent span with the head word 64% of the time. As a lower bound on per- formance, a simple baseline that chooses the clos- est noun occurring before the pronoun has an ac- 8 he, him, she, her, it, them, they 9 http://allennlp.org/models curacy of 27%, and one that chooses the first noun in the sentence has an accuracy of 35%. If we add an additional rule and further restrict to antecedent nouns matching the pronoun in number, the accu- racies increase to 41% and 47% respectively.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Representation Syntactic Semantic</head><p>To use contextual representations to solve this task, we first compute the mean context vector of the smallest constituent with more then one word containing the pronoun and subtract it from the pronoun's context vector. This step is motivated by the above observation that local syntax is the dominant signal in the contextualized word vec- tors, and removing it improves the accuracies of our method. Then, we choose the noun with the highest contextual similarity to the adjusted con- text vector that occurs before the pronoun and matches it in number.</p><p>The right hand column of <ref type="figure" target="#fig_2">Fig. 3</ref> shows the re- sults for all layers of the biLMs. Accuracies for the models peak between 52% and 57%, well above the baseline, with the Transformer overall hav- ing the highest accuracy. Interestingly, accuracies only drop 2-3% compared to 12-14% in the base- line if we remove the assumption of number agree- ment and simply consider all nouns, highlighting that the biLMs are to a large extent capturing num- ber agreement across coreferent clusters. Finally, accuracies are highest at layers near the top of each model, showing that the upper layer representa- tions are better at capturing longer range corefer- ent relationships then lower layers.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.2">Context independent word representation</head><p>The word analogy task introduced in <ref type="bibr" target="#b31">Mikolov et al. (2013)</ref> are commonly used as intrinsic evalu- ations of word vectors. Here, we use them to com- pare the word embedding layer from the biLMs to word vectors. The task has two types of analo- gies: syntactic with examples such as "bird:birds :: goat:goats", and semantic with examples such as "Athens:Greece :: Oslo:Norway". Traditional word vectors score highly on both sections. How- ever, as shown in <ref type="table" target="#tab_4">Table 3</ref>, the word embedding layer x k from the biLMs is markedly different with syntactic accuracies on par or better then GloVe, but with very low semantic accuracies. To further highlight this distinction, we also com- puted a purely orthographically based word vec- tor by hashing all character 1, 2, and 3-grams in a word into a sparse 300 dimensional vector. As expected, vectors from this method had near zero accuracy in the semantic portion, but scored well on the syntactic portion, showing that most of these analogies can be answered with morphology alone. As a result, we conclude that the word rep- resentation layer in deep biLMs is only faithfully encoding morphology with little semantics.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.3">Probing contextual information</head><p>In this section, we quantify some of the anecdo- tal observations made in Sec. 5.1. To do so, we adopt a series of linear probes ( <ref type="bibr" target="#b0">Belinkov et al., 2017</ref>) with two NLP tasks to test the contextual representations in each model layer for each biLM architecture. In addition to examining single to- kens, we also depart from previous work by exam- ining to what extent the span representations cap- ture phrasal syntax.</p><p>Our results show that all biLM architectures learn syntax, including span-based syntax; and part-of-speech information is captured at lower layers then constituent structure. When combined with the coreference accuracies in Sec. 5.1 that peak at even higher layers, this supports our claim that deep biLMs learn a hierarchy of contextual information.</p><p>POS tagging  showed that the contextual vectors from the first layer of the 2- layer LSTM plus a linear classifier was near state- of-the-art for part-of-speech tagging. Here, we test whether this result holds for the other archi- tectures. The second row of <ref type="figure" target="#fig_2">Fig. 3</ref> shows tagging accuracies for all layers of the biLMs evaluated with the Wall Street Journal portion of Penn Tree- bank ( <ref type="bibr" target="#b27">Marcus et al., 1993)</ref>. Accuracies for all of the models are high, ranging from 97.2 to 97.4, and follow a similar trend with maximum values at lower layers (bottom layer for LSTM, second layer for Transformer, and third layer for CNN).</p><p>Constituency parsing Here, we test whether the span representations introduced in Sec. 5.1 capture enough information to model constituent struc- ture. Our linear model is a very simple and in- dependently predicts the constituent type for all possible spans in a sentence using a linear clas- sifier and the span representation. Then, a valid tree is built with a greedy decoding step that rec- onciles overlapping spans with an ILP, similar to <ref type="bibr" target="#b13">Joshi et al. (2018)</ref>.</p><p>The third row in <ref type="figure" target="#fig_2">Fig. 3</ref> shows the results. Re- markably, predicting spans independently using the biLM representations alone has F 1 of near 80% for the best layers from each model. For compari- son, a linear model using GloVe vectors performs very poorly, with F 1 of 18.1%. Across all architec- tures, the layers best suited for constituency pars- ing are at or above the layers with maximum POS accuracies as modeling phrasal syntactic structure requires a wider context then token level syntax. Similarity, the layers most transferable to parsing are at or below the layers with maximum pronom- inal coreference accuracy in all models, as con- stituent structure tends to be more local than coref- erence ( <ref type="bibr" target="#b20">Kuncoro et al., 2017)</ref>. <ref type="figure" target="#fig_3">Fig. 4</ref> plots the softmax-normalized layer weights s from each biLM, learned as part of the tasks in Sec. 4. The SRL model weights are omitted as they close to constant since we had to regularize them to stabilize training. For constituency pars- ing, s mirrors the layer wise linear parsing results, with the largest weights near or at the same lay- ers as maximum linear parsing. For both NER and MultiNLI, the Transformer focuses heavily on the word embedding layer, x k , and the first contextual layer. In all cases, the maximum layer weights occur below the top layers as the most transfer- able contextual representations tend to occur in the middle layers, while the top layers specialize for language modeling.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.4">Learned layer weights</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6">Related work</head><p>In addition to biLM-based representations, <ref type="bibr" target="#b28">McCann et al. (2017)</ref> learned contextualized vectors with a neural machine translation system (CoVe). However, as  showed the biLM based representations outperformed CoVe in all considered tasks, we focus exclusively on biLMs.  proposed using densely con- nected RNNs and layer pruning to speed up the use of context vectors for prediction. As their method is applicable to other architectures, it could also be combined with our approach.</p><p>Several prior studies have examined the learned representations in RNNs. <ref type="bibr" target="#b15">Karpathy et al. (2015)</ref> trained a character LSTM language model on source code and showed that individual neurons in the hidden state track the beginning and end of code blocks. <ref type="bibr" target="#b24">Linzen et al. (2016)</ref> assessed whether RNNs can learn number agreement in subject-verb dependencies. Our analysis in Sec. 5.1 showed that biLMs also learn number agreement for coref- erence. <ref type="bibr">Kádár et al. (2017)</ref> attributed the activa- tion patters of RNNs to input tokens and showed that a RNN language model is strongly sensitive to tokens with syntactic functions. <ref type="bibr" target="#b0">Belinkov et al. (2017)</ref> used linear classifiers to determine whether neural machine translation systems learned mor- phology and POS tags. Concurrent with our work, <ref type="bibr" target="#b16">Khandelwal et al. (2018)</ref> studied the role of context in influencing language model predic- tions, <ref type="bibr" target="#b6">Gaddy et al. (2018)</ref> analyzed neural con- stituency parsers, <ref type="bibr" target="#b1">Blevins et al. (2018)</ref> explored whether RNNs trained with several different ob- jectives can learn hierarchical syntax, and <ref type="bibr" target="#b4">Conneau et al. (2018)</ref> examined to what extent sen- tence representations capture linguistic features. Our intrinsic analysis is most similar to <ref type="bibr" target="#b0">Belinkov et al. (2017)</ref>; however, we probe span represen- tations in addition to word representations, evalu- ate the transferability of the biLM representations to semantic tasks in addition to syntax tasks, and consider a wider variety of neural architectures in addition to RNNs.</p><p>Other work has focused on attributing network predictions. <ref type="bibr" target="#b23">Li et al. (2016)</ref> examined the impact of erasing portions of a network's representations on the output, <ref type="bibr" target="#b44">Sundararajan et al. (2017)</ref> used a gradient based method to attribute predictions to inputs, and <ref type="bibr" target="#b32">Murdoch et al. (2018)</ref> decomposed LSTMs to interpret classification predictions. In contrast to these approaches, we explore the types of contextual information encoded in the biLM in- ternal states instead of focusing on attributing this information to words in the input sentence.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="7">Conclusions and future work</head><p>We have shown that deep biLMs learn a rich hier- archy of contextual information, both at the word and span level, and that this is captured in three disparate types of network architectures. Across all architecture types, the lower biLM layers spe- cialize in local syntactic relationships, allowing the higher layers to model longer range relation- ships such as coreference, and to specialize for the language modeling task at the top most lay- ers. These results highlight the rich nature of the linguistic information captured in the biLM's rep- resentations and show that biLMs act as a gen- eral purpose feature extractor for natural language, opening the way for computer vision style feature re-use and transfer methods.</p><p>Our results also suggest avenues for future work. One open question is to what extent can the quality of biLM representations be improved by simply scaling up model size or data size? As our results have show that computationally effi- cient architectures also learn high quality repre- sentations, one natural direction would be explor- ing the very large model and data regime.</p><p>Despite their successes biLM representations are far from perfect; during training, they have access to only surface forms of words and their order, meaning deeper linguistic phenomena must be learned "tabula rasa". Infusing models with explicit syntactic structure or other linguistically motivated inductive biases may overcome some of the limitations of sequential biLMs. An alter- nate direction for future work combines the purely unsupervised biLM training objective with exist- ing annotated resources in a multitask or semi- supervised manner.</p></div><figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_0"><head>Figure 1 :</head><label>1</label><figDesc>Figure 1: Visualization of contextual similarity between all word pairs in a single sentence using the 4-layer LSTM. The left panel uses context vectors from the bottom LSTM layer while the right panel uses the top LSTM layer. Lighter yellow-colored areas have higher contextual similarity.</figDesc><graphic url="image-1.png" coords="5,110.88,99.48,185.89,185.89" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_1"><head>Figure 2 :</head><label>2</label><figDesc>Figure 2: t-SNE visualization of 3K random chunks and 500 unlabeled spans ("NULL") from the CoNLL 2000 chunking dataset.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_2"><head>Figure 3 :</head><label>3</label><figDesc>Figure 3: Various methods of probing the information stored in context vectors of deep biLMs. Each panel shows the results for all layers from a single biLM, with the first layer of contextual representations at the bottom and last layer at the top. From top to bottom, the figure shows results from the 4-layer LSTM, the Transformer and Gated CNN models. From left to right, the figure shows linear POS tagging accuracy (%; Sec. 5.3), linear constituency parsing (F 1 ; Sec. 5.3), and unsupervised pronominal coreference accuracy (%; Sec. 5.1).</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_3"><head>Figure 4 :</head><label>4</label><figDesc>Figure 4: Normalized layer weights s for the tasks in Sec. 4. The vertical axis indexes the layer in the biLM, with layer 0 the word embedding x k .</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_1" validated="false"><head>Table 1 compares</head><label>1</label><figDesc>the biLMs used in the remain- der of this study. All models were trained on the 1</figDesc><table>Architecture 
+MultiNLI 
+SRL 
+Constituency 
+Parsing 
+NER 
+
+GloVe 
+77.0 / 76.0 
+81.4 
+91.8 
+89.9 ± 0.35 
+LSTM 2-layer 
+79.6 / 79.3 
+84.6 
+93.9 
+91.7 ± 0.26 
+LSTM 4-layer 
+80.1 / 79.7 
+84.7 
+93.9 
+91.5 ± 0.12 
+Transformer 
+79.4 / 78.7 
+84.1 
+93.7 
+91.1 ± 0.26 
+Gated CNN 
+78.3 / 77.9 
+84.1 
+92.9 
+91.2 ± 0.14 
+
+</table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_2" validated="false"><head>Table 2 :</head><label>2</label><figDesc></figDesc><table>Test set performance comparison using different pre-trained biLM architectures. The performance metric 
+is accuracy for MultiNLI and F 1 score for the other tasks. For MultiNLI, the table shows accuracy on both the 
+matched and mismatched portions of the test set. 
+
+Billion Word Benchmark (Chelba et al., 2014) us-
+ing a sampled softmax with 8192 negative samples 
+per batch. Overall, the averaged forward and back-
+ward perplexities are comparable across the mod-
+els with values ranging from 37.5 for the 4-layer 
+LSTM to 44.5 for the Gated CNN. To our knowl-
+edge, this is the first time that the Transformer has 
+been shown to provide competitive results for lan-
+guage modeling. While it is possible to reduce 
+perplexities for all models by scaling up, our goal 
+is to compare representations across architectures 
+for biLMs of approximately equal skill, as mea-
+sured by perplexity. 
+</table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_4" validated="false"><head>Table 3 :</head><label>3</label><figDesc></figDesc><table>Accuracy (%) for word vector analogies. 
+In addition to the 300 dimension 840B GloVe vectors, 
+the table contains results from a character n-gram hash 
+and the context insensitive word embedding layer (x k ) 
+from the biLMs. 
+
+</table></figure>
+
+			<note place="foot" n="3"> http://nlp.seas.harvard.edu/2018/04/ 03/attention.html 4 https://github.com/pytorch/fairseq</note>
+
+			<note place="foot" n="5"> While the CNN and Transformer implementations are reasonably well optimized, the LSTM biLM is not as it does not use an optimized CUDA kernel due to the use of the projection cell.</note>
+
+			<note place="foot" n="6"> Generally speaking, we found adding pre-trained GloVe vectors in addition to the biLM representations provided a small improvement across the tasks.</note>
+
+			<note place="foot" n="7"> See appendix for visualizations of the other models.</note>
+		</body>
+		<back>
+			<div type="references">
+
+				<listBibl>
+
+<biblStruct xml:id="b0">
+	<analytic>
+		<title level="a" type="main">What do neural machine translation models learn about morphology?</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yonatan</forename><surname>Belinkov</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Nadir</forename><surname>Durrani</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Fahim</forename><surname>Dalvi</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Hassan</forename><surname>Sajjad</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">James</forename><forename type="middle">R</forename><surname>Glass</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">ACL</title>
+		<imprint>
+			<date type="published" when="2017" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b1">
+	<analytic>
+		<title level="a" type="main">Deep RNNs Encode Soft Hierarchical Syntax</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">T</forename><surname>Blevins</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">O</forename><surname>Levy</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">L</forename><surname>Zettlemoyer</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">ACL</title>
+		<imprint>
+			<date type="published" when="2018" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b2">
+	<analytic>
+		<title level="a" type="main">One billion word benchmark for measuring progress in statistical language modeling</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ciprian</forename><surname>Chelba</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Tomas</forename><surname>Mikolov</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Mike</forename><surname>Schuster</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Qi</forename><surname>Ge</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">INTERSPEECH</title>
+		<imprint>
+			<date type="published" when="2014" />
+		</imprint>
+	</monogr>
+	<note>Thorsten Brants, Phillipp Koehn, and Tony Robinson</note>
+</biblStruct>
+
+<biblStruct xml:id="b3">
+	<analytic>
+		<title level="a" type="main">Enhanced lstm for natural language inference</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Qian</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Xiao-Dan</forename><surname>Zhu</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Zhen-Hua</forename><surname>Ling</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Si</forename><surname>Wei</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Hui</forename><surname>Jiang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Diana</forename><surname>Inkpen</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">ACL</title>
+		<imprint>
+			<date type="published" when="2017" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b4">
+	<analytic>
+		<title level="a" type="main">What you can cram into a single vector: Probing sentence embeddings for linguistic properties</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Alexis</forename><surname>Conneau</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">German</forename><surname>Kruszewski</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Guillaume</forename><surname>Lample</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Lo¨ıclo¨ıc</forename><surname>Barrault</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Marco</forename><surname>Baroni</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">ACL</title>
+		<imprint>
+			<date type="published" when="2018" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b5">
+	<analytic>
+		<title level="a" type="main">Language modeling with gated convolutional networks</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yann</forename><surname>Dauphin</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Angela</forename><surname>Fan</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Michael</forename><surname>Auli</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">David</forename><surname>Grangier</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">ICML</title>
+		<imprint>
+			<date type="published" when="2017" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b6">
+	<analytic>
+		<title level="a" type="main">What&apos;s going on in neural constituency parsers? An analysis</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">David</forename><surname>Gaddy</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Mitchell</forename><surname>Stern</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Dan</forename><surname>Klein</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">NAACL</title>
+		<imprint>
+			<date type="published" when="2018" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b7">
+	<analytic>
+		<title level="a" type="main">AllenNLP: A deep semantic natural language processing platform</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Matt</forename><surname>Gardner</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Joel</forename><surname>Grus</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Mark</forename><surname>Neumann</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Oyvind</forename><surname>Tafjord</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Pradeep</forename><surname>Dasigi</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Nelson</forename><forename type="middle">F</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Matthew</forename><surname>Peters</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Michael</forename><surname>Schmitz</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Luke</forename><forename type="middle">S</forename><surname>Zettlemoyer</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">ACL workshop for NLP Open Source Software</title>
+		<imprint>
+			<date type="published" when="2018" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b8">
+	<analytic>
+		<title level="a" type="main">Convolutional sequence to sequence learning</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jonas</forename><surname>Gehring</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Michael</forename><surname>Auli</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">David</forename><surname>Grangier</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Denis</forename><surname>Yarats</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yann</forename><surname>Dauphin</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">ICML</title>
+		<imprint>
+			<date type="published" when="2017" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b9">
+	<analytic>
+		<title level="a" type="main">Natural language inference over interaction space</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yichen</forename><surname>Gong</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Heng</forename><surname>Luo</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jian</forename><surname>Zhang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">ICLR</title>
+		<imprint>
+			<date type="published" when="2018" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b10">
+	<analytic>
+		<title level="a" type="main">Deep residual learning for image recognition</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kaiming</forename><surname>He</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Xiangyu</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Shaoqing</forename><surname>Ren</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jian</forename><surname>Sun</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">CVPR</title>
+		<imprint>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b11">
+	<analytic>
+		<title level="a" type="main">Deep semantic role labeling: What works and what&apos;s next</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Luheng</forename><surname>He</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kenton</forename><surname>Lee</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Mike</forename><surname>Lewis</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Luke</forename><forename type="middle">S</forename><surname>Zettlemoyer</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">ACL</title>
+		<imprint>
+			<date type="published" when="2017" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b12">
+	<analytic>
+		<title level="a" type="main">Universal language model fine-tuning for text classification</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jeremy</forename><surname>Howard</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Sebastian</forename><surname>Ruder</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">ACL</title>
+		<imprint>
+			<date type="published" when="2018" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b13">
+	<analytic>
+		<title level="a" type="main">Extending a parser to distant domains using a few dozen partially annotated examples</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Vidur</forename><surname>Joshi</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Matthew</forename><surname>Peters</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Mark</forename><surname>Hopkins</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">ACL</title>
+		<imprint>
+			<date type="published" when="2018" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b14">
+	<analytic>
+		<title level="a" type="main">Exploring the limits of language modeling. arXiv, abs/1602.02410. ´ Akos Kádár, Grzegorz Chrupala, and Afra Alishahi. 2017. Representation of linguistic form and function in recurrent neural networks</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Rafal</forename><surname>Józefowicz</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Oriol</forename><surname>Vinyals</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Mike</forename><surname>Schuster</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Noam</forename><surname>Shazeer</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yonghui</forename><surname>Wu</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Computational Linguistics</title>
+		<imprint>
+			<biblScope unit="volume">43</biblScope>
+			<biblScope unit="page" from="761" to="780" />
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b15">
+	<analytic>
+		<title level="a" type="main">Visualizing and understanding recurrent networks</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Andrej</forename><surname>Karpathy</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Justin</forename><surname>Johnson</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Li</forename><surname>Fei-Fei</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">ICLR workshop</title>
+		<imprint>
+			<date type="published" when="2015" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b16">
+	<analytic>
+		<title level="a" type="main">Sharp nearby, fuzzy far away: How neural language models use context</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Urvashi</forename><surname>Khandelwal</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">He</forename><surname>He</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Peng</forename><surname>Qi</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Dan</forename><surname>Jurafsky</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">ACL</title>
+		<imprint>
+			<date type="published" when="2018" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b17">
+	<analytic>
+		<title level="a" type="main">Character-aware neural language models</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yoon</forename><surname>Kim</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yacine</forename><surname>Jernite</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">David</forename><surname>Sontag</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Alexander M</forename><surname>Rush</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">AAAI</title>
+		<imprint>
+			<date type="published" when="2015" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b18">
+	<analytic>
+		<title level="a" type="main">Constituency parsing with a self-attentive encoder</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Nikita</forename><surname>Kitaev</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Dan</forename><surname>Klein</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">ACL</title>
+		<imprint>
+			<date type="published" when="2018" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b19">
+	<analytic>
+		<title level="a" type="main">OpenNMT: Open-source toolkit for neural machine translation</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Guillaume</forename><surname>Klein</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yoon</forename><surname>Kim</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yuntian</forename><surname>Deng</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jean</forename><surname>Senellart</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Alexander</forename><forename type="middle">M</forename><surname>Rush</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">ACL</title>
+		<imprint>
+			<date type="published" when="2017" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b20">
+	<analytic>
+		<title level="a" type="main">What do recurrent neural network grammars learn about syntax</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Adhiguna</forename><surname>Kuncoro</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Miguel</forename><surname>Ballesteros</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Lingpeng</forename><surname>Kong</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Chris</forename><surname>Dyer</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Graham</forename><surname>Neubig</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Noah</forename><forename type="middle">A</forename><surname>Smith</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">EACL</title>
+		<imprint>
+			<date type="published" when="2017" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b21">
+	<analytic>
+		<title level="a" type="main">Conditional random fields: Probabilistic models for segmenting and labeling sequence data</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">John</forename><forename type="middle">D</forename><surname>Lafferty</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Andrew</forename><surname>Mccallum</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Fernando</forename><surname>Pereira</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">ICML</title>
+		<imprint>
+			<date type="published" when="2001" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b22">
+	<analytic>
+		<title level="a" type="main">End-to-end neural coreference resolution</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kenton</forename><surname>Lee</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Luheng</forename><surname>He</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Mike</forename><surname>Lewis</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Luke</forename><forename type="middle">S</forename><surname>Zettlemoyer</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">EMNLP</title>
+		<imprint>
+			<date type="published" when="2017" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b23">
+	<monogr>
+				<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jiwei</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Will</forename><surname>Monroe</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Daniel</forename><surname>Jurafsky</surname></persName>
+		</author>
+		<idno>abs/1612.08220</idno>
+		<title level="m">Understanding neural networks through representation erasure. arXiv</title>
+		<imprint>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b24">
+	<analytic>
+		<title level="a" type="main">Assessing the ability of LSTMs to learn syntax-sensitive dependencies</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Tal</forename><surname>Linzen</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Emmanuel</forename><surname>Dupoux</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yoav</forename><surname>Goldberg</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">TACL</title>
+		<imprint>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b25">
+	<analytic>
+		<title level="a" type="main">Efficient contextualized representation: Language model pruning for sequence labeling</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Liyuan</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Xiang</forename><surname>Ren</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jingbo</forename><surname>Shang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jian</forename><surname>Peng</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jiawei</forename><surname>Han</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">EMNLP</title>
+		<imprint>
+			<date type="published" when="2018" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b26">
+	<analytic>
+		<title level="a" type="main">Visualizing data using t-sne</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Laurens</forename><surname>Van Der Maaten</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Geoffrey</forename><surname>Hinton</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Journal of machine learning research</title>
+		<imprint>
+			<biblScope unit="volume">9</biblScope>
+			<biblScope unit="page" from="2579" to="2605" />
+			<date type="published" when="2008-11" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b27">
+	<analytic>
+		<title level="a" type="main">Building a Large Annotated Corpus of English: The Penn Treebank</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Mitchell</forename><forename type="middle">P</forename><surname>Marcus</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Beatrice</forename><surname>Santorini</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Mary</forename><forename type="middle">Ann</forename><surname>Marcinkiewicz</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Computational Linguistics</title>
+		<imprint>
+			<biblScope unit="volume">19</biblScope>
+			<biblScope unit="page" from="313" to="330" />
+			<date type="published" when="1993" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b28">
+	<monogr>
+		<title level="m" type="main">Learned in translation: Contextualized word vectors</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Bryan</forename><surname>Mccann</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">James</forename><surname>Bradbury</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Caiming</forename><surname>Xiong</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Richard</forename><surname>Socher</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2017" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b29">
+	<analytic>
+		<title level="a" type="main">On the state of the art of evaluation in neural language models</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Gábor</forename><surname>Melis</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Chris</forename><surname>Dyer</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Phil</forename><surname>Blunsom</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">ICLR</title>
+		<imprint>
+			<date type="published" when="2018" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b30">
+	<analytic>
+		<title level="a" type="main">Regularizing and optimizing lstm language models</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Stephen</forename><surname>Merity</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Nitish</forename><surname>Shirish Keskar</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Richard</forename><surname>Socher</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">ICLR</title>
+		<imprint>
+			<date type="published" when="2018" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b31">
+	<monogr>
+		<title level="m" type="main">Efficient estimation of word representations in vector space</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Tomas</forename><surname>Mikolov</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kai</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Greg</forename><surname>Corrado</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jeffrey</forename><surname>Dean</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1301.3781</idno>
+		<imprint>
+			<date type="published" when="2013" />
+		</imprint>
+	</monogr>
+<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b32">
+	<analytic>
+		<title level="a" type="main">Beyond word importance: Contextual decomposition to extract interactions from lstms</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">W</forename></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">James</forename><surname>Murdoch</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Peter</forename><forename type="middle">J</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Bin</forename><surname>Yu</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">ICLR</title>
+		<imprint>
+			<date type="published" when="2018" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b33">
+	<monogr>
+		<title level="m" type="main">Wavenet: A generative model for raw audio</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Aäron</forename><surname>Van Den Oord</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Sander</forename><surname>Dieleman</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Heiga</forename><surname>Zen</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Karen</forename><surname>Simonyan</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Oriol</forename><surname>Vinyals</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Alex</forename><surname>Graves</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Nal</forename><surname>Kalchbrenner</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Andrew</forename><forename type="middle">W</forename><surname>Senior</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Koray</forename><surname>Kavukcuoglu</surname></persName>
+		</author>
+		<idno>abs/1609.03499</idno>
+		<imprint>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b34">
+	<analytic>
+		<title level="a" type="main">Glove: Global vectors for word representation</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jeffrey</forename><surname>Pennington</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Richard</forename><surname>Socher</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Christopher</forename><forename type="middle">D</forename><surname>Manning</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">EMNLP</title>
+		<imprint>
+			<date type="published" when="2014" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b35">
+	<analytic>
+		<title level="a" type="main">Semi-supervised sequence tagging with bidirectional language models</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Matthew</forename><forename type="middle">E</forename><surname>Peters</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Waleed</forename><surname>Ammar</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Chandra</forename><surname>Bhagavatula</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Russell</forename><surname>Power</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">ACL</title>
+		<imprint>
+			<date type="published" when="2017" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b36">
+	<analytic>
+		<title level="a" type="main">Deep contextualized word representations</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Matthew</forename><forename type="middle">E</forename><surname>Peters</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Mark</forename><surname>Neumann</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Mohit</forename><surname>Iyyer</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Matt</forename><surname>Gardner</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Christopher</forename><surname>Clark</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kenton</forename><surname>Lee</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Luke</forename><surname>Zettlemoyer</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">NAACL</title>
+		<imprint>
+			<date type="published" when="2018" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b37">
+	<analytic>
+		<title level="a" type="main">Towards robust linguistic analysis using ontonotes</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Alessandro</forename><surname>Sameer Pradhan</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Nianwen</forename><surname>Moschitti</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Hwee</forename><forename type="middle">Tou</forename><surname>Xue</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Anders</forename><surname>Ng</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Olga</forename><surname>Björkelund</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yuchen</forename><surname>Uryupina</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Zhi</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Zhong</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">CoNLL</title>
+		<imprint>
+			<date type="published" when="2013" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b38">
+	<analytic>
+		<title level="a" type="main">Conll2012 shared task: Modeling multilingual unrestricted coreference in ontonotes</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Alessandro</forename><surname>Sameer Pradhan</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Nianwen</forename><surname>Moschitti</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Olga</forename><surname>Xue</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yuchen</forename><surname>Uryupina</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Zhang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">EMNLPCoNLL Shared Task</title>
+		<imprint>
+			<date type="published" when="2012" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b39">
+	<monogr>
+		<title level="m" type="main">Improving language understanding by generative pre-training</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Alec</forename><surname>Radford</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Karthik</forename><surname>Narasimhan</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2018" />
+		</imprint>
+	</monogr>
+	<note>Tim Salimans, and Ilya Sutskever</note>
+</biblStruct>
+
+<biblStruct xml:id="b40">
+	<analytic>
+		<title level="a" type="main">Long short-term memory recurrent neural network architectures for large scale acoustic modeling</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Hasim</forename><surname>Sak</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Andrew</forename><forename type="middle">W</forename><surname>Senior</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Franoise</forename><surname>Beaufays</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">INTERSPEECH</title>
+		<imprint>
+			<date type="published" when="2014" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b41">
+	<monogr>
+		<title level="m" type="main">Introduction to the CoNLL-2000 shared task chunking</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Erik</forename><forename type="middle">F</forename><surname>Tjong</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kim</forename><surname>Sang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Sabine</forename><surname>Buchholz</surname></persName>
+		</author>
+		<editor>CoNLL/LLL</editor>
+		<imprint>
+			<date type="published" when="2000" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b42">
+	<monogr>
+		<title level="m" type="main">Introduction to the CoNLL-2003 shared task: Language-independent named entity recognition</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Erik</forename><forename type="middle">F</forename><surname>Tjong</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kim</forename><surname>Sang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Fien De</forename><surname>Meulder</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2003" />
+		</imprint>
+	</monogr>
+	<note>In CoNLL</note>
+</biblStruct>
+
+<biblStruct xml:id="b43">
+	<analytic>
+		<title level="a" type="main">Training very deep networks</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Rupesh Kumar</forename><surname>Srivastava</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Klaus</forename><surname>Greff</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jürgen</forename><surname>Schmidhuber</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">NIPS</title>
+		<imprint>
+			<date type="published" when="2015" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b44">
+	<analytic>
+		<title level="a" type="main">Axiomatic attribution for deep networks</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Mukund</forename><surname>Sundararajan</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ankur</forename><surname>Taly</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Qiqi</forename><surname>Yan</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">ICML</title>
+		<imprint>
+			<date type="published" when="2017" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b45">
+	<analytic>
+		<title level="a" type="main">Deep semantic role labeling with self-attention</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Zhixing</forename><surname>Tan</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Mingxuan</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jun</forename><surname>Xie</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yidong</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Xiaodong</forename><surname>Shi</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">AAAI</title>
+		<imprint>
+			<date type="published" when="2018" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b46">
+	<analytic>
+		<title level="a" type="main">Attention is all you need</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ashish</forename><surname>Vaswani</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Noam</forename><surname>Shazeer</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Niki</forename><surname>Parmar</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jakob</forename><surname>Uszkoreit</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Llion</forename><surname>Jones</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Aidan</forename><forename type="middle">N</forename><surname>Gomez</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Lukasz</forename><surname>Kaiser</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Illia</forename><surname>Polosukhin</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">NIPS</title>
+		<imprint>
+			<date type="published" when="2017" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b47">
+	<analytic>
+		<title level="a" type="main">A broad-coverage challenge corpus for sentence understanding through inference</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Adina</forename><surname>Williams</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Nikita</forename><surname>Nangia</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Samuel</forename><surname>Bowman</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">NAACL</title>
+		<imprint>
+			<date type="published" when="2018" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b48">
+	<monogr>
+		<title level="m" type="main">ADADELTA: An adaptive learning rate method. arXiv</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">D</forename><surname>Matthew</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Zeiler</surname></persName>
+		</author>
+		<idno>abs/1212.5701</idno>
+		<imprint>
+			<date type="published" when="2012" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b49">
+	<analytic>
+		<title level="a" type="main">Visualizing and understanding convolutional networks</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">D</forename><surname>Matthew</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Rob</forename><surname>Zeiler</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Fergus</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">European conference on computer vision</title>
+		<imprint>
+			<date type="published" when="2014" />
+			<biblScope unit="page" from="818" to="833" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b50">
+	<monogr>
+		<title level="m" type="main">Language modeling teaches you more syntax than translation does: Lessons learned through auxiliary task analysis</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kelly</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Samuel</forename><forename type="middle">R</forename><surname>Bowman</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2018" />
+		</imprint>
+	</monogr>
+<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+				</listBibl>
+			</div>
+		</back>
+	</text>
+</TEI>

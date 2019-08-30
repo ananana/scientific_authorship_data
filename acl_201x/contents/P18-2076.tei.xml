@@ -1,0 +1,823 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<TEI xmlns="http://www.tei-c.org/ns/1.0" 
+xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+xsi:schemaLocation="http://www.tei-c.org/ns/1.0 /home/ana/installs/grobid/grobid-0.5.1/grobid-home/schemas/xsd/Grobid.xsd"
+ xmlns:xlink="http://www.w3.org/1999/xlink">
+	<teiHeader xml:lang="en">
+		<encodingDesc>
+			<appInfo>
+				<application version="0.5.1-SNAPSHOT" ident="GROBID" when="2019-04-18T10:02+0000">
+					<ref target="https://github.com/kermitt2/grobid">GROBID - A machine learning software for extracting information from scholarly documents</ref>
+				</application>
+			</appInfo>
+		</encodingDesc>
+		<fileDesc>
+			<titleStmt>
+				<title level="a" type="main">Linear-Time Constituency Parsing with RNNs and Dynamic Programming</title>
+			</titleStmt>
+			<publicationStmt>
+				<publisher/>
+				<availability status="unknown"><licence/></availability>
+				<date>July 15-20, 2018</date>
+			</publicationStmt>
+			<sourceDesc>
+				<biblStruct>
+					<analytic>
+						<author>
+							<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Juneki</forename><surname>Hong</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="department">School of EECS</orgName>
+								<orgName type="institution">Oregon State University</orgName>
+								<address>
+									<settlement>Corvallis</settlement>
+									<region>OR</region>
+								</address>
+							</affiliation>
+						</author>
+						<author>
+							<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Liang</forename><surname>Huang</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="department">School of EECS</orgName>
+								<orgName type="institution">Oregon State University</orgName>
+								<address>
+									<settlement>Corvallis</settlement>
+									<region>OR</region>
+								</address>
+							</affiliation>
+							<affiliation key="aff1">
+								<orgName type="laboratory">Silicon Valley AI Lab Baidu Research, Sunnyvale</orgName>
+								<address>
+									<region>CA</region>
+								</address>
+							</affiliation>
+						</author>
+						<title level="a" type="main">Linear-Time Constituency Parsing with RNNs and Dynamic Programming</title>
+					</analytic>
+					<monogr>
+						<title level="m">Proceedings of the 56th Annual Meeting of the Association for Computational Linguistics (Short Papers)</title>
+						<meeting>the 56th Annual Meeting of the Association for Computational Linguistics (Short Papers) <address><addrLine>Melbourne, Australia</addrLine></address>
+						</meeting>
+						<imprint>
+							<biblScope unit="page" from="477" to="483"/>
+							<date type="published">July 15-20, 2018</date>
+						</imprint>
+					</monogr>
+					<note>477</note>
+				</biblStruct>
+			</sourceDesc>
+		</fileDesc>
+		<profileDesc>
+			<abstract>
+				<p>Recently, span-based constituency parsing has achieved competitive accuracies with extremely simple models by using bidirec-tional RNNs to model &quot;spans&quot;. However, the minimal span parser of Stern et al. (2017a) which holds the current state of the art accuracy is a chart parser running in cubic time, O(n 3), which is too slow for longer sentences and for applications beyond sentence boundaries such as end-to-end discourse parsing and joint sentence boundary detection and parsing. We propose a linear-time constituency parser with RNNs and dynamic programming using graph-structured stack and beam search, which runs in time O(nb 2) where b is the beam size. We further speed this up to O(nb log b) by integrating cube pruning. Compared with chart parsing base-lines, this linear-time parser is substantially faster for long sentences on the Penn Treebank and orders of magnitude faster for discourse parsing, and achieves the highest F1 accuracy on the Penn Treebank among single model end-to-end systems.</p>
+			</abstract>
+		</profileDesc>
+	</teiHeader>
+	<text xml:lang="en">
+		<body>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="1">Introduction</head><p>Span-based neural constituency parsing <ref type="bibr" target="#b4">(Cross and Huang, 2016;</ref><ref type="bibr" target="#b21">Stern et al., 2017a</ref>) has attracted attention due to its high accuracy and extreme simplicity. Compared with other recent neural constituency parsers <ref type="bibr" target="#b6">(Dyer et al., 2016</ref>; <ref type="bibr" target="#b15">Liu and Zhang, 2016;</ref><ref type="bibr" target="#b5">Durrett and Klein, 2015</ref>) which use neural networks to model tree structures, the span- based framework is considerably simpler, only us- ing bidirectional RNNs to model the input se- quence and not the output tree. Because of this factorization, the output space is decomposable which enables efficient dynamic programming al- gorithm such as CKY. But existing span-based parsers suffer from a crucial limitation in terms of search: on the one hand, a greedy span parser <ref type="bibr" target="#b4">(Cross and Huang, 2016</ref>) is fast (linear-time) but only explores one single path in the exponentially large search space, and on the other hand, a chart- based span parser ( <ref type="bibr" target="#b21">Stern et al., 2017a</ref>) performs exact search and achieves state-of-the-art accu- racy, but in cubic time, which is too slow for longer sentences and for applications that go be- yond sentence boundaries such as end-to-end dis- course parsing <ref type="bibr" target="#b8">(Hernault et al., 2010;</ref><ref type="bibr" target="#b27">Zhao and Huang, 2017)</ref> and integrated sentence boundary detection and parsing <ref type="bibr" target="#b1">(Björkelund et al., 2016)</ref>.</p><p>We propose to combine the merits of both greedy and chart-based approaches and design a linear-time span-based neural parser that searches over exponentially large space. Following <ref type="bibr" target="#b12">Huang and Sagae (2010)</ref>, we perform left-to-right dy- namic programming in an action-synchronous style, with (2n − 1) actions (i.e., steps) for a sen- tence of n words. While previous non-neural work in this area requires sophisticated features <ref type="bibr" target="#b12">(Huang and Sagae, 2010;</ref><ref type="bibr" target="#b17">Mi and Huang, 2015)</ref> and thus high time complexity such as O(n 11 ), our states are as simple as : (i, j) where is the step in- dex and (i, j) is the span, modeled using bidirec- tional RNNs without any syntactic features. This gives a running time of O(n 4 ), with the extra O(n) for step index. We further employ beam search to have a practical runtime of O(nb 2 ) at the cost of exact search where b is the beam size. How- ever, on the Penn Treebank, most sentences are less than 40 words (n &lt; 40), and even with a small beam size of b = 10, the observed complexity of an O(nb 2 ) parser is not exactly linear in n (see Experiments). To solve this problem, we apply cube pruning <ref type="bibr" target="#b2">(Chiang, 2007;</ref><ref type="bibr" target="#b10">Huang and Chiang, 2007)</ref> to improve the runtime to O(nb log b) which renders an observed complexity that is linear in n (with minor extra inexactness).</p><p>We make the following contributions:</p><p>• We design the first neural parser that is both linear time and capable of searching over ex- ponentially large space. 1</p><p>• We are the first to apply cube pruning to in- cremental parsing, and achieves, for the first time, the complexity of O(nb log b), i.e., lin- ear in sentence length and (almost) linear in beam size. This leads to an observed com- plexity strictly linear in sentence length n.</p><p>• We devise a novel loss function which penal- izes wrong spans that cross gold-tree spans, and employ max-violation update <ref type="bibr" target="#b11">(Huang et al., 2012)</ref> to train this parser with struc- tured SVM and beam search.</p><p>• Compared with chart parsing baselines, our parser is substantially faster for long sen- tences on the Penn Treebank, and orders of magnitude faster for end-to-end discourse parsing. It also achieves the highest F1 score on the Penn Treebank among single model end-to-end systems.</p><p>• We devise a new formulation of graph- structured stack <ref type="bibr">(Tomita, 1991)</ref> which re- quires no extra bookkeeping, proving a new theorem that gives deep insight into GSS.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2">Preliminaries</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.1">Span-Based Shift-Reduce Parsing</head><p>A span-based shift-reduce constituency parser (Cross and Huang, 2016) maintains a stack of spans (i, j), and progressively adds a new span each time it takes a shift or reduce action. With (i, j) on top of the stack, the parser can either shift to push the next singleton span (j, j + 1) on the stack, or it can reduce to combine the top two spans, (k, i) and (i, j), forming the larger span (k, j). After each shift/reduce action, the top-most span is labeled as either a constituent or with a null label ∅, which means that the subsequence is not a subtree in the final decoded parse. Parsing initial- izes with an empty stack and continues until (0, n) is formed, representing the entire sentence.</p><formula xml:id="formula_0">1 https://github.com/junekihong/beam-span-parser input w 0 . . . w n−1 state : i, j : (c, v) init 0 : 0, 0 : (0, 0) goal 2n − 1 : 0, n : (c, c)</formula><p>shift : , j : (c, )</p><formula xml:id="formula_1">+ 1 : j, j + 1 : (c + ξ, ξ) j &lt; n reduce : k, i : (c , v ) : i, j : ( , v) + 1 : k, j : (c + v + σ, v + v + σ)</formula><p>Figure 1: Our shift-reduce deductive system. Here is the step index, c and v are prefix and inside scores. Unlike <ref type="bibr" target="#b12">Huang and Sagae (2010)</ref> and <ref type="bibr" target="#b4">Cross and Huang (2016)</ref>, ξ and σ are not shift/reduce scores; instead, they are the (best) label scores of the resulting span: ξ = max X s(j, j + 1, X) and σ = max X s(k, j, X) where X is a nonterminal symbol (could be ∅). Here = − 2(j − i) + 1.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.2">Bi-LSTM features</head><p>To get the feature representation of a span (i, j), we use the output sequence of a bi-directional LSTM ( <ref type="bibr" target="#b4">Cross and Huang, 2016;</ref><ref type="bibr" target="#b21">Stern et al., 2017a</ref>). The LSTM produces f 0 , ..., f n forwards and b n , ..., b 0 backwards outputs, which we con- catenate the differences of (f j −f i ) and (b i −b j ) as the representation for span (i, j). This eliminates the need for complex feature engineering, and can be stored for efficient querying during decoding.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3">Dynamic Programming</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.1">Score Decomposition</head><p>Like <ref type="bibr" target="#b21">Stern et al. (2017a)</ref>, we also decompose the score of a tree t to be the sum of the span scores:</p><formula xml:id="formula_2">s(t) = (i,j,X)∈t s(i, j, X)<label>(1)</label></formula><formula xml:id="formula_3">= (i,j)∈t max X s((f j − f i ; b i − b j ), X) (2)</formula><p>Note that X is a nonterminal label, a unary chain (e.g., S-VP), or null label ∅. <ref type="bibr">2</ref> In a shift-reduce setting, there are 2n − 1 steps (n shifts and n − 1 reduces) and after each step we take the best label for the resulting span; therefore there are exactly 2n−1 such (labeled) spans (i, j, X) in tree t. Also note that the choice of the label for any span (i, j) is only dependent on (i, j) itself (and not depend- ing on any subtree information), thus the max over label X is independent of other spans, which is a nice property of span-based parsing <ref type="bibr" target="#b4">(Cross and Huang, 2016;</ref><ref type="bibr" target="#b21">Stern et al., 2017a</ref>).</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.2">Graph-Struct. Stack w/o Bookkeeping</head><p>We now reformulate this DP parser in the above section as a shift-reduce parser. We maintain a step index in order to perform action-synchronous beam search (see below). <ref type="figure">Figure 1</ref> shows how to represent a parsing stack using only the top span (i, j). If the top span (i, j) shifts, it pro- duces (j, j + 1), but if it reduces, it needs to know the second last span on the stack, (k, i), which is not represented in the current state. This problem can be solved by graph-structure stack <ref type="bibr">(Tomita, 1991;</ref><ref type="bibr" target="#b12">Huang and Sagae, 2010)</ref>, which maintains, for each state p, a set of predecessor states π(p) that p can combine with on the left. This is the way our actual code works (π(p) is implemented as a list of pointers, or "left point- ers"), but here for simplicity of presentation we devise a novel but easier-to-understand formula- tion in <ref type="figure">Fig. 1</ref>, where we explicitly represent the set of predecessor states that state : (i, j) can com- bine with as : (k, i) where = − 2(j − i) + 1, i.e., (i, j) at step can combine with any (k, i) for any k at step . The rationale behind this new for- mulation is the following theorem:</p><p>Theorem 1 The predecessor states π( : (i, j)) are all in the same step = − 2(j − i) + 1.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Proof. By induction.</head><p>This Theorem bring new and deep insights and suggests an alternative implementation that does not require any extra bookkeeping. The time com- plexity of this algorithm is O(n 4 ) with the extra O(n) due to step index. <ref type="bibr">3</ref> </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.3">Action-Synchronous Beam Search</head><p>The incremental nature of our parser allows us to further lower the runtime complexity at the cost of inexact search. At each time step, we maintain the top b parsing states, pruning off the rest. Thus, a candidate parse that made it to the end of decod- ing had to survive within the top b at every step.</p><p>With O(n) parsing actions our time complexity becomes linear in the length of the sentence.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.4">Cube Pruning</head><p>However, Theorem 1 suggests that a parsing state p can have up to b predecessor states ("left point- ers"), i.e., |π(p)| ≤ b because π(p) are all in the same step, a reduce action can produce up to b subsequent new reduced states. With b items on a beam and O(n) actions to take, this gives us an overall complexity of O(nb 2 ). Even though b 2 is a constant, even modest values of b can make b 2 dominate the length of the sentence. <ref type="bibr">4</ref> To improve this at the cost of additional inex- actness, we introduce cube pruning to our beam search, where we put candidate actions into a heap and retrieve the top b states to be considered in the next time-step. We heapify the top b shift- merged states and the top b reduced states. To avoid inserting all b 2 reduced states from the pre- vious beam, we only consider each state's high- est scoring left pointer, <ref type="bibr">5</ref> and whenever we pop a reduced state from the heap, we iterate down its left pointers to insert the next non-duplicate re- duced state back into the heap. This process fin- ishes when we pop b items from the heap. The initialization of the heap takes O(b) and popping b items takes O(b log b), giving us an overall im- proved runtime of O(nb log b).</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4">Training</head><p>We use a Structured SVM approach for training <ref type="bibr" target="#b21">(Stern et al., 2017a;</ref><ref type="bibr" target="#b19">Shi et al., 2017)</ref>. We want the model to score the gold tree t * higher than any other tree t by at least a margin ∆(t, t * ):</p><formula xml:id="formula_4">∀t, s(t * ) − s(t) ≥ ∆(t, t * ).</formula><p>Note that ∆(t, t) = 0 for any t and ∆(t, t * ) &gt; 0 for any t = t * . At training time we perform loss- augmented decoding: <ref type="bibr">4</ref> The average length of a sentence in the Penn Treebank training set is about 24. Even with a beam size of 10, we al- ready have b 2 = 100, which would be a significant factor in our runtime. In practice, each parsing state will rarely have the maximum b left pointers so this ends up being a loose upper-bound. Nevertheless, the beam search should be per- formed with the input length in mind, or else as b increases we risk losing a linear runtime. <ref type="bibr">5</ref> If each previous beam is sorted, and if the beam search is conducted by going top-to-bottom, then each state's left pointers will implicitly be kept in sorted order.  <ref type="figure">Figure 2</ref>: Runtime plots of decoding on the train- ing set of the Penn Treebank. The differences be- tween the different algorithms become evident af- ter sentences of length 40. The regression curves have been empirically fitted.</p><formula xml:id="formula_5">ˆ t = arg max t s ∆ (t) = arg max t s(t) + ∆(t, t * ).</formula><p>where s ∆ (·) is the loss-augmented score. IfˆtIfˆ Ifˆt = t * , then all constraints are satisfied (which implies arg max t s(t) = t * ), otherwise we perform an up- date by backpropagating from s ∆ ( ˆ t) − s(t * ).</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.1">Cross-Span Loss</head><p>The baseline loss function from Stern et al. (2017a) counts the incorrect labels (i, j, X) in the predicted tree:</p><formula xml:id="formula_6">∆ base (t, t * ) = (i,j,X)∈t 1 X = t * (i,j) .</formula><p>Note that X can be null ∅, and t * (i,j) denotes the gold label for span (i, j), which could also be ∅. 6 However, there are two cases where t * (i,j) = ∅: a subspan (i, j) due to binarization (e.g., a span combining the first two subtrees in a ternary branching node), or an invalid span in t that crosses a gold span in t * . In the baseline function above, these two cases are treated equiv- alently; for example, a span (3, 5, ∅) ∈ t is not pe- nalized even if there is a gold span (4, 6, VP) ∈ t * . So we revise our loss function as:</p><formula xml:id="formula_7">∆ new (t, t * ) = (i,j,X)∈t 1 X = t * (i,j)</formula><p>∨ cross(i, j, t * ) 6 Note that the predicted tree t has exactly 2n − 1 spans but t * has much fewer spans (only labeled spans without ∅).  </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>T h is W o r k B e a m 1 0 C h a r t P a r s in g</head><p>Figure 3: Runtime plot of decoding the discourse treebank training set. The log-log plot on the right shows the cubic complexity of baseline chart pars- ing. Whereas beam search decoding maintains lin- ear time even for sequences of thousands of words.</p><p>where cross(i, j, t * ) = ∃ (k, l) ∈ t * , and i &lt; k &lt; j &lt; l or k &lt; i &lt; l &lt; j.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.2">Max Violation Updates</head><p>Given that we maintain loss-augmented scores even for partial trees, we can perform a training update on a given example sentence by choos- ing to take the loss where it is the greatest along the parse trajectory. At each parsing time-step , the violation is the difference between the high- est augmented-scoring parse trajectory up to that point and the gold trajectory ( <ref type="bibr" target="#b11">Huang et al., 2012;</ref><ref type="bibr" target="#b26">Yu et al., 2013)</ref>. Note that computing the viola- tion gives us the max-margin loss described above. Taking the largest violation from all time-steps gives us the max-violation loss.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5">Experiments</head><p>We present experiments on the Penn Treebank ( <ref type="bibr" target="#b16">Marcus et al., 1993</ref>) and the PTB-RST discourse treebank ( <ref type="bibr" target="#b27">Zhao and Huang, 2017</ref>). In both cases, the training set is shuffled before each epoch, and dropout ( <ref type="bibr" target="#b9">Hinton et al., 2012</ref>) is employed with probability 0.4 to the recurrent outputs for regu- larization. Updates with minibatches of size 10 and 1 are used for PTB and the PTB-RST respec- tively. We use Adam ( <ref type="bibr" target="#b13">Kingma and Ba, 2014</ref>) with default settings to schedule learning rates for all the weights. To address unknown words during training, we adopt the strategy described by <ref type="bibr" target="#b14">Kiperwasser and Goldberg (Kiperwasser and Goldberg, 2016)</ref>; words in the training set are replaced with the unknown word symbol UNK with probability p unk = 1 1+f (w) , with f (w) being the number of  occurrences of word w in the training corpus. Our system is implemented in Python using the DyNet neural network library ( <ref type="bibr">Neubig et al., 2017)</ref>.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.1">Penn Treebank</head><p>We use the Wall Street Journal portion of the Penn Treebank, with the standard split of sections 2-21 for training, 22 for development, and 23 for test- ing. Tags are provided using the Stanford tagger with 10-way jackknifing. <ref type="table">Table 1</ref> shows our development results and overall speeds, while <ref type="table" target="#tab_3">Table 2</ref> compares our test re- sults. We show that a beam size of 20 can be fast while still achieving state-of-the-art performances.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.2">Discourse Parsing</head><p>To measure the tractability of parsing on longer sequences, we also consider experiments on the LR LP F1 <ref type="bibr" target="#b27">Zhao and Huang (2017)</ref>     <ref type="table" target="#tab_5">Table 3</ref>, broken down to focus on the discourse labels.</p><p>PTB-RST discourse Treebank, a joint discourse and constituency dataset with a combined rep- resentation, allowing for parsing at either level ( <ref type="bibr" target="#b27">Zhao and Huang, 2017)</ref>. We compare our run- times out-of-the-box in <ref type="figure">Figure 3</ref>. Without any pre-processing, and by treating discourse exam- ples as constituency trees with thousands of words, our trained models represent end-to-end discourse parsing systems. For our overall constituency results in <ref type="table" target="#tab_5">Table 3</ref>, and for discourse results in <ref type="table" target="#tab_6">Table 4</ref>, we adapt the split-point feature described in <ref type="bibr" target="#b27">(Zhao and Huang, 2017</ref>) in addition to the base parser. We find that larger beamsizes are required to achieve good dis- course scores.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6">Conclusions</head><p>We have developed a new neural parser that main- tains linear time, while still searching over an ex- ponentially large space. We also use cube prun- ing to further improve the runtime to O(nb log b). For training, we introduce a new loss function, and achieve state-of-the-art results among single- model end-to-end systems.</p></div><figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_3" validated="false"><head>Table 2 :</head><label>2</label><figDesc></figDesc><table>Final PTB Test Results. We compare our 
+models with other (neural) single-model end-to-
+end trained systems. 
+
+</table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_5" validated="false"><head>Table 3 :</head><label>3</label><figDesc></figDesc><table>Overall test accuracies for PTB-RST dis-
+course treebank. Starred rows indicate a run that 
+was decoded from the beam 200 model. 
+
+segment structure +nuclearity +relation 
+Bach et al. (2012) 
+95.1 
+-
+-
+-
+Hernault et al. (2010) 
+94.0 
+72.3 
+59.1 
+47.3 
+Zhao and Huang (2017) 
+95.4 
+78.8 
+65.0 
+52.2 
+This Work Beam 200 
+91.20 
+73.36 
+58.87 
+46.38 
+This Work Beam 500 
+93.52 
+74.93 
+60.16 
+47.03 
+This Work Beam 1000 
+94.06 
+75.60 
+60.61 
+47.37 
+
+</table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_6" validated="false"><head>Table 4 :</head><label>4</label><figDesc>F1 scores comparing discourse systems. Results correspond to the accuracies in</figDesc><table></table></figure>
+
+			<note place="foot" n="2"> The actual code base of Stern et al. (2017b) forces s(i, j, ∅) to be 0, which simplifies their CKY parser and slightly improves their parsing accuracy. However, in our incremental parser, this change favors shift over reduce and degrades accuracy, so our parser keeps a learned score for ∅.</note>
+
+			<note place="foot" n="3"> The word-synchronous alternative does not need the step index and enjoys a cubic time complexity, being almost identical to CKY. However, beam search becomes very tricky.</note>
+		</body>
+		<back>
+
+			<div type="acknowledgement">
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Acknowledgments</head><p>We thank Dezhong Deng who contributed greatly to Secs. 3.2 and 4 (he deserves co-authorship), and Mitchell Stern for releasing his code and and sug-gestions. This work was supported in part by NSF IIS-1656051 and DARPA N66001-17-2-4030.</p></div>
+			</div>
+
+			<div type="references">
+
+				<listBibl>
+
+<biblStruct xml:id="b0">
+	<analytic>
+		<title level="a" type="main">A reranking model for discourse segmentation using subtree features</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Ngo Xuan</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Nguyen</forename><surname>Bach</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Akira</forename><surname>Le Minh</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Shimazu</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 13th Annual Meeting of the Special Interest Group on Discourse and Dialogue. Association for Computational Linguistics</title>
+		<meeting>the 13th Annual Meeting of the Special Interest Group on Discourse and Dialogue. Association for Computational Linguistics</meeting>
+		<imprint>
+			<date type="published" when="2012" />
+			<biblScope unit="page" from="160" to="168" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b1">
+	<analytic>
+		<title level="a" type="main">How to train dependency parsers with inexact search for joint sentence boundary detection and parsing of entire documents</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Anders</forename><surname>Björkelund</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Agnieszka</forename><surname>Fale´nskafale´nska</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Wolfgang</forename><surname>Seeker</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jonas</forename><surname>Kuhn</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 54th Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 54th Annual Meeting of the Association for Computational Linguistics</meeting>
+		<imprint>
+			<publisher>Long Papers</publisher>
+			<date type="published" when="2016" />
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="1924" to="1934" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b2">
+	<analytic>
+		<title level="a" type="main">Hierarchical phrase-based translation</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">David</forename><surname>Chiang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Computational Linguistics</title>
+		<imprint>
+			<biblScope unit="volume">33</biblScope>
+			<biblScope unit="issue">2</biblScope>
+			<biblScope unit="page" from="201" to="208" />
+			<date type="published" when="2007" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b3">
+	<analytic>
+		<title level="a" type="main">Parsing as language modeling</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kook</forename><surname>Do</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Eugene</forename><surname>Choe</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Charniak</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>the Conference on Empirical Methods in Natural Language Processing</meeting>
+		<imprint>
+			<date type="published" when="2016" />
+			<biblScope unit="page" from="2331" to="2336" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b4">
+	<analytic>
+		<title level="a" type="main">Span-based constituency parsing with a structure-label system and provably optimal dynamic oracles</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">James</forename><surname>Cross</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Liang</forename><surname>Huang</surname></persName>
+		</author>
+		<ptr target="https://aclweb.org/anthology/D16-1001" />
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2016 Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>the 2016 Conference on Empirical Methods in Natural Language Processing<address><addrLine>Austin, Texas</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2016" />
+			<biblScope unit="page" from="1" to="11" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b5">
+	<monogr>
+				<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Greg</forename><surname>Durrett</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Dan</forename><surname>Klein</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1507.03641</idno>
+		<title level="m">Neural CRF parsing</title>
+		<imprint>
+			<date type="published" when="2015" />
+		</imprint>
+	</monogr>
+<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b6">
+	<monogr>
+				<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Chris</forename><surname>Dyer</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Adhiguna</forename><surname>Kuncoro</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Miguel</forename><surname>Ballesteros</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Noah A</forename><surname>Smith</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1602.07776</idno>
+		<title level="m">Recurrent neural network grammars</title>
+		<imprint>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b7">
+	<analytic>
+		<title level="a" type="main">Improving neural parsing by disentangling model combination and reranking effects</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Daniel</forename><surname>Fried</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Mitchell</forename><surname>Stern</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Dan</forename><surname>Klein</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Association for Computational Linguistics</title>
+		<meeting>the Association for Computational Linguistics</meeting>
+		<imprint>
+			<date type="published" when="2017" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b8">
+	<analytic>
+		<title level="a" type="main">Hilda: a discourse parser using support vector machine classification</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Hugo</forename><surname>Hernault</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Helmut</forename><surname>Prendinger</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Mitsuru</forename><surname>David A Duverle</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Tim</forename><surname>Ishizuka</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Paek</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Dialogue and Discourse</title>
+		<imprint>
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="issue">3</biblScope>
+			<biblScope unit="page" from="1" to="33" />
+			<date type="published" when="2010" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b9">
+	<monogr>
+		<title level="m" type="main">Improving neural networks by preventing coadaptation of feature detectors</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Nitish</forename><surname>Geoffrey E Hinton</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Alex</forename><surname>Srivastava</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ilya</forename><surname>Krizhevsky</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Sutskever</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Salakhutdinov</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1207.0580</idno>
+		<imprint>
+			<date type="published" when="2012" />
+		</imprint>
+	</monogr>
+<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b10">
+	<analytic>
+		<title level="a" type="main">Forest rescoring: Fast decoding with integrated language models</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Liang</forename><surname>Huang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">David</forename><surname>Chiang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of ACL 2007</title>
+		<meeting>ACL 2007<address><addrLine>Prague, Czech Rep</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2007" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b11">
+	<analytic>
+		<title level="a" type="main">Structured perceptron with inexact search</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Liang</forename><surname>Huang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Suphan</forename><surname>Fayong</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yang</forename><surname>Guo</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of NAACL</title>
+		<meeting>NAACL</meeting>
+		<imprint>
+			<date type="published" when="2012" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b12">
+	<analytic>
+		<title level="a" type="main">Dynamic programming for linear-time incremental parsing</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Liang</forename><surname>Huang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kenji</forename><surname>Sagae</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of ACL 2010</title>
+		<meeting>ACL 2010<address><addrLine>Uppsala, Sweden</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2010" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b13">
+	<monogr>
+		<title level="m" type="main">Adam: A method for stochastic optimization</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">P</forename><surname>Diederik</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jimmy</forename><surname>Kingma</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Ba</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1412.6980</idno>
+		<imprint>
+			<date type="published" when="2014" />
+		</imprint>
+	</monogr>
+<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b14">
+	<monogr>
+		<title level="m" type="main">Simple and accurate dependency parsing using bidirectional LSTM feature representations</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Eliyahu</forename><surname>Kiperwasser</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yoav</forename><surname>Goldberg</surname></persName>
+		</author>
+		<idno>CoRR abs/1603.04351</idno>
+		<ptr target="http://arxiv.org/abs/1603.04351" />
+		<imprint>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b15">
+	<monogr>
+				<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jiangming</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yue</forename><surname>Zhang</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1612.00567</idno>
+		<title level="m">Shift-reduce constituent parsing with neural lookahead features</title>
+		<imprint>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b16">
+	<analytic>
+		<title level="a" type="main">Building a large annotated corpus of english: The penn treebank</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Mary</forename><forename type="middle">Ann</forename><surname>Mitchell P Marcus</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Beatrice</forename><surname>Marcinkiewicz</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Santorini</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Computational linguistics</title>
+		<imprint>
+			<biblScope unit="volume">19</biblScope>
+			<biblScope unit="issue">2</biblScope>
+			<biblScope unit="page" from="313" to="330" />
+			<date type="published" when="1993" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b17">
+	<analytic>
+		<title level="a" type="main">Shift-reduce constituency parsing with dynamic programming and pos tag lattice</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Haitao</forename><surname>Mi</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Liang</forename><surname>Huang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of NAACL</title>
+		<meeting>NAACL</meeting>
+		<imprint>
+			<date type="published" when="2015" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b18">
+	<monogr>
+				<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Graham</forename><surname>Neubig</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Chris</forename><surname>Dyer</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yoav</forename><surname>Goldberg</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Austin</forename><surname>Matthews</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Waleed</forename><surname>Ammar</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Antonios</forename><surname>Anastasopoulos</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Miguel</forename><surname>Ballesteros</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">David</forename><surname>Chiang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Daniel</forename><surname>Clothiaux</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Trevor</forename><surname>Cohn</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kevin</forename><surname>Duh</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Manaal</forename><surname>Faruqui</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Cynthia</forename><surname>Gan</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Dan</forename><surname>Garrette</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yangfeng</forename><surname>Ji</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Lingpeng</forename><surname>Kong</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Adhiguna</forename><surname>Kuncoro</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Gaurav</forename><surname>Kumar</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Chaitanya</forename><surname>Malaviya</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Paul</forename><surname>Michel</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1701.03980</idno>
+		<title level="m">Swabha Swayamdipta, and Pengcheng Yin. 2017. Dynet: The dynamic neural network toolkit</title>
+		<meeting><address><addrLine>Yusuke Oda, Matthew Richardson, Naomi Saphra</addrLine></address></meeting>
+		<imprint/>
+	</monogr>
+<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b19">
+	<analytic>
+		<title level="a" type="main">Fast(er) exact decoding and global training for transition-based dependency parsing via a minimal feature set</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Tianze</forename><surname>Shi</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Liang</forename><surname>Huang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Lillian</forename><surname>Lee</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of EMNLP 2017</title>
+		<meeting>EMNLP 2017</meeting>
+		<imprint>
+			<date type="published" when="2017" />
+		</imprint>
+	</monogr>
+	<note>to appear</note>
+</biblStruct>
+
+<biblStruct xml:id="b20">
+	<analytic>
+		<title level="a" type="main">Parsing with compositional vector grammars</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Richard</forename><surname>Socher</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">John</forename><surname>Bauer</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">D</forename><surname>Christopher</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Andrew Y</forename><surname>Manning</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Ng</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Association for Computational Linguistics. Association for Computational Linguistics</title>
+		<meeting>the Association for Computational Linguistics. Association for Computational Linguistics</meeting>
+		<imprint>
+			<date type="published" when="2013" />
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="455" to="465" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b21">
+	<analytic>
+		<title level="a" type="main">A minimal span-based neural constituency parser</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Mitchell</forename><surname>Stern</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jacob</forename><surname>Andreas</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Dan</forename><surname>Klein</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Association for Computational Linguistics</title>
+		<meeting>the Association for Computational Linguistics</meeting>
+		<imprint>
+			<date type="published" when="2017" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b22">
+	<monogr>
+		<title level="m" type="main">A minimal span-based neural constituency parser</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Mitchell</forename><surname>Stern</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jacob</forename><surname>Andreas</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Dan</forename><surname>Klein</surname></persName>
+		</author>
+		<ptr target="https://github.com/mitchellstern/minimal-span-parser" />
+		<imprint>
+			<date type="published" when="2017" />
+		</imprint>
+	</monogr>
+	<note>code base</note>
+</biblStruct>
+
+<biblStruct xml:id="b23">
+	<analytic>
+		<title level="a" type="main">Effective inference for generative neural parsing</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Mitchell</forename><surname>Stern</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Daniel</forename><surname>Fried</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Dan</forename><surname>Klein</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of Empirical Methods in Natural Language Processing</title>
+		<meeting>Empirical Methods in Natural Language Processing</meeting>
+		<imprint>
+			<date type="published" when="2017" />
+			<biblScope unit="page" from="1695" to="1700" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b24">
+	<monogr>
+		<title level="m" type="main">Generalized LR Parsing</title>
+		<editor>Masaru Tomita</editor>
+		<imprint>
+			<date type="published" when="1991" />
+			<publisher>Kluwer Academic Publishers</publisher>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b25">
+	<analytic>
+		<title level="a" type="main">Grammar as a foreign language</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Oriol</forename><surname>Vinyals</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Łukasz</forename><surname>Kaiser</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Terry</forename><surname>Koo</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Slav</forename><surname>Petrov</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ilya</forename><surname>Sutskever</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Geoffrey</forename><surname>Hinton</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Advances in Neural Information Processing Systems</title>
+		<imprint>
+			<date type="published" when="2015" />
+			<biblScope unit="page" from="2773" to="2781" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b26">
+	<analytic>
+		<title level="a" type="main">Max-violation perceptron and forced decoding for scalable mt training</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Heng</forename><surname>Yu</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Liang</forename><surname>Huang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Haitao</forename><surname>Mi</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kai</forename><surname>Zhao</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of EMNLP 2013</title>
+		<meeting>EMNLP 2013</meeting>
+		<imprint>
+			<date type="published" when="2013" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b27">
+	<analytic>
+		<title level="a" type="main">Joint syntactodiscourse parsing and the syntacto-discourse treebank</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kai</forename><surname>Zhao</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Liang</forename><surname>Huang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2017 Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>the 2017 Conference on Empirical Methods in Natural Language Processing</meeting>
+		<imprint>
+			<date type="published" when="2017" />
+			<biblScope unit="page" from="2117" to="2123" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+				</listBibl>
+			</div>
+		</back>
+	</text>
+</TEI>

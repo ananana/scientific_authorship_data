@@ -1,0 +1,1359 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<TEI xmlns="http://www.tei-c.org/ns/1.0" 
+xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+xsi:schemaLocation="http://www.tei-c.org/ns/1.0 /home/ana/installs/grobid/grobid-0.5.1/grobid-home/schemas/xsd/Grobid.xsd"
+ xmlns:xlink="http://www.w3.org/1999/xlink">
+	<teiHeader xml:lang="en">
+		<encodingDesc>
+			<appInfo>
+				<application version="0.5.1-SNAPSHOT" ident="GROBID" when="2019-04-18T10:30+0000">
+					<ref target="https://github.com/kermitt2/grobid">GROBID - A machine learning software for extracting information from scholarly documents</ref>
+				</application>
+			</appInfo>
+		</encodingDesc>
+		<fileDesc>
+			<titleStmt>
+				<title level="a" type="main">Leveraging Knowledge Bases in LSTMs for Improving Machine Reading</title>
+			</titleStmt>
+			<publicationStmt>
+				<publisher>Association for Computational Linguistics</publisher>
+				<availability status="unknown"><p>Copyright Association for Computational Linguistics</p>
+				</availability>
+				<date>July 30-August 4, 2017. July 30-August 4, 2017</date>
+			</publicationStmt>
+			<sourceDesc>
+				<biblStruct>
+					<analytic>
+						<author>
+							<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Bishan</forename><surname>Yang</surname></persName>
+						</author>
+						<author>
+							<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Tom</forename><surname>Mitchell</surname></persName>
+						</author>
+						<title level="a" type="main">Leveraging Knowledge Bases in LSTMs for Improving Machine Reading</title>
+					</analytic>
+					<monogr>
+						<title level="m">Proceedings of the 55th Annual Meeting of the Association for Computational Linguistics (Volume 1: Long Papers)</title>
+						<meeting>the 55th Annual Meeting of the Association for Computational Linguistics (Volume 1: Long Papers) <address><addrLine>Vancouver, Canada; Vancouver, Canada</addrLine></address>
+						</meeting>
+						<imprint>
+							<publisher>Association for Computational Linguistics</publisher>
+							<biblScope unit="page" from="1436" to="1446"/>
+							<date type="published">July 30-August 4, 2017. July 30-August 4, 2017</date>
+						</imprint>
+					</monogr>
+					<idno type="DOI">10.18653/v1/p17-1132</idno>
+				</biblStruct>
+			</sourceDesc>
+		</fileDesc>
+		<profileDesc>
+			<abstract>
+				<p>This paper focuses on how to take advantage of external knowledge bases (KBs) to improve recurrent neural networks for machine reading. Traditional methods that exploit knowledge from KBs encode knowledge as discrete indicator features. Not only do these features generalize poorly, but they require task-specific feature engineering to achieve good performance. We propose KBLSTM, a novel neural model that leverages continuous representations of KBs to enhance the learning of recurrent neural networks for machine reading. To effectively integrate background knowledge with information from the currently processed text, our model employs an attention mechanism with a sentinel to adaptively decide whether to attend to background knowledge and which information from KBs is useful. Experimental results show that our model achieves accuracies that surpass the previous state-of-the-art results for both entity extraction and event extraction on the widely used ACE2005 dataset.</p>
+			</abstract>
+		</profileDesc>
+	</teiHeader>
+	<text xml:lang="en">
+		<body>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="1">Introduction</head><p>Recurrent neural networks (RNNs), a neural archi- tecture that can operate over text sequentially, have shown great success in addressing a wide range of natural language processing problems, such as parsing ( <ref type="bibr" target="#b11">Dyer et al., 2015)</ref>, named entity recogni- tion ( <ref type="bibr" target="#b22">Lample et al., 2016)</ref>, and semantic role label- ing ( <ref type="bibr" target="#b48">Zhou and Xu, 2015)</ref>). These neural networks are typically trained end-to-end where the input is only text or a sequence of words and a lot of back- ground knowledge is disregarded.</p><p>The importance of background knowledge in natural language understanding has long been rec- ognized <ref type="bibr" target="#b31">(Minsky, 1988;</ref><ref type="bibr" target="#b13">Fillmore, 1976)</ref>. Earlier NLP systems mostly exploited restricted linguistic knowledge such as manually-encoded morpholog- ical and syntactic patterns. With the advanced de- velopment of knowledge base construction, large amounts of semantic knowledge become avail- able, ranging from manually annotated semantic networks like WordNet 1 to semi-automatically or automatically constructed knowledge graphs like DBPedia 2 and NELL 3 . While traditional ap- proaches have exploited the use of these knowl- edge bases (KBs) in NLP tasks <ref type="bibr" target="#b37">(Ratinov and Roth, 2009;</ref><ref type="bibr" target="#b36">Rahman and Ng, 2011;</ref>, they require a lot of task-specific engineering to achieve good performance.</p><p>One way to leverage KBs in recurrent neural networks is by augmenting the dense representa- tions of the networks with the symbolic features derived from KBs. This is not ideal as the sym- bolic features have poor generalization ability. In addition, they can be highly sparse, e.g., using WordNet synsets can easily produce millions of indicator features, leading to high computational cost. Furthermore, the usefulness of knowledge features varies across contexts, as general KBs in- volve polysemy, e.g., "Clinton" can refer to a per- son or a town. Incorporating KBs irrespective of the textual context could mislead the machine reading process.</p><p>Can we train a recurrent neural network that learns to adaptively leverage knowledge from KBs to improve machine reading? In this paper, we propose KBLSTM, an extension to bidirec-tional Long Short-Term Memory neural networks (BiLSTMs) <ref type="bibr" target="#b18">(Hochreiter and Schmidhuber, 1997;</ref><ref type="bibr" target="#b15">Graves et al., 2005</ref>) that is capable of leverag- ing symbolic knowledge from KBs as it processes each word in the text. At each time step, the model retrieves KB concepts that are potentially related to the current word. Then, an attention mechanism is employed to dynamically model their semantic relevance to the reading context. Furthermore, we introduce a sentinel component in BiLSTMs that allows flexibility in deciding whether to attend to background knowledge or not. This is crucial be- cause in some cases the text context should over- ride the context-independent background knowl- edge available in general KBs.</p><p>In this work, we leverage two general, readily available knowledge bases: WordNet (WordNet, 2010) and NELL ( . Word- Net is a manually created lexical database that organizes a large number of English words into sets of synonyms (i.e. synsets) and records con- ceptual relations (e.g., hypernym, part of) among them. NELL is an automatically constructed web- based knowledge base that stores beliefs about entities. It is organized based on an ontology of hundreds of semantic categories (e.g., person, fruit, sport) and relations (e.g., personPlaysInstru- ment). We learn distributed representations (i.e., embeddings) of WordNet and NELL concepts us- ing knowledge graph embedding methods. We then integrate these learned embeddings with the state vectors of the BiLSTM network to enable knowledge-aware predictions.</p><p>We evaluate the proposed model on two core in- formation extraction tasks: entity extraction and event extraction. For entity extraction, the model needs to recognize all mentions of entities such as person, organization, location, and other things from text. For event extraction, the model is re- quired to identify event mentions or event triggers 4 that express certain types of events, e.g., elections, attacks, and travels. Both tasks are challenging and often require the combination of background knowledge and the text context for accurate pre- diction. For example, in the sentence "Maigret left viewers in tears.", knowing that "Maigret" can refer to a TV show can greatly help disam- biguate its meaning. However, knowledge bases may hurt performance if used blindly. For ex- ample, in the sentence "Santiago is charged with murder.", methods that rely heavily on KBs are likely to interpret "Santiago" as a location due to the popular use of Santiago as a city. Similarly for events, the same word can trigger different types of events, for example, "release" can be used to de- scribe different events ranging from book publish- ing to parole. It is important for machine learning models to learn to decide which knowledge from KBs is relevant given the context.</p><p>Extensive experiments demonstrate that our KBLSTM models effectively leverage background knowledge from KBs in training BiLSTM net- works for machine reading. They achieve signifi- cant improvement on both entity and event extrac- tion compared to traditional feature-based meth- ods and LSTM networks that disregard knowledge in KBs, resulting in new state-of-the-art results for entity extraction and event extraction on the widely used ACE2005 dataset.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2">Related Work</head><p>Essential to RNNs' success on natural language processing is the use of Long Short-Term Mem- ory neural networks (Hochreiter and Schmidhu- ber, 1997) (LSTMs) or Gated Recurrent Unit ( <ref type="bibr" target="#b8">Cho et al., 2014</ref>) (GRU) as they are able to handle long- term dependencies by adaptively memorizing val- ues for either long or short durations. Their bidi- rectional variants BiLSTM ( <ref type="bibr" target="#b15">Graves et al., 2005)</ref> or BiGRU further allow the incorporation of both past and future information. Such ability has been shown to be generally helpful in various NLP tasks such as named entity recognition <ref type="bibr" target="#b20">(Huang et al., 2015;</ref><ref type="bibr" target="#b7">Chiu and Nichols, 2016;</ref><ref type="bibr" target="#b29">Ma and Hovy, 2016)</ref>, semantic role labeling ( <ref type="bibr" target="#b48">Zhou and Xu, 2015)</ref>, and reading comprehension ( <ref type="bibr" target="#b17">Hermann et al., 2015;</ref><ref type="bibr" target="#b5">Chen et al., 2016)</ref>. In this work, we also employ the BiLSTM architecture.</p><p>In parallel to the development for text process- ing, neural networks have been successfully used to learn distributed representations of structured knowledge from large <ref type="bibr">KBs (Bordes et al., 2011</ref><ref type="bibr" target="#b39">Socher et al., 2013;</ref><ref type="bibr" target="#b47">Yang et al., 2015;</ref><ref type="bibr" target="#b16">Guu et al., 2015)</ref>. Embedding the symbolic represen- tations into continuous space not only makes KBs more easy to use in statistical learning approaches, but also offers strong generalization ability. Many attempts have been made on connecting dis- tributed representations of KBs with text in the context of knowledge base completion <ref type="bibr" target="#b23">(Lao et al., 2011;</ref><ref type="bibr" target="#b14">Gardner et al., 2014;</ref><ref type="bibr" target="#b40">Toutanova et al., 2015)</ref>, relation extraction ( <ref type="bibr" target="#b4">Chang et al., 2014;</ref><ref type="bibr" target="#b38">Riedel et al., 2013)</ref>, and question an- swering ( <ref type="bibr" target="#b30">Miller et al., 2016)</ref>. However, these ap- proaches model text using shallow representations such as subject/relation/object triples or bag of words. More recently, <ref type="bibr" target="#b0">Ahn et al. (2016)</ref> proposed a neural knowledge language model that leverages knowledge bases in RNN language models, which allows for better representations of words for lan- guage modeling. Unlike their work, we leverage knowledge bases in LSTMs and applies it to infor- mation extraction.</p><p>The architecture of our KBLSTM model draws on the development of attention mechanisms that are widely employed in tasks such as machine translation ( <ref type="bibr" target="#b1">Bahdanau et al., 2015)</ref> and image cap- tioning ( . Attention allows the neu- ral networks to dynamically attend to salient fea- tures of the input. With a similar motivation, we employ attention in KBLSTMs to allow for dy- namic attention to the relevant knowledge given the text context. Our model is also closely related to a recent model of caption generation introduced by <ref type="bibr" target="#b28">Lu et al. (2017)</ref>, where a visual sentinel is in- troduced to allow the decoder to decide whether to attend to image information when generating the next word. In our model, we introduce a sentinel to control the tradeoff between background knowl- edge and information from the text.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3">Method</head><p>In this section, we present our KBLSTM model. We first describe several basic recurrent neu- ral network frameworks for machine reading, in- cluding basic RNNs, LSTMs, and bidirectional LSTMs (Sec. § 3.1). We then introduce our ex- tension to bidirectional LSTMs that allows for the incorporation of KB information at each time step of reading (Sec. § 3.2). The KB information is en- coded using continuous representations (i.e., em- beddings) which are learned using knowledge em- bedding methods (Sec. § 3.3).</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.1">RNNs, LSTMs, and Bidirectional LSTMs</head><p>RNNs are a class of neural networks that take a se- quence of inputs and compute a hidden state vector at each time step based on the current input and the entire history of inputs. The hidden state vector can be computed recursively using the following equation <ref type="bibr" target="#b12">(Elman, 1990)</ref>:</p><formula xml:id="formula_0">h t = F (Wh t−1 + Ux t )</formula><p>where x t is the input at time step t, h t is the hid- den state at time step t, U and W are weight ma- trices, and F is a nonlinear function such as tanh or ReLu. Depending on the applications, RNNs can produce outputs based on the hidden state of each time step or just the last time step.</p><p>A Long Short-Term Memory network (Hochre- iter and Schmidhuber, 1997) (LSTM) is a variant of RNNs which was design to better handle cases where the output at time t depends on much ear- lier inputs. It has a memory cell and three gating units: an input gate that controls what information to add to the current memory, a forget gate which controls what information to remove from the pre- vious memory, and an output gate which controls what information to output from the current mem- ory. Each gate is implemented as a logistic func- tion σ that takes as input the previous hidden state and the current input, and outputs values between 0 and 1. Multiplication with these values controls the flow of information into or out of the memory. In equations, the updates at each time step t are:</p><formula xml:id="formula_1">i t = σ(W i h t−1 + U i x t ) f t = σ(W f h t−1 + U f x t ) o t = σ(W o h t−1 + U o x t ) c t = f t c t−1 + i t tanh(W c h t−1 + U c x t ) h t = o t tanh(c t )</formula><p>where i t is the input gate, f t is the forget gate, o t is the output gate, c t is the memory cell, and h t is the hidden state. denotes element-wise multipli- cation.</p><formula xml:id="formula_2">W i , U i , W f , U f , W o , U o , W c , U c are weight matrices to be learned.</formula><p>Bidirectional LSTMs ( <ref type="bibr" target="#b15">Graves et al., 2005</ref>) (BiLSTMs) are essentially a combination of two LSTMs in two directions: one operates in the for- ward direction and the other operates in the back- ward direction. This leads to two hidden states − → h t and ← − h t at time step t, which can be viewed as a summary of the past and the future respec- tively. Their concatenation</p><formula xml:id="formula_3">h t = [ − → h t ; ← − h t ]</formula><p>provides a whole summary of the information about the in- put around time step t. Such property is attractive in NLP tasks, since information of both previous words and future words can be helpful for inter- preting the meaning of the current word. As each time step t, the knowledge module re- trieves a set of candidate KB concepts V (x t ) that are related to the current input x t , and then com- putes a knowledge state vector m t that integrates the embeddings of the candidate KB concepts v 1 , v 2 , ..., v L and the current context vector s t . See Section § 3.2 for details.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.2">Knowledge-aware Bidirectional LSTMs</head><p>Our model (referred to as KBLSTM) extends BiL- STMs to allow flexibility in incorporating sym- bolic knowledge from KBs. Instead of encoding knowledge as discrete features, we encode it using continuous representations. Concretely, we learn embeddings of concepts in KBs using a knowl- edge graph embedding method. (We will describe the details in Section § 3.3). The KBLSTM model then retrieves the embeddings of candidate con- cepts that are related to the current word being pro- cessed and integrates them into its state vector to make knowledge-aware predictions. <ref type="figure" target="#fig_0">Figure 1</ref> de- picts the architecture of our model.</p><p>The core of our model is the knowledge module, which is responsible for transferring background knowledge into the BiLSTMs. The knowledge at time step t consists of candidate KB concepts V (x t ) for input x t . (We will describe how to ob- tain the candidate KB concepts from NELL and WordNet in Section § 3.3). Each candidate KB concept i ∈ V (x t ) is associated with a vector em- bedding v i . We compute an attention weight α ti for concept vector v i via a bilinear operator, which reflects how relevant or important concept i is to the current reading context h t :</p><formula xml:id="formula_4">α ti ∝ exp(v T i W v h t )<label>(1)</label></formula><p>where W v is a parameter matrix to be learned.</p><p>Note that the candidate concepts in some cases are misleading. For example, a KB may store the fact that "Santiago" is a city but miss the fact that it can also refer to a person. Incorporating such knowledge in the sentence "Santiago is charged with murder." could be misleading. To address this issue, we introduce a knowledge sentinel that records the information of the current context and use a mixture model to allow for better tradeoff between the impact of background knowledge and information from the context. Specifically, we compute a sentinel vector s t as:</p><formula xml:id="formula_5">b t = σ(W b h t−1 + U b x t )<label>(2)</label></formula><formula xml:id="formula_6">s t = b t tanh(c t )<label>(3)</label></formula><p>where W b and U b are weight parameters to be learned. The weight on the local context is com- puted as:</p><formula xml:id="formula_7">β t ∝ exp(s T t W s h t )<label>(4)</label></formula><p>where W s is a parameter matrix to be learned. The mixture model is defined as:</p><formula xml:id="formula_8">m t = i∈V (xt) α ti v i + β t s t<label>(5)</label></formula><p>where i∈V (xt) α ti +β t = 1. m t can be viewed as a knowledge state vector that encodes external KB information with respect to the input at time t. We combine it with the state vector h t of BiLSTMs to obtain a knowledge-aware state vectorˆhvectorˆ vectorˆh t :</p><formula xml:id="formula_9">ˆ h t = h t + m t<label>(6)</label></formula><p>If V (x t ) = ∅, we set m t = 0. ˆ h t can be used for predictions in the same way as the original state vector h t (see Section § 4 for details).</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.3">Embedding Knowledge Base Concepts</head><p>Now we describe how to learn embeddings of con- cepts in KBs. We consider two KBs: WordNet and NELL, which are both knowledge graphs that can be stored in the form of RDF 5 triples. Each triple consists of a subject entity, a relation, and an object entity. Examples of triples in WordNet are (location, hypernym of, city), and (door, has part, lock), where both the subject and object entities are synsets in WordNet. Examples of triples in NELL are (New York, located in, United States) and <ref type="figure">(New York, is a, city)</ref>, where the subject en- tity is a noun phrase that can refer to a real-world entity and the object entity can be either a noun phrase entity or a concept category.</p><p>In this work, we refer to the synsets in WordNet and the concept categories in NELL as KB con- cepts. They are the key components of the ontolo- gies and provide generally useful information for language understanding. As our KBLSTM model reads through each word in a sentence, it retrieves knowledge from NELL by searching for entities with the current word and collecting the related concept categories as candidate concepts; and it retrieves knowledge from WordNet by treating the synsets of the current word as candidate concepts.</p><p>We employ a knowledge graph embedding ap- proach to learn the representations of the candidate concepts. Denote a KB triple as (e 1 , r, e 2 ), we want to learn embeddings of the subject entity e 1 , the object entity e 2 , and the relation r, so that the relevance of the triple can be measured by a scor- ing function based on the embeddings. We employ the BILINEAR model described in <ref type="bibr" target="#b47">(Yang et al., 2015)</ref>. <ref type="bibr">6</ref> It computes the score of a triple (e 1 , r, e 2 ) via a bilinear function: S (e 1 ,r,e 2 ) = v T e 1 M r v e 2 , where v e 1 and v e 2 are vector embeddings for e 1 and e 2 respectively, and M r is a relation-specific embedding matrix. We train the embeddings using the max-margin ranking objective:</p><p>q=(e 1 ,r,e 2 )∈T q =(e 1 ,r,e 2 )∈T max{0, 1 − S q + S q } (7) where T denotes the set of triples in the KB and T denotes the "negative" triples that are not observed in the KB.</p><p>For WordNet, we train the concept embeddings using the preprocessed data provided by , which contains 151,442 triples with 40,943 synsets and 18 relations. We use the same data splits for training, development, and testing. During training, we use AdaGrad ( <ref type="bibr" target="#b9">Duchi et al., 2011</ref>) to optimize objective 7 with an initial learn- ing rate of 0.05 and a mini-batch size of 100. At each gradient step, we sample 10 negative object entities with respect to the positive triple. Our implementation of the BILINEAR model achieves top-10 accuracy of 91% for predicting missing ob-ject entities on the WordNet test set, which is com- parable with previous work <ref type="bibr" target="#b47">(Yang et al., 2015)</ref>.</p><p>For NELL, we train the concept embeddings us- ing a subset of the NELL data <ref type="bibr">7</ref> . We filter noun phrases with annotation confidence less than 0.9 in order to remove erroneous labels introduced dur- ing the automatic construction of NELL <ref type="bibr" target="#b43">(Wijaya, 2016)</ref>. This results in 180,107 noun phrases and 258 concept categories in total. We randomly split 80% of the data for training, 10% for develop- ment and 10% for testing. For each training exam- ple, we enumerate all the unobserved concept cat- egories as negative labels. Instead of treating each entity as a unit, we represent it as an average of its constituting word vectors concatenated with its head word vector. The word vectors are initialized with pre-trained paraphrastic embeddings <ref type="bibr" target="#b42">(Wieting et al., 2015</ref>) and fine-tuned during training. Using the same optimization parameters as be- fore, the BILINEAR model achieves 88% top-1 ac- curacy for predicting concept categories of given noun phrases on the test set.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4">Experiments</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.1">Entity Extraction</head><p>We first apply our model to entity extraction, a task that is typically addressed by assigning each word/token BIO labels (Begin, Inside, and Outside) <ref type="bibr" target="#b37">(Ratinov and Roth, 2009</ref>) indicating the token's position within an entity mention as well as its entity type.</p><p>To allow tagging over phrases instead of words, we address entity extraction in two steps. The first step detects mention chunks, and the second step assigns entity type labels to mention chunks (in- cluding an O type indicating other types). In the first stage, we train a BiLSTM network with a conditional random field objective ( <ref type="bibr" target="#b20">Huang et al., 2015</ref>) using gold-standard BIO labels regardless of entity types, and only predict each token's po- sition within an entity mention. This produces a sequence of chunks for each sentence. In the sec- ond stage, we train another supervised BiLSTM model to predict type labels for the previously ex- tracted chunks. Each chunk is treated as a unit input to the BiLSTMs and the input vector is com- puted by averaging the input vectors of individ- ual words within the chunk concatenated with its head word vector. The BiLSTMs can be trained with a softmax objective that minimizes the cross- entropy loss for each individual chunk. It com- putes the probability of the correct type for each chunk:</p><formula xml:id="formula_10">p yt = exp(w T yt h t ) y t exp(w T y t h t )<label>(8)</label></formula><p>The BiLSTMs can also be trained with a CRF ob- jective (referred to as BiLSTM-CRF) that mini- mizes the negative log-likelihood for the entire se- quence. It computes the probability of the correct types for a sequence of chunks:</p><formula xml:id="formula_11">p y = exp(g(x, y)) y exp(g(x, y ))<label>(9)</label></formula><p>where g(x, y) = l t=1 P t,yt + l t=0 A yt,y t+1 , P t,yt = w T yt h t is the score of assigning the t-th chunk with tag y t and A yt,y t+1 is the score of tran- sitioning from tag y t to y t+1 . By replacing h t in Eq. 8 and Eq. 9 with the knowledge-aware state vectorˆhvectorˆ vectorˆh t (Eq. 6), we can compute the objective for KBLSTM and KBLSTM-CRF respectively.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.1.1">Implementation Details</head><p>We evaluate our models on the ACE2005 cor- pus ( <ref type="bibr" target="#b24">LDC, 2005</ref>) and the OntoNotes 5.0 cor- pus ( <ref type="bibr" target="#b19">Hovy et al., 2006</ref>) for entity extraction. Both datasets consist of text from a variety of sources such as newswire, broadcast conversations, and web text. We use the same data splits and task settings for ACE2005 as in  and for OntoNotes 5.0 as in <ref type="bibr" target="#b10">Durrett and Klein (2014)</ref>.</p><p>At each time step, our models take as input a word vector and a capitalization feature ( <ref type="bibr" target="#b7">Chiu and Nichols, 2016)</ref>. We initialize the word vectors us- ing pretrained paraphrastic embeddings ( <ref type="bibr" target="#b42">Wieting et al., 2015</ref>), as we find that they significantly out- performs randomly initialized embeddings. The word embeddings are fine-tuned during training. For the KBLSTM models, we obtain the embed- dings of KB concepts from NELL and WordNet as described in Section § 3.3. These embeddings are kept fix during training.</p><p>We implement all the models using Theano on a single GPU. We update the model parameters on every training example using Adam with default settings ( <ref type="bibr" target="#b21">Kingma and Ba, 2014)</ref> and apply dropout to the input layer of the BiLSTM with a rate of 0.5. The word embedding dimension is set to 300 and the hidden vector dimension is set to 100. We train models on ACE2005 for about 5 epochs and on OntoNotes 5.0 for about 10 epochs with early stopping based on development results. For each experiment, we report the average re- sults over 10 random runs. We also apply the Wilcoxon rank sum test to compare our models with the baseline models.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.1.2">Results</head><p>We compare our KBLSTM and KBLSTM-CRF models with the following baselines: BiLSTM, a vanilla BiLSTM network trained using the same input, and BiLSTM-Fea, a BiLSTM network that combines its hidden state vector with discrete KB features (i.e., indicators of candidate KB concepts) to produce the final state vector. We also in- clude their variants BiLSTM-CRF and BiLSTM- Fea-CRF, which are trained using the CRF objec- tive instead of the standard softmax objective.</p><p>We first report results on entity extraction with gold-standard boundaries for multi-word men- tions. This allows us to focus on the perfor- mance of entity type prediction without consider- ing mention boundary errors and the noise they in- troduce in retrieving candidate KB concepts. Ta- ble 1 shows the results. 8 We find that the CRF objective generally outperforms the softmax ob- jective. Our KBLSTM-CRF model significantly improves over its counterpart BiLSTM-Fea-CRF. This demonstrates the effectiveness of KBLSTM architecture in leveraging KB information. <ref type="table" target="#tab_2">Table 2</ref> breaks down the results of the KBLSTM-CRF and the BiLSTM-Fea-CRF using different KB settings. We find that the KBLSTM- CRF outperforms the BiLSTM-Fea-CRF in all the settings and that incorporating both KBs leads to the best performance.</p><p>Next, we evaluate our models on entity ex- traction with predicted mention boundaries. We first train a BiLSTM-CRF to perform mention  chunking using the same setting as described in Section 4.1.1. We then treat the predicted chunks as units for entity type labeling. <ref type="table" target="#tab_4">Table 3</ref> reports the full entity extraction results on the ACE2005 test set. We compare our models with the state-of-the-art feature-based linear models , <ref type="bibr" target="#b46">Yang and Mitchell (2016)</ref>, and the recently proposed sequence-and tree-structured LSTMs ( <ref type="bibr" target="#b33">Miwa and Bansal, 2016)</ref>. Interestingly, we find that using BiLSTM-CRF without any KB information already gives strong performance compared to previous work. The KBLSTM-CRF model demonstrates the best performance among all the models and achieves the new state-of-the- art performance on the ACE2005 dataset. We also report the entity extraction results on the OntoNotes 5.0 test set in <ref type="table" target="#tab_5">Table 4</ref>. We compare our models with the existing feature-based mod- els <ref type="bibr" target="#b37">Ratinov and Roth (2009)</ref> and <ref type="bibr" target="#b10">Durrett and Klein (2014)</ref>, which both employ heavy feature engi- neering to bring in external knowledge. BiLSTM- CNN ( <ref type="bibr" target="#b7">Chiu and Nichols, 2016</ref>) employs a hy- brid BiLSTM and Convolutional neural network (CNN) architecture and incorporates rich lexicon features derived from SENNA and DBPedia. Our KBLSTM-CRF model shows competitive results compared to their results. It also presents sig- nificant improvements compared to the BiLSTM and BiLSTM-Fea models. Note that the benefit of adding KB information is smaller on OntoNotes compared to ACE2005. We believe that there are two main reasons. One is that NELL has a lower coverage of entity mentions in OntoNotes than in ACE2005 (57% vs. 65%). Second, OntoNotes has a significantly larger amount of training data, which allows for more accurate models without much help from external resources.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.2">Event Extraction</head><p>We now apply our model to the task of event ex- traction. Event extraction is concerned with de-   tecting event triggers, i.e., a word that expresses the occurrence of a pre-defined type of event. Event triggers are mostly verbs and eventive nouns but can occasionally be adjectives and other con- tent words. Therefore, the task is typically ad- dressed as a classification problem where the goal is to label each word in a sentence with an event type or an O type if it does not express any of the defined events. It is straightforward to apply the BiLSTM architecture to event extraction. Simi- larly to the models for entity extraction, we can train the BiLSTM network with both the softmax objective and the CRF objective.</p><p>We evaluate our models on the portion ACE2005 corpus that has event annotations. We use the same data split and experimental setting as in <ref type="bibr" target="#b27">Li et al. (2013)</ref>. The training procedure is the same as in Section 4.1.1, and we train all the mod- els for about 5 epochs. For the KBLSTM models, we integrate the learned embeddings of WordNet synsets during training.    </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.2.1">Results</head><p>We compare our models with the prior state-of- the-art approaches for event extraction, including neural and non-neural ones: JOINTBEAM refers to the joint beam search approach with local and global features ( <ref type="bibr" target="#b27">Li et al., 2013)</ref>; JOINTENTI- TYEVENT refers to the graphical model for joint entity and event extraction <ref type="bibr" target="#b46">(Yang and Mitchell, 2016)</ref>; DMCNN is the dynamic multi-pooling CNNs in ; and JRNN is an RNN model with memory introduced by <ref type="bibr" target="#b35">Nguyen et al. (2016)</ref>. The first block in <ref type="table" target="#tab_7">Table 5</ref> shows the results of the feature-based linear models (taken from <ref type="bibr" target="#b46">Yang and Mitchell (2016)</ref>). The second block shows the previously reported results for the neural models. Note that they both make use of gold-standard entity annotations. The third block shows the results of our models. We can see that our KBLSTM models significantly outperform the BiLSTM and BiLSTM-Fea models, which again confirms their effectiveness in leveraging KB in- formation. The KBLSTM-CRF model achieves the best performance and outperforms the previous state-of-the-art methods without having access to any gold-standard entities.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.3">Model Analysis</head><p>In order to better understand our model, we vi- sualize the learned attention weights α for KB concepts and the sentinel weight β that measures the tradeoff between knowledge and context. Fig- ure 2a visualizes these weights for the entity men- tion "clinton". In the first sentence, "clinton" refers to a LOCATION while in the second sen- tence, "clinton" refers to a PERSON. Our model learns to attend to different word senses for 'clin- ton' (KB concepts associated with 'clinton') in different sentences. Note that the weight on the knowledge sentinel is higher in the first sentence. This is because the local text alone is indicative of the entity type for "clinton": the word "in" is more likely to be followed by a location than a person. We find that BiLSTM-Fea-CRF models often make wrong predictions on examples like this due to its inflexibility in modeling knowl- edge relevance with respect to context. <ref type="figure" target="#fig_2">Figure 2b</ref> shows the learned weights for the event trigger word "head" in two sentences, one expresses a TRAVEL event while the other expresses a START- POSITION event. Again, we find that our model is capable of attending to relevant WordNet synsets and more accurately disambiguate event types.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5">Conclusion</head><p>In this paper, we introduce the KBLSTM net- work architecture as one approach to incorporat- ing background KBs for improving recurrent neu- ral networks for machine reading. This archi- tecture employs an adaptive attention mechanism with a sentinel that allows for learning an ap- propriate tradeoff for blending knowledge from the KBs with information from the currently pro- cessed text, as well as selecting among relevant KB concepts for each word (e.g., to select the cor- rect semantic categories for "clinton" as a town or person in <ref type="figure" target="#fig_2">figure 2a</ref>). Experimental results show that our model achieves state-of-the-art perfor- mance on standard benchmarks for both entity ex- traction and event extraction. We see many additional opportunities to in- tegrate background knowledge with training of neural network models for language processing. Though our model is evaluated on entity extrac- tion and event extraction, it can be useful for other machine reading tasks. Our model can also be ex- tended to integrate knowledge from a richer set of KBs in order to capture the diverse variety and depth of background knowledge required for ac- curate and deep language understanding.</p></div><figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_0"><head>Figure 1 :</head><label>1</label><figDesc>Figure 1: Architecture of the KBLSTM model. As each time step t, the knowledge module retrieves a set of candidate KB concepts V (x t ) that are related to the current input x t , and then computes a knowledge state vector m t that integrates the embeddings of the candidate KB concepts v 1 , v 2 , ..., v L and the current context vector s t. See Section § 3.2 for details.</figDesc><graphic url="image-1.png" coords="4,72.00,62.81,226.77,150.20" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_1"><head>(</head><label></label><figDesc>a) The X-axis represents relevant NELL concepts for the entity mention clinton. The Y-axis represents the concept weights and the knowledge sentinel weight. (b) The X-axis represents relevant WordNet concepts for the event trigger head. The Y-axis represents the concept weights and the knowledge sentinel weight.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_2"><head>Figure 2 :</head><label>2</label><figDesc>Figure 2: Visualization of the attention weights for KB features learned by KBLSTM-CRF. Higher weights imply higher importance.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_2" validated="false"><head>Table 2 :</head><label>2</label><figDesc></figDesc><table>Ablation results with different KBs. 
+
+</table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_4" validated="false"><head>Table 3 :</head><label>3</label><figDesc></figDesc><table>Entity extraction results on the ACE2005 
+test set. 
+
+Model 
+P 
+R 
+F1 
+
+Ratinov and Roth (2009) 
+82.0 84.9 
+83.4 
+Durrett and Klein (2014) 
+85.2 82.8 
+84.0 
+BiLSTM-CNN 
+82.5 82.4 
+82.5 
+BiLSTM-CNN+emb 
+85.9 86.3 
+86.1 
+BiLSTM-CNN+emb+lexicon 86.0 86.5 
+86.2 
+
+BiLSTM 
+84.9 86.3 
+85.6 
+BiLSTM-CRF 
+85.3 86.6 
+85.9 
+BiLSTM-Fea 
+85.2 86.4 
+85.8 
+BiLSTM-Fea-CRF 
+85.2 86.8 
+86.0 
+KBLSTM 
+86.3 86.2 
+86.2 
+KBLSTM-CRF 
+86.1 86.8 86.4  *  
+
+</table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_5" validated="false"><head>Table 4 :</head><label>4</label><figDesc></figDesc><table>Entity extraction results on the OntoNotes 
+5.0 test set. 
+
+</table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_7" validated="false"><head>Table 5 :</head><label>5</label><figDesc></figDesc><table>event extraction results on the ACE2005 
+test set. 
+
+</table></figure>
+
+			<note place="foot" n="1"> https://wordnet.princeton.edu 2 http://wiki.dbpedia.org/ 3 http://rtw.ml.cmu.edu/rtw/kbbrowser/</note>
+
+			<note place="foot" n="4"> An event also consists of participants whose types depend on the event triggers. In this work, we focus on predicting event triggers and leave the prediction of event participants for future work.</note>
+
+			<note place="foot" n="5"> https://www.w3.org/TR/rdf11-concepts/</note>
+
+			<note place="foot" n="6"> We also experimented with TransE (Bordes et al., 2013) and NTN (Socher et al., 2013), and found that they perform significantly worse than the Bilinear method, especially on predicting the &quot;is a&quot; facts in NELL.</note>
+
+			<note place="foot" n="7"> http://rtw.ml.cmu.edu/rtw/resources</note>
+
+			<note place="foot" n="8"> * indicates p &lt; 0.05 when comparing to the BiLSTMbased models.</note>
+		</body>
+		<back>
+
+			<div type="acknowledgement">
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Acknowledgments</head><p>This research was supported in part by DARPA under contract number FA8750-13-2-0005, and by NSF grants IIS-1065251 and IIS-1247489. We also gratefully acknowledge the support of the Mi-crosoft Azure for Research program and the AWS Cloud Credits for Research program. In addition, we would like to thank anonymous reviewers for their helpful comments.</p></div>
+			</div>
+
+			<div type="references">
+
+				<listBibl>
+
+<biblStruct xml:id="b0">
+	<monogr>
+				<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Heeyoul</forename><surname>Sungjin Ahn</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Tanel</forename><surname>Choi</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yoshua</forename><surname>Pärnamaa</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Bengio</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1608.00318</idno>
+		<title level="m">A neural knowledge language model</title>
+		<imprint>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b1">
+	<analytic>
+		<title level="a" type="main">Neural machine translation by jointly learning to align and translate</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Dzmitry</forename><surname>Bahdanau</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kyunghyun</forename><surname>Cho</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yoshua</forename><surname>Bengio</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the International Conference on Learning Representations</title>
+		<meeting>the International Conference on Learning Representations</meeting>
+		<imprint>
+			<date type="published" when="2015" />
+		</imprint>
+	</monogr>
+	<note>ICLR</note>
+</biblStruct>
+
+<biblStruct xml:id="b2">
+	<analytic>
+		<title level="a" type="main">Translating embeddings for modeling multirelational data</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Antoine</forename><surname>Bordes</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Nicolas</forename><surname>Usunier</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Alberto</forename><surname>Garciaduran</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jason</forename><surname>Weston</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Oksana</forename><surname>Yakhnenko</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Advances in Neural Information Processing Systems (NIPS)</title>
+		<imprint>
+			<date type="published" when="2013" />
+			<biblScope unit="page" from="2787" to="2795" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b3">
+	<analytic>
+		<title level="a" type="main">Learning structured embeddings of knowledge bases</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Antoine</forename><surname>Bordes</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jason</forename><surname>Weston</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ronan</forename><surname>Collobert</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yoshua</forename><surname>Bengio</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Twenty-Fifth AAAI Conference on Artificial Intelligence</title>
+		<meeting>the Twenty-Fifth AAAI Conference on Artificial Intelligence</meeting>
+		<imprint>
+			<date type="published" when="2011" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b4">
+	<analytic>
+		<title level="a" type="main">Typed tensor decomposition of knowledge bases for relation extraction</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kai-Wei</forename><surname>Chang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Wen-Tau</forename><surname>Yih</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Bishan</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Christopher</forename><surname>Meek</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Empirical Methods in Natural Language Processing (EMNLP)</title>
+		<imprint>
+			<date type="published" when="2014" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b5">
+	<analytic>
+		<title level="a" type="main">A thorough examination of the cnn/daily mail reading comprehension task</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Danqi</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jason</forename><surname>Bolton</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Christopher D</forename><surname>Manning</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 54th Annual Meeting of the Association for Computational Linguistics (ACL)</title>
+		<meeting>the 54th Annual Meeting of the Association for Computational Linguistics (ACL)</meeting>
+		<imprint>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b6">
+	<analytic>
+		<title level="a" type="main">Event extraction via dynamic multi-pooling convolutional neural networks</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yubo</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Liheng</forename><surname>Xu</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kang</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Daojian</forename><surname>Zeng</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jun</forename><surname>Zhao</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Annual Meeting of the Association for Computational Linguistics (ACL)</title>
+		<meeting>the Annual Meeting of the Association for Computational Linguistics (ACL)</meeting>
+		<imprint>
+			<date type="published" when="2015" />
+			<biblScope unit="page" from="167" to="176" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b7">
+	<analytic>
+		<title level="a" type="main">Named entity recognition with bidirectional lstm-cnns</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">P</forename><forename type="middle">C</forename><surname>Jason</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Eric</forename><surname>Chiu</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Nichols</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Transactions of the Association for Computational Linguistics</title>
+		<imprint>
+			<date type="published" when="2016" />
+			<biblScope unit="volume">4</biblScope>
+			<biblScope unit="page" from="357" to="370" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b8">
+	<analytic>
+		<title level="a" type="main">Learning phrase representations using rnn encoder-decoder for statistical machine translation</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kyunghyun</forename><surname>Cho</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Bart</forename><surname>Van Merriënboer</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Caglar</forename><surname>Gulcehre</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Dzmitry</forename><surname>Bahdanau</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Fethi</forename><surname>Bougares</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Holger</forename><surname>Schwenk</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yoshua</forename><surname>Bengio</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2014 Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>the 2014 Conference on Empirical Methods in Natural Language Processing</meeting>
+		<imprint>
+			<publisher>EMNLP</publisher>
+			<date type="published" when="2014" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b9">
+	<analytic>
+		<title level="a" type="main">Adaptive subgradient methods for online learning and stochastic optimization</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">John</forename><surname>Duchi</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Elad</forename><surname>Hazan</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yoram</forename><surname>Singer</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Journal of Machine Learning Research</title>
+		<imprint>
+			<biblScope unit="volume">12</biblScope>
+			<biblScope unit="page" from="2121" to="2159" />
+			<date type="published" when="2011-07" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b10">
+	<analytic>
+		<title level="a" type="main">A joint model for entity analysis: Coreference, typing, and linking</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Greg</forename><surname>Durrett</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Dan</forename><surname>Klein</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Transactions of the Association for Computational Linguistics</title>
+		<imprint>
+			<biblScope unit="volume">2</biblScope>
+			<biblScope unit="page" from="477" to="490" />
+			<date type="published" when="2014" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b11">
+	<analytic>
+		<title level="a" type="main">Transitionbased dependency parsing with stack long shortterm memory</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Chris</forename><surname>Dyer</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Miguel</forename><surname>Ballesteros</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Wang</forename><surname>Ling</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Austin</forename><surname>Matthews</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Noah</forename><forename type="middle">A</forename><surname>Smith</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Annual Meeting of the Association for Computational Linguistics (ACL)</title>
+		<meeting>the Annual Meeting of the Association for Computational Linguistics (ACL)</meeting>
+		<imprint>
+			<date type="published" when="2015" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b12">
+	<analytic>
+		<title level="a" type="main">Finding structure in time</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Jeffrey L Elman</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Cognitive science</title>
+		<imprint>
+			<biblScope unit="volume">14</biblScope>
+			<biblScope unit="issue">2</biblScope>
+			<biblScope unit="page" from="179" to="211" />
+			<date type="published" when="1990" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b13">
+	<analytic>
+		<title level="a" type="main">Frame semantics and the nature of language</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">J</forename><surname>Charles</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Fillmore</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Annals of the New York Academy of Sciences</title>
+		<imprint>
+			<biblScope unit="volume">280</biblScope>
+			<biblScope unit="issue">1</biblScope>
+			<biblScope unit="page" from="20" to="32" />
+			<date type="published" when="1976" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b14">
+	<analytic>
+		<title level="a" type="main">Incorporating vector space similarity in random walk inference over knowledge bases</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Matt</forename><surname>Gardner</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Partha</forename><forename type="middle">Pratim</forename><surname>Talukdar</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jayant</forename><surname>Krishnamurthy</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Tom</forename><surname>Mitchell</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Empirical Methods in Natural Language Processing</title>
+		<imprint>
+			<publisher>EMNLP</publisher>
+			<date type="published" when="2014" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b15">
+	<analytic>
+		<title level="a" type="main">Bidirectional lstm networks for improved phoneme classification and recognition</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Alex</forename><surname>Graves</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Santiago</forename><surname>Fernández</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jürgen</forename><surname>Schmidhuber</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">International Conference on Artificial Neural Networks</title>
+		<imprint>
+			<publisher>Springer</publisher>
+			<date type="published" when="2005" />
+			<biblScope unit="page" from="799" to="804" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b16">
+	<analytic>
+		<title level="a" type="main">Traversing knowledge graphs in vector space</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kelvin</forename><surname>Guu</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">John</forename><surname>Miller</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Percy</forename><surname>Liang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2015 Conference on Empirical Methods in Natural Language Processing (EMNLP)</title>
+		<meeting>the 2015 Conference on Empirical Methods in Natural Language Processing (EMNLP)</meeting>
+		<imprint>
+			<date type="published" when="2015" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b17">
+	<analytic>
+		<title level="a" type="main">Teaching machines to read and comprehend</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Karl</forename><surname>Moritz Hermann</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Tomas</forename><surname>Kocisky</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Edward</forename><surname>Grefenstette</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Lasse</forename><surname>Espeholt</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Will</forename><surname>Kay</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Mustafa</forename><surname>Suleyman</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Phil</forename><surname>Blunsom</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Advances in Neural Information Processing Systems (NIPS)</title>
+		<imprint>
+			<date type="published" when="2015" />
+			<biblScope unit="page" from="1693" to="1701" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b18">
+	<analytic>
+		<title level="a" type="main">Long short-term memory</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Sepp</forename><surname>Hochreiter</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jürgen</forename><surname>Schmidhuber</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Neural computation</title>
+		<imprint>
+			<biblScope unit="volume">9</biblScope>
+			<biblScope unit="issue">8</biblScope>
+			<biblScope unit="page" from="1735" to="1780" />
+			<date type="published" when="1997" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b19">
+	<analytic>
+		<title level="a" type="main">Ontonotes: the 90% solution</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Eduard</forename><surname>Hovy</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Mitchell</forename><surname>Marcus</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Martha</forename><surname>Palmer</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Lance</forename><surname>Ramshaw</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ralph</forename><surname>Weischedel</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the human language technology conference of the NAACL, Companion Volume: Short Papers</title>
+		<meeting>the human language technology conference of the NAACL, Companion Volume: Short Papers</meeting>
+		<imprint>
+			<date type="published" when="2006" />
+			<biblScope unit="page" from="57" to="60" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b20">
+	<monogr>
+		<title level="m" type="main">Bidirectional lstm-crf models for sequence tagging</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Zhiheng</forename><surname>Huang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Wei</forename><surname>Xu</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kai</forename><surname>Yu</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1508.01991</idno>
+		<imprint>
+			<date type="published" when="2015" />
+		</imprint>
+	</monogr>
+<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b21">
+	<analytic>
+		<title level="a" type="main">Adam: A method for stochastic optimization</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Diederik</forename><surname>Kingma</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jimmy</forename><surname>Ba</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the International Conference on Learning Representations (ICLR)</title>
+		<meeting>the International Conference on Learning Representations (ICLR)</meeting>
+		<imprint>
+			<date type="published" when="2014" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b22">
+	<analytic>
+		<title level="a" type="main">Neural architectures for named entity recognition</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Guillaume</forename><surname>Lample</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Miguel</forename><surname>Ballesteros</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Sandeep</forename><surname>Subramanian</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kazuya</forename><surname>Kawakami</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Chris</forename><surname>Dyer</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2016 Conference of the North American Chapter of the Association for Computational Linguistics (NAACL)</title>
+		<meeting>the 2016 Conference of the North American Chapter of the Association for Computational Linguistics (NAACL)</meeting>
+		<imprint>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b23">
+	<analytic>
+		<title level="a" type="main">Random walk inference and learning in a large scale knowledge base</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ni</forename><surname>Lao</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Tom</forename><surname>Mitchell</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">William W</forename><surname>Cohen</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Conference on Empirical Methods in Natural Language Processing (EMNLP)</title>
+		<meeting>the Conference on Empirical Methods in Natural Language Processing (EMNLP)</meeting>
+		<imprint>
+			<date type="published" when="2011" />
+			<biblScope unit="page" from="529" to="539" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b24">
+	<analytic>
+		<title level="a" type="main">The ace 2005 evaluation plan</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ldc</forename></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">NIST</title>
+		<imprint>
+			<date type="published" when="2005" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b25">
+	<analytic>
+		<title level="a" type="main">Incremental joint extraction of entity mentions and relations</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Qi</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Heng</forename><surname>Ji</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Annual Meeting of the Association for Computational Linguistics (ACL)</title>
+		<meeting>the Annual Meeting of the Association for Computational Linguistics (ACL)</meeting>
+		<imprint>
+			<date type="published" when="2014" />
+			<biblScope unit="page" from="402" to="412" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b26">
+	<analytic>
+		<title level="a" type="main">Constructing information networks using one single model</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Qi</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Heng</forename><surname>Ji</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yu</forename><surname>Hong</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Sujian</forename><surname>Li</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Empirical Methods in Natural Language Processing (EMNLP)</title>
+		<imprint>
+			<date type="published" when="2014" />
+			<biblScope unit="page" from="1846" to="1851" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b27">
+	<analytic>
+		<title level="a" type="main">Joint event extraction via structured prediction with global features</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Qi</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ji</forename><surname>Heng</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Liang</forename><surname>Huang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Annual Meeting of the Association for Computational Linguistics (ACL)</title>
+		<meeting>the Annual Meeting of the Association for Computational Linguistics (ACL)</meeting>
+		<imprint>
+			<date type="published" when="2013" />
+			<biblScope unit="page" from="73" to="82" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b28">
+	<analytic>
+		<title level="a" type="main">Knowing when to look: Adaptive attention via a visual sentinel for image captioning</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jiasen</forename><surname>Lu</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Caiming</forename><surname>Xiong</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Devi</forename><surname>Parikh</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Richard</forename><surname>Socher</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 30th IEEE Conference on Computer Vision and Pattern Recognition (CVPR)</title>
+		<meeting>the 30th IEEE Conference on Computer Vision and Pattern Recognition (CVPR)</meeting>
+		<imprint>
+			<date type="published" when="2017" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b29">
+	<analytic>
+		<title level="a" type="main">End-to-end sequence labeling via bi-directional lstm-cnns-crf</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Xuezhe</forename><surname>Ma</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Eduard</forename><surname>Hovy</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 54th Annual Meeting of the Association for Computational Linguistics (ACL)</title>
+		<meeting>the 54th Annual Meeting of the Association for Computational Linguistics (ACL)</meeting>
+		<imprint>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b30">
+	<analytic>
+		<title level="a" type="main">Key-value memory networks for directly reading documents</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Alexander</forename><surname>Miller</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Adam</forename><surname>Fisch</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jesse</forename><surname>Dodge</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Empirical Methods in Natural Language Processing</title>
+		<imprint>
+			<publisher>EMNLP</publisher>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+	<note>AmirHossein Karimi, Antoine Bordes, and Jason Weston</note>
+</biblStruct>
+
+<biblStruct xml:id="b31">
+	<monogr>
+		<title level="m" type="main">Society of mind</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Marvin</forename><surname>Minsky</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="1988" />
+			<publisher>Simon and Schuster</publisher>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b32">
+	<analytic>
+		<title level="a" type="main">Never-ending learning</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">T</forename><surname>Mitchell</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">W</forename><surname>Cohen</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">E</forename><surname>Hruschka</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">P</forename><surname>Talukdar</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">J</forename><surname>Betteridge</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">A</forename><surname>Carlson</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">B</forename><surname>Dalvi</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">M</forename><surname>Gardner</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">B</forename><surname>Kisiel</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">J</forename><surname>Krishnamurthy</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">N</forename><surname>Lao</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">K</forename><surname>Mazaitis</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">T</forename><surname>Mohamed</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">N</forename><surname>Nakashole</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">E</forename><surname>Platanios</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">A</forename><surname>Ritter</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">M</forename><surname>Samadi</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">B</forename><surname>Settles</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">R</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">D</forename><surname>Wijaya</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">A</forename><surname>Gupta</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">X</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">A</forename><surname>Saparov</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">M</forename><surname>Greaves</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">J</forename><surname>Welling</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Twenty-Ninth AAAI Conference on Artificial Intelligence (AAAI)</title>
+		<meeting>the Twenty-Ninth AAAI Conference on Artificial Intelligence (AAAI)</meeting>
+		<imprint>
+			<date type="published" when="2015" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b33">
+	<analytic>
+		<title level="a" type="main">End-to-end relation extraction using lstms on sequences and tree structures</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Makoto</forename><surname>Miwa</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Mohit</forename><surname>Bansal</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 54th Annual Meeting of the Association for Computational Linguistics (ACL)</title>
+		<meeting>the 54th Annual Meeting of the Association for Computational Linguistics (ACL)</meeting>
+		<imprint>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b34">
+	<analytic>
+		<title level="a" type="main">A knowledge-intensive model for prepositional phrase attachment</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ndapandula</forename><surname>Nakashole</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Tom</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Mitchell</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Annual Meeting of the Association for Computational Linguistics (ACL)</title>
+		<meeting>the Annual Meeting of the Association for Computational Linguistics (ACL)</meeting>
+		<imprint>
+			<date type="published" when="2015" />
+			<biblScope unit="page" from="365" to="375" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b35">
+	<analytic>
+		<title level="a" type="main">Joint event extraction via recurrent neural networks</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kyunghyun</forename><surname>Thien Huu Nguyen</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ralph</forename><surname>Cho</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Grishman</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">North American Chapter of the Association for Computational Linguistics (NAACLHLT)</title>
+		<imprint>
+			<date type="published" when="2016" />
+			<biblScope unit="page" from="300" to="309" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b36">
+	<analytic>
+		<title level="a" type="main">Coreference resolution with world knowledge</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Altaf</forename><surname>Rahman</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Vincent</forename><surname>Ng</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 49th Annual Meeting of the Association for Computational Linguistics (ACL)</title>
+		<meeting>the 49th Annual Meeting of the Association for Computational Linguistics (ACL)</meeting>
+		<imprint>
+			<date type="published" when="2011" />
+			<biblScope unit="page" from="814" to="824" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b37">
+	<analytic>
+		<title level="a" type="main">Design challenges and misconceptions in named entity recognition</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Lev</forename><surname>Ratinov</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Dan</forename><surname>Roth</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Thirteenth Conference on Computational Natural Language Learning (CoNLL)</title>
+		<meeting>the Thirteenth Conference on Computational Natural Language Learning (CoNLL)</meeting>
+		<imprint>
+			<date type="published" when="2009" />
+			<biblScope unit="page" from="147" to="155" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b38">
+	<analytic>
+		<title level="a" type="main">Relation extraction with matrix factorization and universal schemas</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Sebastian</forename><surname>Riedel</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Limin</forename><surname>Yao</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Andrew</forename><surname>Mccallum</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Benjamin M</forename><surname>Marlin</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of HLT-NAACL</title>
+		<meeting>HLT-NAACL</meeting>
+		<imprint>
+			<date type="published" when="2013" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b39">
+	<analytic>
+		<title level="a" type="main">Reasoning with neural tensor networks for knowledge base completion</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Richard</forename><surname>Socher</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Danqi</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">D</forename><surname>Christopher</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Andrew</forename><surname>Manning</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Ng</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Advances in Neural Information Processing Systems (NIPS)</title>
+		<imprint>
+			<date type="published" when="2013" />
+			<biblScope unit="page" from="926" to="934" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b40">
+	<analytic>
+		<title level="a" type="main">Representing text for joint embedding of text and knowledge bases</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kristina</forename><surname>Toutanova</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Danqi</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Patrick</forename><surname>Pantel</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Pallavi</forename><surname>Choudhury</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Michael</forename><surname>Gamon</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Association for Computational Linguistics (ACL)</title>
+		<imprint>
+			<date type="published" when="2015" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b41">
+	<analytic>
+		<title level="a" type="main">Connecting language and knowledge bases with embedding models for relation extraction</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jason</forename><surname>Weston</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Antoine</forename><surname>Bordes</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Oksana</forename><surname>Yakhnenko</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Nicolas</forename><surname>Usunier</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2013 Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>the 2013 Conference on Empirical Methods in Natural Language Processing</meeting>
+		<imprint>
+			<publisher>EMNLP</publisher>
+			<date type="published" when="2013" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b42">
+	<analytic>
+		<title level="a" type="main">Towards universal paraphrastic sentence embeddings</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">John</forename><surname>Wieting</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Mohit</forename><surname>Bansal</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kevin</forename><surname>Gimpel</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Karen</forename><surname>Livescu</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the International Conference on Learning Representations (ICLR)</title>
+		<meeting>the International Conference on Learning Representations (ICLR)</meeting>
+		<imprint>
+			<date type="published" when="2015" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b43">
+	<monogr>
+		<title level="m" type="main">VerbKB: A Knowledge Base of Verbs for Natural Language Understanding</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Wijaya</forename><surname>Derry Tanti</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2016" />
+		</imprint>
+		<respStmt>
+			<orgName>Carnegie Mellon University</orgName>
+		</respStmt>
+	</monogr>
+<note type="report_type">Ph.D. thesis</note>
+</biblStruct>
+
+<biblStruct xml:id="b44">
+	<monogr>
+		<title/>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Wordnet</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2010" />
+		</imprint>
+	</monogr>
+	<note>About wordnet</note>
+</biblStruct>
+
+<biblStruct xml:id="b45">
+	<analytic>
+		<title level="a" type="main">Show, attend and tell: Neural image caption generation with visual attention</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kelvin</forename><surname>Xu</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jimmy</forename><surname>Ba</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ryan</forename><surname>Kiros</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kyunghyun</forename><surname>Cho</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Aaron</forename><surname>Courville</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ruslan</forename><surname>Salakhutdinov</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">S</forename><surname>Richard</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yoshua</forename><surname>Zemel</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Bengio</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">International Conference for Machine Learning (ICML)</title>
+		<imprint>
+			<date type="published" when="2015" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b46">
+	<analytic>
+		<title level="a" type="main">Joint extraction of events and entities within a document context</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Bishan</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Tom</forename><surname>Mitchell</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">North American Chapter of the Association for Computational Linguistics (NAACL-HLT)</title>
+		<imprint>
+			<date type="published" when="2016" />
+			<biblScope unit="page" from="289" to="299" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b47">
+	<analytic>
+		<title level="a" type="main">Embedding entities and relations for learning and inference in knowledge bases</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Bishan</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Wen-Tau</forename><surname>Yih</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Xiaodong</forename><surname>He</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jianfeng</forename><surname>Gao</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Li</forename><surname>Deng</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">International Conference on Learning Representations</title>
+		<imprint>
+			<date type="published" when="2015" />
+		</imprint>
+	</monogr>
+	<note>ICLR</note>
+</biblStruct>
+
+<biblStruct xml:id="b48">
+	<analytic>
+		<title level="a" type="main">End-to-end learning of semantic role labeling using recurrent neural networks</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jie</forename><surname>Zhou</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Wei</forename><surname>Xu</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Annual Meeting of the Association for Computational Linguistics (ACL)</title>
+		<meeting>the Annual Meeting of the Association for Computational Linguistics (ACL)</meeting>
+		<imprint>
+			<date type="published" when="2015" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+				</listBibl>
+			</div>
+		</back>
+	</text>
+</TEI>

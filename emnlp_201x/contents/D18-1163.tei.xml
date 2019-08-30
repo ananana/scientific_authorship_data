@@ -1,0 +1,829 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<TEI xmlns="http://www.tei-c.org/ns/1.0" 
+xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+xsi:schemaLocation="http://www.tei-c.org/ns/1.0 /home/ana/installs/grobid/grobid-0.5.1/grobid-home/schemas/xsd/Grobid.xsd"
+ xmlns:xlink="http://www.w3.org/1999/xlink">
+	<teiHeader xml:lang="en">
+		<encodingDesc>
+			<appInfo>
+				<application version="0.5.1-SNAPSHOT" ident="GROBID" when="2019-04-18T10:47+0000">
+					<ref target="https://github.com/kermitt2/grobid">GROBID - A machine learning software for extracting information from scholarly documents</ref>
+				</application>
+			</appInfo>
+		</encodingDesc>
+		<fileDesc>
+			<titleStmt>
+				<title level="a" type="main">Synthetic Data Made to Order: The Case of Parsing</title>
+			</titleStmt>
+			<publicationStmt>
+				<publisher>Association for Computational Linguistics</publisher>
+				<availability status="unknown"><p>Copyright Association for Computational Linguistics</p>
+				</availability>
+				<date>October 31-November 4, 2018. 2018</date>
+			</publicationStmt>
+			<sourceDesc>
+				<biblStruct>
+					<analytic>
+						<author>
+							<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Dingquan</forename><surname>Wang</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="department">Department of Computer Science</orgName>
+								<orgName type="institution">Johns Hopkins University</orgName>
+							</affiliation>
+						</author>
+						<author>
+							<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jason</forename><surname>Eisner</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="department">Department of Computer Science</orgName>
+								<orgName type="institution">Johns Hopkins University</orgName>
+							</affiliation>
+						</author>
+						<title level="a" type="main">Synthetic Data Made to Order: The Case of Parsing</title>
+					</analytic>
+					<monogr>
+						<title level="m">Proceedings of the 2018 Conference on Empirical Methods in Natural Language Processing</title>
+						<meeting>the 2018 Conference on Empirical Methods in Natural Language Processing <address><addrLine>Brussels, Belgium</addrLine></address>
+						</meeting>
+						<imprint>
+							<publisher>Association for Computational Linguistics</publisher>
+							<biblScope unit="page" from="1325" to="1337"/>
+							<date type="published">October 31-November 4, 2018. 2018</date>
+						</imprint>
+					</monogr>
+					<note>1325</note>
+				</biblStruct>
+			</sourceDesc>
+		</fileDesc>
+		<profileDesc>
+			<abstract>
+				<p>To approximately parse an unfamiliar language , it helps to have a treebank of a similar language. But what if the closest available treebank still has the wrong word order? We show how to (stochastically) permute the constituents of an existing dependency tree-bank so that its surface part-of-speech statistics approximately match those of the target language. The parameters of the permutation model can be evaluated for quality by dynamic programming and tuned by gradient descent (up to a local optimum). This optimization procedure yields trees for a new artificial language that resembles the target language. We show that delexicalized parsers for the target language can be successfully trained using such &quot;made to order&quot; artificial languages.</p>
+			</abstract>
+		</profileDesc>
+	</teiHeader>
+	<text xml:lang="en">
+		<body>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="1">Introduction</head><p>Dependency parsing is a core task in natural lan- guage processing (NLP). Given a sentence, a dependency parser produces a dependency tree, which specifies the typed head-modifier relations between pairs of words. While supervised de- pendency parsing has been successful <ref type="bibr">(McDonald and Pereira, 2006;</ref><ref type="bibr" target="#b3">Nivre, 2008;</ref><ref type="bibr">Kiperwasser and Goldberg, 2016)</ref>, unsupervised parsing can hardly produce useful parses <ref type="bibr">(Mareček, 2016)</ref>. So it is extremely helpful to have some treebank of super- vised parses for training purposes.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="1.1">Past work: Cross-lingual transfer</head><p>Unfortunately, manually constructing a treebank for a new target language is expensive <ref type="bibr">(Böhmová et al., 2003)</ref>. As an alternative, cross-lingual transfer parsing <ref type="bibr">(McDonald et al., 2011</ref>) is some- times possible, thanks to the recent development of multi-lingual treebanks <ref type="bibr">(McDonald et al., 2013;</ref><ref type="bibr" target="#b5">Nivre et al., 2015;</ref><ref type="bibr">Nivre et al., 2017)</ref>. The idea is to parse the sentences of the target language with a supervised parser trained on the treebanks of one or more source languages. Although the parser cannot be expected to know the words of the target language, it can make do with parts of speech (POS) <ref type="bibr">(McDonald et al., 2011;</ref><ref type="bibr">Täckström et al., 2013;</ref><ref type="bibr">Zhang and Barzilay, 2015)</ref> or cross- lingual word embeddings ( <ref type="bibr">Duong et al., 2015;</ref><ref type="bibr">Guo et al., 2016;</ref><ref type="bibr">Ammar et al., 2016)</ref>. A more serious challenge is that the parser may not know how to handle the word order of the target language, un- less the source treebank comes from a closely re- lated language (e.g., using German to parse <ref type="bibr">Luxembourgish)</ref>. Training the parser on trees from multiple source languages may mitigate this issue <ref type="bibr">(McDonald et al., 2011</ref>) because the parser is more likely to have seen target part-of-speech sequences somewhere in the training data. Some authors (Rosa andŽabokrtsk´yandˇandŽabokrtsk´andŽabokrtsk´y, 2015a,b; <ref type="bibr">Wang and Eisner, 2016</ref>) have shown additional improvements by preferring source languages that are "close" to the target language, where the closeness is mea- sured by distance between POS language models trained on the source and target corpora.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="1.2">This paper: Tailored synthetic data</head><p>We will focus on delexicalized dependency pars- ing, which maps an input POS tag sequence to a dependency tree. We evaluate single-source transfer-train a parser on a single source lan- guage, and evaluate it on the target language. This is the setup of <ref type="bibr">Zeman and Resnik (2008)</ref> and <ref type="bibr">Søgaard (2011a)</ref>.</p><p>Our novel ingredient is that rather than seek a close source language that already exists, we cre- ate one. How? Given a dependency treebank of a possibly distant source language, we stochasti- cally permute the children of each node, accord- ing to some distribution that makes the permuted language close to the target language.</p><p>And how do we find this distribution? We adopt the tree-permutation model of <ref type="bibr">Wang and Eisner (2016)</ref>. We design a dynamic programming algo- rithm which, for any given distribution p in Wang and Eisner's family, can compute the expected counts of all POS bigrams in the permuted source treebank. This allows us to evaluate p by com- puting the divergence between the bigram POS language model formed by these expected counts, and the one formed by the observed counts of POS bigrams in the unparsed target language. In order to find a p that locally minimizes this divergence, we adjust the model parameters by stochastic gra- dient descent (SGD).</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="1.3">Key limitations in this paper</head><p>Better measures of surface closeness between two languages might be devised. However, even counting the expected POS N -grams is moder- ately expensive, taking time exponential in N if done exactly. So we compute only these local statistics, and only for N = 2. We certainly need N &gt; 1 because the 1-gram distribution is not af- fected by permutation at all. N = 2 captures useful bigram statistics: for example, to mimic a verb-final language with prenominal modifiers, we would seek constituent permutations that result in matching its relatively high rate of VERB-PUNCT and ADJ-NOUN bigrams. While N &gt; 2 might have improved the results, it was too slow for our large-scale experimental design. §7 discusses how richer measures could be used in the future.</p><p>We caution that throughout this paper, we as- sume that our corpora are annotated with gold POS tags, even in the target language (which lacks any gold training trees). This is an idealized set- ting that has often been adopted in work on unsu- pervised and cross-lingual transfer. §7 discusses a possible avenue for doing without gold tags.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2">Modeling Surface Realization</head><p>We begin by motivating the idea of tree permuta- tion. Let us suppose that the dependency tree for a sentence starts as a labeled graph-a tree in which siblings are not yet ordered with respect to their parent or one another. Each language has some systematic way to realize its unordered trees as surface strings: 1 it imposes a particular order on the tree's word tokens. More precisely, a language specifies a distribution p(string | unordered tree) over a tree's possible realizations.</p><p>As an engineering matter, we now make the strong assumption that the unordered dependency trees are similar across languages. That is, we sup- pose that different languages use similar underly- ing syntactic/semantic graphs, but differ in how they realize this graph structure on the surface. <ref type="bibr">1</ref> Modeling this process was the topic of the recent Surface Realization Shared Task ( <ref type="bibr">Mille et al., 2018</ref>). Most relevant is work on tree linearization <ref type="bibr">(Filippova and Strube, 2009;</ref><ref type="bibr">Futrell and Gibson, 2015;</ref><ref type="bibr" target="#b7">Puzikov and Gurevych, 2018</ref>).</p><p>Thus, given a gold POS corpus u of the un- known target language, we may hope to explain its distribution of surface POS bigrams as the result of applying some target-language surface realization model to the distribution of cross-linguistically "typical" unordered trees. To obtain samples of the latter distribution, we use the treebanks of one or more other languages. The present paper eval- uates our method when only a single source tree- bank is used. In the future, we could try tuning a mixture of all available source treebanks.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.1">Realization is systematic</head><p>We presume that the target language applies the same stochastic realization model to all trees. All that we can optimize is the parameter vector of this model. Thus, we deny ourselves the free- dom to realize each individual tree in an ad hoc way. To see why this is important, suppose the tar- get language is French, whose corpus u contains many NOUN-ADJ bigrams. We could achieve such a bigram from the unordered source tree . However, that realization is not in fact appropri- ate for French, so that ordered tree would not be a useful training tree for French. Our approach should disprefer this tempting but incorrect real- ization, because any model with a high probabil- ity of this realization would, if applied system- atically over the whole corpus, also yield sen- tences like He sleepy made Sue, with un- wanted PRON-ADJ bigrams that would not match the surface statistics of French. We hope our ap- proach will instead choose the realization model that is correct for French, in which the NOUN-ADJ bigrams arise instead from source trees where the ADJ is a dependent of the NOUN, yielding (e.g.) . This has the same POS sequence as the example above (as it happens), but now assigns the correct tree to it.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.2">A parametric realization model</head><p>As our family of realization distributions, we adopt the log-linear model used for this purpose by <ref type="bibr">Wang and Eisner (2016)</ref>. The model assumes that the root node a of the unordered dependency tree selects an ordering π(a) of the n a nodes consisting of a and its n a − 1 dependent children. The pro- cedure is repeated recursively at the child nodes. This method can produce only projective trees.</p><p>Each node a draws its ordering π(a) indepen- dently according to</p><formula xml:id="formula_0">p θ (π | a) = 1 Z(a) exp 1≤i&lt;j≤na θ · f (π, i, j) (1)</formula><p>which is a distribution over the n a ! possible or- derings. Z(a) is a normalizing constant. f is a feature vector extracted from the ordered pair of nodes π i , π j , and θ is the model's parameter vec- tor of feature weights. See Appendix A for the fea- ture templates, which are a subset of those used by <ref type="bibr">Wang and Eisner (2016)</ref>. These features are able to examine the tree's node labels (POS tags) and edge labels (dependency relations). Thus, when a is a verb, the model can assign a positive weight to "subject precedes verb" or "subject precedes ob- ject," thus preferring orderings with these features. Following <ref type="bibr">Wang and Eisner (2016, §3</ref>.1), we choose new orderings for the noun and verb nodes only, 2 preserving the source treebank's order at all other nodes a.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.3">Generating training data</head><p>Given a source treebank B and some parameters θ, we can use equation (1) to randomly sample re- alizations of the trees in B. The effect is to reorder dependent phrases within those trees. The result- ing permuted treebank B can be used to train a parser for the target language.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.4">Choosing parameters θ</head><p>So how do we choose θ that works for the tar- get language? Suppose u is a corpus of target- language POS sequences, using the same set of POS tags as B. We evaluate parameters θ accord- ing to whether POS tag sequences in B will be distributed like POS tag sequences in u.</p><p>To do this, first we estimate a bigram language modeî q from the actual distribution q of POS se- quences observed in u. Second, let p θ denote the distribution of POS sequences that we expect to see in B , that is, POS sequences obtained by <ref type="bibr">2</ref> Specifically, the 93% of nodes tagged with NOUN, PROPN, PRON or VERB in Universal Dependencies format. In retrospect, this restriction was unnecessary in our setting, but it skipped only 4.4% of nodes on average (from 2% to 11% depending on language). The remaining nodes were nouns, verbs, or childless. stochastically realizing observed trees in B ac- cording to θ. We estimate another bigram modeîmodeî p θ from this distribution p θ .</p><p>We then try to set θ, using SGD, to minimize a divergence D(ˆ p θ , ˆ q) that we will define below.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.4.1">Estimation of bigram models</head><p>EstimatingˆqEstimatingˆ Estimatingˆq is straightforward: ˆ q(t | s) = c q (st)/c q (s), where c q (st) is the count of POS bi- gram st in the average 3 sentence of u and c q (s) = t c q (st ). We estimatê p θ in the same way, where c p (st) denotes the expected count of st in a random POS sequence y ∼ p θ . This is equivalent to choosingˆqchoosingˆ choosingˆq, ˆ p θ to minimize the KL-divergences KL(q ||ˆq||ˆ ||ˆq), KL(p θ ||ˆp||ˆ ||ˆp θ ). It ensures that each model's expected bigram counts match those in the POS sequences.</p><p>However, these maximum-likelihood estimates might overfit on our finite data, u and B. We therefore smooth both models by first adding λ = 0.1 to all bigram counts c q (st) and c p (st). <ref type="bibr">4</ref> </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.4.2">Divergence of bigram models</head><p>We need a metric to evaluate θ. If p and q are bigram language models over POS sequences y (sentences), their Kullback-Leibler divergence is</p><formula xml:id="formula_1">KL(p || q) def = E y∼p [log p(y) − log q(y)]<label>(2)</label></formula><formula xml:id="formula_2">= s,t c p (st) (3) · (log p(t | s) − log q(t | s))</formula><p>where y ranges over POS sequences and st ranges over POS bigrams. These include bigrams where s = BOS ("beginning of sequence") or t = EOS ("end of sequence"), which are boundary tags that we take to surround y.</p><p>All quantities in equation <ref type="formula">(3)</ref> can be determined directly from the (expected) bigram counts given by c p and c q . No other model estimation is needed.</p><p>A concern about equation <ref type="formula">(3)</ref> is that a single bi- gram st that is badly underrepresented in q may contribute an arbitrarily large term log p(t|s) q(t|s) . To limit this contribution to at most log 1 α , for some small α ∈ (0, 1), we define KL α (p || q) by a vari- ant of equation <ref type="formula">(3)</ref> in which q(t | s) has been re- placed by˜qby˜ by˜q(t | s)</p><formula xml:id="formula_3">def = αp(t | s) + (1 − α)q(t | s). 5</formula><p>3 A more familiar definition of cq would use the total count in u. Our definition, which yields the same bigram probabil- ities, is analogous to our definition of cp. This cp is needed for KL(p || q) in (3), and cq symmetrically for KL(q || p). <ref type="bibr">4</ref> Ideally one should tune λ to minimize the language model perplexity on held-out data (e.g., by cross-validation). 5 This is inspired by the α-skew divergence of <ref type="bibr">Lee (1999,</ref> Our final divergence metric D(ˆ p θ , ˆ q) defines D as a linear combination of exclusive and inclusive KL α divergences, which respectively emphasize p θ 's precision and recall at matching q's bigrams:</p><formula xml:id="formula_4">D(p, q) = (1−β)· KL α 1 (p || q) E y∼p [ |y| ] +β· KL α 2 (q || p) E y∼q [ |y| ]</formula><p>(4) where β, α 1 , α 2 are tuned by cross-validation to maximize the downstream parsing performance. The division by average sentence length converts KL from nats per sentence to nats per word, 6 so that the KL values have comparable scale even if B has much longer or shorter sentences than u.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3">Algorithms</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.1">Efficiently computing expected counts</head><p>We now present a polynomial-time algorithm for computing the expected bigram counts c p under p θ (or equivalentlyˆpequivalentlyˆ equivalentlyˆp θ ), for use above. This averages expected counts from each unordered tree x ∈ B. Algorithm 1 in the supplement gives pseudocode.</p><p>The insight is that rather than sampling a single realization of x (as B does), we can use dynamic programming to sum efficiently over all of its ex- ponentially many realizations. This gives an exact answer. It algorithmically resembles tree-to-string machine translation, which likewise considers the possible reorderings of a source tree and incorpo- rates a language model by similarly tracking their surface N -grams <ref type="bibr">(Chiang, 2007, §5.3.2)</ref>.</p><p>For each node a of the tree x, let the POS string y a be the realization of the subtree rooted at a. Let c a (st) be the expected count of bigram st in y a , whose distribution is governed by equation (1). We allow s = BOS or t = EOS as defined in §2.4.2.</p><p>The c a function can be represented as a sparse map from POS bigrams to reals. We compute c a at each node a of x in a bottom-up order. The final step computes c root , giving the expected bigram counts in x's realization y (that is, c p in §2.4).</p><p>We find c a as follows. Let n = n a and recall from §2.2 that π(a) is an ordering of a 1 , . . . , a n , where a 1 , . . . , a n−1 are the child nodes of a, and a n is a dummy node representing a's head token. <ref type="bibr">2001</ref>). Indeed, we may regard KLα(p || q) as the α-skew di- vergence between the unigram distributions p(· | s) and q(· | s), averaged over all s in proportion to cp(s). In principle, we could have used the α-skew divergence between the distribu- tions p(·) and q(·) over POS sequences y, but computing that would have required a sampling-based approximation ( §7). <ref type="bibr">6</ref> Recall that the units of negated log-probability are called bits for log base 2, but nats for log base e. Also, let a 0 and a n+1 be dummy nodes that always appear at the start and end of any ordering.</p><p>For all 0 ≤ i ≤ n and 1 ≤ j ≤ n + 1, let p a (i, j) denote the expected count of the a i a j node bigram-the probability that π(a) places node a i immediately before node a j . These node bigram probabilities can be obtained by enumerating all possible orderings π, a matter we return to below.</p><p>It is now easy to compute c a :</p><formula xml:id="formula_5">c a (st) = c within a (st) + c between a (st) (5) c within a (st) = n i=1 c a i (st) if s = BOS, t = EOS 0 otherwise c across a (st) = n i=0 n+1 j=1 p a (i, j)c a i (s EOS)c a j (BOS t)</formula><p>That is, c a inherits all non-boundary bigrams st that fall within its child constituents (via c within a ). It also counts bigrams st that cross the boundary be- tween consecutive nodes (via c across a ), where nodes a i and a j are consecutive with probability p a (i, j).</p><p>When computing c a via (5), we will have al- ready computed c a 1 , . . . , c a n−1 bottom-up. As for the dummy nodes, a n is realized by the length-1 string h where h is the head token of node a, while a 0 and a n+1 are each realized by the empty string. Thus, c an simply assigns count 1 to the bigrams BOS h and h EOS, and c a 0 and c a n+1 each assign expected count 1 to BOS EOS. (Notice that thus, c across a (st) counts y a 's boundary bigrams-the bi- grams st where s = BOS or t = EOS-when i = 0 or j = n + 1 respectively.)</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.2">Efficient enumeration over permutations</head><p>The main challenge above is computing the node bigram probabilities p a (i, j). These are marginals of p(π | a) as defined by <ref type="formula">(1)</ref>, which unfortunately is intractable to marginalize: there is no better way than enumerating all n! permutations.</p><p>That said, there is a particularly efficient way to enumerate the permutations. The Steinhaus- Johnson-Trotter (SJT) algorithm <ref type="bibr" target="#b15">(Sedgewick, 1977)</ref> does so in O(1) time per permutation, ob- taining each permutation by applying a single swap to the previous one. Only the features that are affected by this swap need to be recomputed. For our features (Appendix A), this cuts the run- time per permutation from O(n 2 ) to O(n).</p><p>Furthermore, the single swap of adjacent nodes only changes 3 bigrams (possibly including boundary bigrams). As a result, it is possible to obtain the marginal probabilities with O(1) addi- tional work per permutation. When a node bigram is destroyed, we increment its marginal probability by the total probability of permutations encoun- tered since the node bigram was last created. This can be found as a difference of partial sums. The final partial sum is the normalizing constant Z(a), which can be applied at the end. Pseudocode is given in supplementary material as Algorithm 2.</p><p>When we train the parameters θ ( §2.4), we must back-propagate through the whole computation of equation <ref type="formula">(4)</ref>, which depends on tag bigram counts c a (st), which depend via (5) on expected node bigram counts p a (i, j), which depend via Algo- rithm 2 on the permutation probabilities p(π | a), which depend via (1) on the feature weights θ.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4">Heuristics</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.1">Pruning high-degree trees</head><p>As a further speedup, we only train on trees with number of words &lt; 40 and max a n a ≤ 5, so n a ! ≤ 120. <ref type="bibr">7</ref> We then produce the synthetic tree- bank B ( §2.3) by drawing a single realization of each tree in B for which max a n a ≤ 7. This re- quires sampling from up to 7! = 5040 candidates per node, again using SJT. <ref type="bibr">8</ref> That is, in this paper we run exact algorithms ( §3), but only on a subset of B. The subset is not necessarily representative. An improvement would use importance sampling, with a proposal distribution that samples the slower trees less often during SGD but upweights them to compensate.</p><p>§7 suggests a future strategy that would run on all trees in B via approximate, sampling-based al- gorithms. The exact methods would remain useful for calibrating the approximation quality.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.2">Minibatch estimation of c p</head><p>To minimize (4), we use the Adam variant of SGD ( <ref type="bibr">Kingma and Ba, 2014</ref>), with learning rate 0.01 chosen by cross-validation ( §5.1).</p><p>SGD requires a stochastic estimate of the gra- dient of the training objective. Ordinarily this is done by replacing an expectation over the entire training set with an expectation over a minibatch. <ref type="bibr">7</ref> We found that this threshold worked much better than ≤ 4 and about as well as the much slower ≤ 6.</p><p>8 This pruning heuristic retains 36.1% of the trees (aver- aging over the 20 development treebanks ( §5.1)) for training, and 66.6% for actual realization. The latter restriction fol- lows <ref type="bibr">Wang and Eisner (2016, §4.</ref>2): they too discarded trees with nodes having na ≥ 8.</p><p>Equation <ref type="formula" target="#formula_1">(2)</ref> with p = ˆ p θ is indeed an expecta- tion over sentences of B. It can be stochastically estimated as (3) where c p gives the expected bi- gram counts averaged over only the sentences in a minibatch of B. These are found using §3's algo- rithms with the current θ. Unfortunately, the term log p(t | s) depends on bigram counts that should be derived from the entire corpus B in the same way. Our solution is to simply reuse the minibatch estimate of c p for the latter counts. We use a large minibatch of 500 sentences from B so that this drop-in estimate does not introduce too much bias into the stochastic gradient: after all, we only need to estimate bigram statistics on 17 POS types. <ref type="bibr">9</ref> By contrast, the c q values that are used for the expectation in the second term of (4) and in log q(t | s) do not change during optimization, so we simply compute them once from all of u.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.3">Informed initialization</head><p>Unfortunately the objective (4) is not convex, so the optimizer is sensitive to initialization (see §5.3 below for empirical discussion). Initializing θ = 0 (so that p(π | a) is uniform) gave poor results in pilot experiments. Instead, we initially choose θ to be the realization parameters of the source lan- guage, as estimated from the source treebank B. This is at least a linguistically realistic θ, although it may not be close to the target language. <ref type="bibr">10</ref> For this initial estimation, we follow <ref type="bibr">Wang and Eisner (2016)</ref> and perform supervised training on B of the log-linear realization model (1), by maximizing the conditional log-likelihood of B, namely (x,t)∈B log p θ (t | x), where (x, t) are an unordered tree and its observed ordering in B. This initial objective is convex. <ref type="bibr">11</ref> </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5">Experiments</head><p>We performed a large-scale experiment requiring hundreds of thousands of CPU-hours. To our knowledge, this is the largest study of parsing transfer yet attempted. <ref type="bibr">9</ref> We also used the minibatch to estimate the average sen- tence length Ey∼p <ref type="bibr">[ |y| ]</ref> in (4), although here we could have simply used all of B since this value does not change. <ref type="bibr">10</ref> As an improvement, one could also try initial realization parameters for B that are estimated from treebanks of other languages. Concretely, the optimizer could start by selecting a "galactic" treebank from <ref type="bibr">Wang and Eisner (2016)</ref> that is already close to the target language, according to (4), and try to make it even closer. We leave this to future work. <ref type="bibr">11</ref> Unfortunately, we did not regularize it, which probably resulted in initializing some parameters too close to ±∞ for the optimizer to change them meaningfully.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.1">Data and setup</head><p>As our main dataset, we use Universal Dependen- cies version 1.2 ( <ref type="bibr" target="#b5">Nivre et al., 2015</ref>)-a set of 37 dependency treebanks for 33 languages, with a unified POS-tag set and relation label set.</p><p>Our evaluation metric was unnormalized attach- ment score (UAS) when parsing a target treebank with a parser trained on a (possibly permuted) source treebank. For both evaluation and training, we used only the training portion of each treebank.</p><p>Our parser was Yara ( <ref type="bibr" target="#b11">Rasooli and Tetreault, 2015</ref></p><note type="other">), a fast and accurate transition-based depen- dency parser that can be rapidly retrained. We modified Yara to ignore the input words and use only the input gold POS tags (see §1.3). To train the Yara parser on a (possibly permuted) source treebank, we first train on 80% of the trees and use the remaining 20% to tune Yara's hyperparame- ters. We then retrain Yara on 100% of the source trees and evaluate it on the target treebank.</note><p>Similar to <ref type="bibr">Wang and Eisner (2017)</ref>, we use 20 treebanks (18 distinct languages) as develop- ment data, and hold out the remaining 17 tree- banks for the final evaluation. We chose the hy- perparameters (α 1 , α 2 , β) of <ref type="formula">(4)</ref> to maximize the target-language UAS, averaged over all 376 trans- fer experiments where the source and target tree- banks were development treebanks of different languages. 12 (See Appendix C for details.)</p><p>The next few sections perform some ex- ploratory analysis on these 376 experiments. Then, for the final test in §5.4, we will evaluate UAS on all 337 transfer experiments where the source is a development treebank and the target is a test treebank of a different language. <ref type="bibr">13</ref> </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.2">Exploratory analysis</head><p>We have assumed that a smaller divergence be- tween source and target treebanks results in bet- ter transfer parsing accuracy. <ref type="figure" target="#fig_1">Figure 1</ref> shows that these quantities are indeed correlated, both for the original source treebanks and for their "made to order" permuted versions. <ref type="bibr">12</ref> We have 19*20=380 pairs in total, minus the four ex- cluded pairs (grc, grc proiel), (grc proiel, grc), (la proiel, la itt) and (la itt, la proiel). Unlike <ref type="bibr">Wang and Eisner (2017)</ref>, we exclude duplicated languages in development and testing. <ref type="bibr">13</ref> Specifically, there are 3 duplicated sets: {grc, grc proiel}, {la, la proiel, la itt}, and {fi, fi ftb}. When- ever one treebank is used as the target language, we exclude the other treebanks in the same set. <ref type="bibr">15</ref> According to the family (and sub-family) information at http://universaldependencies.org.   Thus, we hope that the optimizer will find a sys- tematic permutation that reduces the divergence. Does it? Yes: <ref type="figure">Figures 5 and 6</ref> in the supplemen- tary material show that the optimizer almost al- ways manages to reduce the objective on training data, as expected.</p><p>One concern is that our divergence metric might misguide us into producing dysfunctional lan- guages whose trees cannot be easily recovered from their surface strings, i.e., they have no good parser. In such a language, the word order might be extremely free (e.g., θ = 0), or common con- structions might be syntactically ambiguous. For- tunately, Appendix D shows that our synthetic lan- guages appear natural with respect to their their parsability.</p><p>The above findings are promising. So does per- muting the source language in fact result in better transfer parsing of the target language? We exper- iment on the 376 development pairs.</p><p>The solid lines in <ref type="figure" target="#fig_2">Figure 2</ref> show our improve- ments on the dev data, with a simpler scatterplot given by in <ref type="figure">Figure 7</ref> in the supplementary mate- rial. The upshot is that the synthetic source tree- banks yield a transfer UAS of 52.92 on average. This is not yet a result on held-out test data: recall that 52.92 was the best transfer UAS achieved by any hyperparameter setting. That said, it is 1.00 points better than transferring from the original source treebanks, a significant difference (paired permutation test by language pair, p &lt; 0.01). <ref type="figure" target="#fig_2">Figure 2</ref> shows that this average improvement is mainly due to the many cases where the source and target languages come from different families. Permutation tends to improve source languages that were doing badly to start with. However, it tends to hurt a source language that is already in the target language family.</p><p>A hypothetical experiment shows that permut- ing the source does have good potential to help (or at least not hurt) in both cases. The dashed lines in <ref type="figure" target="#fig_2">Figure 2</ref>-and the scatterplot in <ref type="figure">Figure 8</ref>- show the potential of the method, by showing the improvement we would get from permuting each source treebank using an "oracle" realization policy-the supervised realization parameters θ that are estimated from the actual target treebank. The usefulness of this oracle-permuted source varies depending on the source language, but it is usually much better than the automatically- permuted version of the same source.</p><p>This shows that large improvements would be possible if we could only find the best permutation policy allowed by our model family. The ques- tion for future work is whether such gains can be achieved by a more sensitive permutation model than (1), a better divergence objective than (4), or a better search algorithm than §4.2. Identifying the best available source treebank, or the best mixture of all source treebanks, would also help greatly. Even with oracle permutation in <ref type="figure">Figure 8</ref>, the cor- relation remains strong (τ = 0.59), suggesting that the choice of source treebank is important even beyond its effect on search initialization.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.3">Sensitivity to initializer</head><p>We suspected that when "made to order" source treebanks (more than the oracle versions) have performance close to their original versions, this is in part because the optimizer can get stuck near the initializer ( §4.3). To examine this, we experi- mented with random restarts, as follows. In addi- tion to informed initialization ( §4.3), we optimized from 5 other starting points θ ∼ N (0, I). From these 6 runs, we selected the final parameters that achieved the best divergence (4). As shown by <ref type="figure">Figure 9</ref> in the supplement, greater gains appear to be possible with more aggressive search meth- ods of this sort, which we leave to future work. We could also try non-random restarts based on the realization parameters of other languages, as suggested in footnote 10.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.4">Final evaluation on the test languages</head><p>For our final evaluation ( §5.1), we use the same hyperparameters (Appendix C) and report on single-source transfer to the 17 held-out treebanks.</p><p>The development results hold up in <ref type="figure" target="#fig_4">Figure 3</ref>. Using the synthetic languages yields 50.36 UAS on average-1.75 points over the baseline, which is significant (paired permutation test, p &lt; 0.01).</p><p>In the supplementary material (Appendix E), we include some auxiliary experiments on multi- source transfer.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6">Related Work</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6.1">Unsupervised parsing</head><p>Unsupervised parsing has remained challenging for decades <ref type="bibr">(Mareček, 2016)</ref>. Classical gram- mar induction approaches <ref type="bibr">(Lari and Young, 1990;</ref><ref type="bibr">Carroll and Charniak, 1992;</ref><ref type="bibr">Klein and Manning, 2004;</ref><ref type="bibr">Headden III et al., 2009;</ref><ref type="bibr" target="#b2">Naseem et al., 2010</ref>) estimate a generative grammar to explain the sentences, for example by the Expectation- Maximization (EM) algorithm, and then use it to parse. Some such approaches try to improve the grammar model. For example, <ref type="bibr">Klein and Manning (2004)</ref>'s dependency model with valence was the first to beat a trivial baseline; later improve- ments considered higher-order effects and punctu- ation <ref type="bibr">(Headden III et al., 2009;</ref><ref type="bibr" target="#b22">Spitkovsky et al., 2012</ref>). Other approaches try to avoid search error, using strategies like convexified objectives ( <ref type="bibr">Wang et al., 2008;</ref><ref type="bibr">Gimpel and Smith, 2012)</ref>, informed initialization ( <ref type="bibr">Klein and Manning, 2004;</ref><ref type="bibr">Mareček and Straka, 2013)</ref>, search bias <ref type="bibr">Eisner, 2005, 2006;</ref><ref type="bibr" target="#b2">Naseem et al., 2010;</ref><ref type="bibr">Gillenwater et al., 2010)</ref>, branch-and-bound search <ref type="bibr">(Gormley and Eisner, 2013)</ref>, and switching objectives ( <ref type="bibr" target="#b23">Spitkovsky et al., 2013)</ref>.</p><p>The alternative of cross-lingual transfer has re- cently flourished thanks to the development of consistent cross-lingual datasets of POS-tagged ( <ref type="bibr" target="#b6">Petrov et al., 2012</ref>) and dependency-parsed <ref type="bibr">(McDonald et al., 2013</ref>) sentences. <ref type="bibr">McDonald et al. (2011)</ref> showed a significant improvement over grammar induction by simply using the delexical- ized parser trained on other language(s). Subse- quent improvements have come from re-weighting source languages (Søgaard, 2011b; Rosa andŽabokrtsk´y andˇandŽabokrtsk´andŽabokrtsk´y, 2015a,b; <ref type="bibr">Wang and Eisner, 2016)</ref>, adapting the model to the target language us- ing WALS <ref type="bibr">(Dryer and Haspelmath, 2013</ref>) fea- tures ( <ref type="bibr">Naseem et al., 2012;</ref><ref type="bibr">Täckström et al., 2013;</ref><ref type="bibr">All (376)</ref> in-family <ref type="formula">(46)</ref>  Figure 2: Unlabeled attachment scores (UAS) from 376 pairs of development treebanks. Each column represents a target treebank, and each polyline within that column shows transfer from variants of a different source treebank. The three points on the polyline (from left to right) represent the target UAS for parsers trained on three sources: the original source treebank, the "made to order" permutation that attempts to match surface statistics of the target treebank, and an oracle permutation that uses a realization model trained on the target language. We use solid markers and purple lines if the transfer is within-family (source and target treebank from the same language family), and hollow and olive for cross-family transfer. The black polyline in each column is the mean of the others. The table in the lower left gives summary results; the number in each column header gives the number of points summarized. For each column, we boldface the better result between the "Synthetic" and "Original", or both if they are not significantly different (paired permutation test, p &lt; 0.01). We also show the oracle permutation result in row "Oracle".</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="10">20 30 40 50 60 70 80 90</head><p>Original Treebank: 48.61   </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6.2">Synthetic data generation</head><p>Our novel proposal ties into the recent interest in data augmentation in supervised machine learn- ing. In unsupervised parsing, the most widely adopted synthetic data method has been annota- tion projection, which generates synthetic anal- yses of target-language sentences by "project- ing" the analysis from a source-language trans- lation. Of course, this requires bilingual cor- pora as an additional resource. Annotation pro- jection was proposed by <ref type="bibr">Yarowsky et al. (2001)</ref>, gained promising results on sequence labelling tasks, and was later developed for unsupervised parsing ( <ref type="bibr">Hwa et al., 2005;</ref><ref type="bibr">Ganchev et al., 2009;</ref><ref type="bibr" target="#b17">Smith and Eisner, 2009;</ref><ref type="bibr">Tiedemann, 2014;</ref><ref type="bibr">Ma and Xia, 2014;</ref><ref type="bibr">Tiedemann et al., 2014</ref>). Recent work in this vein has mainly focused on improv- ing the synthetic data, including reweighting the training trees (Agi´cAgi´c et al., 2016) or pruning those that cannot be aligned well ( <ref type="bibr">Collins, 2015, 2017;</ref><ref type="bibr">Lacroix et al., 2016</ref>). On the other hand, <ref type="bibr">Wang and Eisner (2016)</ref> pro- posed to permute source language treebanks us- ing word order realization models trained on other source languages. They generated on the order of 50,000 synthetic languages by "mixing and match- ing" a few dozen source languages. Their idea was that with a large set of synthetic languages, they could use them as supervised examples to train an unsupervised structure discovery system that could analyze any new language. Systems built with this dataset were competitive in single-source parser transfer ( <ref type="bibr">Wang and Eisner, 2016)</ref>, typology prediction ( <ref type="bibr">Wang and Eisner, 2017)</ref>, and parsing unknown languages ( <ref type="bibr">Wang and Eisner, 2018)</ref>.</p><p>Our work in this paper differs in that our syn- thetic treebanks are "made to order." Rather than combine aspects of different treebanks and hope to get at least one combination that is close to the tar- get language, we "combine" the source treebank with a POS corpus of the target language, which guides our customized permutation of the source.</p><p>Beyond unsupervised parsing, synthetic data has been used for several other tasks. In NLP, it has been used for complex tasks such as question- answering (QA) ( <ref type="bibr" target="#b16">Serban et al., 2016</ref>) and machine reading comprehension ( <ref type="bibr">Weston et al., 2016;</ref><ref type="bibr">Hermann et al., 2015;</ref><ref type="bibr" target="#b8">Rajpurkar et al., 2016)</ref>, where highly expressive neural models are used and not enough real data is available to train them. In the playground of supervised parsing, Gulordava and Merlo (2016) conduct a controlled study on the parsibility of languages by generating treebanks with short dependency length and low variability of word order.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="7">Conclusion &amp; Future Work</head><p>We have shown how cross-lingual transfer pars- ing can be improved by permuting the source tree- bank to better resemble the target language on the surface (in its distribution of gold POS bigrams). The code is available at https://github. com/wddabc/ordersynthetic. Our work is grounded in the notion that by trying to ex- plain the POS bigram counts in a target corpus, we can discover a stochastic realization policy for the target language, which correctly "translates" the source trees into appropriate target trees.</p><p>We formulated an objective for evaluating such a policy, based on KL-divergence between bigram models. We showed that the objective could be computed efficiently by dynamic programming, thanks to the limitation to bigram statistics.</p><p>Experimenting on the Universal Dependencies treebanks v1.2, we showed that the synthetic tree- banks were-on average-modestly but signifi- cantly better than the corresponding real treebanks for single-source transfer (and in Appendix E, on multi-source transfer).</p><p>On the downside, <ref type="figure">Figure 7</ref> shows that with our current method, permuting the source language to be more like the target language is helpful (on av- erage) only when the source language is from a different language family. This contrast would be even more striking if we had a better optimizer: <ref type="figure">Figure 9</ref> shows that SGD's initialization bias lim- its permutation's benefit for cross-family training, as well as its harm for within-family training.</p><p>Several opportunities for future work have al- ready been mentioned throughout the paper. We are also interested in experimenting with richer families of permutation distributions, as well as "conservative" distributions that tend to prefer the original source order. We could use entropy reg- ularization ( <ref type="bibr">Grandvalet and Bengio, 2005</ref>) to en- courage more "deterministic" patterns of realiza- tion in the synthetic languages.</p><p>We would also like to consider more sensi- tive divergence measures that go beyond bigrams, for example using recurrent neural network lan- guage models (RNNLMs) forˆqforˆ forˆq andˆpandˆ andˆp θ . This means abandoning our exact dynamic program- ming methods; we would also like to abandon ex- act exhaustive enumeration in order to drop §4.1's bounds on n. Fortunately, there exist powerful MCMC methods <ref type="bibr">(Eisner and Tromble, 2006</ref>) that can sample from interesting distributions over the space of n! permutations, even for large n. Thus, we could approximately sample from p θ by draw- ing permuted versions of each tree in B.</p><p>Given this change, a very interesting direction would be to graduate from POS language models to word language models, using cross-lingual un- supervised word embeddings <ref type="bibr" target="#b14">(Ruder et al., 2017)</ref>. This would eliminate the need for the gold POS tags that we unrealistically assumed in this paper (which are typically unavailable for a low-resource target language). Furthermore, it would enable us to harness richer lexical information beyond the 17 UD POS tags. After all, even a (gold) POS corpus might not be sufficient to determine the word or- der of the target language: "NOUN VERB NOUN" could be either subject-verb-object or object-verb- subject. However, "water drink boy" is pre- sumably object-verb-subject. Thus, using cross- lingual embeddings, we would try to realize the unordered source trees so that their word strings, with few edits, can achieve high probability under a neural language model of the target.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Referenceš</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Referenceš</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Zeljko Agi´cAgi´c, Anders Johannsen, Barbara Plank, Héctor</head><p>Martínez Alonso, Natalie Schluter, and Anders Søgaard. 2016. Multilingual projection for parsing truly low-resource languages. </p></div><figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_1"><head>Figure 1 :</head><label>1</label><figDesc>Figure 1: UAS is higher when divergence is lower. Each point represents a pair of source and target languages, whose shape and color identify the treebank of the target language (see legend). The marker is solid if the source and target languages belong to the same language family. 15 The left graph uses the original source treebank (Kendall's τ = −0.41), while the right graph uses its permuted version (τ = −0.39).</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_2"><head>Figure 2 makes</head><label>2</label><figDesc>Figure 2 makes clear that performance of the synthetic source treebanks is strongly correlated with that of their original versions. Most points in Figure 7 lie near the diagonal (Kendall's τ = 0.85). Even with oracle permutation in Figure 8, the correlation remains strong (τ = 0.59), suggesting that the choice of source treebank is important even beyond its effect on search initialization. We suspected that when "made to order" source treebanks (more than the oracle versions) have performance close to their original versions, this is in part because the optimizer can get stuck near the initializer ( §4.3). To examine this, we experimented with random restarts, as follows. In addition to informed initialization ( §4.3), we optimized from 5 other starting points θ ∼ N (0, I). From these 6 runs, we selected the final parameters that achieved the best divergence (4). As shown by Figure 9 in the supplement, greater gains appear to be possible with more aggressive search methods of this sort, which we leave to future work. We could also try non-random restarts based on the realization parameters of other languages, as suggested in footnote 10.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_4"><head>Figure 3 :</head><label>3</label><figDesc>Figure 3: UAS on 337 language pairs from the training languages to the test languages. Zhang and Barzilay, 2015; Ammar et al., 2016), and improving the lexical representations via multilingual word embeddings (Duong et al., 2015; Guo et al., 2016; Ammar et al., 2016) and synthetic data generation ( §6.2).</figDesc></figure>
+		</body>
+		<back>
+
+			<div type="acknowledgement">
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Acknowledgements</head><p>This work was supported by National Science Foundation <ref type="bibr">Grants 1423276 &amp; 1718846</ref> Simon Mille, Anja Belz, Bernd Bohnet, Yvette Gra-ham, Emily Pitler, and Leo Wanner. 2018. The first multilingual surface realisation shared task (SR'18): Overview and evaluation results. In Proceedings of the 1st Workshop on Multilingual Surface Realiza-tion (MSR), 56th Annual Meeting of the Association for Computational Linguistics (ACL), pages 1-12.</p></div>
+			</div>
+
+			<div type="references">
+
+				<listBibl>
+
+<biblStruct xml:id="b0">
+	<monogr>
+		<title/>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Tahira</forename><surname>Naseem</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Regina</forename><surname>Barzilay</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Amir</forename><surname>Globerson</surname></persName>
+		</author>
+		<imprint/>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b1">
+	<analytic>
+			</analytic>
+	<monogr>
+		<title level="m">Long Papers)</title>
+		<imprint>
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="629" to="637" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b2">
+	<analytic>
+		<title level="a" type="main">Using universal linguistic knowledge to guide grammar induction</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Tahira</forename><surname>Naseem</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Harr</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Regina</forename><surname>Barzilay</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Mark</forename><surname>Johnson</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2010 Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>the 2010 Conference on Empirical Methods in Natural Language Processing</meeting>
+		<imprint>
+			<date type="published" when="2010" />
+			<biblScope unit="page" from="1234" to="1244" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b3">
+	<analytic>
+		<title level="a" type="main">Algorithms for deterministic incremental dependency parsing</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Joakim</forename><surname>Nivre</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Computational Linguistics</title>
+		<imprint>
+			<biblScope unit="volume">34</biblScope>
+			<biblScope unit="issue">4</biblScope>
+			<biblScope unit="page" from="513" to="553" />
+			<date type="published" when="2008" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b4">
+	<analytic>
+		<title level="a" type="main">Héctor Martínez Alonso, André Martins</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Joakim</forename><surname>Nivre</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Zeljko</forename><surname>Agi´cagi´c</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Lars</forename><surname>Ahrenberg</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Maria</forename><forename type="middle">Jesus</forename><surname>Aranzabe</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Masayuki</forename><surname>Asahara</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Aitziber</forename><surname>Atutxa</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Miguel</forename><surname>Ballesteros</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">John</forename><surname>Bauer</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kepa</forename><surname>Bengoetxea</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Riyaz</forename><forename type="middle">Ahmad</forename><surname>Bhat</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Eckhard</forename><surname>Bick</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Cristina</forename><surname>Bosco</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Gosse</forename><surname>Bouma</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Sam</forename><surname>Bowman</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Marie</forename><surname>Candito</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Gülsgüls¸en</forename><surname>Cebiro˘ Glu Eryi˘ Git</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Giuseppe</forename><forename type="middle">G A</forename><surname>Celano</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Fabricio</forename><surname>Chalub</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jinho</forename><surname>Choi</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">C</forename><surname>Grı C ¸ ¨ Oltekin</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Miriam</forename><surname>Connor</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Elizabeth</forename><surname>Davidson</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Marie-Catherine</forename><surname>De Marneffe</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Valeria</forename><surname>De Paiva</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Arantza</forename><surname>Diaz De Ilarraza</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kaja</forename><surname>Dobrovoljc</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Timothy</forename><surname>Dozat</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kira</forename><surname>Droganova</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Puneet</forename><surname>Dwivedi</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Marhaba</forename><surname>Eli</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Tomaž</forename><surname>Erjavec</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Richárd</forename><surname>Farkas</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jennifer</forename><surname>Foster</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Cláudia</forename><surname>Freitas</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Katarína</forename><surname>Gajdošová</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Daniel</forename><surname>Galbraith</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Marcos</forename><surname>Garcia</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Filip</forename><surname>Ginter</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Iakes</forename><surname>Goenaga</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Koldo</forename><surname>Gojenola</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Memduh</forename><surname>Gökırmak</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yoav</forename><surname>Goldberg</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Xavier</forename><forename type="middle">Gómez</forename><surname>Guinovart</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Berta</forename><forename type="middle">Gonzáles</forename><surname>Saavedra</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Matias</forename><surname>Grioni</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Normunds</forename><surname>Gr¯ Uz¯ Itis</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Bruno</forename><surname>Guillaume</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Nizar</forename><surname>Habash</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jan</forename><surname>Hajič</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">H</forename><surname>Linh</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Dag</forename><surname>M˜ym˜y</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Barbora</forename><surname>Haug</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Petter</forename><surname>Hladká</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Radu</forename><surname>Hohle</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Elena</forename><surname>Ion</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Anders</forename><surname>Irimia</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Fredrik</forename><surname>Johannsen</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Hüner</forename><surname>Jørgensen</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Hiroshi</forename><surname>Kas¸ıkarakas¸ıkara</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jenna</forename><surname>Kanayama</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Natalia</forename><surname>Kanerva</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Simon</forename><surname>Kotsyba</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Veronika</forename><surname>Krek</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Phng</forename><surname>Laippala</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">H</forename><surname>Lê</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Alessandro</forename><surname>`ˆ Ong</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Nikola</forename><surname>Lenci</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Olga</forename><surname>Ljubeši´ljubeši´c</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Teresa</forename><surname>Lyashevskaya</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Aibek</forename><surname>Lynn</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Christopher</forename><surname>Makazhanov</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">David</forename><surname>Manning</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Mareček</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Faculty of Mathematics and Physics</title>
+		<editor>Lng Nguy˜ên Thi. , Huy`ˆen Nguy˜ên Thi. Minh, Vitaly Nikolaev, Hanna Nurmi, Stina Ojala, Petya Osenova, Lilja Øvrelid, Elena Pascual, Marco Passarotti, Cenel-Augusto Perez, Guy Perrier, Slav Petrov, Jussi Piitulainen, Barbara Plank, Martin Popel, Lauma Pretkalnin¸aPretkalnin¸a, Prokopis Prokopidis, Tiina Puolakainen, Sampo Pyysalo, Alexandre Rademaker, Loganathan Ramasamy, Livy Real, Laura Rituma, Rudolf Rosa, Shadi Saleh, Manuela Sanguinetti, Baiba Saul¯ ıte, Sebastian Schuster, Djamé Seddah, Wolfgang Seeker</editor>
+		<meeting><address><addrLine>Mašek, Yuji Matsumoto, Ryan McDonald, Anna Missilä, Verginica Mititelu, Yusuke Miyao, Simonetta Montemagni, Amir More, Shunsuke Mori, Bohdan Moskalevskyi, Kadri Muischnek, Nina Mustafina, Kaili Müürisep; Lena Shakurova, Mo Shen, Dmitry Sichinava, Natalia Silveira, Maria Simi, Radu Simionescu, Katalin Simkó, Mária MáriaˇMáriaŠimková, Kiril Simov, Aaron Smith, Alane Suhr, Umut Sulubacak, Zsolt Szántó, Dima Taji, Takaaki Tanaka, Reut Tsarfaty, Francis Tyers</addrLine></address></meeting>
+		<imprint>
+		</imprint>
+		<respStmt>
+			<orgName>Sumire Uematsu, Larraitz Uria, Gertjan van Noord, Viktor Varga, Veronika Vincze, Jonathan North Washington, ZdeněkZdeněkˇZdeněkŽabokrtsk´ZdeněkŽabokrtsk´y, Amir Zeldes, Daniel Zeman ; Charles University</orgName>
+		</respStmt>
+	</monogr>
+	<note>and Hanzhi Zhu. 2017. Universal dependencies 2.0. LINDAT/CLARIN digital library at the Institute of Formal and Applied Linguistics ( ´ UFAL</note>
+</biblStruct>
+
+<biblStruct xml:id="b5">
+	<monogr>
+		<title level="m" type="main">Universal dependencies 1.2. LINDAT/CLARIN digital library at the Institute of Formal and Applied Linguistics</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Joakim</forename><surname>Nivre</surname></persName>
+		</author>
+		<ptr target="http://universaldependencies.org" />
+		<imprint>
+			<date type="published" when="2015" />
+		</imprint>
+		<respStmt>
+			<orgName>Charles University in Prague</orgName>
+		</respStmt>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b6">
+	<analytic>
+		<title level="a" type="main">A universal part-of-speech tagset</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Slav</forename><surname>Petrov</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Dipanjan</forename><surname>Das</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ryan</forename><surname>Mcdonald</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Eighth International Conference on Language Resources and Evaluation (LREC-2012). European Language Resources Association (ELRA)</title>
+		<meeting>the Eighth International Conference on Language Resources and Evaluation (LREC-2012). European Language Resources Association (ELRA)</meeting>
+		<imprint>
+			<date type="published" when="2012" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b7">
+	<analytic>
+		<title level="a" type="main">BinLin: A simple method of dependency tree linearization</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yevgeniy</forename><surname>Puzikov</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Iryna</forename><surname>Gurevych</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the First Workshop on Multilingual Surface Realisation</title>
+		<meeting>the First Workshop on Multilingual Surface Realisation</meeting>
+		<imprint>
+			<date type="published" when="2018" />
+			<biblScope unit="page" from="13" to="28" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b8">
+	<analytic>
+		<title level="a" type="main">Squad: 100,000+ questions for machine comprehension of text</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Pranav</forename><surname>Rajpurkar</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jian</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Konstantin</forename><surname>Lopyrev</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Percy</forename><surname>Liang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2016 Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>the 2016 Conference on Empirical Methods in Natural Language Processing</meeting>
+		<imprint>
+			<date type="published" when="2016" />
+			<biblScope unit="page" from="2383" to="2392" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b9">
+	<analytic>
+		<title level="a" type="main">Density-driven cross-lingual transfer of dependency parsers</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Mohammad</forename><surname>Sadegh Rasooli</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Michael</forename><surname>Collins</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2015 Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>the 2015 Conference on Empirical Methods in Natural Language Processing</meeting>
+		<imprint>
+			<date type="published" when="2015" />
+			<biblScope unit="page" from="328" to="338" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b10">
+	<analytic>
+		<title level="a" type="main">Cross-lingual syntactic transfer with limited resources</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Mohammad</forename><surname>Sadegh Rasooli</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Michael</forename><surname>Collins</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Transactions of the Association for Computational Linguistics</title>
+		<imprint>
+			<biblScope unit="volume">5</biblScope>
+			<biblScope unit="page" from="279" to="293" />
+			<date type="published" when="2017" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b11">
+	<analytic>
+		<title level="a" type="main">Yara parser: A fast and accurate dependency parser</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Mohammad</forename><surname>Sadegh Rasooli</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Joel</forename><forename type="middle">R</forename><surname>Tetreault</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1503.06733</idno>
+	</analytic>
+	<monogr>
+		<title level="j">Computing Research Repository</title>
+		<imprint>
+			<biblScope unit="issue">2</biblScope>
+			<date type="published" when="2015" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b12">
+	<analytic>
+		<title level="a" type="main">KLcpos3-a language similarity measure for delexicalized parser transfer</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Rudolf</forename><surname>Rosa</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Zdeněkzdeněkˇzdeněkžabokrtsk´zdeněkžabokrtsk´y</forename></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 53rd Annual Meeting of the Association for Computational Linguistics and the 7th International Joint Conference on Natural Language Processing</title>
+		<meeting>the 53rd Annual Meeting of the Association for Computational Linguistics and the 7th International Joint Conference on Natural Language Processing</meeting>
+		<imprint>
+			<publisher>Short Papers</publisher>
+			<date type="published" when="2015" />
+			<biblScope unit="volume">2</biblScope>
+			<biblScope unit="page" from="243" to="249" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b13">
+	<analytic>
+		<title level="a" type="main">MSTParser model interpolation for multi-source delexicalized transfer</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Rudolf</forename><surname>Rosa</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Zdeněkzdeněkˇzdeněkžabokrtsk´zdeněkžabokrtsk´y</forename></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 14th International Conference on Parsing Technologies</title>
+		<meeting>the 14th International Conference on Parsing Technologies</meeting>
+		<imprint>
+			<date type="published" when="2015" />
+			<biblScope unit="page" from="71" to="75" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b14">
+	<analytic>
+		<title level="a" type="main">A survey of cross-lingual word embedding models</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Sebastian</forename><surname>Ruder</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ivan</forename><surname>Vuli´cvuli´c</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Anders</forename><surname>Søgaard</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1706.04902</idno>
+	</analytic>
+	<monogr>
+		<title level="j">Computing Research Repository</title>
+		<imprint>
+			<date type="published" when="2017" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b15">
+	<analytic>
+		<title level="a" type="main">Permutation generation methods</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Robert</forename><surname>Sedgewick</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">ACM Computing Surveys</title>
+		<imprint>
+			<biblScope unit="volume">9</biblScope>
+			<biblScope unit="issue">2</biblScope>
+			<biblScope unit="page" from="137" to="164" />
+			<date type="published" when="1977" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b16">
+	<analytic>
+		<title level="a" type="main">Generating factoid questions with recurrent neural networks: The 30M factoid question-answer corpus</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Alberto</forename><surname>Iulian Vlad Serban</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Caglar</forename><surname>García-Durán</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Sungjin</forename><surname>Gulcehre</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Sarath</forename><surname>Ahn</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Aaron</forename><surname>Chandar</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yoshua</forename><surname>Courville</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Bengio</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 54th Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 54th Annual Meeting of the Association for Computational Linguistics</meeting>
+		<imprint>
+			<publisher>Long Papers</publisher>
+			<date type="published" when="2016" />
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="588" to="598" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b17">
+	<analytic>
+		<title level="a" type="main">Parser adaptation and projection with quasi-synchronous grammar features</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">A</forename><surname>David</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jason</forename><surname>Smith</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Eisner</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Conference on Empirical Methods in Natural Language Processing (EMNLP)</title>
+		<meeting>the Conference on Empirical Methods in Natural Language Processing (EMNLP)</meeting>
+		<imprint>
+			<date type="published" when="2009" />
+			<biblScope unit="page" from="822" to="831" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b18">
+	<analytic>
+		<title level="a" type="main">Guiding unsupervised grammar induction using contrastive estimation</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">A</forename><surname>Noah</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jason</forename><surname>Smith</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Eisner</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">International Joint Conference on Artificial Intelligence (IJCAI) Workshop on Grammatical Inference Applications</title>
+		<imprint>
+			<date type="published" when="2005" />
+			<biblScope unit="page" from="73" to="82" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b19">
+	<analytic>
+		<title level="a" type="main">Annealing structural bias in multilingual weighted grammar induction</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">A</forename><surname>Noah</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jason</forename><surname>Smith</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Eisner</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the International Conference on Computational Linguistics and the Association for Computational Linguistics (COLING-ACL)</title>
+		<meeting>the International Conference on Computational Linguistics and the Association for Computational Linguistics (COLING-ACL)</meeting>
+		<imprint>
+			<date type="published" when="2006" />
+			<biblScope unit="page" from="569" to="576" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b20">
+	<analytic>
+		<title level="a" type="main">Data point selection for crosslanguage adaptation of dependency parsers</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Anders</forename><surname>Søgaard</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 49th Annual Meeting of the Association for Computational Linguistics: Human Language Technologies</title>
+		<meeting>the 49th Annual Meeting of the Association for Computational Linguistics: Human Language Technologies</meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2011" />
+			<biblScope unit="page" from="682" to="686" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b21">
+	<analytic>
+		<title level="a" type="main">Data point selection for crosslanguage adaptation of dependency parsers</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Anders</forename><surname>Søgaard</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 49th Annual Meeting of the Association for Computational Linguistics: Human Language Technologies</title>
+		<meeting>the 49th Annual Meeting of the Association for Computational Linguistics: Human Language Technologies</meeting>
+		<imprint>
+			<date type="published" when="2011" />
+			<biblScope unit="page" from="682" to="686" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b22">
+	<analytic>
+		<title level="a" type="main">Three dependency-and-boundary models for grammar induction</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Hiyan</forename><surname>Valentin I Spitkovsky</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Daniel</forename><surname>Alshawi</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Jurafsky</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2012 Joint Conference on Empirical Methods in Natural Language Processing and Computational Natural Language Learning</title>
+		<meeting>the 2012 Joint Conference on Empirical Methods in Natural Language Processing and Computational Natural Language Learning</meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2012" />
+			<biblScope unit="page" from="688" to="698" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b23">
+	<monogr>
+		<title level="m" type="main">Breaking out of local optima with count transforms and model recombination: A study</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Valentin</forename><forename type="middle">I</forename><surname>Spitkovsky</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Hiyan</forename><surname>Alshawi</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Daniel</forename><surname>Jurafsky</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2013" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+				</listBibl>
+			</div>
+		</back>
+	</text>
+</TEI>

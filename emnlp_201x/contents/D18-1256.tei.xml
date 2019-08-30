@@ -1,0 +1,958 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<TEI xmlns="http://www.tei-c.org/ns/1.0" 
+xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+xsi:schemaLocation="http://www.tei-c.org/ns/1.0 /home/ana/installs/grobid/grobid-0.5.1/grobid-home/schemas/xsd/Grobid.xsd"
+ xmlns:xlink="http://www.w3.org/1999/xlink">
+	<teiHeader xml:lang="en">
+		<encodingDesc>
+			<appInfo>
+				<application version="0.5.1-SNAPSHOT" ident="GROBID" when="2019-04-18T13:05+0000">
+					<ref target="https://github.com/kermitt2/grobid">GROBID - A machine learning software for extracting information from scholarly documents</ref>
+				</application>
+			</appInfo>
+		</encodingDesc>
+		<fileDesc>
+			<titleStmt>
+				<title level="a" type="main">Decoupling Strategy and Generation in Negotiation Dialogues</title>
+			</titleStmt>
+			<publicationStmt>
+				<publisher>Association for Computational Linguistics</publisher>
+				<availability status="unknown"><p>Copyright Association for Computational Linguistics</p>
+				</availability>
+				<date>October 31-November 4, 2018. 2018. 2333</date>
+			</publicationStmt>
+			<sourceDesc>
+				<biblStruct>
+					<analytic>
+						<author>
+							<persName xmlns="http://www.tei-c.org/ns/1.0"><roleName>He He</roleName><forename type="first">Derek</forename><surname>Chen</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="department">Computer Science Department</orgName>
+								<orgName type="institution">Stanford University</orgName>
+							</affiliation>
+						</author>
+						<author>
+							<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Anusha</forename><surname>Balakrishnan</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="department">Computer Science Department</orgName>
+								<orgName type="institution">Stanford University</orgName>
+							</affiliation>
+						</author>
+						<author>
+							<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Percy</forename><surname>Liang</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="department">Computer Science Department</orgName>
+								<orgName type="institution">Stanford University</orgName>
+							</affiliation>
+						</author>
+						<title level="a" type="main">Decoupling Strategy and Generation in Negotiation Dialogues</title>
+					</analytic>
+					<monogr>
+						<title level="m">Proceedings of the 2018 Conference on Empirical Methods in Natural Language Processing</title>
+						<meeting>the 2018 Conference on Empirical Methods in Natural Language Processing <address><addrLine>Brussels, Belgium</addrLine></address>
+						</meeting>
+						<imprint>
+							<publisher>Association for Computational Linguistics</publisher>
+							<biblScope unit="page" from="2333" to="2343"/>
+							<date type="published">October 31-November 4, 2018. 2018. 2333</date>
+						</imprint>
+					</monogr>
+				</biblStruct>
+			</sourceDesc>
+		</fileDesc>
+		<profileDesc>
+			<abstract>
+				<p>We consider negotiation settings in which two agents use natural language to bargain on goods. Agents need to decide on both high-level strategy (e.g., proposing $50) and the execution of that strategy (e.g., generating &quot;The bike is brand new. Selling for just $50!&quot;). Recent work on negotiation trains neural models, but their end-to-end nature makes it hard to control their strategy, and reinforcement learning tends to lead to degenerate solutions. In this paper, we propose a modular approach based on coarse dialogue acts (e.g., propose(price=50)) that de-couples strategy and generation. We show that we can flexibly set the strategy using supervised learning, reinforcement learning, or domain-specific knowledge without degener-acy, while our retrieval-based generation can maintain context-awareness and produce diverse utterances. We test our approach on the recently proposed DEALORNODEAL game, and we also collect a richer dataset based on real items on Craigslist. Human evaluation shows that our systems achieve higher task success rate and more human-like negotiation behavior than previous approaches.</p>
+			</abstract>
+		</profileDesc>
+	</teiHeader>
+	<text xml:lang="en">
+		<body>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="1">Introduction</head><p>A good negotiator needs to decide on the strat- egy for achieving a certain goal (e.g., proposing $6000) and the realization of that strategy via gen- eration of natural language (e.g., "I really need a car so I can go to work, but all I have is 6000, any more and I won't be able to feed my children.").</p><p>Most past work in NLP on negotiation focuses on strategy (dialogue management) with either no natural language <ref type="bibr" target="#b6">(Cuayáhuitl et al., 2015;</ref><ref type="bibr" target="#b5">Cao et al., 2018</ref>) or canned responses ( <ref type="bibr" target="#b15">Keizer et al., 2017;</ref><ref type="bibr" target="#b24">Traum et al., 2008)</ref>. Recently, end-to-end neural models ( <ref type="bibr" target="#b16">Lewis et al., 2017;</ref><ref type="bibr" target="#b13">He et al., 2017)</ref> are used to simultaneously learn dialogue strategy and language realization from human-human di- alogues, following the trend of using neural net- work models on both goal-oriented dialogue <ref type="bibr" target="#b25">(Wen et al., 2017a;</ref><ref type="bibr" target="#b8">Dhingra et al., 2017</ref>) and open- domain dialogue ( <ref type="bibr" target="#b22">Sordoni et al., 2015;</ref><ref type="bibr" target="#b19">Lowe et al., 2017)</ref>. However, these models have two problems: (i) it is hard to control and in- terpret the strategies, and (ii) directly optimizing the agent's goal through reinforcement learning often leads to degenerate solutions where the utter- ances become ungrammatical ( <ref type="bibr" target="#b16">Lewis et al., 2017)</ref> or repetitive ( <ref type="bibr" target="#b17">Li et al., 2016)</ref>.</p><p>To alleviate these problems, our key idea is to decouple strategy and generation, which gives us control over the strategy such that we can achieve different negotiation goals (e.g., maximizing util- ity, achieving a fair deal) with the same language generator. Our framework consists of three com- ponents shown in <ref type="figure" target="#fig_1">Figure 1</ref>: First, the parser iden- tifies keywords and entities to map each utter- ance to a coarse dialogue act capturing the high- level strategic move. Then, the dialogue man- ager chooses a responding dialogue act based on a sequence-to-sequence model over coarse dialogue acts learned from parsed training dialogues. Fi- nally, the generator produces an utterance given the dialogue act and the utterance history.</p><p>Our framework follows that of traditional goal- oriented dialogue systems ( <ref type="bibr" target="#b30">Young et al., 2013)</ref>, with one important difference: coarse dialogue acts are not intended to and cannot capture the full meaning of an utterance. As negotiation di- alogues are fairly open-ended, the generator needs to depend on the full utterance history. For exam- ple, consider the first turn in <ref type="figure" target="#fig_1">Figure 1</ref>. We can- not generate a response given only the dialogue act inform; we must also look at the previous ques- tion. However, we still optimize the dialogue man- ager in the coarse dialogue act space using super- vised learning, reinforcement learning, or domain-    <ref type="formula">(2)</ref> The manager generates the next coarse dialogue act z t conditioned on past dialogue acts z &lt;t . <ref type="formula">(3)</ref> The generator then produces a response conditioned on both the predicted coarse dialogue act z t and the dialogue history x &lt;t . Importantly, unlike in traditional systems, coarse dialogue acts only capture the rough shape of a dialogue, not the full meaning of its utterances, e.g., inform does not specify the answer to the question. specific knowledge.</p><p>Existing human-human negotiation datasets are grounded in closed-domain games with a fixed set of objects such as Settlers of Catan (lumber, coal, brick, wheat, and sheep) ( <ref type="bibr" target="#b0">Afantenos et al., 2012;</ref><ref type="bibr" target="#b1">Asher et al., 2016)</ref> or item division (book, hat, and ball) <ref type="bibr" target="#b7">(DeVault et al., 2015;</ref><ref type="bibr" target="#b16">Lewis et al., 2017</ref>). These objects lack the richness of the real world. To study human negotiation in more open-ended settings that involve real goods, we scraped post- ings of items for sale from craigslist.org as our negotiation scenario. By hiring workers on Amazon Mechanical Turk (AMT) to play the role of buyers and sellers, we collected a new dataset (CRAIGSLISTBARGAIN) of negotiation di- alogues. <ref type="bibr">1</ref> Compared to existing datasets, our more realistic scenario invites richer negotiation behav- ior involving open-ended aspects such as cheap talk or side offers.</p><p>We evaluate two families of systems modeling coarse dialogue acts and words respectively, which are optimized by supervised learning, reinforce- ment learning, or domain knowledge. Each sys- tem is evaluated on our new CRAIGSLISTBAR- GAIN dataset and the DEALORNODEAL dataset of <ref type="bibr" target="#b16">Lewis et al. (2017)</ref> by asking AMT workers to chat with the system in an A/B testing setting. We focus on two metrics: task-specific scores (e.g., utility) and human-likeness. We show that rein- forcement learning on coarse dialogue acts avoids degenerate solutions, which was a problem in <ref type="bibr" target="#b17">Li et al. (2016)</ref>; <ref type="bibr" target="#b16">Lewis et al. (2017)</ref>. Our modular model maintains reasonable human-like behavior while still optimizes the objective. Furthermore, we find that models trained over coarse dialogue acts are stronger negotiators (even with only su- pervised learning) and produce more diverse ut- terances than models trained over words. Finally, the interpretability of coarse dialogue acts allows system developers to combine the learned dia- logue policy with hand-coded rules, thus imposing stronger control over the desired strategy.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2">Craigslist Negotiation Dataset</head><p>Previous negotiation datasets were collected in the context of games. For example, <ref type="bibr" target="#b1">Asher et al. (2016)</ref> collected chat logs from online Settlers of Catan. <ref type="bibr" target="#b16">Lewis et al. (2017)</ref> asked two people to divide a set of hats, books, and balls. While such games are convenient for grounding and evaluation, it re- stricts the dialogue domain and the richness of the language. Most utterances are direct offers such as "has anyone got wood for me?" and "I want the ball.", whereas real-world negotiation would in- volve more information gathering and persuasion.</p><p>To encourage more open-ended, realistic ne- gotiation, we propose the CRAIGSLISTBARGAIN task. Two agents are assigned the role of a buyer and a seller; they are asked to negotiate the price of an item for sale on Craigslist given a descrip- tion and photos. As with the real platform, the listing price is shown to both agents. We addition-JVC HD-ILA 1080P 70 Inch TV  ally suggest a private price to the buyer as a tar- get. Agents chat freely in alternating turns. Either agent can enter an offer price at any time, which can be accepted or rejected by the partner. Agents also have the option to quit, in which case the task is completed with no agreement. To generate the negotiation scenarios, we scraped postings on sfbay.craigslist.org from the 6 most popular categories (housing, fur- niture, cars, bikes, phones, and electronics). Each posting produces three scenarios with the buyer's target prices at 0.5x, 0.7x and 0.9x of the listing price. Statistics of the scenarios are shown in Ta- ble 2.</p><p>We collected 6682 human-human dialogues on AMT using the interface shown in Appendix A <ref type="figure">Figure 2</ref>. The dataset statistics in <ref type="table" target="#tab_5">Table 3</ref> show that CRAIGSLISTBARGAIN has longer dialogues and more diverse utterances compared to prior datasets. Furthermore, workers were encouraged to embellish the item and negotiate side offers such as free delivery or pick-up. This highly re- latable scenario leads to richer dialogues such as the one shown in <ref type="table" target="#tab_2">Table 1</ref>. We also observed vari- ous persuasion techniques listed in <ref type="table" target="#tab_6">Table 4</ref> such as embellishment, side offers, and appeals to sympa- thy.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3">Approach</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.1">Motivation</head><p>While end-to-end neural models have made promising progress in dialogue systems <ref type="bibr" target="#b25">(Wen et al., 2017a;</ref><ref type="bibr" target="#b8">Dhingra et al., 2017</ref>   struggle to simultaneously learn the strategy and the rich utterances necessary to succeed in the CRAIGSLISTBARGAIN domain, e.g., <ref type="table">Table 8</ref>(a) shows a typical dialogue between a human and a sequence-to-sequence-based bot, where the bot easily agrees. We wish to now separate negoti- ation strategy and language generation. Suppose the buyer says: "All right. Well I think 275 is a little high for a 10 year old TV. Can you lower the price some? How about 150?" We can capture the highest-order bit with a coarse dialogue act pro- pose(price=150). Then, to generate the seller's response, the agent can first focus on this coarse Phenomenon Example</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Embellishment</head><p>It is in great condition and works like a champ! I just installed a new lamp in it. There aren't any scratches or problems.</p><p>Cheap talk How about i give you $20 and you keep the helmet. its for my daughter for her job, she delivers lemonade.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Side offers</head><p>Throw in a couple of movies with that DVD player, and you have yourself a deal.</p><p>Appeal to sympathy I would love to have this for my mother, she is very sick and this would help her and with me taking care of her and having to take a leave from work I can't pay very much of it World knowledge For a Beemer 5 series in this condition, I really can't go that low. dialogue act rather than having to ingest the free- form text all at once. Once a counter price is de- cided, the rest is open-ended justification for the proposed price, e.g., emphasizing the quality of the TV despite its age.</p><p>Motivated by these observations, we now de- scribe a modular framework that extracts coarse dialogue acts from utterances, learns to optimize strategy in the dialogue act space, and uses re- trieval to fill in the open-ended parts conditioned on the full dialogue history.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.2">Overview</head><p>Our goal is to build a dialogue agent that takes the dialogue history, i.e. a sequence of utterances x 1 , . . . , x t1 along with the dialogue scenario c (e.g., item description), and produces a distribu- tion over the responding utterance x t .</p><p>For each utterance x t (e.g., "I am willing to pay $15"), we define a coarse dialogue act z t (e.g., propose(price=15)); the coarse dialogue act serves as a logical skeleton which does not attempt to capture the full semantics of the utterance. Fol- lowing the strategy of traditional goal-oriented di- alogue systems ( <ref type="bibr" target="#b30">Young et al., 2013)</ref>, we broadly define our model in terms of the following three modules:</p><p>1. A parser that (deterministically) maps an in- put utterance x t1 into a coarse dialogue act z t1 given the dialogue history x &lt;t and z &lt;t , as well as the scenario c.</p><p>2. A manager that predicts the responding di- alogue act z t given past coarse dialogue acts z &lt;t and the scenario c. 3. A generator that turns the coarse dialogue act z t to a natural language response x t given the full dialogue history x &lt;t .</p><p>Because coarse dialogue acts do not capture the full semantics, the parser and the generator main- tains full access to the dialogue history. The main restriction is the manager examining the dialogue acts, which we show will reduce the risk of degen- eracy during reinforcement learning Section 4.4. We now describe each module in detail <ref type="figure" target="#fig_1">(Figure 1</ref>).</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.3">Parser</head><p>Our framework is centered around the coarse dia- logue act z, which consists of an intent and a set of arguments. For example, "I am willing to pay $15" is mapped to propose(price=15). The fact that our coarse dialogue acts do not intend to cap- ture the full semantics of a sentence allows us to use a simple rule-based parser. It detects the intent and its arguments by regular expression matching and a few if-then rules. Our parser starts by de- tecting entities (e.g., prices, objects) and matching keyword patterns (e.g., "go lower"). These sig- nals are checked against an ordered list of rules, where we choose the first matched intent in the case of multiple matches. An unknown act is out- put if no rule is triggered. The list of intent parsing rules used are shown in <ref type="table" target="#tab_8">Table 5</ref>. Please refer to Appendix B for argument parsing based on entity detection.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.4">Manager</head><p>The dialogue manager decides what action z t the dialogue agent should take at each time step t given the sequence of past coarse dialogue acts z &lt;t and the scenario c. Below, we describe three ways to learn the dialogue manager with increas- ing controllability: modeling human behavior in the training corpus (supervised learning), explic- itly optimizing a reward function (reinforcement learning), and injecting hand-coded rules (hybrid policy).</p><p>Supervised learning. Given a parsed train- ing corpus, each training example is a se- quence of coarse dialogue acts over one dialogue, z 1 , . . . , z T . We learn the transition probabilities  We use a standard sequence-to-sequence model with attention. Each coarse dialogue act is repre- sented as a sequence of tokens, i.e. an intent fol- lowed by each of its arguments, e.g., "o↵er 150". During the agent's listening turn, an LSTM en- codes the received coarse dialogue act; during its speaking turn, another LSTM decodes the tokens in the coarse dialogue act. The hidden states are carried over the entire dialogue to provide full his- tory.</p><p>The vocabulary of coarse dialogue acts is much smaller than the word vocabulary. For example, our implementation includes fewer than 10 intents and argument values are normalized and binned (see Section 4.2).</p><p>Reinforcement learning. Supervised learning aims to mimic the average human behavior, but sometimes we want to directly optimize for a par- ticular dialogue goal. In reinforcement learning, we define a reward R(z 1:T ) on the entire sequence of coarse dialogue acts. Specifically, we experi- ment with three reward functions:</p><p>• Utility is the objective of a self-interested agent. For CRAIGSLISTBARGAIN, we set the utility function to be a linear function of the final price, such that the buyer has a utility of 1 at their target price, the seller has a utility of 1 at the listing price, and both agents have a utility of zero at the midpoint of the list- ing price and the buyer's target price, making it a zero-sum game. For DEALORNODEAL, utility is the total value of objects given to the agent.</p><p>• Fairness aims to achieve equal outcome for both agents, i.e. the difference between two agents' utilities.</p><p>• Length is the number of utterances in a dia- logue, thus encourages agents to chat as long as possible.</p><p>The reward is 1 if no agreement is reached. We use policy gradient <ref type="bibr" target="#b29">(Williams, 1992)</ref> for op- timization. Given a sampled trajectory z 1:T and the final reward r, let a i be the i-th generated to- ken (i.e. "action" taken by the policy) along the trajectory. We update the parameters ✓ by</p><formula xml:id="formula_0">✓ ✓ ⌘ X i r ✓ log p ✓ (a i | a &lt;i , c)(r b) (1)</formula><p>where ⌘ is the learning rate and b is a baseline es- timated by the average return so far for variance reduction.</p><p>Hybrid policy. Given the interpretable coarse dialogue acts, a simple option is to write a rule- based manager with domain knowledge, e.g., if z t1 = greet, then z t = greet. We combine these rules with a learned manager to fine-tune the dialogue policy. Specifically, the dialogue man- ager predicts the intent from a learned sequence model but fills in the arguments (e.g., price) using rules. For example, given a predicted intent pro- pose, we can set the price to be the average of the buyer's and seller's current proposals (a split-the- difference strategy).</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.5">Generator</head><p>We use retrieval-based generation to condition on both the coarse dialogue act and the dialogue his- tory. Each candidate in our database for retrieval is a tuple of an utterance x t and its dialogue context x t1 , represented by both templates and coarse di- alogue acts. i.e. (d(x t1 ), z t1 , d(x t ), z t ), where d is the template extractor. Specifically, given a parsed training set, each utterance is converted to a template by delexicalizing arguments in its coarse dialogue act. For example, "How about $150?"</p><p>becomes "How about <ref type="bibr">[price]</ref>?", where <ref type="bibr">[price]</ref> is a placeholder to be filled in at generation time. At test time, given z t from the dialogue man- ager, the generator first retrieves candidates with the same intent as z t and z t1 . Next, candi- dates are ranked by similarity between their con- text templates and the current dialogue context. Specifically, we represent the context d(x t1 ) as a TF-IDF weighted bag-of-words vector and sim- ilarity is computed by a dot product of two con- text vectors. To encourage diversity, the generator samples an utterance from the top K candidates according to the distribution given by a trigram language model estimated on the training data.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4">Experiments</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.1">Tasks</head><p>We test our approach on two negotiation tasks. CRAIGSLISTBARGAIN (Section 2) asks a buyer and a seller to negotiate the price of an item for sale given its Craigslist post. DEALORN- ODEAL ( <ref type="bibr" target="#b16">Lewis et al., 2017</ref>) asks two agents to divide a set of items given their private utility func- tions.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.2">Models</head><p>We compare two families of models: end-to-end neural models that directly map the input dialogue context to a sequence of output words, and our modular models that use coarse dialogue acts as the intermediate representation.</p><p>We start by training the word-based model and the act-based model with supervised learning (SL).</p><p>• SL(word): a sequence-to-sequence model with attention over previous utterances and the scenario, both embedded as a continuous Bag-of-Words;</p><p>• SL(act): our model described in Section 3 with a rule-based parser, a learned neural di- alogue manager, and a retrieval-based gener- ator.</p><p>To handle the large range of argument values (prices) in CRAIGSLISTBARGAIN for act-based models, we normalize the prices such that an agent's target price is 1 and the bottomline price is 0. For the buyer, the target is given and the bottomline is the listing price. For the seller, the target is the listing price and the bottomline is set to 0.7x of the listing price. The prices are then Model z Parser Manager Generator SL/RL(word) vector learned learned generative SL/RL(act) logical rules learned retrieval SL(act)+rule logical rules hybrid retrieval In addition, we compare with the hybrid model, SL(act)+rule. It predicts the next intent using a trigram language model learned over intent se- quences in the training data, and fills in the argu- ments with hand-coded rules. For CRAIGSLIST- BARGAIN, the only argument is the price. The agent always splits the difference when making counter proposals, rejects an offer if it is worse than its bottomline and accepts otherwise. For DEALORNODEAL, the agent maintains an esti- mate of the partner's private utility function. In case of disagreement, it gives up the item with the lowest value of (own utility partner utility) and takes an item of estimated zero utility to the part- ner. The agent agrees whenever a proposal is bet- ter than the last one or its predefined target. A high-level comparison of all models is shown in <ref type="table" target="#tab_9">Table 6</ref>.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.3">Training Details</head><p>CRAIGSLISTBARGAIN For SL(word), we use a sequence-to-sequence model with attention over 3 previous utterances and the negotiation sce- nario (embedded as a continuous Bag-of-Words). For both SL(word) and SL(act), we use 300- dimensional word vectors initialized by pretrained GloVe word vectors ( <ref type="bibr" target="#b20">Pennington et al., 2014</ref>), and a two-layer LSTM with 300 hidden units for both the encoder and the decoder. Parameters are ini- tialized by sampling from a uniform distribution between -0.1 and 0.1. For optimization, we use AdaGrad ( <ref type="bibr" target="#b9">Duchi et al., 2010</ref>) with a learning rate of 0.01 and a mini-batch size of 128. We train the model for 20 epochs and choose the model with the lowest validation loss.</p><p>For RL, we first fit a partner model using su- pervised learning (e.g., SL(word)), then run RL  3.0 0.89 -1.78 0.40 11.8 2.5 2.5 vs. 3.1 -0.6 0.54 11.0 <ref type="table">Table 7</ref>: Human evaluation results on human-likeness (Hu), agreement rate (Ag), and RL objectives, including agent utility (Ut), deal fairness (Fa), and dialogue length (Len). Results are grouped by the optimization objective. For each group of RL models, the column of the optimization objective is high- lighted. For human-likeness, scores that are better than others in the same group with statistical signifi- cance (p &lt; 0.05 given by paired t-tests) are in bold. Overall, with SL, all models are human-like, how- ever, act-based models better matches human statistics across all metrics; with RL, word-based models becomes degenerate, whereas act-based models optimize the reward while maintaining human-likeness.</p><p>against it. One agent is updated by policy gradi- ent and the partner model is fixed during training. We use a learning rate of 0.001 and train for 5000 episodes (dialogues). The model with the highest reward on the validation set is chosen.</p><p>DEALORNODEAL For act-based models, we use the same parameterization as CRAIGSLIST- BARGAIN. For word-based models, we use the implementation from <ref type="bibr" target="#b16">Lewis et al. (2017)</ref>. <ref type="bibr">2</ref> Note that for fair comparison, we did not apply SL in- terleaving during RL training and rollouts during inference.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.4">Human Evaluation</head><p>We evaluated each system on two metrics: task- specific scores (e.g., utility) and human-likeness. The scores tell us how well the system is play- ing the game, and human-likeness tells us whether the bot deviates from human behavior, presumably due to over-optimization.</p><p>We put up all 9 systems online and hired work- ers from AMT to chat with the bots. Each worker was randomly paired with one of the bots or an- other worker, so as to compare the bots with hu- man performance under the same conditions. At the end of a chat, workers were asked the question "Do you think your partner demonstrated reason- able human behavior?". They provided answers on a Likert scale from 1 (not at all) to 5 (defi- nitely). <ref type="table">Table 7</ref> shows the human evaluation re- sults on CRAIGSLISTBARGAIN and DEALORN- ODEAL respectively. We also show example human-bot dialogues in <ref type="table">Table 8</ref> and Appendix C. SL(act) learns more human-like behavior. We first compare performance of SL models over words and coarse dialogue acts. Both SL(word) and SL(act) achieved similar scores on human- likeness (no statistically significant difference). However, SL(word) better matched human statis- tics such as dialogue length and utility. For in- stance, SL(word) tended to produce short, generic utterances as shown in <ref type="table">Table 8</ref>(a); they also agreed on a deal more quickly because utterances such as "deal" and "I can do that" are frequent in negotiation dialogues. This behavior is reflected by the shorter dialogue length and lower utility of SL(word) models.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>RL(word)</head><p>leads to degeneracy. On CRAIGSLISTBARGAIN, all RL(word) mod- els clearly have low scores on human-likeness in <ref type="table">Table 7</ref>. They merely learned to repeat a few sentences: The three most frequent <ref type="table">Table 8</ref>: Example human-bot chats on CRAIGSLISTBARGAIN, where bot utterances are in bold. SL(word) produced generic responses, while SL(act) is more human-like. RL length (word) devolved into degenerate behavior repeating itself while RL length (act) maintained coherency. Only the first half of the item description and the RL length (word) chat are shown due to space limit. sentences of RL utility (word), RL fairness (word), and RL length (word) account for 81.6%, 100% and 100% of all utterances.</p><p>For example, RL utility (word) almost always opened with "i can pick it up", then offer its target price. RL length (word) repeated generic sentences un- til the partner submitted a price. While they scored high on the reward being optimized, the conversations are unnatural.</p><p>On DEALORNODEAL, we have observed sim- ilar patterns. A general strategy learned by RL(word) was to pick an offer depending on its objective, then repeat the same utterance over and over again (e.g., "i need the ball."), result- ing in low human-likeness scores. One excep- tion is RL fairness (word), since most of its offers were reasonable and agreed on immediately (it has the shorted dialogue length), the conversations are natural. RL(act) optimizes different negotiation goals while being human-like. On both tasks, RL(act) models optimized their rewards while maintaining reasonable human-likeness scores. We now show that different models demon- strated different negotiation behavior. Two main strategies learned by RL length (act) were to ask questions and to postpone offer submission. On CRAIGSLISTBARGAIN, when acting as a buyer, 42.4% of its utterances were questions, compared to 30.2% for other models. On both tasks, it tended to wait for the partner to submit an offer (even after a deal was agreed on), compared to RL margin (act) which almost always submitted offers first. For RL fairness (act), it aimed to agree on a price in the middle of the listing price and the buyer's target price for CRAIGSLISTBARGAIN. Since the buyer's target was hidden, when the agent was the seller, it tended to wait for the buyer to propose prices first. Similary, on DEALORN-ODEAL it waited to hear the parter's offer and sometimes changed its offer afterwards, whereas the other models often insisted on one offer.</p><p>On both tasks, RL utility (act) learned to insist on its offer and refuse to budge. This ended up frus- trating many people, which is why it has a low agreement rate. The problem is that our human model is simply a SL model trained on human- human dialogues, which may not accurately re- flects real human behavior during human-bot chat. For example, the SL model often agrees after a few turns of insistence on a proposal, whereas humans get annoyed if the partner is not willing to make compromises at all. However, by injecting domain knowledge to SL(act)+rule, e.g., making a small compromise is better than stubbornly being fixed on a single price, we were able to achieve high utility and human-likeness on both CRAIGSLIST- BARGAIN and DEALORNODEAL.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5">Related Work and Discussion</head><p>Recent work has explored the space between goal-oriented dialogue and open-domain chit-chat through collaborative or competitive language games, such as collecting cards in a maze <ref type="bibr" target="#b21">(Potts, 2012)</ref>, finding a mutual friend ( <ref type="bibr" target="#b13">He et al., 2017)</ref>, or splitting a set of items <ref type="bibr" target="#b7">(DeVault et al., 2015;</ref><ref type="bibr" target="#b16">Lewis et al., 2017)</ref>. Our CRAIGSLISTBARGAIN dialogue falls in this category, but exhibits richer and more diverse language than prior datasets. Our dataset calls for systems that can handle both strategic decision-making and open-ended text generation.</p><p>Traditional goal-oriented dialogue systems build a pipeline of modules ( <ref type="bibr" target="#b30">Young et al., 2013;</ref><ref type="bibr" target="#b28">Williams et al., 2016)</ref>. Due to the laborious dia- logue state design and annotation, recent work has been exploring ways to replace these modules with neural networks and end-to-end training while still having a logical backbone <ref type="bibr" target="#b25">(Wen et al., 2017a;</ref><ref type="bibr" target="#b2">Bordes and Weston, 2017;</ref><ref type="bibr" target="#b13">He et al., 2017)</ref>. Our work is closely related to the Hybrid Code Net- work ( <ref type="bibr" target="#b27">Williams et al., 2017)</ref>, but the key difference is that <ref type="bibr" target="#b27">Williams et al. (2017)</ref> uses a neural dialogue state, whereas we keep a structured, interpretable dialogue state which allows for stronger top-down control. Another line of work tackles this prob- lem by introducing latent stochastic variables to model the dialogue state <ref type="bibr" target="#b26">(Wen et al., 2017b;</ref><ref type="bibr" target="#b31">Zhao et al., 2017;</ref><ref type="bibr" target="#b4">Cao and Clark, 2017)</ref>. While the la- tent discrete variable allows for post-hoc discov- ery of dialogue acts and increased utterance diver- sity, it does not provide controllability over the di- alogue strategy.</p><p>Our work is also related to a large body of liter- ature on dialogue policies in negotiation <ref type="bibr" target="#b12">(English and Heeman, 2005;</ref><ref type="bibr" target="#b10">Efstathiou and Lemon, 2014;</ref><ref type="bibr" target="#b14">Hiraoka et al., 2015;</ref><ref type="bibr" target="#b5">Cao et al., 2018)</ref>. These work mostly focus on learning good negotiation policies in a domain-specific action space, whereas our model operates in an open-ended space of natural language. An interesting future direction is to con- nect with game theory <ref type="bibr" target="#b3">(Brams, 2003)</ref> for complex multi-issue bargaining. Another direction is learn- ing to generate persuasive utterances, e.g., through framing ( <ref type="bibr" target="#b23">Takuya et al., 2014</ref>) or accounting for the social and cultural context ( <ref type="bibr" target="#b11">Elnaz et al., 2012)</ref>.</p><p>To conclude, we have introduced CRAIGSLIST- BARGAIN, a rich dataset of human-human nego- tiation dialogues. We have also presented a mod- ular approach based on coarse dialogue acts that models a rough strategic backbone as well allow- ing for open-ended generation. We hope this work will spur more research in hybrid approaches that can work in open-ended, goal-oriented settings.</p></div><figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_1"><head>Figure 1 :</head><label>1</label><figDesc>Figure 1: Our modular framework consists of three components similar to traditional goal-oriented dialogue systems. (1) The parser maps received utterances to coarse dialogue acts (an intent and its arguments) that capture the high-level dialogue flow. (2) The manager generates the next coarse dialogue act z t conditioned on past dialogue acts z &lt;t. (3) The generator then produces a response conditioned on both the predicted coarse dialogue act z t and the dialogue history x &lt;t. Importantly, unlike in traditional systems, coarse dialogue acts only capture the rough shape of a dialogue, not the full meaning of its utterances, e.g., inform does not specify the answer to the question.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_2" validated="false"><head>Table 1 : Example dialogue between two people negotiating the price of a used TV.</head><label>1</label><figDesc></figDesc><table></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_4" validated="false"><head>Table 2 :</head><label>2</label><figDesc></figDesc><table>Statistics of CRAIGSLISTBARGAIN sce-
+narios. 
+
+CB 
+DN 
+SoC 
+
+# of dialogues 
+6682 5808 1081 
+Avg # of turns 
+9.2 
+6.6 
+8.5 
+Avg # of tokens per turn 
+15.5 
+7.6 
+4.2 
+Vocab size 
+13928 2719 4921 
+Vocab size (excl. numbers) 11799 2623 4735 
+
+</table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_5" validated="false"><head>Table 3 :</head><label>3</label><figDesc></figDesc><table>Comparison of dataset statistics of 
+CRAIGSLISTBARGAIN 
+(CB), 
+DEALORN-
+ODEAL (DN), and SETTLERSOFCATAN (SoC). 
+CRAIGSLISTBARGAIN contains longer, more 
+diverse dialogues on average. 
+
+</table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_6" validated="false"><head>Table 4 :</head><label>4</label><figDesc></figDesc><table>Rich negotiation language in our CRAIGSLISTBARGAIN dataset. 
+
+</table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_8" validated="false"><head>Table 5 :</head><label>5</label><figDesc></figDesc><table>Rules for intent detection in the parser. 
+
+p ✓ (z t | z &lt;t , c) by maximizing the likelihood of 
+the training data. 
+</table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_9" validated="true"><head>Table 6 : Comparison of different implementation of the core modules in our framework.</head><label>6</label><figDesc></figDesc><table>binned according to their approximate values with 
+two digits after the decimal point. 
+Next, given the pretrained SL models, we 
+fine-tune them with the three reward functions 
+(Section 3.4), producing RL utility , RL fairness , and 
+RL length . 
+</table></figure>
+
+			<note place="foot" n="1"> Available at https://stanfordnlp.github. io/cocoa.</note>
+
+			<note place="foot" n="2"> https://github.com/facebookresearch/ end-to-end-negotiator</note>
+		</body>
+		<back>
+
+			<div type="acknowledgement">
+			</div>
+
+			<div type="references">
+
+				<listBibl>
+
+<biblStruct xml:id="b0">
+	<analytic>
+		<title level="a" type="main">Modelling strategic conversation: Model, annotation design and corpus</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">S</forename><surname>Afantenos</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">N</forename><surname>Asher</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">F</forename><surname>Benamara</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">A</forename><surname>Cadilhac</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">C</forename><surname>Dégremont</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">P</forename><surname>Denis</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">M</forename><surname>Guhe</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">S</forename><surname>Keizer</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">A</forename><surname>Lascarides</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">O</forename><surname>Lemon</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of SemDial 2012: Workshop on the Semantics and Pragmatics of Dialogue</title>
+		<meeting>SemDial 2012: Workshop on the Semantics and Pragmatics of Dialogue</meeting>
+		<imprint>
+			<date type="published" when="2012" />
+			<biblScope unit="page" from="167" to="168" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b1">
+	<analytic>
+		<title level="a" type="main">Discourse structure and dialogue acts in multiparty dialogue: the STAC corpus</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">N</forename><surname>Asher</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">J</forename><surname>Hunter</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">M</forename><surname>Morey</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">F</forename><surname>Benamara</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">S</forename><surname>Afantenos</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Language Resources and Evaluation Conference (LREC)</title>
+		<imprint>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b2">
+	<analytic>
+		<title level="a" type="main">Learning end-to-end goal-oriented dialog</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">A</forename><surname>Bordes</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">J</forename><surname>Weston</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">International Conference on Learning Representations (ICLR)</title>
+		<imprint>
+			<date type="published" when="2017" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b3">
+	<monogr>
+		<title level="m" type="main">Negotiation Games: Applying Game Theory to Bargaining and Arbitration</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">S</forename><forename type="middle">J</forename><surname>Brams</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2003" />
+			<publisher>Psychology Press</publisher>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b4">
+	<analytic>
+		<title level="a" type="main">Latent variable dialogue models and their diversity</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">K</forename><surname>Cao</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">S</forename><surname>Clark</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">European Association for Computational Linguistics (EACL)</title>
+		<imprint>
+			<date type="published" when="2017" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b5">
+	<analytic>
+		<title level="a" type="main">Emergent communication through negotiation</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">K</forename><surname>Cao</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">A</forename><surname>Lazaridou</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">M</forename><surname>Lanctot</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">J</forename><forename type="middle">Z</forename><surname>Leibo</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">K</forename><surname>Tuyls</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">S</forename><surname>Clark</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">International Conference on Learning Representations</title>
+		<imprint>
+			<date type="published" when="2018" />
+		</imprint>
+	</monogr>
+	<note>ICLR</note>
+</biblStruct>
+
+<biblStruct xml:id="b6">
+	<analytic>
+		<title level="a" type="main">Strategic dialogue management via deep reinforcement learning</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">H</forename><surname>Cuayáhuitl</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">S</forename><surname>Keizer</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">O</forename><surname>Lemon</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Advances in Neural Information Processing Systems (NIPS)</title>
+		<imprint>
+			<date type="published" when="2015" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b7">
+	<analytic>
+		<title level="a" type="main">Toward natural turn-taking in a virtual human negotiation agent</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">D</forename><surname>Devault</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">J</forename><surname>Mell</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">J</forename><surname>Gratch</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Association for the Advancement of Artificial Intelligence (AAAI)</title>
+		<imprint>
+			<date type="published" when="2015" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b8">
+	<analytic>
+		<title level="a" type="main">End-to-end reinforcement learning of dialogue agents for information access</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">B</forename><surname>Dhingra</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">L</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">X</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">J</forename><surname>Gao</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Y</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">F</forename><surname>Ahmed</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">L</forename><surname>Deng</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Association for Computational Linguistics (ACL)</title>
+		<imprint>
+			<date type="published" when="2017" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b9">
+	<analytic>
+		<title level="a" type="main">Adaptive subgradient methods for online learning and stochastic optimization</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">J</forename><surname>Duchi</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">E</forename><surname>Hazan</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Y</forename><surname>Singer</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Conference on Learning Theory (COLT)</title>
+		<imprint>
+			<date type="published" when="2010" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b10">
+	<analytic>
+		<title level="a" type="main">Learning noncooperative dialogue behaviours</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">I</forename><surname>Efstathiou</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">O</forename><surname>Lemon</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Special Interest Group on Discourse and Dialogue (SIGDIAL)</title>
+		<imprint>
+			<date type="published" when="2014" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b11">
+	<analytic>
+		<title level="a" type="main">A cultural decision-making model for negotiation based on inverse reinforcement learning</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">N</forename><surname>Elnaz</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">G</forename><surname>Kallirroi</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">T</forename><surname>David</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">The Annual Meeting of the Cognitive Science Society</title>
+		<imprint>
+			<date type="published" when="2012" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b12">
+	<analytic>
+		<title level="a" type="main">Learning mixed initiative dialog strategies by using reinforcement learning on both conversants</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">M</forename><forename type="middle">S</forename><surname>English</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">P</forename><forename type="middle">A</forename><surname>Heeman</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Empirical Methods in Natural Language Processing (EMNLP)</title>
+		<imprint>
+			<date type="published" when="2005" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b13">
+	<analytic>
+		<title level="a" type="main">Learning symmetric collaborative dialogue agents with dynamic knowledge graph embeddings</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">H</forename><surname>He</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">A</forename><surname>Balakrishnan</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">M</forename><surname>Eric</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">P</forename><surname>Liang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Association for Computational Linguistics (ACL)</title>
+		<imprint>
+			<date type="published" when="2017" />
+			<biblScope unit="page" from="1766" to="1776" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b14">
+	<analytic>
+		<title level="a" type="main">Reinforcement learning in multi-party trading dialog</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">T</forename><surname>Hiraoka</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">K</forename><surname>Georgila</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">E</forename><surname>Nouri</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">D</forename><surname>Traum</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Special Interest Group on Discourse and Dialogue (SIGDIAL)</title>
+		<imprint>
+			<date type="published" when="2015" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b15">
+	<analytic>
+		<title level="a" type="main">Evaluating persuasion strategies and deep reinforcement learning methods for negotiation dialogue agents</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">S</forename><surname>Keizer</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">M</forename><surname>Guhe</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">H</forename><surname>Cuayahuitl</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">I</forename><surname>Efstathiou</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">K</forename><surname>Engelbrecht</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">M</forename><surname>Dobre</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">A</forename><surname>Lascarides</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">O</forename><surname>Lemon</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">European Association for Computational Linguistics (EACL)</title>
+		<imprint>
+			<date type="published" when="2017" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b16">
+	<analytic>
+		<title level="a" type="main">Deal or no deal? end-to-end learning for negotiation dialogues</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">M</forename><surname>Lewis</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">D</forename><surname>Yarats</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Y</forename><forename type="middle">N</forename><surname>Dauphin</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">D</forename><surname>Parikh</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">D</forename><surname>Batra</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Empirical Methods in Natural Language Processing</title>
+		<imprint>
+			<publisher>EMNLP</publisher>
+			<date type="published" when="2017" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b17">
+	<analytic>
+		<title level="a" type="main">Deep reinforcement learning for dialogue generation</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">J</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">W</forename><surname>Monroe</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">A</forename><surname>Ritter</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">D</forename><surname>Jurafsky</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">M</forename><surname>Galley</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">J</forename><surname>Gao</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Empirical Methods in Natural Language Processing</title>
+		<imprint>
+			<publisher>EMNLP</publisher>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b18">
+	<monogr>
+				<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">J</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">W</forename><surname>Monroe</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">T</forename><surname>Shi</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">A</forename><surname>Ritter</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">D</forename><surname>Jurafsky</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1701.06547</idno>
+		<title level="m">Adversarial learning for neural dialogue generation</title>
+		<imprint>
+			<date type="published" when="2017" />
+		</imprint>
+	</monogr>
+<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b19">
+	<analytic>
+		<title level="a" type="main">Training end-to-end dialogue systems with the ubuntu dialogue corpus</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">R</forename><forename type="middle">T</forename><surname>Lowe</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">N</forename><surname>Pow</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">I</forename><surname>Serban</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">L</forename><surname>Charlin</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">C</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">J</forename><surname>Pineau</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Dialogue and Discourse</title>
+		<imprint>
+			<biblScope unit="volume">8</biblScope>
+			<date type="published" when="2017" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b20">
+	<analytic>
+		<title level="a" type="main">GloVe: Global vectors for word representation</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">J</forename><surname>Pennington</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">R</forename><surname>Socher</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">C</forename><forename type="middle">D</forename><surname>Manning</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Empirical Methods in Natural Language Processing (EMNLP)</title>
+		<imprint>
+			<date type="published" when="2014" />
+			<biblScope unit="page" from="1532" to="1543" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b21">
+	<analytic>
+		<title level="a" type="main">Goal-driven answers in the Cards dialogue corpus</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">C</forename><surname>Potts</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 30th West Coast Conference on Formal Linguistics</title>
+		<meeting>the 30th West Coast Conference on Formal Linguistics</meeting>
+		<imprint>
+			<date type="published" when="2012" />
+			<biblScope unit="page" from="1" to="20" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b22">
+	<analytic>
+		<title level="a" type="main">A neural network approach to context-sensitive generation of conversational responses</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">A</forename><surname>Sordoni</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">M</forename><surname>Galley</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">M</forename><surname>Auli</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">C</forename><surname>Brockett</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Y</forename><surname>Ji</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">M</forename><surname>Mitchell</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">J</forename><surname>Nie</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">J</forename><surname>Gao</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">B</forename><surname>Dolan</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">North American Association for Computational Linguistics (NAACL)</title>
+		<imprint>
+			<date type="published" when="2015" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b23">
+	<analytic>
+		<title level="a" type="main">Reinforcement learning of cooperative persuasive dialogue policies using framing</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">H</forename><surname>Takuya</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">N</forename><surname>Graham</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">S</forename><surname>Sakriani</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">T</forename><surname>Tomoki</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">N</forename><surname>Satoshi</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">International Conference on Computational Linguistics (COLING)</title>
+		<imprint>
+			<date type="published" when="2014" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b24">
+	<analytic>
+		<title level="a" type="main">Multi-party, multi-issue, multistrategy negotiation for multi-modal virtual agents</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">D</forename><surname>Traum</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">S</forename><forename type="middle">C</forename><surname>Marsella</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">J</forename><surname>Gratch</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">J</forename><surname>Lee</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">A</forename><surname>Hartholt</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">International Workshop on Intelligent Virtual Agents</title>
+		<imprint>
+			<date type="published" when="2008" />
+			<biblScope unit="page" from="117" to="130" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b25">
+	<analytic>
+		<title level="a" type="main">A network-based end-to-end trainable task-oriented dialogue system</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">T</forename><surname>Wen</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">M</forename><surname>Gasic</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">N</forename><surname>Mrksic</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">L</forename><forename type="middle">M</forename><surname>Rojas-Barahona</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">P</forename><surname>Su</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">S</forename><surname>Ultes</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">D</forename><surname>Vandyke</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">S</forename><surname>Young</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">European Association for Computational Linguistics (EACL)</title>
+		<imprint>
+			<date type="published" when="2017" />
+			<biblScope unit="page" from="438" to="449" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b26">
+	<analytic>
+		<title level="a" type="main">Latent intention dialogue models</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">T</forename><surname>Wen</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Y</forename><surname>Miao</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">P</forename><surname>Blunsom</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">S</forename><surname>Young</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">International Conference on Machine Learning (ICML)</title>
+		<imprint>
+			<date type="published" when="2017" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b27">
+	<analytic>
+		<title level="a" type="main">Hybrid code networks: Practical and efficient end-toend dialog control with supervised and reinforcement learning</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">J</forename><forename type="middle">D</forename><surname>Williams</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">K</forename><surname>Asadi</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">G</forename><surname>Zweig</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Association for Computational Linguistics (ACL)</title>
+		<imprint>
+			<date type="published" when="2017" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b28">
+	<monogr>
+		<title level="m" type="main">The dialog state tracking challenge series: A review</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">J</forename><forename type="middle">D</forename><surname>Williams</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">A</forename><surname>Raux</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">M</forename><surname>Henderson</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2016" />
+			<biblScope unit="page">7</biblScope>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b29">
+	<analytic>
+		<title level="a" type="main">Simple statistical gradientfollowing algorithms for connectionist reinforcement learning</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">R</forename><forename type="middle">J</forename><surname>Williams</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Machine learning</title>
+		<imprint>
+			<biblScope unit="volume">8</biblScope>
+			<biblScope unit="issue">3</biblScope>
+			<biblScope unit="page" from="229" to="256" />
+			<date type="published" when="1992" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b30">
+	<analytic>
+		<title level="a" type="main">POMDP-based statistical spoken dialog systems: A review</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">S</forename><surname>Young</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">M</forename><surname>Gaši´gaši´c</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">B</forename><surname>Thomson</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">J</forename><forename type="middle">D</forename><surname>Williams</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the IEEE</title>
+		<meeting>the IEEE</meeting>
+		<imprint>
+			<date type="published" when="2013" />
+			<biblScope unit="volume">5</biblScope>
+			<biblScope unit="page" from="1160" to="1179" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b31">
+	<analytic>
+		<title level="a" type="main">Learning discourse-level diversity for neural dialog models using conditional variational autoencoders</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">T</forename><surname>Zhao</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">R</forename><surname>Zhao</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">M</forename><surname>Eskenazi</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Association for Computational Linguistics (ACL)</title>
+		<imprint>
+			<date type="published" when="2017" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+				</listBibl>
+			</div>
+		</back>
+	</text>
+</TEI>

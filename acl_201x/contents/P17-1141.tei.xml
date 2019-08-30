@@ -1,0 +1,1158 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<TEI xmlns="http://www.tei-c.org/ns/1.0" 
+xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+xsi:schemaLocation="http://www.tei-c.org/ns/1.0 /home/ana/installs/grobid/grobid-0.5.1/grobid-home/schemas/xsd/Grobid.xsd"
+ xmlns:xlink="http://www.w3.org/1999/xlink">
+	<teiHeader xml:lang="en">
+		<encodingDesc>
+			<appInfo>
+				<application version="0.5.1-SNAPSHOT" ident="GROBID" when="2019-04-18T10:05+0000">
+					<ref target="https://github.com/kermitt2/grobid">GROBID - A machine learning software for extracting information from scholarly documents</ref>
+				</application>
+			</appInfo>
+		</encodingDesc>
+		<fileDesc>
+			<titleStmt>
+				<title level="a" type="main">Lexically Constrained Decoding for Sequence Generation Using Grid Beam Search</title>
+			</titleStmt>
+			<publicationStmt>
+				<publisher>Association for Computational Linguistics</publisher>
+				<availability status="unknown"><p>Copyright Association for Computational Linguistics</p>
+				</availability>
+				<date>July 30-August 4, 2017. July 30-August 4, 2017</date>
+			</publicationStmt>
+			<sourceDesc>
+				<biblStruct>
+					<analytic>
+						<author>
+							<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Chris</forename><surname>Hokamp</surname></persName>
+						</author>
+						<author>
+							<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Qun</forename><surname>Liu</surname></persName>
+						</author>
+						<title level="a" type="main">Lexically Constrained Decoding for Sequence Generation Using Grid Beam Search</title>
+					</analytic>
+					<monogr>
+						<title level="m">Proceedings of the 55th Annual Meeting of the Association for Computational Linguistics (Volume 1: Long Papers)</title>
+						<meeting>the 55th Annual Meeting of the Association for Computational Linguistics (Volume 1: Long Papers) <address><addrLine>Vancouver, Canada; Vancouver, Canada</addrLine></address>
+						</meeting>
+						<imprint>
+							<publisher>Association for Computational Linguistics</publisher>
+							<biblScope unit="page" from="1535" to="1546"/>
+							<date type="published">July 30-August 4, 2017. July 30-August 4, 2017</date>
+						</imprint>
+					</monogr>
+					<idno type="DOI">10.18653/v1/p17-1141</idno>
+				</biblStruct>
+			</sourceDesc>
+		</fileDesc>
+		<profileDesc>
+			<abstract>
+				<p>We present Grid Beam Search (GBS), an algorithm which extends beam search to allow the inclusion of pre-specified lexical constraints. The algorithm can be used with any model that generates a se-quencê y = {y 0. .. y T }, by maximizing p(y|x) = t p(y t |x; {y 0. .. y t−1 }). Lexical constraints take the form of phrases or words that must be present in the output sequence. This is a very general way to incorporate additional knowledge into a model&apos;s output without requiring any modification of the model parameters or training data. We demonstrate the feasibility and flexibility of Lexically Constrained Decoding by conducting experiments on Neural Interactive-Predictive Translation, as well as Domain Adaptation for Neural Machine Translation. Experiments show that GBS can provide large improvements in translation quality in interactive scenarios , and that, even without any user input , GBS can be used to achieve significant gains in performance in domain adaptation scenarios.</p>
+			</abstract>
+		</profileDesc>
+	</teiHeader>
+	<text xml:lang="en">
+		<body>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="1">Introduction</head><p>The output of many natural language processing models is a sequence of text. Examples include automatic summarization ( <ref type="bibr" target="#b22">Rush et al., 2015)</ref>, ma- chine translation <ref type="bibr" target="#b16">(Koehn, 2010;</ref>), caption generation ( <ref type="bibr" target="#b34">Xu et al., 2015)</ref>, and di- alog generation <ref type="bibr" target="#b24">(Serban et al., 2016</ref>), among oth- ers.</p><p>In some real-world scenarios, additional infor- mation that could inform the search for the opti- mal output sequence may be available at inference time. Humans can provide corrections after view- ing a system's initial output, or separate classifi- cation models may be able to predict parts of the output with high confidence. When the domain of the input is known, a domain terminology may be employed to ensure specific phrases are present in a system's predictions. Our goal in this work is to find a way to force the output of a model to contain such lexical constraints, while still taking advan- tage of the distribution learned from training data.</p><p>For Machine Translation (MT) usecases in par- ticular, final translations are often produced by combining automatically translated output with user inputs.</p><p>Examples include Post-Editing (PE) <ref type="bibr" target="#b15">(Koehn, 2009;</ref><ref type="bibr" target="#b26">Specia, 2011)</ref> and Interactive- Predictive MT <ref type="bibr" target="#b11">(Foster, 2002;</ref><ref type="bibr" target="#b1">Barrachina et al., 2009;</ref><ref type="bibr" target="#b12">Green, 2014</ref>). These interactive scenarios can be unified by considering user inputs to be lex- ical constraints which guide the search for the op- timal output sequence.</p><p>In this paper, we formalize the notion of lexi- cal constraints, and propose a decoding algorithm which allows the specification of subsequences that are required to be present in a model's out- put. Individual constraints may be single tokens or multi-word phrases, and any number of constraints may be specified simultaneously.</p><p>Although we focus upon interactive applica- tions for MT in our experiments, lexically con- strained decoding is relevant to any scenario where a model is asked to generate a sequencêsequencê y = {y 0 . . . y T } given both an input x, and a set {c 0 ...c n }, where each c i is a sub-sequence {c i0 . . . c ij }, that must appear somewhere inˆyinˆ inˆy. This makes our work applicable to a wide range of text generation scenarios, including image de- scription, dialog generation, abstractive summa- rization, and question answering.</p><p>The rest of this paper is organized as follows: Section 2 gives the necessary background for our discussion of GBS, Section 3 discusses the lex- ically constrained decoding algorithm in detail, Section 4 presents our experiments, and Section 5 gives an overview of closely related work.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2">Background: Beam Search for Sequence Generation</head><p>Under a model parameterized by θ, let the best output sequencê y given input x be Eq. 1.</p><formula xml:id="formula_0">ˆ y = argmax y∈{y [T] } p θ (y|x),<label>(1)</label></formula><p>where we use {y <ref type="bibr">[T]</ref> } to denote the set of all se- quences of length T . Because the number of pos- sible sequences for such a model is |v| T , where |v| is the number of output symbols, the search forˆyforˆ forˆy can be made more tractable by factorizing p θ (y|x) into Eq. 2:</p><formula xml:id="formula_1">p θ (y|x) = T t=0 p θ (y t |x; {y 0 . . . y t−1 }).<label>(2)</label></formula><p>The standard approach is thus to generate the output sequence from beginning to end, condition- ing the output at each timestep upon the input x, and the already-generated symbols {y 0 . . . y i−t }. However, greedy selection of the most probable output at each timestep, i.e.:</p><formula xml:id="formula_2">ˆ y t = argmax y i ∈{v} p(y i |x; {y 0 . . . y t−1 }),<label>(3)</label></formula><p>risks making locally optimal decisions which are actually globally sub-optimal. On the other hand, an exhaustive exploration of the output space would require scoring |v| T sequences, which is intractable for most real-world models. Thus, a search or decoding algorithm is often used as a compromise between these two extremes. A com- mon solution is to use a heuristic search to at- tempt to find the best output efficiently <ref type="bibr" target="#b20">(Pearl, 1984;</ref><ref type="bibr" target="#b16">Koehn, 2010;</ref><ref type="bibr" target="#b21">Rush et al., 2013)</ref>. The key idea is to discard bad options early, while trying to avoid discarding candidates that may be locally risky, but could eventually result in the best overall output.</p><p>Beam search ( <ref type="bibr" target="#b18">Och and Ney, 2004</ref>) is probably the most popular search algorithm for decoding se- quences. Beam search is simple to implement, and is flexible in the sense that the semantics of the graph of beams can be adapted to take advantage of additional structure that may be available for specific tasks. For example, in Phrase-Based Sta- tistical MT (PB-SMT) <ref type="bibr" target="#b16">(Koehn, 2010)</ref>, beams are organized by the number of source words that are covered by the hypotheses in the beam -a hypoth- esis is "finished" when it has covered all source words. In chart-based decoding algorithms such as CYK, beams are also tied to coverage of the input, but are organized as cells in a chart, which facili- tates search for the optimal latent structure of the output <ref type="bibr" target="#b5">(Chiang, 2007)</ref>. <ref type="figure" target="#fig_1">Figure 2</ref> visualizes three common ways to structure search. (A) and (B) de- pend upon explicit structural information between the input and output, (C) only assumes that the output is a sequence where later symbols depend upon earlier ones. Note also that (C) corresponds exactly to the bottom rows of <ref type="figure" target="#fig_0">Figures 1 and 3.</ref> With the recent success of neural models for text generation, beam search has become the de-facto choice for decoding optimal output se- quences ( <ref type="bibr" target="#b28">Sutskever et al., 2014</ref>).</p><p>However, with neural sequence models, we cannot organize beams by their explicit coverage of the input. A simpler alternative is to organize beams by output timesteps from t 0 · · · t N , where N is a hyperpa- rameter that can be set heuristically, for example by multiplying a factor with the length of the in- put to make an educated guess about the maximum length of the output ( <ref type="bibr" target="#b28">Sutskever et al., 2014</ref>). Out- put sequences are generally considered complete once a special "end-of-sentence"(EOS) token has been generated. Beam size in these models is also typically kept small, and recent work has shown </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3">Grid Beam Search</head><p>Our goal is to organize decoding in such a way that we can constrain the search space to outputs which contain one or more pre-specified sub-sequences. We thus wish to use a model's distribution both to "place" lexical constraints correctly, and to gener- ate the parts of the output which are not covered by the constraints.</p><p>Algorithm 1 presents the pseudo-code for lex- ically constrained decoding, see <ref type="table">Figures 1 and 3</ref> for visualizations of the search process. Beams in the grid are indexed by t and c. The t vari- able tracks the timestep of the search, while the c variable indicates how many constraint tokens are covered by the hypotheses in the current beam. Note that each step of c covers a single constraint token. In other words, constraints is an array of sequences, where individual tokens can be indexed as constraints ij , i.e. token j in constraint i . The numC parameter in Algorithm 1 represents the to- tal number of tokens in all constraints.</p><p>The hypotheses in a beam can be separated into two types (see lines 9-11 and 15-19 of Algo- rithm 1):</p><p>1. open hypotheses can either generate from the model's distribution, or start available con- straints, 2. closed hypotheses can only generate the next Algorithm 1 Pseudo-code for Grid Beam Search, note that t and c indices are 0-based 1: procedure CONSTRAINEDSEARCH(model, input, constraints, maxLen, numC, k)</p><p>2:</p><p>startHyp ⇐ model.getStartHyp(input, constraints)</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>3:</head><p>Grid ⇐ initGrid(maxLen, numC, k) initialize beams in grid 4:</p><formula xml:id="formula_3">Grid[0][0] = startHyp 5:</formula><p>for t = 1, t++, t &lt; maxLen do 6:</p><formula xml:id="formula_4">for c = max(0, (numC + t) − maxLen), c++, c ≤ min(t, numC) do 7:</formula><p>n, s, g = ∅ 8:</p><formula xml:id="formula_5">for each hyp ∈ Grid[t − 1][c] do 9:</formula><p>if hyp.isOpen() then   Therefore, the model in Algorithm 1 imple- ments an interface with three functions: generate, start, and continue, which build new hypotheses in each of the three ways. Note that the scoring function of the model does not need to be aware of the existence of constraints, but it may be, for ex- ample via a feature which indicates if a hypothesis is part of a constraint or not.</p><note type="other">10</note><formula xml:id="formula_6">for each hyp ∈ Grid[t − 1][c − 1] do 15: if hyp.isOpen() then 16: n ⇐ n model.start(hyp, input</formula><p>The beams at the top level of the grid (beams where c = numConstraints) contain hypothe- ses which cover all of the constraints. Once a hy- pothesis on the top level generates the EOS token, it can be added to the set of finished hypotheses. The highest scoring hypothesis in the set of fin- ished hypotheses is the best sequence which cov- ers all constraints. <ref type="bibr">1</ref> </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.1">Multi-token Constraints</head><p>By distinguishing between open and closed hy- potheses, we can allow for arbitrary multi-token phrases in the search. Thus, the set of constraints for a particular output may include both individ- ual tokens and phrases. Each hypothesis main- tains a coverage vector to ensure that constraints cannot be repeated in a search path -hypotheses which have already covered constraint i can only generate, or start constraints that have not yet been covered.</p><p>Note also that discontinuous lexical constraints, such as phrasal verbs in English or German, are easy to incorporate into GBS, by adding filters to the search, which require that one or more con- ditions must be met before a constraint can be used. For example, adding the phrasal verb "ask someone out" as a constraint would mean using "ask" as constraint 0 and "out" as constraint 1 , with two filters: one requiring that constraint 1 cannot be used before constraint 0 , and another requiring that there must be at least one generated token between the constraints.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.2">Subword Units</head><p>Both the computation of the score for a hypoth- esis, and the granularity of the tokens (character, subword, word, etc...) are left to the underlying model. Because our decoder can handle arbitrary constraints, there is a risk that constraints will con- tain tokens that were never observed in the training data, and thus are unknown by the model. Espe- cially in domain adaptation scenarios, some user- specified constraints are very likely to contain un- seen tokens. Subword representations provide an elegant way to circumvent this problem, by break- ing unknown or rare tokens into character n-grams which are part of the model's vocabulary <ref type="bibr" target="#b23">(Sennrich et al., 2016;</ref><ref type="bibr" target="#b32">Wu et al., 2016</ref>). In the ex- periments in Section 4, we use this technique to ensure that no input tokens are unknown, even if a constraint contains words which never appeared in the training data. <ref type="bibr">2</ref> </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.3">Efficiency</head><p>Because the number of beams is multiplied by the number of constraints, the runtime complexity of a naive implementation of GBS is O(ktc). Stan- dard time-based beam search is O(kt); therefore, some consideration must be given to the efficiency of this algorithm. Note that the beams in each col- umn c of <ref type="figure" target="#fig_2">Figure 3</ref> are independent, meaning that GBS can be parallelized to allow all beams at each timestep to be filled simultaneously. Also, we find that the most time is spent computing the states for the hypothesis candidates, so by keeping the beam size small, we can make GBS significantly faster.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.4">Models</head><p>The models used for our experiments are state- of-the-art Neural Machine Translation (NMT) sys- tems using our own implementation of NMT with attention over the source sequence ( ). We used Blocks and Fuel to im- plement our NMT models <ref type="bibr" target="#b30">(van Merrinboer et al., 2015)</ref>. To conduct the experiments in the fol- lowing section, we trained baseline translation models for English-German (EN-DE), English- French (EN-FR), and English-Portuguese (EN- PT). We created a shared subword representation for each language pair by extracting a vocabulary of 80000 symbols from the concatenated source and target data. See the Appendix for more de- tails on our training data and hyperparameter con- figuration for each language pair. The beamSize parameter is set to 10 for all experiments.</p><p>Because our experiments use NMT models, we can now be more explicit about the implemen- tations of the generate, start, and continue functions for this GBS instantiation. For an NMT model at timestep t, generate(hyp t−1 ) first computes a vector of output probabilities o t = sof tmax(g(y t−1 , s i , c i )) 3 using the state infor- mation available from hyp t−1 . and returns the best k continuations, i.e. Eq. 4:</p><formula xml:id="formula_7">g t = k-argmax i o ti .<label>(4)</label></formula><p>The start and continue functions simply index into the softmax output of the model, selecting specific tokens instead of doing a k-argmax over the entire target language vocabulary. For exam- ple, to start constraint c i , we find the score of to- ken c i0 , i.e. o tc i0 .</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4">Experiments</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.1">Pick-Revise for Interactive Post Editing</head><p>Pick-Revise is an interaction cycle for MT Post- Editing proposed by <ref type="bibr" target="#b4">Cheng et al. (2016)</ref>. Starting  with the original translation hypothesis, a (sim- ulated) user first picks a part of the hypothesis which is incorrect, and then provides the correct translation for that portion of the output. The user- provided correction is then used as a constraint for the next decoding cycle. The Pick-Revise process can be repeated as many times as necessary, with a new constraint being added at each cycle. We modify the experiments of <ref type="bibr" target="#b4">Cheng et al. (2016)</ref> slightly, and assume that the user only pro- vides sequences of up to three words which are missing from the hypothesis. <ref type="bibr">4</ref> To simulate user interaction, at each iteration we chose a phrase of up to three tokens from the reference transla- tion which does not appear in the current MT hy- potheses. In the strict setting, the complete phrase must be missing from the hypothesis. In the re- laxed setting, only the first word must be missing. <ref type="table">Table 1</ref> shows results for a simulated editing ses- sion with four cycles. When a three-token phrase cannot be found, we backoff to two-token phrases, then to single tokens as constraints. If a hypoth- esis already matches the reference, no constraints are added. By specifying a new constraint of up to three words at each cycle, an increase of over 20 BLEU points is achieved in all language pairs.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.2">Domain Adaptation via Terminology</head><p>The requirement for use of domain-specific termi- nologies is common in real-world applications of MT ( <ref type="bibr" target="#b9">Crego et al., 2016)</ref>. Existing approaches in- corporate placeholder tokens into NMT systems, which requires modifying the pre-and post-pro- cessing of the data, and training the system with data that contains the same placeholders which oc- cur in the test data ( <ref type="bibr" target="#b9">Crego et al., 2016</ref>). The MT system also loses any possibility to model the to- kens in the terminology, since they are represented by abstract tokens such as "TERM 1". An at- tractive alternative is to simply provide term map- pings as constraints, allowing any existing system to adapt to the terminology used in a new test do- main.</p><p>For the target domain data, we use the Autodesk Post-Editing corpus <ref type="bibr" target="#b36">(Zhechev, 2012)</ref>, which is a dataset collected from actual MT post-editing ses- sions. The corpus is focused upon software local- ization, a domain which is likely to be very dif- ferent from the WMT data used to train our gen- eral domain models. We divide the corpus into ap- proximately 100,000 training sentences, and 1000 test segments, and automatically generate a termi- nology by computing the Pointwise Mutual Infor- mation (PMI) <ref type="bibr" target="#b8">(Church and Hanks, 1990</ref>) between source and target n-grams in the training set. We extract all n-grams from length 2-5 as terminology candidates.</p><p>pmi(x; y) = log p(x, y) p(x)p(y)</p><p>npmi(x; y) = pmi(x; y) h(x, y)</p><p>Equations 5 and 6 show how we compute the normalized PMI for a terminology candidate pair. The PMI score is normalized to the range [−1, +1] by dividing by the entropy h of the joint prob- ability p(x, y). We then filter the candidates to only include pairs whose PMI is ≥ 0.9, and where both the source and target phrases occur at least five times in the corpus. When source phrases that match the terminology are observed in the test data, the corresponding target phrase is added to the constraints for that segment. Results are shown in <ref type="table" target="#tab_4">Table 2</ref>.</p><p>As a sanity check that improvements in BLEU are not merely due to the presence of the terms somewhere in the output, i.e. that the placement of the terms by GBS is reasonable, we also eval- uate the results of randomly inserting terms into the baseline output, and of prepending terms to the baseline output.</p><p>This simple method of domain adaptation leads to a significant improvement in the BLEU score without any human intervention. Surprisingly, even an automatically created terminology com- bined with GBS yields performance improve- ments of approximately +2 BLEU points for En- De and En-Fr, and a gain of almost 14 points for En-Pt. The large improvement for En-Pt is probably due to the training data for this sys- tem being very different from the IT domain (see Appendix). Given the performance improve- ments from our automatically extracted terminol- ogy, manually created domain terminologies with good coverage of the test domain are likely to lead to even greater gains. Using a terminology with GBS is likely to be beneficial in any setting where the test domain is significantly different from the domain of the model's original training data.  </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>System</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.3">Analysis</head><p>Subjective analysis of decoder output shows that phrases added as constraints are not only placed correctly within the output sequence, but also have global effects upon translation quality. This is a desirable effect for user interaction, since it im- plies that users can bootstrap quality by adding the most critical constraints (i.e. those that are most essential to the output), first. <ref type="table">Table 3</ref> shows several examples from the experiments in <ref type="table">Table 1</ref>, where the addition of lexical constraints was able to guide our NMT systems away from initially quite low-scoring hypotheses to outputs which perfectly match the reference translations.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5">Related Work</head><p>Most related work to date has presented modifica- tions of SMT systems for specific usecases which constrain MT output via auxilliary inputs. The largest body of work considers Interactive Ma- chine Translation (IMT): an MT system searches for the optimal target-language suffix given a com- plete source sentence and a desired prefix for the target output <ref type="bibr" target="#b11">(Foster, 2002;</ref><ref type="bibr" target="#b1">Barrachina et al., 2009;</ref><ref type="bibr" target="#b12">Green, 2014)</ref>. IMT can be viewed as sub- case of constrained decoding, where there is only one constraint which is guaranteed to be placed at the beginning of the output sequence. <ref type="bibr" target="#b33">Wuebker et al. (2016)</ref> introduce prefix-decoding, which modifies the SMT beam search to first ensure that the target prefix is covered, and only then contin- ues to build hypotheses for the suffix using beams organized by coverage of the remaining phrases in the source segment. <ref type="bibr" target="#b33">Wuebker et al. (2016)</ref> and <ref type="bibr" target="#b14">Knowles and Koehn (2016)</ref> also present a simple modification of NMT models for IMT, enabling models to predict suffixes for user-supplied pre- fixes.</p><p>Recently, some attention has also been given to SMT decoding with multiple lexical constraints. The Pick-Revise (PRIMT) ( <ref type="bibr" target="#b4">Cheng et al., 2016)</ref> framework for Interactive Post Editing introduces the concept of edit cycles. Translators specify con- straints by editing a part of the MT output that is incorrect, and then asking the system for a new hypothesis, which must contain the user-provided correction. This process is repeated, maintain- ing constraints from previous iterations and adding new ones as needed. Importantly, their approach relies upon the phrase segmentation provided by the SMT system. The decoding algorithm can</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>EN-DE Source</head><p>He was also an anti-smoking activist and took part in several campaigns .</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Original Hypothesis</head><p>Es war auch ein Anti-Rauch-Aktiv-ist und nahmen an mehreren Kampagnen teil . Reference Constraints Ebenso setzte er sich gegen das Rauchen ein und nahm an mehreren Kampagnen teil .</p><p>(1) Ebenso setzte er Constrained Hypothesis (2) gegen das Rauchen Ebenso setzte er sich gegen das Rauchen ein und nahm an mehreren Kampagnen teil .</p><p>(3) nahm EN-FR Source At that point I was no longer afraid of him and I was able to love him . Original Hypothesis Je n'avais plus peur de lui et j'` etais capable de l'aimer . Reference Constraints Lá je n'ai plus eu peur de lui et j'ai pu l'aimer .</p><p>(1) Lá je n'ai Constrained Hypothesis (2) j'ai pu Lá je n'ai plus eu peur de lui et j'ai pu l'aimer .</p><p>(3) eu EN-PT Source Mo-dif-y drain-age features by selecting them individually . Original Hypothesis -Já temos as características de extracçextracç˜extracção de idade , com eles individualmente . Reference Constraints Modi-fique os recursos de drenagem ao selec-ion-´ a-los individualmente .</p><p>(1) drenagem ao selec- Constrained Hypothesis (2) Modi-fique os Modi-fique os recursos de drenagem ao selec-ion-´ a-los individualmente . (3) recursos <ref type="table">Table 3</ref>: Manual analysis of examples from lexically constrained decoding experiments. "-" followed by whitespace indicates the internal segmentation of the translation model (see Section 3.2)</p><p>only make use of constraints that match phrase boundaries, because constraints are implemented as "rules" enforcing that source phrases must be translated as the aligned target phrases that have been selected as constraints. In contrast, our ap- proach decodes at the token level, and is not de- pendent upon any explicit structure in the underly- ing model. <ref type="bibr" target="#b10">Domingo et al. (2016)</ref> also consider an interac- tive scenario where users first choose portions of an MT hypothesis to keep, then query for an up- dated translation which preserves these portions. The MT system decodes the source phrases which are not aligned to the user-selected phrases un- til the source sentence is fully covered. This ap- proach is similar to the system of Cheng et al., and uses the "XML input" feature in Moses ( <ref type="bibr" target="#b17">Koehn et al., 2007)</ref>.</p><p>Some recent work considers the inclusion of soft lexical constraints directly into deep models for dialog generation, and special cases, such as recipe generation from a list of ingredients ( <ref type="bibr" target="#b31">Wen et al., 2015;</ref><ref type="bibr" target="#b13">Kiddon et al., 2016)</ref>. Such constraint- aware models are complementary to our work, and could be used with GBS decoding without any change to the underlying models.</p><p>To the best of our knowledge, ours is the first work which considers general lexically con- strained decoding for any model which outputs sequences, without relying upon alignments be- tween input and output, and without using a search organized by coverage of the input.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6">Conclusion</head><p>Lexically constrained decoding is a flexible way to incorporate arbitrary subsequences into the out- put of any model that generates output sequences token-by-token. A wide spectrum of popular text generation models have this characteristic, and GBS should be straightforward to use with any model that already uses beam search.</p><p>In translation interfaces where translators can provide corrections to an existing hypothesis, these user inputs can be used as constraints, gener- ating a new output each time a user fixes an error. By simulating this scenario, we have shown that such a workflow can provide a large improvement in translation quality at each iteration.</p><p>By using a domain-specific terminology to gen- erate target-side constraints, we have shown that a general domain model can be adapted to a new domain without any retraining. Surprisingly, this simple method can lead to significant performance gains, even when the terminology is created auto- matically.</p><p>In future work, we hope to evaluate GBS with models outside of MT, such as automatic sum- marization, image captioning or dialog genera- tion. We also hope to introduce new constraint- aware models, for example via secondary attention mechanisms over lexical constraints.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>A NMT System Configurations</head><p>We train all systems for 500000 iterations, with validation every 5000 steps. The best single model from validation is used in all of the experiments for a language pair. We use 2 regularization on all pa- rameters with α = 1e −5 . Dropout is used on the output layers with p(drop) = 0.5. We sort mini- batches by source sentence length, and reshuffle training data after each epoch.</p><p>All systems use a bidirectional <ref type="bibr">GRUs (Cho et al., 2014</ref>) to create the source representation and GRUs for the decoder transition. We use AdaDelta <ref type="bibr" target="#b35">(Zeiler, 2012)</ref> to update gradients, and clip large gradients to 1.0. </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Training Configurations EN-DE</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>A.2 English-French</head><p>Our English-French training corpus consists of 4.9 Million segments from the Europarl and Com- monCrawl corpora.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>A.3 English-Portuguese</head><p>Our English-Portuguese training corpus consists of 28.5 Million segments from the Europarl, JRC- Aquis ( <ref type="bibr" target="#b27">Steinberger et al., 2006</ref>) and OpenSubti- tles 5 corpora.</p></div><figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_0"><head>Figure 1 :</head><label>1</label><figDesc>Figure 1: A visualization of the decoding process for an actual example from our English-German MT experiments. The output token at each timestep appears at the top of the figure, with lexical constraints enclosed in boxes. Generation is shown in blue, Starting new constraints in green, and Continuing constraints in red. The function used to create the hypothesis at each timestep is written at the bottom. Each box in the grid represents a beam; a colored strip inside a beam represents an individual hypothesis in the beam's k-best stack. Hypotheses with circles inside them are closed, all other hypotheses are open. (Best viewed in colour).</figDesc><graphic url="image-1.pbm" coords="2,93.32,62.81,408.20,284.83" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_1"><head>Figure 2 :</head><label>2</label><figDesc>Figure 2: Different structures for beam search. Boxes represent beams which hold k-best lists of hypotheses. (A) Chart Parsing using SCFG rules to cover spans in the input. (B) Source coverage as used in PB-SMT. (C) Sequence timesteps (as used in Neural Sequence Models), GBS is an extension of (C). In (A) and (B), hypotheses are finished once they reach the final beam. In (C), a hypothesis is only complete if it has generated an end-of-sequence (EOS) symbol.</figDesc><graphic url="image-3.png" coords="3,63.23,61.54,227.40,131.48" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_2"><head>Figure 3 :</head><label>3</label><figDesc>Figure 3: Visualizing the lexically constrained decoder's complete search graph. Each rectangle represents a beam containing k hypotheses. Dashed (diagonal) edges indicate starting or continuing constraints. Horizontal edges represent generating from the model's distribution. The horizontal axis covers the timesteps in the output sequence, and the vertical axis covers the constraint tokens (one row for each token in each constraint). Beams on the top level of the grid contain hypotheses which cover all constraints.</figDesc><graphic url="image-4.png" coords="3,298.01,31.91,235.85,159.46" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_3"><head></head><label></label><figDesc>At each step of the search the beam at Grid[t][c] is filled with candidates which may be created in three ways: 1. the open hypotheses in the beam to the left (Grid[t − 1][c]) may generate con- tinuations from the model's distribution p θ (y i |x, {y 0 . . . y i−1 }), 2. the open hypotheses in the beam to the left and below (Grid[t−1][c−1]) may start new constraints, 3. the closed hypotheses in the beam to the left and below (Grid[t − 1][c − 1]) may continue constraints.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_4"><head>ITERATION</head><label></label><figDesc></figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_4" validated="false"><head>Table 2 :</head><label>2</label><figDesc></figDesc><table>BLEU Results for EN-DE, EN-FR, and EN-PT ter-
+minology experiments using the Autodesk Post-Editing Cor-
+pus. "Random' indicates inserting terminology constraints 
+at random positions in the baseline translation. "Beginning" 
+indicates prepending constraints to baseline translations. 
+
+</table></figure>
+
+			<note place="foot" n="1"> Our implementation of GBS is available at https: //github.com/chrishokamp/constrained_ decoding</note>
+
+			<note place="foot" n="2"> If a character that was not observed in training data is observed at prediction time, it will be unknown. However, we did not observe this in any of our experiments.</note>
+
+			<note place="foot" n="3"> we use the notation for the g function from Bahdanau et al. (2014)</note>
+
+			<note place="foot" n="4"> NMT models do not use explicit alignment between source and target, so we cannot use alignment information to map target phrases to source phrases</note>
+
+			<note place="foot" n="5"> http://www.opensubtitles.org/</note>
+		</body>
+		<back>
+
+			<div type="acknowledgement">
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Acknowledgments</head><p>This project has received funding from Science Foundation Ireland in the ADAPT Centre for Dig-ital Content Technology (www.adaptcentre.ie) at Dublin City University funded under the SFI Re-search Centres Programme (Grant 13/RC/2106) co-funded under the European Regional Develop-ment Fund and the European Union Horizon 2020 research and innovation programme under grant agreement 645452 (QT21). We thank the anony-mous reviewers, as well as Iacer Calixto, Peyman Passban, and Henry Elder for helpful feedback on early versions of this work.</p></div>
+			</div>
+
+			<div type="references">
+
+				<listBibl>
+
+<biblStruct xml:id="b0">
+	<monogr>
+		<title level="m" type="main">Neural machine translation by jointly learning to align and translate</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Dzmitry</forename><surname>Bahdanau</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kyunghyun</forename><surname>Cho</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yoshua</forename><surname>Bengio</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1409.0473</idno>
+		<imprint>
+			<date type="published" when="2014" />
+		</imprint>
+	</monogr>
+<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b1">
+	<analytic>
+		<title level="a" type="main">Statistical approaches to computer-assisted translation</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Sergio</forename><surname>Barrachina</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Oliver</forename><surname>Bender</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Francisco</forename><surname>Casacuberta</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jorge</forename><surname>Civera</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Elsa</forename><surname>Cubel</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Shahram</forename><surname>Khadivi</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Antonio</forename><surname>Lagarda</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Hermann</forename><surname>Ney</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jesús</forename><surname>Tomás</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Enrique</forename><surname>Vidal</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Juan-Miguel</forename><surname>Vilar</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Computational Linguistics</title>
+		<imprint>
+			<biblScope unit="volume">35</biblScope>
+			<biblScope unit="issue">1</biblScope>
+			<biblScope unit="page" from="3" to="28" />
+			<date type="published" when="2009" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b2">
+	<monogr>
+		<title/>
+		<idno type="doi">10.1162/coli.2008.07-055-R2-06-29</idno>
+		<ptr target="https://doi.org/10.1162/coli.2008.07-055-R2-06-29" />
+		<imprint/>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b3">
+	<monogr>
+				<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ondřej</forename><surname>Bojar</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Rajen</forename><surname>Chatterjee</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Christian</forename><surname>Federmann</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Barry</forename><surname>Haddow</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Matthias</forename><surname>Huck</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Chris</forename><surname>Hokamp</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Philipp</forename><surname>Koehn</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Varvara</forename><surname>Logacheva</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Christof</forename><surname>Monz</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Matteo</forename><surname>Negri</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Matt</forename><surname>Post</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Carolina</forename><surname>Scarton</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Lucia</forename><surname>Specia</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Marco</forename><surname>Turchi</surname></persName>
+		</author>
+		<ptr target="http://aclweb.org/anthology/W15-3001" />
+		<title level="m">Proceedings of the Tenth Workshop on Statistical Machine Translation. Association for Computational Linguistics</title>
+		<meeting>the Tenth Workshop on Statistical Machine Translation. Association for Computational Linguistics<address><addrLine>Lisbon, Portugal</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2015" />
+			<biblScope unit="page" from="1" to="46" />
+		</imprint>
+	</monogr>
+	<note>Findings of the 2015 workshop on statistical machine translation</note>
+</biblStruct>
+
+<biblStruct xml:id="b4">
+	<analytic>
+		<title level="a" type="main">PRIMT: A pickrevise framework for interactive machine translation</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Shanbo</forename><surname>Cheng</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Shujian</forename><surname>Huang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Huadong</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Xinyu</forename><surname>Dai</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jiajun</forename><surname>Chen</surname></persName>
+		</author>
+		<ptr target="http://aclweb.org/anthology/N/N16/N16-1148.pdf" />
+	</analytic>
+	<monogr>
+		<title level="m">The 2016 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies</title>
+		<meeting><address><addrLine>San Diego California, USA</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2016-06-12" />
+			<biblScope unit="page" from="1240" to="1249" />
+		</imprint>
+	</monogr>
+	<note>NAACL HLT 2016</note>
+</biblStruct>
+
+<biblStruct xml:id="b5">
+	<analytic>
+		<title level="a" type="main">Hierarchical phrase-based translation</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">David</forename><surname>Chiang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Comput. Linguist</title>
+		<imprint>
+			<biblScope unit="volume">33</biblScope>
+			<biblScope unit="issue">2</biblScope>
+			<biblScope unit="page" from="201" to="228" />
+			<date type="published" when="2007" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b6">
+	<monogr>
+		<title/>
+		<idno type="doi">10.1162/coli.2007.33.2.201</idno>
+		<ptr target="https://doi.org/10.1162/coli.2007.33.2.201" />
+		<imprint/>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b7">
+	<analytic>
+		<title level="a" type="main">Learning phrase representations using rnn encoder-decoder for statistical machine translation</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kyunghyun</forename><surname>Cho</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Bart</forename><surname>Van Merriënboer</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">C</forename><surname>Gülçehre</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Dzmitry</forename><surname>Bahdanau</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Fethi</forename><surname>Bougares</surname></persName>
+		</author>
+		<ptr target="http://www.aclweb.org/anthology/D14-1179" />
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2014 Conference on Empirical Methods in Natural Language Processing (EMNLP)</title>
+		<meeting>the 2014 Conference on Empirical Methods in Natural Language Processing (EMNLP)<address><addrLine>Doha, Qatar</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2014" />
+			<biblScope unit="page" from="1724" to="1734" />
+		</imprint>
+	</monogr>
+	<note>Holger Schwenk, and Yoshua Bengio</note>
+</biblStruct>
+
+<biblStruct xml:id="b8">
+	<analytic>
+		<title level="a" type="main">Word association norms, mutual information, and lexicography</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kenneth</forename><forename type="middle">Ward</forename><surname>Church</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Patrick</forename><surname>Hanks</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Comput. Linguist</title>
+		<imprint>
+			<biblScope unit="volume">16</biblScope>
+			<biblScope unit="issue">1</biblScope>
+			<biblScope unit="page" from="22" to="29" />
+			<date type="published" when="1990" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b9">
+	<monogr>
+		<title level="m" type="main">Systran&apos;s pure neural machine translation systems</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Josep</forename><surname>Maria Crego</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jungi</forename><surname>Kim</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Guillaume</forename><surname>Klein</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Anabel</forename><surname>Rebollo</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kathy</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jean</forename><surname>Senellart</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Egor</forename><surname>Akhanov</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Patrice</forename><surname>Brunelle</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Aurelien</forename><surname>Coquard</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yongchao</forename><surname>Deng</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Satoshi</forename><surname>Enoue</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Chiyo</forename><surname>Geiss</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Joshua</forename><surname>Johanson</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ardas</forename><surname>Khalsa</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Raoum</forename><surname>Khiari</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Byeongil</forename><surname>Ko</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Catherine</forename><surname>Kobus</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jean</forename><surname>Lorieux</surname></persName>
+		</author>
+		<idno>CoRR abs/1610.05540</idno>
+		<ptr target="http://arxiv.org/abs/1610.05540" />
+		<editor>Leidiana Martins, Dang-Chuan Nguyen, Alexandra Priori, Thomas Riccardi, Natalia Segal, Christophe Servan, Cyril Tiquet, Bo Wang, Jin Yang, Dakun Zhang, Jing Zhou, and Peter Zoldan</editor>
+		<imprint>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b10">
+	<analytic>
+		<title level="a" type="main">Interactive-predictive translation based on multiple word-segments</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Miguel</forename><surname>Domingo</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Alvaro</forename><surname>Peris</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Francisco</forename><surname>Casacuberta</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Baltic J. Modern Computing</title>
+		<imprint>
+			<biblScope unit="volume">4</biblScope>
+			<biblScope unit="issue">2</biblScope>
+			<biblScope unit="page" from="282" to="291" />
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b11">
+	<monogr>
+		<title level="m" type="main">Text Prediction for Translators</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">George</forename><forename type="middle">F</forename><surname>Foster</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">P</forename><forename type="middle">Q</forename><surname>Montreal</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Canada</forename><surname>Canada</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Aainq72434</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2002" />
+		</imprint>
+	</monogr>
+<note type="report_type">Ph.D. thesis</note>
+</biblStruct>
+
+<biblStruct xml:id="b12">
+	<monogr>
+		<title level="m" type="main">Mixed-Initiative Natural Language Translation</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Spence</forename><surname>Green</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2014" />
+			<pubPlace>Stanford, CA, United States</pubPlace>
+		</imprint>
+	</monogr>
+<note type="report_type">Ph.D. thesis</note>
+</biblStruct>
+
+<biblStruct xml:id="b13">
+	<analytic>
+		<title level="a" type="main">Globally coherent text generation with neural checklist models</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Chloé</forename><surname>Kiddon</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Luke</forename><surname>Zettlemoyer</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yejin</forename><surname>Choi</surname></persName>
+		</author>
+		<ptr target="http://aclweb.org/anthology/D/D16/D16-1032.pdf" />
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2016 Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>the 2016 Conference on Empirical Methods in Natural Language Processing<address><addrLine>Austin, Texas, USA</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2016-11-01" />
+			<biblScope unit="page" from="329" to="339" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b14">
+	<analytic>
+		<title level="a" type="main">Neural interactive translation prediction</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Rebecca</forename><surname>Knowles</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Philipp</forename><surname>Koehn</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">AMTA</title>
+		<imprint>
+			<biblScope unit="volume">107</biblScope>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b15">
+	<analytic>
+		<title level="a" type="main">A process study of computeraided translation</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Philipp</forename><surname>Koehn</surname></persName>
+		</author>
+		<idno type="doi">10.1007/s10590-010-9076-3</idno>
+		<ptr target="https://doi.org/10.1007/s10590-010-9076-3" />
+	</analytic>
+	<monogr>
+		<title level="j">Machine Translation</title>
+		<imprint>
+			<biblScope unit="volume">23</biblScope>
+			<biblScope unit="issue">4</biblScope>
+			<biblScope unit="page" from="241" to="263" />
+			<date type="published" when="2009" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b16">
+	<monogr>
+		<title level="m" type="main">Statistical Machine Translation</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Philipp</forename><surname>Koehn</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2010" />
+			<publisher>Cambridge University Press</publisher>
+			<pubPlace>New York, NY, USA</pubPlace>
+		</imprint>
+	</monogr>
+	<note>1st edition</note>
+</biblStruct>
+
+<biblStruct xml:id="b17">
+	<analytic>
+		<title level="a" type="main">Moses: Open source toolkit for statistical machine translation</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Philipp</forename><surname>Koehn</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Hieu</forename><surname>Hoang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Alexandra</forename><surname>Birch</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Chris</forename><surname>Callison-Burch</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Marcello</forename><surname>Federico</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Nicola</forename><surname>Bertoldi</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Brooke</forename><surname>Cowan</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Wade</forename><surname>Shen</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Christine</forename><surname>Moran</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Richard</forename><surname>Zens</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Chris</forename><surname>Dyer</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ondřej</forename><surname>Bojar</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Alexandra</forename><surname>Constantin</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Evan</forename><surname>Herbst</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 45th Annual Meeting of the ACL on Interactive Poster and Demonstration Sessions</title>
+		<meeting>the 45th Annual Meeting of the ACL on Interactive Poster and Demonstration Sessions<address><addrLine>Stroudsburg, PA, USA</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2007" />
+			<biblScope unit="page" from="177" to="180" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b18">
+	<analytic>
+		<title level="a" type="main">The alignment template approach to statistical machine translation</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Josef</forename><surname>Franz</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Hermann</forename><surname>Och</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Ney</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Comput. Linguist</title>
+		<imprint>
+			<biblScope unit="volume">30</biblScope>
+			<biblScope unit="issue">4</biblScope>
+			<biblScope unit="page" from="417" to="449" />
+			<date type="published" when="2004" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b19">
+	<monogr>
+		<title/>
+		<idno type="doi">10.1162/0891201042544884</idno>
+		<ptr target="https://doi.org/10.1162/0891201042544884" />
+		<imprint/>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b20">
+	<monogr>
+		<title level="m" type="main">Heuristics: Intelligent Search Strategies for Computer Problem Solving</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Judea</forename><surname>Pearl</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="1984" />
+			<publisher>AddisonWesley Longman Publishing Co., Inc</publisher>
+			<pubPlace>Boston, MA, USA</pubPlace>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b21">
+	<analytic>
+		<title level="a" type="main">Optimal beam search for machine translation</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Alexander</forename><surname>Rush</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yin-Wen</forename><surname>Chang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Michael</forename><surname>Collins</surname></persName>
+		</author>
+		<ptr target="http://www.aclweb.org/anthology/D13-1022" />
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2013 Conference on Empirical Methods in Natural Language Processing. Association for Computational Linguistics</title>
+		<meeting>the 2013 Conference on Empirical Methods in Natural Language Processing. Association for Computational Linguistics<address><addrLine>Seattle, Washington, USA</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2013" />
+			<biblScope unit="page" from="210" to="221" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b22">
+	<analytic>
+		<title level="a" type="main">A neural attention model for abstractive sentence summarization</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Alexander</forename><forename type="middle">M</forename><surname>Rush</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Sumit</forename><surname>Chopra</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jason</forename><surname>Weston</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">The Association for Computational Linguistics</title>
+		<editor>Llus Mrquez, Chris Callison-Burch, Jian Su, Daniele Pighin, and Yuval Marton</editor>
+		<imprint>
+			<date type="published" when="2015" />
+			<biblScope unit="page" from="379" to="389" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b23">
+	<analytic>
+		<title level="a" type="main">Neural machine translation of rare words with subword units</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Rico</forename><surname>Sennrich</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Barry</forename><surname>Haddow</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Alexandra</forename><surname>Birch</surname></persName>
+		</author>
+		<ptr target="http://aclweb.org/anthology/P/P16/P16-1162.pdf" />
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 54th Annual Meeting of the Association for Computational Linguistics, ACL 2016</title>
+		<meeting>the 54th Annual Meeting of the Association for Computational Linguistics, ACL 2016<address><addrLine>Berlin, Germany</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2016-08-07" />
+			<biblScope unit="volume">1</biblScope>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b24">
+	<analytic>
+		<title level="a" type="main">Building end-to-end dialogue systems using generative hierarchical neural network models</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">V</forename><surname>Iulian</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Alessandro</forename><surname>Serban</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yoshua</forename><surname>Sordoni</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Aaron</forename><surname>Bengio</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Joelle</forename><surname>Courville</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Pineau</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Thirtieth AAAI Conference on Artificial Intelligence. AAAI Press, AAAI&apos;16</title>
+		<meeting>the Thirtieth AAAI Conference on Artificial Intelligence. AAAI Press, AAAI&apos;16</meeting>
+		<imprint>
+			<date type="published" when="2016" />
+			<biblScope unit="page" from="3776" to="3783" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b25">
+	<analytic>
+		<title level="a" type="main">Dirt cheap web-scale parallel text from the common crawl</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jason</forename><forename type="middle">R</forename><surname>Smith</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Herve</forename><surname>Saint-Amand</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Chris</forename><surname>Callisonburch</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Magdalena</forename><surname>Plamada</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Adam</forename><surname>Lopez</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Conference of the Association for Computational Linguistics</title>
+		<meeting>the Conference of the Association for Computational Linguistics</meeting>
+		<imprint>
+			<publisher>ACL</publisher>
+			<date type="published" when="2013" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b26">
+	<analytic>
+		<title level="a" type="main">Exploiting objective annotations for measuring translation post-editing effort</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Lucia</forename><surname>Specia</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the European Association for Machine Translation</title>
+		<meeting>the European Association for Machine Translation</meeting>
+		<imprint>
+			<date type="published" when="2011-05" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b27">
+	<analytic>
+		<title level="a" type="main">The jrc-acquis: A multilingual aligned parallel corpus with 20+ languages</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ralf</forename><surname>Steinberger</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Bruno</forename><surname>Pouliquen</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Anna</forename><surname>Widiger</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Camelia</forename><surname>Ignat</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Toma</forename><surname>Erjavec</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Dan</forename><surname>Tufi</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 5th International Conference on Language Resources and Evaluation (LREC&apos;2006</title>
+		<meeting>the 5th International Conference on Language Resources and Evaluation (LREC&apos;2006</meeting>
+		<imprint>
+			<date type="published" when="2006" />
+			<biblScope unit="page" from="2142" to="2147" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b28">
+	<analytic>
+		<title level="a" type="main">Sequence to sequence learning with neural networks</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ilya</forename><surname>Sutskever</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Oriol</forename><surname>Vinyals</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">V</forename><surname>Quoc</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Le</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 27th International Conference on Neural Information Processing Systems</title>
+		<meeting>the 27th International Conference on Neural Information Processing Systems<address><addrLine>Cambridge, MA, USA</addrLine></address></meeting>
+		<imprint>
+			<publisher>MIT Press</publisher>
+			<date type="published" when="2014" />
+			<biblScope unit="page" from="3104" to="3112" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b29">
+	<monogr>
+				<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Zhaopeng</forename><surname>Tu</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yang</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Lifeng</forename><surname>Shang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Xiaohua</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Hang</forename><surname>Li</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1611.01874</idno>
+		<title level="m">Neural machine translation with reconstruction</title>
+		<imprint>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b30">
+	<monogr>
+		<title level="m" type="main">Blocks and fuel: Frameworks for deep learning</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Dzmitry</forename><surname>Bart Van Merrinboer</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Vincent</forename><surname>Bahdanau</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Dmitriy</forename><surname>Dumoulin</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">David</forename><surname>Serdyuk</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jan</forename><surname>Warde-Farley</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yoshua</forename><surname>Chorowski</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Bengio</surname></persName>
+		</author>
+		<idno>CoRR abs/1506.00619</idno>
+		<imprint>
+			<date type="published" when="2015" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b31">
+	<analytic>
+		<title level="a" type="main">Semantically conditioned lstm-based natural language generation for spoken dialogue systems</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Milica</forename><surname>Tsung-Hsien Wen</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Nikola</forename><surname>Gaši´gaši´c</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Peihao</forename><surname>Mrkši´mrkši´c</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">David</forename><surname>Su</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Steve</forename><surname>Vandyke</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Young</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2015 Conference on Empirical Methods in Natural Language Processing (EMNLP). Association for Computational Linguistics</title>
+		<meeting>the 2015 Conference on Empirical Methods in Natural Language Processing (EMNLP). Association for Computational Linguistics</meeting>
+		<imprint>
+			<date type="published" when="2015" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b32">
+	<analytic>
+		<title level="a" type="main">Google&apos;s neural machine translation system: Bridging the gap between human and machine translation</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yonghui</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Mike</forename><surname>Schuster</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Zhifeng</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Quoc</forename><forename type="middle">V</forename><surname>Le</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Mohammad</forename><surname>Norouzi</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Wolfgang</forename><surname>Macherey</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Maxim</forename><surname>Krikun</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yuan</forename><surname>Cao</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Qin</forename><surname>Gao</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Klaus</forename><surname>Macherey</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jeff</forename><surname>Klingner</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Apurva</forename><surname>Shah</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Melvin</forename><surname>Johnson</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Xiaobing</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ukasz</forename><surname>Kaiser</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Stephan</forename><surname>Gouws</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yoshikiyo</forename><surname>Kato</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Taku</forename><surname>Kudo</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Hideto</forename><surname>Kazawa</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Keith</forename><surname>Stevens</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">George</forename><surname>Kurian</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Nishant</forename><surname>Patil</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Wei</forename><surname>Wang</surname></persName>
+		</author>
+		<idno>CoRR abs/1609.08144</idno>
+		<ptr target="http://arxiv.org/abs/1609.08144" />
+	</analytic>
+	<monogr>
+		<title level="j">Oriol Vinyals</title>
+		<editor>Greg Corrado, Macduff Hughes, and Jeffrey Dean</editor>
+		<imprint>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b33">
+	<analytic>
+		<title level="a" type="main">Models and inference for prefix-constrained machine translation</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Joern</forename><surname>Wuebker</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Spence</forename><surname>Green</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">John</forename><surname>Denero</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Sasa</forename><surname>Hasan</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Minh-Thang</forename><surname>Luong</surname></persName>
+		</author>
+		<ptr target="http://www.aclweb.org/anthology/P16-1007" />
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 54th Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 54th Annual Meeting of the Association for Computational Linguistics<address><addrLine>Berlin, Germany</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2016" />
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="66" to="75" />
+		</imprint>
+	</monogr>
+	<note>Long Papers). Association for Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b34">
+	<analytic>
+		<title level="a" type="main">Show, attend and tell: Neural image caption generation with visual attention</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kelvin</forename><surname>Xu</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jimmy</forename><surname>Ba</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ryan</forename><surname>Kiros</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kyunghyun</forename><surname>Cho</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Aaron</forename><surname>Courville</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ruslan</forename><surname>Salakhudinov</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Rich</forename><surname>Zemel</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yoshua</forename><surname>Bengio</surname></persName>
+		</author>
+		<ptr target="http://jmlr.org/proceedings/papers/v37/xuc15.pdf" />
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 32nd International Conference on Machine Learning (ICML-15). JMLR Workshop and Conference Proceedings</title>
+		<editor>David Blei and Francis Bach</editor>
+		<meeting>the 32nd International Conference on Machine Learning (ICML-15). JMLR Workshop and Conference Proceedings</meeting>
+		<imprint>
+			<date type="published" when="2015" />
+			<biblScope unit="page" from="2048" to="2057" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b35">
+	<monogr>
+		<title level="m" type="main">ADADELTA: an adaptive learning rate method</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">D</forename><surname>Matthew</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Zeiler</surname></persName>
+		</author>
+		<idno>CoRR abs/1212.5701</idno>
+		<ptr target="http://arxiv.org/abs/1212.5701" />
+		<imprint>
+			<date type="published" when="2012" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b36">
+	<monogr>
+		<title level="m" type="main">Machine Translation Infrastructure and Post-editing Performance at Autodesk</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ventsislav</forename><surname>Zhechev</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2012" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b37">
+	<analytic>
+		<title level="a" type="main">Association for Machine Translation in the Americas (AMTA)</title>
+	</analytic>
+	<monogr>
+		<title level="m">AMTA 2012 Workshop on Post-Editing Technology and Practice (WPTP 2012)</title>
+		<meeting><address><addrLine>San Diego, USA</addrLine></address></meeting>
+		<imprint>
+			<biblScope unit="page" from="87" to="96" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+				</listBibl>
+			</div>
+		</back>
+	</text>
+</TEI>

@@ -1,0 +1,993 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<TEI xmlns="http://www.tei-c.org/ns/1.0" 
+xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+xsi:schemaLocation="http://www.tei-c.org/ns/1.0 /home/ana/installs/grobid/grobid-0.5.1/grobid-home/schemas/xsd/Grobid.xsd"
+ xmlns:xlink="http://www.w3.org/1999/xlink">
+	<teiHeader xml:lang="en">
+		<encodingDesc>
+			<appInfo>
+				<application version="0.5.1-SNAPSHOT" ident="GROBID" when="2019-04-18T11:43+0000">
+					<ref target="https://github.com/kermitt2/grobid">GROBID - A machine learning software for extracting information from scholarly documents</ref>
+				</application>
+			</appInfo>
+		</encodingDesc>
+		<fileDesc>
+			<titleStmt>
+				<title level="a" type="main">DialSQL: Dialogue Based Structured Query Generation</title>
+			</titleStmt>
+			<publicationStmt>
+				<publisher>Association for Computational Linguistics</publisher>
+				<availability status="unknown"><p>Copyright Association for Computational Linguistics</p>
+				</availability>
+				<date>July 15-20, 2018. 2018</date>
+			</publicationStmt>
+			<sourceDesc>
+				<biblStruct>
+					<analytic>
+						<author>
+							<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Izzeddin</forename><surname>Gur</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="department">Department of Computer Science</orgName>
+								<orgName type="institution">University of California</orgName>
+								<address>
+									<settlement>Santa Barbara</settlement>
+								</address>
+							</affiliation>
+						</author>
+						<author>
+							<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Semih</forename><surname>Yavuz</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="department">Department of Computer Science</orgName>
+								<orgName type="institution">University of California</orgName>
+								<address>
+									<settlement>Santa Barbara</settlement>
+								</address>
+							</affiliation>
+						</author>
+						<author>
+							<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yu</forename><surname>Su</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="department">Department of Computer Science</orgName>
+								<orgName type="institution">University of California</orgName>
+								<address>
+									<settlement>Santa Barbara</settlement>
+								</address>
+							</affiliation>
+						</author>
+						<author>
+							<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Xifeng</forename><surname>Yan</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="department">Department of Computer Science</orgName>
+								<orgName type="institution">University of California</orgName>
+								<address>
+									<settlement>Santa Barbara</settlement>
+								</address>
+							</affiliation>
+						</author>
+						<title level="a" type="main">DialSQL: Dialogue Based Structured Query Generation</title>
+					</analytic>
+					<monogr>
+						<title level="m">Proceedings of the 56th Annual Meeting of the Association for Computational Linguistics (Long Papers)</title>
+						<meeting>the 56th Annual Meeting of the Association for Computational Linguistics (Long Papers) <address><addrLine>Melbourne, Australia</addrLine></address>
+						</meeting>
+						<imprint>
+							<publisher>Association for Computational Linguistics</publisher>
+							<biblScope unit="page" from="1339" to="1349"/>
+							<date type="published">July 15-20, 2018. 2018</date>
+						</imprint>
+					</monogr>
+					<note>1339</note>
+				</biblStruct>
+			</sourceDesc>
+		</fileDesc>
+		<profileDesc>
+			<abstract>
+				<p>The recent advance in deep learning and semantic parsing has significantly improved the translation accuracy of natural language questions to structured queries. However, further improvement of the existing approaches turns out to be quite challenging. Rather than solely relying on algorithmic innovations, in this work, we introduce DialSQL, a dialogue-based structured query generation framework that leverages human intelligence to boost the performance of existing algorithms via user interaction. DialSQL is capable of identifying potential errors in a generated SQL query and asking users for validation via simple multi-choice questions. User feedback is then leveraged to revise the query. We design a generic sim-ulator to bootstrap synthetic training dialogues and evaluate the performance of DialSQL on the WikiSQL dataset. Using SQLNet as a black box query generation tool, DialSQL improves its performance from 61.3% to 69.0% using only 2.4 validation questions per dialogue.</p>
+			</abstract>
+		</profileDesc>
+	</teiHeader>
+	<text xml:lang="en">
+		<body>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="1">Introduction</head><p>Building natural language interfaces to databases (NLIDB) is a long-standing open problem and has significant implications for many application do- mains. It can enable users without SQL program- ming background to freely query the data they have. For this reason, generating SQL queries from natural language questions has gained a re- newed interest due to the recent advance in deep learning and semantic parsing <ref type="bibr" target="#b26">(Yaghmazadeh et al., 2017;</ref><ref type="bibr" target="#b32">Zhong et al., 2017;</ref><ref type="bibr" target="#b25">Xu et al., 2017;</ref><ref type="bibr" target="#b8">Iyer et al., 2017</ref>).</p><p>While new methods race to achieve the state- of-the-art performance on NLIDB datasets such as WikiSQL ( <ref type="bibr" target="#b25">Xu et al., 2017;</ref><ref type="bibr" target="#b32">Zhong et al., 2017</ref>), the accuracy is still not high enough for real use. For example, SQLNet ( <ref type="bibr" target="#b25">Xu et al., 2017</ref>) achieves 61.3% accuracy on WikiSQL. After analyzing the error cases of Seq2SQL ( <ref type="bibr" target="#b32">Zhong et al., 2017)</ref> and SQLNet, we recognized that many wrong transla- tions cannot be easily corrected due to the lack of external knowledge and semantic understanding.</p><p>In this paper, we aim to alleviate the aforemen- tioned problem by putting human users in the loop. Previous human-in-the-loop NLIDBs ( <ref type="bibr" target="#b11">Li and Jagadish, 2014;</ref><ref type="bibr" target="#b26">Yaghmazadeh et al., 2017</ref>) rely on users to carefully go through a generated SQL query and revise it accordingly, which is not feasi- ble for users who do not know the SQL language. Instead, we resort to a different approach by intro- ducing a goal-oriented dialogue model, DialSQL, that interacts with users to extract and correct po- tential errors in the generated queries.</p><p>Given a SQL query generated from a natural language question, we assume any segment, or span, of the generated query such as a WHERE clause can be potentially erroneous. The goal of DialSQL is to extract the erroneous spans and ask users multi-choice questions to validate and cor- rect these errors. DialSQL is based on a hier- archical encoder-decoder architecture with atten- tion and pointer mechanisms. The model first en- codes each turn of interaction and runs a dialogue level RNN network on the dialogue history. The output of the network is then used to predict the error category, i.e., whether it is a selection, pro- jection, or aggregation error. Conditioned on the error category, the output of a second RNN is used to predict the start and end positions of the er- ror span by pointing to the query tokens. Finally, candidate choices are decoded from the error cate- gory and span representations. Following previous Natural Language Question : What are the countries that joined the NATO before 2004 ? Ground Truth SQL Query :</p><p>SELECT country WHERE date of join &lt; 2004 Initial SQL Query :</p><p>SELECT count ( country ) WHERE date of join = 2004 How to train and evaluate DialSQL become two challenging issues due to the lack of error data and interaction data. In this work, we construct a simulator to generate simulated dialogues, a gen- eral approach practiced by many dialogue stud- ies. Inspired by the agenda-based methods for user simulation ( <ref type="bibr" target="#b18">Schatzmann et al., 2007)</ref>, we keep an agenda of pending actions that are needed to in- duce the ground truth query. At the start of the dialogue, a new query is carefully synthesized by randomly altering the ground truth query and the agenda is populated by the sequence of altering ac- tions. Each action consists of three sub-actions: (i) Pick an error category and extract a span; (ii) Raise a question; (iii) Update the query by randomly al- tering the span and remove the action from the agenda. Consider the example in <ref type="figure" target="#fig_0">Figure 1:</ref> Step- 1 synthesizes the initial query by randomly alter- ing the WHERE clause and AGGREGATION; Step- 2 generates the simulated dialogue by validating the altered spans and offering the correct choice.</p><p>To evaluate our model, we first train DialSQL on the simulated dialogues. Initial queries for new questions are manufactured by running a black box SQL generation system on the new questions. When tested on the WikiSQL ( <ref type="bibr" target="#b32">Zhong et al., 2017</ref>) dataset, our model increases the query match ac- curacy of SQLNet ( <ref type="bibr" target="#b25">Xu et al., 2017</ref>) from 61.3% to 69.0% using on average 2.4 validation questions per query.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2">Related Work</head><p>Research on natural language interfaces to databases (NLIDBs), or semantic parsing, has spanned several decades.</p><p>Early rule-based NLIDBs <ref type="bibr" target="#b24">(Woods, 1973;</ref><ref type="bibr" target="#b1">Androutsopoulos et al., 1995;</ref><ref type="bibr" target="#b16">Popescu et al., 2003)</ref> employ carefully de- signed rules to map natural language questions to formal meaning representations like SQL queries. While having a high precision, rule-based sys- tems are brittle when facing with language vari- ations. The rise of statistical models <ref type="bibr" target="#b31">(Zettlemoyer and Collins, 2005;</ref><ref type="bibr" target="#b9">Kate et al., 2005;</ref><ref type="bibr" target="#b3">Berant et al., 2013)</ref>, especially the ongoing wave of neural net- work models <ref type="bibr" target="#b28">(Yih et al., 2015;</ref><ref type="bibr" target="#b5">Dong and Lapata, 2016;</ref><ref type="bibr" target="#b32">Zhong et al., 2017;</ref><ref type="bibr" target="#b25">Xu et al., 2017;</ref><ref type="bibr" target="#b6">Guo and Gao, 2018;</ref><ref type="bibr" target="#b27">Yavuz et al., 2016)</ref>, has enabled NLIDBs that are more ro- bust to language variations. Such systems allow users to formulate questions with greater flexibil- ity. However, although state-of-the-art systems have achieved a high accuracy of 80% to 90% (Dong and Lapata, 2016) on well-curated datasets like GEO ( <ref type="bibr" target="#b29">Zelle and Ray, 1996)</ref> and ATIS <ref type="bibr" target="#b30">(Zettlemoyer and Collins, 2007)</ref>, the best accuracies on datasets with questions formulated by real human users, e.g., <ref type="bibr">WebQuestions (Berant et al., 2013</ref>), GraphQuestions ( , and WikiSQL ( <ref type="bibr" target="#b32">Zhong et al., 2017)</ref>, are still far from enough for real use, typically in the range of 20% to 60%.</p><p>Human-in-the-loop systems are a promising paradigm for building practical NLIDBs. A num- ber of recent studies have explored this paradigm with two types of user interaction: coarse-grained and fine-grained. <ref type="bibr" target="#b8">Iyer et al. (2017)</ref> and Li et Step-1 synthesizes the initial query (top) by randomly altering the ground truth query (bottom).</p><p>Step-2 generates the dialogue by validating the sequence of actions populated in Step-1 with the user. Each action is defined by the error category, start and end positions of the error span, and the random replacement, ex. AGG (1, 2, count).</p><p>al. <ref type="formula">(2016)</ref> incorporate coarse-grained user inter- action, i.e., asking the user to verify the correct- ness of the final results. However, for real-world questions, it may not always be possible for users to verify result correctness, especially in the ab- sence of supporting evidence. <ref type="bibr" target="#b11">Li and Jagadish (2014)</ref> and <ref type="bibr" target="#b26">Yaghmazadeh et al. (2017)</ref> have shown that incorporating fine-grained user interaction can greatly improve the accuracy of NLIDBs. How- ever, they require that the users have intimate knowledge of SQL, an assumption that does not hold for general users. Our method also enables fine-grained user interaction for NLIDBs, but we solicit user feedback via a dialogue between the user and the system.</p><p>Our model architecture is inspired by recent studies on hierarchical neural network models ( <ref type="bibr" target="#b19">Serban et al., 2015;</ref><ref type="bibr" target="#b7">Gur et al., 2017)</ref>. Recently, <ref type="bibr" target="#b17">Saha et al. (2018)</ref> propose a hierarchical encoder-decoder model augmented with key-value memory network for sequential question answering over knowledge graphs. Users ask a series of questions, and their system finds the answers by traversing a knowledge graph and resolves coreferences between questions. Our in- teractive query generation task significantly differs from their setup in that we aim to explicitly detect and correct the errors in the generated SQL query via a dialogue between our model and the user.</p><p>Agenda based user simulations have been inves- tigated in goal-oriented dialogues for model train- ing ( <ref type="bibr" target="#b18">Schatzmann et al., 2007)</ref>. Recently, Seq2seq neural network models are proposed for user sim- ulation ( <ref type="bibr" target="#b2">Asri et al., 2016</ref>) that utilize additional state tracking signals and encode dialogue turns in a more coarse way. We design a simulation method for the proposed task where we generate dialogues with annotated errors by altering queries and tracking the sequence of alteration steps.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3">Problem Setup and Datasets</head><p>We study the problem of building an interactive natural language interface to databases (INLIDB) for synthesizing SQL queries from natural lan- guage questions. In particular, our goal is to de- sign a dialogue system to extract and validate po- tential errors in generated queries by asking users multi-choice questions over multiple turns. We will first define the problem formally and then ex- plain our simulation strategy.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.1">Interactive Query Generation</head><p>At the beginning of each dialogue, we are given a question Q = {q 1 , q 2 , · · · , q N }, a table with col- umn names T = {T 1 , T 2 , · · · , T K } where each name is a sequence of words, and an initial SQL query U generated using a black box SQL genera- tion system. Each turn t is represented by a tuple of system and user responses, (S t , R t ), and aug- mented with the dialogue history (list of previous turns), H t . Each system response is a triplet of er- ror category c, error span s, and a set of candidate choices C, i.e., S t = (c, s, C). An error category <ref type="table">(Table 2</ref>) denotes the type of the error that we seek to correct and an error span is the segment of the current query that indicates the actual error. Can- didate choices depend on the error category and range over the following possibilities: (i) a column name, (ii) an aggregation operator, or (iii) a where condition. User responses are represented by ei-</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Error Category</head><p>Meaning in a dialogue validate sel Validate the select clause validate agg</p><p>Validate the aggregation operator validate where changed Validate if a segment of a where clause is incorrect validate where removed Validate if a new where clause is needed validate where added</p><p>Validate if an incorrect where clause exists no error</p><p>Validate if there is no remaining error <ref type="table">Table 2</ref>: The list of error categories and their explanations for our interactive query generation task.</p><p>ther an affirmation or a negation answer and an in- dex c to identify a choice. We define the interac- tive query generation task as a list of subtasks: at each turn t, (i) predict c, (ii) extract s from U , and (iii) decode C. The task is supervised and each subtask is annotated with labeled data.</p><p>Consider the example dialogue in <ref type="table">Table 1</ref>. We first predict validate agg as the error cate- gory and error span (start = 1, end = 2) is decoded by pointing to the aggregation segment of the query. Candidate choices, (average, no agg), are decoded using the predicted error category, predicted error span, and dialogue his- tory. We use a template based natural language generation (NLG) component to convert system and user responses into natural language.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.2">Dialogue Simulation for INLIDB</head><p>In our work, we evaluate our model on the Wik- iSQL task. Each example in WikiSQL consists of a natural language question and a table to query from. The task is to generate a SQL query that correctly maps the question to the given table. Un- fortunately, the original WikiSQL lacks error data and user interaction data to train and evaluate Dial- SQL. We work around this problem by designing a simulator to bootstrap training dialogues and eval- uate DialSQL on the test questions of WikiSQL.</p><p>Inspired by the agenda-based methods ( <ref type="bibr" target="#b18">Schatzmann et al., 2007)</ref>, we keep an agenda of pend- ing actions that are needed to induce the ground truth query. At the start of the dialogue, we synthe- size a new query by randomly altering the ground truth query and populating the agenda by the se- quence of altering actions. Each action launches a sequence of sub-actions: (i) Randomly select an error category and extract a related span from the current query, (ii) randomly generate a valid choice for the chosen span, and (iii) update the cur- rent query by replacing the span with the choice. The dialogue is initiated with the final query and a rule-based system interacts with a rule-based user simulator to populate the dialogue. The rule-based system follows the sequence of altering actions previously generated and asks the user simulator a single question at each turn. The user simulator has access to the ground truth query and answers each question by comparing the question (error span and the choice) with the ground truth.</p><p>Consider the example in <ref type="figure" target="#fig_0">Figure 1</ref> where Step- 1 synthesizes the initial query and Step-2 simu- lates a dialogue using the outputs of Step-1.</p><p>Step-1 first randomly alters the WHERE clause; the oper- ator is replaced with a random operator. The up- dated query is further altered and the final query is passed to Step-2. In Step-2, the system starts with validating the aggregation with the user sim- ulator. In this motivating example, the aggregation is incorrect and the user simulator negates and se- lects the offered choice. During training, there is only a single choice offered and DialSQL trains to produce this choice; however, during testing, it can offer multiple choices. In the next step, the system validates the WHERE clause and generates a no error action to issue the generated query. At the end of this process, we generate a set of labeled dialogues by executing Step-1 and Step- 2 consecutively. DialSQL interacts with the same rule-based simulator during testing and the SQL queries obtained at the end of the dialogues are used to evaluate the model.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4">Dialogue Based SQL Generation</head><p>In this section, we present our DialSQL model and describe its operation in a fully supervised setting. DialSQL is composed of three layers linked in a hierarchical structure where each layer solves a different subtask : (i) Predicting error category, (ii) Decoding error span, and (iii) Decoding can- didate choices (illustrated in <ref type="figure" target="#fig_1">Figure 2</ref>). Given a (Q, T, U ) triplet, the model first encodes Q, each column name T i ∈ T , and query U into vector representations in parallel using Recurrent Neu- ral Networks (RNN). Next, the first layer of the model encodes the dialogue history with an RNN and predicts the error category from this encoding. The second layer is conditioned on the error cate- gory and decodes the start and end positions of the error span by attending over the outputs of query encoder. Finally, the last layer is conditioned on both error category and error span and decodes a list of choices to offer to the user.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.1">Preliminaries and Notation</head><p>Each token w is associated with a vector e w from rows of an embeddings matrix E. We aim at ob- taining vector representations for question, table headers, and query, then generating error category, error span, and candidate choices.</p><p>For our purposes, we use GRU units ( <ref type="bibr" target="#b4">Cho et al., 2014</ref>) in our RNN encoders which are defined as</p><formula xml:id="formula_0">h t = f (x t ; h t−1 )</formula><p>where h t is the hidden state at time t. f is a nonlin- ear function operating on input vector x t and pre- vious state h t−1 . We refer to the last hidden state of an RNN encoder as the encoding of a sequence.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.2">Encoding</head><p>The core of our model is a hierarchical encoder- decoder neural network that encodes dialogue history and decodes errors and candidate choices at the end of each user turn. The input to the model is the previous system turn and the current user turn and the output is the next system ques- tion.</p><p>Encoding Question, Column Names, and Query.</p><p>Using decoupled RNNs (Enc), we encode natural language question, column names, and query sequences in parallel and produce outputs and hidden states. o Q , o T i , and o U denote the sequence of hidden states at each step and h Q , h T i , and h U denote the last hidden states of question, column name, and query encoders, respectively. Parameters of the encoders are decoupled and only the word embedding matrix E is shared.</p><p>Encoding System and User Turns Since there is only a single candidate choice during training, we ignore the index and encode user turn by doing an embedding lookup using the validation answer (affirmation or negation). Each element (error category, error span, and candidate choice) of the system response is encoded by doing an embedding lookup and different elements are used as input at different layers of our model.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Encoding Dialogue History</head><p>At the end of each user turn, we first concatenate the previous error category and the current user turn encodings to generate the turn level input. We employ an RNN to encode dialogue history and current turn into a fixed length vector as</p><formula xml:id="formula_1">h D 1 0 = h Q o D 1 t , g D 1 t = Enc([E c , E a ]) h D 1 t = [Attn(g D 1 t , H T ), o D t ]</formula><p>where <ref type="bibr">[.]</ref> is vector concatenation, E c is the error category encoding, E a is the user turn encoding, h D 1 0 is the initial hidden state, and h D 1 t is the cur- rent hidden state. Attn is an attention layer with a bilinear product defined as in ( <ref type="bibr" target="#b13">Luong et al., 2015</ref>)</p><formula xml:id="formula_2">Attn(h, O) = sof tmax(tanh(hW O)) * O</formula><p>where W is attention parameter.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.3">Predicting Error Category</head><p>We predict the error category by attending over query states using the output of the dialogue en- coder as</p><formula xml:id="formula_3">c t = tanh(Lin([Attn(h D 1 t , O U ), h D 1 t ])) l t = sof tmax(c t · E(C))</formula><p>where Lin is a linear transformation, E(C) is a matrix with error category embeddings, and l t is the probability distribution over categories.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.4">Decoding Error Span</head><p>Consider the case in which there are more than one different WHERE clauses in the query and each clause has an error. In this case, the model needs to monitor previous error spans to avoid decod- ing the same error. DialSQL runs another RNN to generate a new dialogue encoding to solve the aforementioned problem as</p><formula xml:id="formula_4">h D 2 0 = h Q o D 2 t , g D 2 t = Enc(E c ) h D 2 t = [Attn(g D 2 t , H T )o D 2 t ]</formula><p>where h D 2 0 is the initial hidden state, and h D 2 t is the current hidden state. Start position i of the er- ror span is decoded using the following probability distribution over query tokens where p i is the probability of start position over the ith query token. End position j of the error span is predicted by conditioning on the start position</p><formula xml:id="formula_5">p i = sof tmax(tanh(h D 2 t L 1 H U ))</formula><formula xml:id="formula_6">c i = p i * H U ˆ p j = sof tmax(tanh([h D 2 t , c i ]L 2 H U ))</formula><p>wherê p j is the probability of end position over the jth query token. Conditioning on the error cat- egory will localize the span prediction problem as each category is defined by only a small segment of the query.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.5">Decoding Candidate Choices</head><p>Given error category c and error span (i, j) , Di- alSQL decodes a list of choices that will poten- tially replace the error span based on user feed- back. Inspired by SQLNet ( <ref type="bibr" target="#b25">Xu et al., 2017)</ref>, we describe our candidate choice decoding approach as follows. Select column choice. We define the following scores over column names,</p><formula xml:id="formula_7">h = Attn(Lin([o U i−1 , o U j , E c ]), H T ) s sel = u T * tanh(Lin([H T , h]))</formula><p>where o U i−1 is the output vector of the query en- coder preceding the start position, and o U j is the output of query encoder at the end position. Aggregation choice. Conditioned on the encod- ing e of the select column, we define the follow- ing scores over the set of aggregations (MIN, MAX, COUNT, NO AGGREGATION)</p><formula xml:id="formula_8">s agg = v T * tanh(Lin(Attn(e, H Q )))</formula><p>Where condition choice. We first decode the con- dition column name similar to decoding select col- umn. Given the encoding e of condition column, we define the following scores over the set of op- erators (=, &lt;, &gt;)</p><formula xml:id="formula_9">s op = w T * tanh(Lin(Attn(e, H Q )))</formula><p>Next, we define the following scores over question tokens for the start and end positions of the condi- tion value</p><formula xml:id="formula_10">s st = Attn(e, H Q ) s ed = Attn([e, h st , H Q ])</formula><p>where h st is the context vector generated from the first attention. We denote the number of candidate choices to be decoded by k. We train DialSQL with k = 1. The list of k &gt; 1 candidate choices is decoded similar to beam search during testing. As an example, we select k column names that have the highest scores as the candidate where column choices. For each column name, we first generate k different operators and from the set of k * 2 col- umn name and operator pairs; select k operators that have the highest joint probability. Ideally, Di- alSQL should be able to learn the type of errors present in the generated query, extract precise er- ror spans by pointing to query tokens, and using the location of the error spans, generate a set of related choices.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5">Experimental Results and Discussion</head><p>In this section, we evaluate DialSQL on Wik- iSQL using several evaluation metrics by compar- ing with previous literature.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.1">Evaluation Setup and Metrics</head><p>We measure the query generation accuracy as well as the complexity of the questions and the length of the user interactions. Query-match accuracy. We evaluate DialSQL on WikiSQL using query-match accuracy ( <ref type="bibr" target="#b32">Zhong et al., 2017;</ref><ref type="bibr" target="#b25">Xu et al., 2017)</ref>. Query-match ac- curacy is the proportion of testing examples for which the generated query is exactly the same as the ground truth, except the ordering of the WHERE clauses. Dialogue length. We count the number of turns to analyze whether DialSQL generates any redun- dant validation questions. Question complexity. We use the average number of tokens in the generated validation questions to evaluate if DialSQL can generate simple questions without overwhelming users.</p><p>Since SQLNet and Seq2SQL are single-step models, we can not analyze DialSQL's perfor- mance by comparing against these on the last two metrics. We overcome this issue by gener- ating simulated dialogues using an oracle system that has access to the ground truth query. The system compares SELECT and AGGREGATION clauses of the predicted query and the ground truth; asks a validation question if they differ. For each WHERE clause pairs of generated query and the ground truth, the system counts the num- ber of matching segments namely COLUMN, OP, and VALUE. The system takes all the pairs with the highest matching scores and asks a validation question until one of the queries has no remaining WHERE clause. If both queries have no remain- ing clauses, the dialogue terminates. Otherwise, the system asks a validate where added (validate where removed) question when the generated query (ground truth query) has more remaining clauses. We call this strategy Oracle- Matching (OM). OM ensures that the generated dialogues have the minimum number of turns pos- sible.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.2">Training Details</head><p>We implement DialSQL in TensorFlow ( <ref type="bibr" target="#b0">Abadi et al., 2016</ref>) using the Adam optimizer <ref type="bibr" target="#b10">(Kingma and Ba, 2014</ref>) for the training with a learning rate of 1e−4. We use an embedding size of 300, RNN state size of 50, and a batch size of 64. The embeddings are initialized from pretrained GloVe embeddings ( <ref type="bibr" target="#b15">Pennington et al., 2014</ref>) and fine-tuned during training. We use bidirectional RNN encoders with two layers for questions, col- umn names, and queries. Stanford CoreNLP to- kenizer ( ) is used to parse questions and column names. Parameters of each layer are decoupled from each other and only the embedding matrix is shared. The total number of turns is limited to 10 and 10 simulated di- alogues are generated for each example in the WikiSQL training set. SQLNet and Seq2SQL models are trained on WikiSQL using the exist- ing implemention provided by their authors. The code is available at https://github.com/ izzeddingur/DialSQL. <ref type="table">Table 3</ref> presents the results of query match accu- racy. We observe that DialSQL model with a num- ber of 5 choices improves the performance of both SQLNet and Seq2SQL by 7.7% and 9.4%, respec- tively. The higher gain on Seq2SQL model can be attributed that the single-step Seq2SQL makes more errors: DialSQL has more room for improve- ment. We also show the results of DialSQL where Model QM-Dev QM-Test Seq2SQL ( <ref type="bibr" target="#b25">Xu et al., 2017)</ref> 53.5% 51.6% SQLNet ( <ref type="bibr" target="#b25">Xu et al., 2017)</ref> 63.2% 61.3% BiAttn ( <ref type="bibr" target="#b6">Guo and Gao, 2018)</ref>   <ref type="table">Table 3</ref>: Query-match accuracy on the WikiSQL development and test sets. The first two scores of our model are generated using 5 candidate choices, ( + ) denotes a variant where users can re- visit their previous answers, and (*) denotes a vari- ant with more informative user responses.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.3">Evaluation on the WikiSQL Dataset</head><p>users are allowed to revisit their previous answers and with more informative user responses; instead the model only validates the error span and the user directly gives the correct choice. In this sce- nario, the performance further improves on both development and test sets. It seems decoding can- didate choices is a hard task and has room for improvement. For the rest of the evaluation, we present results with multi-choice questions.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.4">Query Complexity and Dialogue Length</head><p>In <ref type="table" target="#tab_3">Table 4</ref>, we compare DialSQL to the OM strat- egy on query complexity (QC) and dialogue length (DL) metrics. DialSQL and SQLNet-OM both have very similar query complexity scores show- ing that DialSQL produces simple questions. The number of questions DialSQL asks is around 3 for both query generation models. Even though SQLNet-OM dialogues have much smaller dia- logue lengths, we attribute this to the fact that 61.3% of the dialogues have empty interactions since OM will match every segment in the gen- erated query and the ground truth. The average number of turns in dialogues with non-empty in- teractions, on the other hand, is 3.10 which is close to DialSQL.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.5">A Varying Number of Choices</head><p>In <ref type="figure" target="#fig_2">Figure 3,</ref>    2.5% for development and test sets, respectively. As the number of choices increases, the perfor- mance of DialSQL improves in all the cases. Par- ticularly, for the SQLNet-DialSQL model we ob- serve more accuray gain. We increased the num- ber of choices to 10 and observed no notable fur- ther improvement in the development set which suggests that 5 is a good value for the number of choices.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.6">Error Distribution</head><p>We examine the error distribution of Dial- SQL and SQLNet. In DialSQL, almost all the errors are caused by validate sel and validate where change, while in SQLNet validate where change is the major cause of error and other errors are distributed uniformly.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.7">Human Evaluation</head><p>We extend our evaluation of DialSQL using hu- man subject experiment so that real users in- teract with the system instead of our simulated user. We randomly pick 100 questions from Wik- iSQL development set and run SQLNet to gen- erate initial candidate queries. Next, we run Di- alSQL using these candidate queries to gener- ate 100 dialogues, each of which is evaluated <ref type="table">Table 5</ref>: QM accuracies of SQLNet, DialSQL with user simulation, and DialSQL with real users (value in paranthesis is standard deviation).</p><p>Figure 4: Distribution of user preference for Dial- SQL ranking (scaled to 1-6 with 6 is None of the above.).</p><p>by 3 different users. At each turn, we show users the headers of the corresponding table, orig- inal question, system response, and list of can- didate choices for users to pick. For each error category, we generate 5 choices except for the validate where added category for which we only show 2 choices (YES or NO). Also, we add an additional choice of None of the above so that users can keep the previous prediction un- changed. At the end of each turn, we also ask users to give an overall score between 1 and 3 to evalu- ate whether they had a successful interaction with the DialSQL for the current turn. On average, the length of the generated dialogues is 5.6. In <ref type="table">Table 5</ref>, we compare the performance of SQLNet, DialSQL with user simulation, and Dial- SQL with real users using QM metric. We present the average performance across 3 different users with the standard deviation estimated over all di- alogues. We observe that when real users interact with our system, the overall performance of the generated queries are better than SQLNet model showing that DialSQL can improve the perfor- mance of a strong NLIDB system in a real setting. However, there is still a large room for improve- ment between simulated dialogues and real users.</p><p>In <ref type="figure">Figure 4</ref>, we present the correlation between DialSQL ranking of the candidate choices and user preferences. We observe that, user answers and DialSQL rankings are positively correlated; most of the time users prefer the top-1 choice. Inter- estingly, 15% of the user answers is None of the above. This commonly happens in the scenario where DialSQL response asks to replace a correct condition and users prefer to keep the original pre- diction unchanged. Another scenario where users commonly select None of the above is when ta- ble headers without the content remain insufficient for users to correctly disambiguate condition val- ues from questions. We also compute the Mean Reciprocal Rank (MMR) for each user to measure the correlation between real users and DialSQL. Average MMR is 0.69 with standard deviation of 0.004 which also shows that users generally prefer the choices ranked higher by DialSQL. The over- all score of each turn also suggests that users had a reasonable conversation with DialSQL. The aver- age score is 2.86 with standard deviation of 0.14, showing users can understand DialSQL responses and can pick a choice confidently.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6">Conclusion</head><p>We demonstrated the efficacy of the DialSQL, im- proving the state of the art accuracy from 62.5% to 69.0% on the WikiSQL dataset. DialSQL suc- cessfully extracts error spans from queries and of- fers several alternatives to users. It generates sim- ple questions over a small number of turns with- out overwhelming users. The model learns from only simulated data which makes it easy to adapt to new domains. We further investigate the usabil- ity of DialSQL in a real life setting by conducting human evaluations. Our results suggest that the accuracy of the generated queries can be improved via real user feedback.</p></div><figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_0"><head>Figure 1 :</head><label>1</label><figDesc>Figure 1: An instantiation of our dialogue simulation process. Step-1 synthesizes the initial query (top) by randomly altering the ground truth query (bottom). Step-2 generates the dialogue by validating the sequence of actions populated in Step-1 with the user. Each action is defined by the error category, start and end positions of the error span, and the random replacement, ex. AGG (1, 2, count).</figDesc><graphic url="image-1.png" coords="3,117.35,62.81,362.83,129.49" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_1"><head>Figure 2 :</head><label>2</label><figDesc>Figure 2: DialSQL model: Boxes are RNN cells, colors indicate parameter sharing. Dashed lines denote skip connections, dashed boxes denote classifications, and black circles denote vector concatenation. Blue boxes with capital letters and numbers (X.1, X.2) denote that the embeddings of predicted token at X.1 is passed as input to X.2. Each component in the pipeline is numbered according to execution order. &lt;GO&gt; is a special token to represent the start of a sequence and ST and ED denote the start and end indices of a span, respectively.</figDesc><graphic url="image-2.png" coords="6,94.68,62.81,408.19,299.14" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_2"><head>Figure 3 :</head><label>3</label><figDesc>Figure 3: DialSQL performance on WikiSQL with a varying number of choices at each turn.</figDesc><graphic url="image-3.png" coords="8,318.19,196.55,196.44,136.48" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_3" validated="false"><head>Table 4 :</head><label>4</label><figDesc></figDesc><table>Average query complexity and dialogue 
+length on the WikiSQL datasets (values in paran-
+thesis are standard deviations). Metrics for SQL-
+Net and Seq2SQL models are generated by the 
+OM strategy as described earlier. 
+
+</table></figure>
+		</body>
+		<back>
+
+			<div type="acknowledgement">
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Acknowledgements</head><p>The authors would like to thank the anonymous reviewers for their thoughtful comments. This re-search was sponsored in part by the Army Re-search Laboratory under cooperative agreements W911NF09-2-0053 and NSF 1528175. The views and conclusions contained herein are those of the authors and should not be interpreted as represent-ing the official policies, either expressed or im-plied, of the Army Research Laboratory or the U.S. Government. The U.S. Government is autho-rized to reproduce and distribute reprints for Gov-ernment purposes notwithstanding any copyright notice herein.</p></div>
+			</div>
+
+			<div type="references">
+
+				<listBibl>
+
+<biblStruct xml:id="b0">
+	<analytic>
+		<title level="a" type="main">Tensorflow: A system for large-scale machine learning</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Martin</forename><surname>Abadi</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Paul</forename><surname>Barham</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jianmin</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Zhifeng</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Andy</forename><surname>Davis</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jeffrey</forename><surname>Dean</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Matthieu</forename><surname>Devin</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Sanjay</forename><surname>Ghemawat</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Geoffrey</forename><surname>Irving</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Michael</forename><surname>Isard</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Manjunath</forename><surname>Kudlur</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Josh</forename><surname>Levenberg</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Rajat</forename><surname>Monga</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Sherry</forename><surname>Moore</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Derek</forename><forename type="middle">G</forename><surname>Murray</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Benoit</forename><surname>Steiner</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Paul</forename><surname>Tucker</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Vijay</forename><surname>Vasudevan</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Pete</forename><surname>Warden</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Martin</forename><surname>Wicke</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yuan</forename><surname>Yu</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Xiaoqiang</forename><surname>Zheng</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">12th USENIX Symposium on Operating Systems Design and Implementation (OSDI 16)</title>
+		<imprint>
+			<date type="published" when="2016" />
+			<biblScope unit="page" from="265" to="283" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b1">
+	<analytic>
+		<title level="a" type="main">Natural language interfaces to databases-an introduction</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Ion Androutsopoulos</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Peter</forename><surname>Graeme D Ritchie</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Thanisch</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Natural language engineering</title>
+		<imprint>
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="issue">1</biblScope>
+			<biblScope unit="page" from="29" to="81" />
+			<date type="published" when="1995" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b2">
+	<analytic>
+		<title level="a" type="main">A sequence-to-sequence model for user simulation in spoken dialogue systems</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Layla</forename><forename type="middle">El</forename><surname>Asri</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jing</forename><surname>He</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kaheer</forename><surname>Suleman</surname></persName>
+		</author>
+		<idno>abs/1607.00070</idno>
+	</analytic>
+	<monogr>
+		<title level="j">CoRR</title>
+		<imprint>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b3">
+	<analytic>
+		<title level="a" type="main">Semantic parsing on Freebase from question-answer pairs</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jonathan</forename><surname>Berant</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Andrew</forename><surname>Chou</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Roy</forename><surname>Frostig</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Percy</forename><surname>Liang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>Conference on Empirical Methods in Natural Language Processing</meeting>
+		<imprint>
+			<date type="published" when="2013" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b4">
+	<monogr>
+		<title level="m" type="main">Learning phrase representations using RNN encoder-decoder for statistical machine translation</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kyunghyun</forename><surname>Cho</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Bart</forename><surname>Van Merrienboer</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">C</forename><surname>Gülçehre</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Fethi</forename><surname>Bougares</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Holger</forename><surname>Schwenk</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yoshua</forename><surname>Bengio</surname></persName>
+		</author>
+		<idno>abs/1406.1078</idno>
+		<imprint>
+			<date type="published" when="2014" />
+			<publisher>CoRR</publisher>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b5">
+	<analytic>
+		<title level="a" type="main">Language to logical form with neural attention</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Li</forename><surname>Dong</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Mirella</forename><surname>Lapata</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the Annual Meeting of the Association for Computational Linguistics</meeting>
+		<imprint>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b6">
+	<monogr>
+		<title level="m" type="main">Bidirectional Attention for SQL Generation</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">T</forename><surname>Guo</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">H</forename><surname>Gao</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2018" />
+		</imprint>
+	</monogr>
+	<note>ArXiv e-prints</note>
+</biblStruct>
+
+<biblStruct xml:id="b7">
+	<analytic>
+		<title level="a" type="main">Accurate supervised and semi-supervised machine reading for long documents</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Izzeddin</forename><surname>Gur</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Daniel</forename><surname>Hewlett</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Llion</forename><surname>Jones</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Alexandre</forename><surname>Lacoste</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>Conference on Empirical Methods in Natural Language Processing</meeting>
+		<imprint>
+			<date type="published" when="2017" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b8">
+	<monogr>
+		<title level="m" type="main">Learning a neural semantic parser from user feedback</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Srinivasan</forename><surname>Iyer</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ioannis</forename><surname>Konstas</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Alvin</forename><surname>Cheung</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jayant</forename><surname>Krishnamurthy</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Luke</forename><surname>Zettlemoyer</surname></persName>
+		</author>
+		<idno>abs/1704.08760</idno>
+		<imprint>
+			<date type="published" when="2017" />
+			<publisher>CoRR</publisher>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b9">
+	<analytic>
+		<title level="a" type="main">Learning to transform natural to formal languages</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yuk</forename><forename type="middle">Wah</forename><surname>Rohit J Kate</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Raymond J</forename><surname>Wong</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Mooney</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the AAAI Conference on Artificial Intelligence</title>
+		<meeting>the AAAI Conference on Artificial Intelligence</meeting>
+		<imprint>
+			<date type="published" when="2005" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b10">
+	<monogr>
+		<title level="m" type="main">Adam: A method for stochastic optimization</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">P</forename><surname>Diederik</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jimmy</forename><surname>Kingma</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Ba</surname></persName>
+		</author>
+		<idno>abs/1412.6980</idno>
+		<imprint>
+			<date type="published" when="2014" />
+			<publisher>CoRR</publisher>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b11">
+	<analytic>
+		<title level="a" type="main">Constructing an interactive natural language interface for relational databases</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">F</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">H</forename><forename type="middle">V</forename><surname>Jagadish</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. VLDB Endow</title>
+		<meeting>VLDB Endow</meeting>
+		<imprint>
+			<date type="published" when="2014" />
+			<biblScope unit="volume">8</biblScope>
+			<biblScope unit="page" from="73" to="84" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b12">
+	<monogr>
+		<title level="m" type="main">Dialogue learning with human-in-the-loop</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jiwei</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Alexander</forename><forename type="middle">H</forename><surname>Miller</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Sumit</forename><surname>Chopra</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jason</forename><surname>Marc&amp;apos;aurelio Ranzato</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Weston</surname></persName>
+		</author>
+		<idno>abs/1611.09823</idno>
+		<imprint>
+			<date type="published" when="2016" />
+			<publisher>CoRR</publisher>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b13">
+	<analytic>
+		<title level="a" type="main">Effective approaches to attention-based neural machine translation</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Thang</forename><surname>Luong</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Hieu</forename><surname>Pham</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Christopher</forename><forename type="middle">D</forename><surname>Manning</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">EMNLP</title>
+		<imprint>
+			<date type="published" when="2015" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b14">
+	<analytic>
+		<title level="a" type="main">The stanford corenlp natural language processing toolkit</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Christopher</forename><surname>Manning</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Mihai</forename><surname>Surdeanu</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">John</forename><surname>Bauer</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jenny</forename><surname>Finkel</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Steven</forename><surname>Bethard</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">David</forename><surname>Mcclosky</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of 52nd Annual Meeting of the Association for Computational Linguistics: System Demonstrations</title>
+		<meeting>52nd Annual Meeting of the Association for Computational Linguistics: System Demonstrations</meeting>
+		<imprint>
+			<date type="published" when="2014" />
+			<biblScope unit="page" from="55" to="60" />
+		</imprint>
+	</monogr>
+	<note>Association for Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b15">
+	<monogr>
+		<title level="m" type="main">Glove: Global vectors for word representation</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jeffrey</forename><surname>Pennington</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Richard</forename><surname>Socher</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Christopher</forename><forename type="middle">D</forename><surname>Manning</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2014" />
+		</imprint>
+	</monogr>
+	<note>In In EMNLP</note>
+</biblStruct>
+
+<biblStruct xml:id="b16">
+	<analytic>
+		<title level="a" type="main">Towards a theory of natural language interfaces to databases</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ana-Maria</forename><surname>Popescu</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Oren</forename><surname>Etzioni</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Henry</forename><surname>Kautz</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 8th international conference on Intelligent user interfaces</title>
+		<meeting>the 8th international conference on Intelligent user interfaces</meeting>
+		<imprint>
+			<publisher>ACM</publisher>
+			<date type="published" when="2003" />
+			<biblScope unit="page" from="149" to="157" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b17">
+	<monogr>
+		<title level="m" type="main">Complex Sequential Question Answering: Towards Learning to Converse Over Linked Question Answer Pairs with a Knowledge Graph</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">A</forename><surname>Saha</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">V</forename><surname>Pahuja</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">M</forename><forename type="middle">M</forename><surname>Khapra</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">K</forename><surname>Sankaranarayanan</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">S</forename><surname>Chandar</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2018" />
+		</imprint>
+	</monogr>
+	<note>ArXiv e-prints</note>
+</biblStruct>
+
+<biblStruct xml:id="b18">
+	<analytic>
+		<title level="a" type="main">Agenda-based user simulation for bootstrapping a POMDP dialogue system</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jost</forename><surname>Schatzmann</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Blaise</forename><surname>Thomson</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Karl</forename><surname>Weilhammer</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Hui</forename><surname>Ye</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Steve</forename><surname>Young</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Human Language Technologies 2007: The Conference of the North American Chapter of the Association for Computational Linguistics; Companion Volume, Short Papers</title>
+		<meeting><address><addrLine>Rochester, New York</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2007" />
+			<biblScope unit="page" from="149" to="152" />
+		</imprint>
+	</monogr>
+	<note>Association for Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b19">
+	<monogr>
+		<title level="m" type="main">Hierarchical neural network generative models for movie dialogues</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Alessandro</forename><surname>Iulian Vlad Serban</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yoshua</forename><surname>Sordoni</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Aaron</forename><forename type="middle">C</forename><surname>Bengio</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Joelle</forename><surname>Courville</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Pineau</surname></persName>
+		</author>
+		<idno>abs/1507.04808</idno>
+		<imprint>
+			<date type="published" when="2015" />
+			<publisher>CoRR</publisher>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b20">
+	<monogr>
+		<title level="m" type="main">A hierarchical latent variable encoder-decoder model for generating dialogues</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Alessandro</forename><surname>Iulian Vlad Serban</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ryan</forename><surname>Sordoni</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Laurent</forename><surname>Lowe</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Joelle</forename><surname>Charlin</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Aaron</forename><forename type="middle">C</forename><surname>Pineau</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yoshua</forename><surname>Courville</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Bengio</surname></persName>
+		</author>
+		<idno>abs/1605.06069</idno>
+		<imprint>
+			<date type="published" when="2016" />
+			<publisher>CoRR</publisher>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b21">
+	<monogr>
+		<title level="m" type="main">A hierarchical recurrent encoderdecoder for generative context-aware query suggestion</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Alessandro</forename><surname>Sordoni</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yoshua</forename><surname>Bengio</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Hossein</forename><surname>Vahabi</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Christina</forename><surname>Lioma</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jakob</forename><forename type="middle">Grue</forename><surname>Simonsen</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jianyun</forename><surname>Nie</surname></persName>
+		</author>
+		<idno>abs/1507.02221</idno>
+		<imprint>
+			<date type="published" when="2015" />
+			<publisher>CoRR</publisher>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b22">
+	<analytic>
+		<title level="a" type="main">On generating characteristic-rich question sets for qa evaluation</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yu</forename><surname>Su</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Huan</forename><surname>Sun</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Brian</forename><surname>Sadler</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Mudhakar</forename><surname>Srivatsa</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Izzeddin</forename><surname>Gur</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Zenghui</forename><surname>Yan</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Xifeng</forename><surname>Yan</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2016 Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>the 2016 Conference on Empirical Methods in Natural Language Processing</meeting>
+		<imprint>
+			<date type="published" when="2016" />
+			<biblScope unit="page" from="562" to="572" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b23">
+	<analytic>
+		<title level="a" type="main">Table cell search for question answering</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Huan</forename><surname>Sun</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Hao</forename><surname>Ma</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Xiaodong</forename><surname>He</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Wen-Tau</forename><surname>Yih</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yu</forename><surname>Su</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Xifeng</forename><surname>Yan</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the International Conference on World Wide Web</title>
+		<meeting>the International Conference on World Wide Web</meeting>
+		<imprint>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b24">
+	<analytic>
+		<title level="a" type="main">Progress in natural language understanding: an application to lunar geology</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>William A Woods</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the American Federation of Information Processing Societies Conference</title>
+		<meeting>the American Federation of Information Processing Societies Conference</meeting>
+		<imprint>
+			<date type="published" when="1973" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b25">
+	<monogr>
+		<title level="m" type="main">Sqlnet: Generating structured queries from natural language without reinforcement learning</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Xiaojun</forename><surname>Xu</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Chang</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Dawn</forename><surname>Song</surname></persName>
+		</author>
+		<idno>abs/1711.04436</idno>
+		<imprint>
+			<date type="published" when="2017" />
+			<publisher>CoRR</publisher>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b26">
+	<analytic>
+		<title level="a" type="main">Sqlizer: Query synthesis from natural language</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Navid</forename><surname>Yaghmazadeh</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yuepeng</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Isil</forename><surname>Dillig</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Thomas</forename><surname>Dillig</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Proc. ACM Program. Lang</title>
+		<imprint>
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page">26</biblScope>
+			<date type="published" when="2017" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b27">
+	<analytic>
+		<title level="a" type="main">Improving semantic parsing via answer type inference</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Semih</forename><surname>Yavuz</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Izzeddin</forename><surname>Gur</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yu</forename><surname>Su</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Mudhakar</forename><surname>Srivatsa</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Xifeng</forename><surname>Yan</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>Conference on Empirical Methods in Natural Language Processing</meeting>
+		<imprint>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b28">
+	<analytic>
+		<title level="a" type="main">Semantic parsing via staged query graph generation: Question answering with knowledge base</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Scott</forename><surname>Wen-Tau Yih</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ming-Wei</forename><surname>Chang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Xiaodong</forename><surname>He</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jianfeng</forename><surname>Gao</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the Annual Meeting of the Association for Computational Linguistics</meeting>
+		<imprint>
+			<date type="published" when="2015" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b29">
+	<analytic>
+		<title level="a" type="main">Learning to parse database queries using inductive logic programming</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">M</forename><surname>John</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Mooney</forename><surname>Zelle</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Ray</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the AAAI Conference on Artificial Intelligence</title>
+		<meeting>the AAAI Conference on Artificial Intelligence</meeting>
+		<imprint>
+			<date type="published" when="1996" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b30">
+	<analytic>
+		<title level="a" type="main">Online learning of relaxed ccg grammars for parsing to logical form</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Luke</forename><surname>Zettlemoyer</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Michael</forename><surname>Collins</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2007 Joint Conference on Empirical Methods in Natural Language Processing and Computational Natural Language Learning</title>
+		<meeting>the 2007 Joint Conference on Empirical Methods in Natural Language Processing and Computational Natural Language Learning</meeting>
+		<imprint>
+			<publisher>EMNLP-CoNLL</publisher>
+			<date type="published" when="2007" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b31">
+	<analytic>
+		<title level="a" type="main">Learning to map sentences to logical form: Structured classification with probabilistic categorial grammars</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Luke</forename><forename type="middle">S</forename><surname>Zettlemoyer</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Michael</forename><surname>Collins</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Conference on Uncertainty in Artificial Intelligence</title>
+		<meeting>the Conference on Uncertainty in Artificial Intelligence</meeting>
+		<imprint>
+			<date type="published" when="2005" />
+			<biblScope unit="page" from="658" to="666" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b32">
+	<monogr>
+		<title level="m" type="main">Seq2sql: Generating structured queries from natural language using reinforcement learning</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Victor</forename><surname>Zhong</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Caiming</forename><surname>Xiong</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Richard</forename><surname>Socher</surname></persName>
+		</author>
+		<idno>abs/1709.00103</idno>
+		<imprint>
+			<date type="published" when="2017" />
+			<publisher>CoRR</publisher>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+				</listBibl>
+			</div>
+		</back>
+	</text>
+</TEI>

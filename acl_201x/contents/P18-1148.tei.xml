@@ -1,0 +1,919 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<TEI xmlns="http://www.tei-c.org/ns/1.0" 
+xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+xsi:schemaLocation="http://www.tei-c.org/ns/1.0 /home/ana/installs/grobid/grobid-0.5.1/grobid-home/schemas/xsd/Grobid.xsd"
+ xmlns:xlink="http://www.w3.org/1999/xlink">
+	<teiHeader xml:lang="en">
+		<encodingDesc>
+			<appInfo>
+				<application version="0.5.1-SNAPSHOT" ident="GROBID" when="2019-04-18T12:16+0000">
+					<ref target="https://github.com/kermitt2/grobid">GROBID - A machine learning software for extracting information from scholarly documents</ref>
+				</application>
+			</appInfo>
+		</encodingDesc>
+		<fileDesc>
+			<titleStmt>
+				<title level="a" type="main">Improving Entity Linking by Modeling Latent Relations between Mentions</title>
+			</titleStmt>
+			<publicationStmt>
+				<publisher>Association for Computational Linguistics</publisher>
+				<availability status="unknown"><p>Copyright Association for Computational Linguistics</p>
+				</availability>
+				<date>July 15-20, 2018. 2018</date>
+			</publicationStmt>
+			<sourceDesc>
+				<biblStruct>
+					<analytic>
+						<author>
+							<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Phong</forename><surname>Le</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="institution">University of Edinburgh</orgName>
+							</affiliation>
+						</author>
+						<author>
+							<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ivan</forename><surname>Titov</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="institution">University of Edinburgh</orgName>
+							</affiliation>
+							<affiliation key="aff1">
+								<orgName type="institution">University of Amsterdam</orgName>
+							</affiliation>
+						</author>
+						<title level="a" type="main">Improving Entity Linking by Modeling Latent Relations between Mentions</title>
+					</analytic>
+					<monogr>
+						<title level="m">Proceedings of the 56th Annual Meeting of the Association for Computational Linguistics (Long Papers)</title>
+						<meeting>the 56th Annual Meeting of the Association for Computational Linguistics (Long Papers) <address><addrLine>Melbourne, Australia</addrLine></address>
+						</meeting>
+						<imprint>
+							<publisher>Association for Computational Linguistics</publisher>
+							<biblScope unit="page" from="1595" to="1604"/>
+							<date type="published">July 15-20, 2018. 2018</date>
+						</imprint>
+					</monogr>
+					<note>1595</note>
+				</biblStruct>
+			</sourceDesc>
+		</fileDesc>
+		<profileDesc>
+			<abstract>
+				<p>Entity linking involves aligning textual mentions of named entities to their corresponding entries in a knowledge base. Entity linking systems often exploit relations between textual mentions in a document (e.g., coreference) to decide if the linking decisions are compatible. Unlike previous approaches, which relied on supervised systems or heuristics to predict these relations , we treat relations as latent variables in our neural entity-linking model. We induce the relations without any supervision while optimizing the entity-linking system in an end-to-end fashion. Our multi-relational model achieves the best reported scores on the standard benchmark (AIDA-CoNLL) and substantially outperforms its relation-agnostic version. Its training also converges much faster, suggesting that the injected structural bias helps to explain regularities in the training data.</p>
+			</abstract>
+		</profileDesc>
+	</teiHeader>
+	<text xml:lang="en">
+		<body>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="1">Introduction</head><p>Named entity linking (NEL) is the task of as- signing entity mentions in a text to corresponding entries in a knowledge base (KB). For example, consider <ref type="figure">Figure 1</ref> where a mention "World Cup" refers to a KB entity FIFA WORLD CUP. NEL is often regarded as crucial for natural language understanding and commonly used as preprocess- ing for tasks such as information extraction <ref type="bibr" target="#b12">(Hoffmann et al., 2011</ref>) and question answering <ref type="bibr" target="#b28">(Yih et al., 2015)</ref>.</p><p>Potential assignments of mentions to entities are regulated by semantic and discourse constraints. For example, the second and third occurrences of mention "England" in <ref type="figure">Figure 1</ref> are coreferent and thus should be assigned to the same entity. Be- sides coreference, there are many other relations between entities which constrain or favor certain alignment configurations. For example, consider relation participant in in <ref type="figure">Figure 1</ref>: if "World Cup" is aligned to the entity FIFA WORLD CUP then we expect the second "England" to refer to a foot- ball team rather than a basketball one.</p><p>NEL methods typically consider only corefer- ence, relying either on off-the-shelf systems or some simple heuristics ( <ref type="bibr" target="#b16">Lazic et al., 2015)</ref>, and exploit them in a pipeline fashion, though some (e.g., <ref type="bibr" target="#b2">Cheng and Roth (2013)</ref>; <ref type="bibr" target="#b22">Ren et al. (2017)</ref>) additionally exploit a range of syntactic-semantic relations such as apposition and possessives. An- other line of work ignores relations altogether and models the predicted sequence of KB entities as a bag ( <ref type="bibr" target="#b8">Globerson et al., 2016;</ref><ref type="bibr" target="#b26">Yamada et al., 2016;</ref><ref type="bibr" target="#b7">Ganea and Hofmann, 2017)</ref>. Though they are able to capture some degree of coherence (e.g., pref- erence towards entities from the same general do- main) and are generally empirically successful, the underlying assumption is too coarse. For example, they would favor assigning all the occurrences of "England" in <ref type="figure">Figure 1</ref> to the same entity.</p><p>We hypothesize that relations useful for NEL can be induced without (or only with little) domain expertise. In order to prove this, we encode rela- tions as latent variables and induce them by opti- mizing the entity-linking model in an end-to-end fashion. In this way, relations between mentions in documents will be induced in such a way as to be beneficial for NEL. As with other recent ap- proaches to NEL ( <ref type="bibr" target="#b27">Yamada et al., 2017;</ref><ref type="bibr" target="#b7">Ganea and Hofmann, 2017)</ref>, we rely on representation learn- ing and learn embeddings of mentions, contexts and relations. This further reduces the amount of human expertise required to construct the sys- tem and, in principle, may make it more portable across languages and domains.</p><p>Our multi-relational neural model achieves an  <ref type="figure">Figure 1</ref>: Example for NEL, linking each mention to an entity in a KB (e.g. "World Cup" to FIFA WORLD CUP rather than FIBA BASKETBALL WORLD CUP). Note that the first and the sec- ond "England" are in different relations to "World Cup". improvement of 0.85% F1 over the best re- ported scores on the standard AIDA-CoNLL dataset ( <ref type="bibr" target="#b7">Ganea and Hofmann, 2017)</ref>. Substan- tial improvements over the relation-agnostic ver- sion show that the induced relations are indeed beneficial for NEL. Surprisingly its training also converges much faster: training of the full model requires ten times shorter wall-clock time than what is needed for estimating the simpler relation- agnostic version. This may suggest that the in- jected structural bias helps to explain regularities in the training data, making the optimization task easier. We qualitatively examine induced rela- tions. Though we do not observe direct counter- parts of linguistic relations, we, for example, see that some of the induced relations are closely re- lated to coreference whereas others encode forms of semantic relatedness between the mentions.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2">Background and Related work 2.1 Named entity linking problem</head><p>Formally, given a document D containing a list of mentions m 1 , ..., m n , an entity linker assigns to each m i an KB entity e i or predicts that there is no corresponding entry in the KB (i.e., e i = NILL).</p><p>Because a KB can be very large, it is stan- dard to use an heuristic to choose potential can- didates, eliminating options which are highly un- likely. This preprocessing step is called candidate selection. The task of a statistical model is thus re- duced to choosing the best option among a smaller list of candidates C i = (e i1 , ..., e il i ). In what fol- lows, we will discuss two classes of approaches tackling this problem: local and global modeling.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.2">Local and global models</head><p>Local models rely only on local contexts of men- tions and completely ignore interdependencies be- tween the linking decisions in the document (these interdependencies are usually referred to as coher- ence). Let c i be a local context of mention m i and Ψ(e i , c i ) be a local score function. A local model then tackles the problem by searching for</p><formula xml:id="formula_0">e * i = arg max e i ∈C i Ψ(e i , c i )<label>(1)</label></formula><p>for each i ∈ {1, ..., n} <ref type="bibr" target="#b1">(Bunescu and Pas¸caPas¸ca, 2006;</ref><ref type="bibr" target="#b16">Lazic et al., 2015;</ref><ref type="bibr" target="#b27">Yamada et al., 2017)</ref>. A global model, besides using local context within Ψ(e i , c i ), takes into account entity co- herency. It is captured by a coherence score func- tion Φ(E, D):</p><formula xml:id="formula_1">E * = arg max E∈C 1 ×...×Cn n ∑ i=1 Ψ(e i , c i ) + Φ(E, D)</formula><p>where E = (e 1 , ..., e n ). The coherence score function, in the simplest form, is a sum over all pairwise scores Φ(e i , e j , D) <ref type="bibr" target="#b21">(Ratinov et al., 2011;</ref><ref type="bibr" target="#b14">Huang et al., 2015;</ref><ref type="bibr" target="#b3">Chisholm and Hachey, 2015;</ref><ref type="bibr" target="#b6">Ganea et al., 2016;</ref><ref type="bibr" target="#b9">Guo and Barbosa, 2016;</ref><ref type="bibr" target="#b8">Globerson et al., 2016;</ref><ref type="bibr" target="#b26">Yamada et al., 2016)</ref>, re- sulting in:</p><formula xml:id="formula_2">E * = arg max E∈C 1 ×...×Cn n ∑ i=1 Ψ(e i , c i )+ ∑ i̸ =j Φ(e i , e j , D)<label>(2)</label></formula><p>A disadvantage of global models is that exact decoding (Equation 2) is NP-hard ( <ref type="bibr" target="#b24">Wainwright et al., 2008)</ref>. <ref type="bibr" target="#b7">Ganea and Hofmann (2017)</ref> over- come this using loopy belief propagation (LBP), an approximate inference method based on mes- sage passing ( <ref type="bibr" target="#b19">Murphy et al., 1999</ref>). <ref type="bibr" target="#b8">Globerson et al. (2016)</ref> propose a star model which approxi- mates the decoding problem in Equation 2 by ap- proximately decomposing it into n decoding prob- lems, one per each e i .</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.3">Related work</head><p>Our work focuses on modeling pairwise score functions Φ and is related to previous approaches in the two following aspects.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Relations between mentions</head><p>A relation widely used by NEL systems is corefer- ence: two mentions are coreferent if they refer to the same entity. Though, as we discussed in Sec- tion 1, other linguistic relations constrain entity as- signments, only a few approaches (e.g., <ref type="bibr" target="#b2">Cheng and Roth (2013)</ref>; <ref type="bibr" target="#b22">Ren et al. (2017)</ref>), exploit any rela- tions other than coreference. We believe that the reason for this is that predicting and selecting rel- evant (often semantic) relations is in itself a chal- lenging problem.</p><p>In <ref type="bibr" target="#b2">Cheng and Roth (2013)</ref>, relations between mentions are extracted using a labor-intensive ap- proach, requiring a set of hand-crafted rules and a KB containing relations between entities. This ap- proach is difficult to generalize to languages and domains which do not have such KBs or the set- tings where no experts are available to design the rules. We, in contrast, focus on automating the process using representation learning.</p><p>Most of these methods relied on relations pre- dicted by external tools, usually a coreference sys- tem. One notable exception is <ref type="bibr" target="#b4">Durrett and Klein (2014)</ref>: they use a joint model of entity linking and coreference resolution. Nevertheless their corefer- ence component is still supervised, whereas our relations are latent even at training time.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Representation learning</head><p>How can we define local score functions Ψ and pairwise score functions Φ? Previous approaches employ a wide spectrum of techniques.</p><p>At one extreme, extensive feature engineering was used to define useful features. For example, Ratinov et al. (2011) use cosine similarities be- tween Wikipedia titles and local contexts as a fea- ture when computing the local scores. For pair- wise scores they exploit information about links between Wikipedia pages. At the other extreme, feature engineering is al- most completely replaced by representation learn- ing. These approaches rely on pretrained embed- dings of words ( <ref type="bibr" target="#b17">Mikolov et al., 2013;</ref><ref type="bibr" target="#b20">Pennington et al., 2014</ref>) and entities ( <ref type="bibr" target="#b10">He et al., 2013;</ref><ref type="bibr" target="#b27">Yamada et al., 2017;</ref><ref type="bibr" target="#b7">Ganea and Hofmann, 2017</ref>) and often do not use virtually any other hand-crafted features. <ref type="bibr" target="#b7">Ganea and Hofmann (2017)</ref> showed that such an approach can yield SOTA accuracy on a standard benchmark (AIDA-CoNLL dataset). Their local and pairwise score functions are</p><formula xml:id="formula_3">Ψ(e i , c i ) = e T i Bf (c i ) Φ(e i , e j , D) = 1 n − 1 e T i Re j (3)</formula><p>where e i , e j ∈ R d are the embeddings of entity e i , e j , B, R ∈ R d×d are diagonal matrices. The mapping f (c i ) applies an attention mechanism to context words in c i to obtain a feature representa-</p><formula xml:id="formula_4">tions of context (f (c i ) ∈ R d ).</formula><p>Note that the global component (the pairwise scores) is agnostic to any relations between enti- ties or even to their ordering: it models e 1 , ..., e n simply as a bag of entities. Our work is in line with <ref type="bibr" target="#b7">Ganea and Hofmann (2017)</ref> in the sense that fea- ture engineering plays no role in computing local and pair-wise scores. Furthermore, we argue that pair-wise scores should take into account relations between mentions which are represented by rela- tion embeddings.</p><p>3 Multi-relational models</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.1">General form</head><p>We assume that there are K latent relations. Each relation k is assigned to a mention pair (m i , m j ) with a non-negative weight ('confidence') α ijk . The pairwise score (m i , m j ) is computed as a weighted sum of relation-specific pairwise scores (see <ref type="figure" target="#fig_0">Figure 2</ref>, top):</p><formula xml:id="formula_5">Φ(e i , e j , D) = K ∑ k=1 α ijk Φ k (e i , e j , D) Φ k (e i , e j , D)</formula><p>can be any pairwise score func- tion, but here we adopt the one from Equation 3. Namely, we represent each relation k by a diago- nal matrix R k ∈ R d×d , and</p><formula xml:id="formula_6">Φ k (e i , e j , D) = e T i R k e j</formula><p>The weights α ijk are normalized scores:  In our experiments, we use a single-layer neural network as f (see <ref type="figure" target="#fig_1">Figure 3)</ref> where c i is a concate- nation of the average embedding of words in the left context with the average embedding of words in the right context of the mention. <ref type="bibr">1</ref> As α ijk is indexed both by mention index j and relation index k, we have two choices for Z ijk : normalization over relations and normaliza- tion over mentions. We consider both versions of the model. <ref type="bibr">1</ref> We also experimented with LSTMs but we could not pre- vent them from severely overfitting, and the results were poor.</p><formula xml:id="formula_7">α ijk = 1 Z ijk exp { f T (m i , c i )D k f (m j , c j ) √ d } (4) where Z ijk is a normalization factor, f (m i , c i ) is a function mapping (m i , c i ) onto R d ,</formula></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.2">Rel-norm: Relation-wise normalization</head><p>For rel-norm, coefficients α ijk are normalized over relations k, in other words, <ref type="figure" target="#fig_0">Figure 2</ref>, middle). We can also re-write the pairwise scores as</p><formula xml:id="formula_8">Z ijk = K ∑ k ′ =1 exp { f T (m i , c i )D k ′ f (m j , c j ) √ d } so that ∑ K k=1 α ijk = 1 (see</formula><formula xml:id="formula_9">Φ(e i , e j , D) = e T i R ij e j<label>(5)</label></formula><p>where</p><formula xml:id="formula_10">R ij = ∑ K k=1 α ijk R k .</formula><p>In foreign policy Bill Clinton ordered U.S. military tanh, dropout Intuitively, α ijk is the probability of assigning a k-th relation to a mention pair (m i , m j ). For ev- ery pair rel-norm uses these probabilities to choose one relation from the pool and relies on the corre- sponding relation embedding R k to compute the compatibility score.</p><p>For K = 1 rel-norm reduces (up to a scal- ing factor) to the bag-of-entities model defined in Equation 3.</p><p>In principle, instead of relying on the linear combination of relation embeddings matrices R k , we could directly predict a context-specific rela- tion embedding</p><formula xml:id="formula_11">R ij = diag{g(m i , c i , m j , c j )}</formula><p>where g is a neural network. However, in prelim- inary experiments we observed that this resulted in overfitting and poor performance. Instead, we choose to use a small fixed number of relations as a way to constrain the model and improve gener- alization.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.3">Ment-norm: Mention-wise normalization</head><p>We can also normalize α ijk over j: <ref type="figure" target="#fig_0">Figure 2</ref>, bottom). If we rewrite the pairwise scores as</p><formula xml:id="formula_12">Z ijk = n ∑ j ′ =1 j ′ ̸ =i exp { f T (m i , c i )D k f (m j ′ , c j ′ ) √ d } This implies that ∑ n j=1,j̸ =i α ijk = 1 (see</formula><formula xml:id="formula_13">Φ(e i , e j , D) = K ∑ k=1 α ijk e T i R k e j ,<label>(6)</label></formula><p>we can see that Equation 3 is a special case of ment-norm when K = 1 and D 1 = 0. In other words, <ref type="bibr" target="#b7">Ganea and Hofmann (2017)</ref> is our mono- relational ment-norm with uniform α. The intuition behind ment-norm is that for each relation k and mention m i , we are looking for mentions related to m i with relation k. For each pair of m i and m j we can distinguish two cases: (i) α ijk is small for all k: m i and m j are not re- lated under any relation, (ii) α ijk is large for one or more k: there are one or more relations which are predicted for m i and m j .</p><p>In principle, rel-norm can also indirectly handle both these cases. For example, it can master (i) by dedicating a distinct 'none' relation to represent lack of relation between the two mentions (with the corresponding matrix R k set to 0). Though it cannot assign large weights (i.e., close to 1) to multiple relations (as needed for (ii)), it can in principle use the 'none' relation to vary the proba- bility mass assigned to the rest of relations across mention pairs, thus achieving the same effect (up to a multiplicative factor). Nevertheless, in con- trast to ment-norm, we do not observe this behav- ior for rel-norm in our experiments: the inductive basis seems to disfavor such configurations.</p><p>Ment-norm is in line with the current trend of using the attention mechanism in deep learn- ing ( <ref type="bibr" target="#b0">Bahdanau et al., 2014)</ref>, and especially related to multi-head attention of <ref type="bibr" target="#b23">Vaswani et al. (2017)</ref>. For each mention m i and for each k, we can inter- pret α ijk as the probability of choosing a mention m j among the set of mentions in the document. Because here we have K relations, each mention m i will have maximally K mentions (i.e. heads in terminology of <ref type="bibr" target="#b23">Vaswani et al. (2017)</ref>) to focus on. Note though that they use multi-head attention for choosing input features in each layer, whereas we rely on this mechanism to compute pairwise scoring functions for the structured output (i.e. to compute potential functions in the corresponding undirected graphical model, see Section 3.4).</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Mention padding</head><p>A potentially serious drawback of ment-norm is that the model uses all K relations even in cases where some relations are inapplicable. For ex- ample, consider applying relation coreference to mention "West Germany" in <ref type="figure">Figure 1</ref>. The men- tion is non-anaphoric: there are no mentions co-referent with it. Still the ment-norm model has to distribute the weight across the mentions. This problem occurs because of the normalization ∑ n j=1,j̸ =i α ijk = 1. Note that this issue does not affect standard applications of attention: nor- mally the attention-weighted signal is input to an- other transformation (e.g., a flexible neural model) which can then disregard this signal when it is use- less. This is not possible within our model, as it simply uses α ijk to weight the bilinear terms with- out any extra transformation.</p><p>Luckily, there is an easy way to circumvent this problem. We add to each document a padding mention m pad linked to a padding entity e pad . In this way, the model can use the padding mention to damp the probability mass that the other men- tions receive. This method is similar to the way some mention-ranking coreference models deal with non-anaphoric mentions (e.g. <ref type="bibr" target="#b25">Wiseman et al. (2015)</ref>).</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.4">Implementation</head><p>Following Ganea and Hofmann (2017) we use Equation 2 to define a conditional random field (CRF). We use the local score function identical to theirs and the pairwise scores are defined as ex- plained above:</p><formula xml:id="formula_14">q(E|D) ∝ exp    n ∑ i=1 Ψ(e i , c i ) + ∑ i̸ =j Φ(e i , e j , D)   </formula><p>We also use max-product loopy belief propagation (LBP) to estimate the max-marginal probabilityˆq</p><formula xml:id="formula_15">probabilityˆ probabilityˆq i (e i |D) ≈ max e 1 ,...,e i−1 e i+1 ,...,en q(E|D)</formula><p>for each mention m i . The final score function for m i is given by:</p><formula xml:id="formula_16">ρ i (e) = g(ˆ q i (e|D), ˆ p(e|m i ))</formula><p>where g is a two-layer neural network andˆpandˆ andˆp(e|m i ) is the probability of selecting e conditioned only on m i . This probability is computed by mix- ing mention-entity hyperlink count statistics from Wikipedia, a large Web corpus and YAGO. <ref type="bibr">2</ref> We minimize the following ranking loss:</p><formula xml:id="formula_17">L(θ) = ∑ D∈D ∑ m i ∈D ∑ e∈C i h(m i , e)<label>(7)</label></formula><p>h(m i , e) = max</p><formula xml:id="formula_18">( 0, γ − ρ i (e * i ) + ρ i (e) )</formula><p>where θ are the model parameters, D is a training dataset, and e * i is the ground-truth entity. Adam ( <ref type="bibr" target="#b15">Kingma and Ba, 2014</ref>) is used as an optimizer.</p><p>For ment-norm, the padding mention is treated like any other mentions.</p><p>We add f pad = f (m pad , c pad ) and e pad ∈ R d , an embedding of e pad , to the model parameter list, and tune them while training the model.</p><p>In order to encourage the models to explore dif- ferent relations, we add the following regulariza- tion term to the loss function in Equation 7:</p><formula xml:id="formula_19">λ 1 ∑ i,j dist(R i , R j ) + λ 2 ∑ i,j dist(D i , D j )</formula><p>where λ 1 , λ 2 are set to −10 −7 in our experiments, dist(x, y) can be any distance metric. We use:</p><formula xml:id="formula_20">dist(x, y) = x ∥x∥ 2 − y ∥y∥ 2 2</formula><p>Using this regularization to favor diversity is important as otherwise relations tend to collapse: their relation embeddings R k end up being very similar to each other.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4">Experiments</head><p>We evaluated four models: (i) rel-norm proposed in Section 3.2; (ii) ment-norm proposed in Sec- tion 3.3; (iii) ment-norm (K = 1): the mono- relational version of ment-norm; and (iv) ment- norm (no pad): the ment-norm without using men- tion padding. Recall also that our mono-relational (i.e. K = 1) rel-norm is equivalent to the relation- agnostic baseline of <ref type="bibr" target="#b7">Ganea and Hofmann (2017)</ref>.</p><p>We implemented our models in PyTorch and run experiments on a Titan X GPU. The source code and trained models will be publicly avail- able at https://github.com/lephong/ mulrel-nel.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.1">Setup</head><p>We set up our experiments similarly to those of <ref type="bibr" target="#b7">Ganea and Hofmann (2017)</ref>, run each model 5 times, and report average and 95% confidence in- terval of the standard micro F1 score (aggregates over all mentions).</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Datasets</head><p>For in-domain scenario, we used AIDA-CoNLL dataset <ref type="bibr">3 (Hoffart et al., 2011</ref>). This dataset contains AIDA-train for training, AIDA-A for dev, and AIDA-B for testing, having respectively 946, 216, and 231 documents. For out-domain scenario, we evaluated the models trained on AIDA-train, on five popular test sets: MSNBC, AQUAINT, ACE2004, which were cleaned and updated by <ref type="bibr" target="#b9">Guo and Barbosa (2016)</ref>; WNED- CWEB (CWEB), WNED-WIKI (WIKI), which were automatically extracted from ClueWeb and Wikipedia <ref type="bibr" target="#b9">(Guo and Barbosa, 2016;</ref><ref type="bibr" target="#b5">Gabrilovich et al., 2013</ref>). The first three are small with 20, 50, and 36 documents whereas the last two are much larger with 320 documents each. Following previ- ous works ( <ref type="bibr" target="#b26">Yamada et al., 2016;</ref><ref type="bibr" target="#b7">Ganea and Hofmann, 2017)</ref>, we considered only mentions that have entities in the KB (i.e., Wikipedia).</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Candidate selection</head><p>For each mention m i , we selected 30 top candi- dates usingˆpusingˆ usingˆp(e|m i ). We then kept 4 candidates with the highestˆphighestˆ highestˆp(e|m i ) and 3 candidates with the highest scores e T (∑</p><formula xml:id="formula_21">w∈d i w )</formula><p>, where e, w ∈ R d are entity and word embeddings, d i is the 50-word window context around m i .</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Hyper-parameter setting</head><p>We set d = 300 and used <ref type="bibr">GloVe (Pennington et al., 2014</ref>) word embeddings trained on 840B tokens for computing f in Equation 4, and entity embed- dings from <ref type="bibr" target="#b7">Ganea and Hofmann (2017)</ref>. <ref type="bibr">4</ref> We use the following parameter values: γ = 0.01 (see Equation 7), the number of LBP loops is 10, the dropout rate for f was set to 0.3, the window size of local contexts c i (for the pairwise score func- tions) is 6. For rel-norm, we initialized diag(R k ) and diag(D k ) by sampling from N (0, 0.1) for all k. For ment-norm, we did the same except that diag(R 1 ) was sampled from N (1, 0.1).</p><p>To select the best number of relations K, we considered all values of K ≤ 7 (K &gt; 7 would not fit in our GPU memory, as some of the documents are large). We selected the best ones based on the development scores: 6 for rel-norm, 3 for ment- norm, and 3 for ment-norm (no pad).</p><p>When training the models, we applied early stopping. For rel-norm, when the model reached 91% F1 on the dev set, <ref type="bibr">5</ref> we reduced the learning rate from 10 −4 to 10 −5 . We then stopped the train- ing when F1 was not improved after 20 epochs. We did the same for ment-norm except that the learning rate was changed at 91.5% F1.</p><p>Note that all the hyper-parameters except K and the turning point for early stopping were set to the values used by <ref type="bibr" target="#b7">Ganea and Hofmann (2017)</ref>. Sys- tematic tuning is expensive though may have fur- ther increased the result of our models.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.2">Results</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Methods</head><p>Aida-B Chisholm and Hachey <ref type="formula" target="#formula_0">(2015)</ref> 88.7 Guo and Barbosa <ref type="formula" target="#formula_0">(2016)</ref> 89.0 <ref type="bibr" target="#b8">Globerson et al. (2016)</ref> 91.0 Yamada et al. <ref type="formula" target="#formula_0">(2016)</ref> 91.5 <ref type="bibr" target="#b7">Ganea and Hofmann (2017)</ref> 92.22 ± 0.14 rel-norm 92.41 ± 0.19 ment-norm 93.07 ± 0.27 ment-norm (K = 1) 92.89 ± 0.21 ment-norm (no pad) 92.37 ± 0.26 <ref type="table">Table 1</ref>: F1 scores on AIDA-B (test set). <ref type="table">Table 1</ref> shows micro F1 scores on AIDA-B of the SOTA methods and ours, which all use Wikipedia and YAGO mention-entity index. To our knowledge, ours are the only (unsupervis- edly) inducing and employing more than one re- lations on this dataset. The others use only one relation, coreference, which is given by simple heuristics or supervised third-party resolvers. All four our models outperform any previous method, with ment-norm achieving the best results, 0.85% higher than that of <ref type="bibr" target="#b7">Ganea and Hofmann (2017)</ref>. <ref type="table" target="#tab_3">Table 2</ref> shows micro F1 scores on 5 out-domain test sets. Besides ours, only <ref type="bibr" target="#b2">Cheng and Roth (2013)</ref> employs several mention relations. Ment- norm achieves the highest F1 scores on MSNBC and ACE2004. On average, ment-norm's F1 score is 0.3% higher than that of <ref type="bibr" target="#b7">Ganea and Hofmann (2017)</ref>, but 0.2% lower than Guo and Barbosa (2016)'s. It is worth noting that Guo and Barbosa (2016) performs exceptionally well on WIKI, but substantially worse than ment-norm on all other datasets. Our other three models, however, have lower average F1 scores compared to the best pre- vious model.</p><p>The experimental results show that ment-norm outperforms rel-norm, and that mention padding plays an important role.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.3">Analysis</head><p>Mono-relational v.s. multi-relational For rel-norm, the mono-relational version (i.e., <ref type="bibr" target="#b7">Ganea and Hofmann (2017)</ref>) is outperformed by the multi-relational one on AIDA-CoNLL, but performs significantly better on all five out- domain datasets. This implies that multi-relational rel-norm does not generalize well across domains.</p><p>For ment-norm, the mono-relational version performs worse than the multi-relational one on all test sets except AQUAINT. We speculate that this is due to multi-relational ment-norm being less sensitive to prediction errors. Since it can rely on multiple factors more easily, a single mistake in assignment is unlikely to have large influence on its predictions. </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Oracle</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>LBP oracle</head><p>Figure 4: F1 on AIDA-B when using LBP and the oracle. G&amp;H is <ref type="bibr" target="#b7">Ganea and Hofmann (2017)</ref>.</p><p>In order to examine learned relations in a more transparant setting, we consider an idealistic sce- nario where imperfection of LBP, as well as mis- takes in predicting other entities, are taken out of the equation using an oracle. This oracle, when we make a prediction for mention m i , will tell us the correct entity e * j for every other mentions m j , j ̸ = i. We also used AIDA-A (development set) for selecting the numbers of relations for rel- norm and ment-norm. They are set to 6 and 3, respectively. <ref type="figure">Figure 4</ref> shows the micro F1 scores.</p><p>Surprisingly, the performance of oracle rel- norm is close to that of oracle ment-norm, al- though without using the oracle the difference was substantial. This suggests that rel-norm is more sensitive to prediction errors than ment- norm. <ref type="bibr" target="#b7">Ganea and Hofmann (2017)</ref>, even with the help of the oracle, can only perform slightly bet- ter than LBP (i.e. non-oracle) ment-norm. This  <ref type="bibr" target="#b7">Ganea and Hofmann (2017)</ref> 93.7 ± 0.1 88.5 ± 0.4 88.5 ± 0.3 77.9 ± 0.1 77.5 ± 0.1 85.22 rel-norm 92.2 ± 0.3 86.7 ± 0.7 87.9 ± 0.3 75.2 ± 0.5 76.4 ± 0.3 83.67 ment-norm 93.9 ± 0.2 88.3 ± 0.6 89.9 ± 0.8 77.5 ± 0.1 78.0 ± 0.1 85.51 ment-norm (K = 1) 93.2 ± 0.3 88.4 ± 0.4 88.9 ± 1.0 77.0 ± 0.2 77.2 ± 0.1 84.94 ment-norm (no pad) 93.6 ± 0.3 87.8 ± 0.5 90.0 ± 0.3 77.0 ± 0.2 77.3 ± 0.3 85.13 suggests that its global coherence scoring com- ponent is indeed too simplistic. Also note that both multi-relational oracle models substantially outperform the two mono-relational oracle mod- els. This shows the benefit of using more than one relations, and the potential of achieving higher ac- curacy with more accurate inference methods.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Relations</head><p>In this section we qualitatively examine relations that the models learned by looking at the prob- abilities α ijk . See <ref type="figure" target="#fig_3">Figure 5</ref> for an example. In that example we focus on mention "Liege" in the sentence at the top and study which mentions are related to it under two versions of our model: rel-norm (leftmost column) and ment-norm (right- most column). For rel-norm it is difficult to interpret the mean- ing of the relations. It seems that the first relation dominates the other two, with very high weights for most of the mentions. Nevertheless, the fact that rel-norm outperforms the baseline suggests that those learned relations encode some useful in- formation.</p><p>For ment-norm, the first relation is similar to coreference: the relation prefers those mentions that potentially refer to the same entity (and/or have semantically similar mentions): see <ref type="figure" target="#fig_3">Figure  5</ref> (left, third column). The second and third rela- tions behave differently from the first relation as they prefer mentions having more distant mean- ings and are complementary to the first relation. They assign large weights to (1) "Belgium" and (2) "Brussels" but small weights to (4) and (6) "Liege". The two relations look similar in this example, however they are not identical in gen- eral. See a histogram of bucketed values of their weights in <ref type="figure" target="#fig_3">Figure 5</ref> (right): their α have quite dif- ferent distributions.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Complexity</head><p>The complexity of rel-norm and ment-norm is lin- ear in K, so in principle our models should be considerably more expensive than <ref type="bibr" target="#b7">Ganea and Hofmann (2017)</ref>. However, our models converge much faster than their relation-agnostic model: on average ours needs 120 epochs, compared to theirs 1250 epochs. We believe that the structural bias helps the model to capture necessary regu- larities more easily. In terms of wall-clock time, our model requires just under 1.5 hours to train, that is ten times faster than the relation agnostic model ( <ref type="bibr" target="#b7">Ganea and Hofmann, 2017)</ref>. In addition, the difference in testing time is negligible when using a GPU.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5">Conclusion and Future work</head><p>We have shown the benefits of using relations in NEL. Our models consider relations as latent vari- ables, thus do not require any extra supervision. Representation learning was used to learn rela- tion embeddings, eliminating the need for exten- sive feature engineering. The experimental results show that our best model achieves the best re- ported F1 on AIDA-CoNLL with an improvement of 0.85% F1 over the best previous results.</p><p>Conceptually, modeling multiple relations is substantially different from simply modeling co- herence (as in <ref type="bibr" target="#b7">Ganea and Hofmann (2017)</ref>). In this way we also hope it will lead to interest- ing follow-up work, as individual relations can be informed by injecting prior knowledge (e.g., by training jointly with relation extraction models).</p><p>In future work, we would like to use syntac- tic and discourse structures (e.g., syntactic depen- dency paths between mentions) to encourage the models to discover a richer set of relations. We also would like to combine ment-norm and rel- norm. Besides, we would like to examine whether rel-norm on Friday , Liege police said in ment-norm (1) missing teenagers in Belgium . (2) UNK BRUSSELS UNK (3) UNK Belgian police said on (4) , " a Liege police official told (5) police official told Reuters . (6) eastern town of Liege on Thursday , (7) home village of UNK . (8) link with the Marc Dutroux case , the (9) which has rocked Belgium in the past the induced latent relations could be helpful for re- lation extract.</p></div><figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_0"><head>Figure 2 :</head><label>2</label><figDesc>Figure 2: Multi-relational models: general form (top), rel-norm (middle) and ment-norm (bottom). Each color corresponds to one relation.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_1"><head>Figure 3 :</head><label>3</label><figDesc>Figure 3: Function f (m i , c i ) is a single-layer neural network, with tanh activation function and a layer of dropout on top.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_3"><head>Figure 5 :</head><label>5</label><figDesc>Figure 5: (Left) Examples of α. The first and third columns show α ijk for oracle rel-norm and oracle ment-norm, respectively. (Right) Histograms of α •k for k = 2, 3, corresponding to the second and third relations from oracle ment-norm. Only α &gt; 0.25 (i.e. high attentions) are shown.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_0" validated="false"><head>World Cup 1966 was held in England …. England won… The final saw England beat West Germany .</head><label></label><figDesc></figDesc><table>coreference 
+beat 
+located_in 
+
+FIFA_World_Cup 
+FIBA_Basketball_ 
+World_Cup 
+... 
+
+West_Germany 
+Germany_national_ 
+football_team 
+Germany_national_ 
+basketball_team 
+... 
+
+England 
+England_national_ 
+football_team 
+England_national_ 
+basketball_team 
+... 
+
+England 
+England_national 
+_football_team 
+England_national 
+_basketball_team 
+... 
+
+participant_in 
+
+</table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_1" validated="false"><head>and D k ∈ R d×d is a diagonal matrix.</head><label></label><figDesc></figDesc><table>e i ,m i ,c i 
+e j ,m j ,c j 
+
+α ij1 Φ 1 (e i ,e j ,D) 
+
+α ij2 Φ 2 (e i ,e j ,D) 
+
+α ij3 Φ 3 (e i ,e j ,D) 
+
+e i ,m i ,c i 
+e j ,m j ,c j 
+
+(general form) 
+
+(rel-norm) 
+
+normalize over relations: α ij1 + α ij2 + α ij3 = 1 
+
+e i ,m i ,c i 
+e j ,m j ,c j 
+
+(ment-norm) 
+
+normalize over mentions: 
+α i12 + α i22 + … + α ij2 + … + α in2 = 1 
+
+e 1 ,m 1 ,c 1 
+
+e n ,m n ,c n 
+
+... 
+
+... 
+
+</table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_3" validated="false"><head>Table 2 :</head><label>2</label><figDesc></figDesc><table>F1 scores on five out-domain test sets. Underlined scores show cases where the corresponding 
+model outperforms the baseline. 
+
+</table></figure>
+
+			<note place="foot" n="2"> See Ganea and Hofmann (2017, Section 6).</note>
+
+			<note place="foot" n="3"> TAC KBP datasets are no longer available. 4 https://github.com/dalab/deep-ed</note>
+
+			<note place="foot" n="5"> We chose the highest F1 that rel-norm always achieved without the learning rate reduction.</note>
+		</body>
+		<back>
+
+			<div type="acknowledgement">
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Acknowledgments</head><p>We would like to thank anonymous reviewers for their suggestions and comments. The project was supported by the European Research Council (ERC StG BroadSem 678254), the Dutch National Science Foundation (NWO VIDI 639.022.518), and an Amazon Web Services (AWS) grant.</p></div>
+			</div>
+
+			<div type="references">
+
+				<listBibl>
+
+<biblStruct xml:id="b0">
+	<monogr>
+		<title level="m" type="main">Neural machine translation by jointly learning to align and translate</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Dzmitry</forename><surname>Bahdanau</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kyunghyun</forename><surname>Cho</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yoshua</forename><surname>Bengio</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1409.0473</idno>
+		<imprint>
+			<date type="published" when="2014" />
+		</imprint>
+	</monogr>
+<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b1">
+	<analytic>
+		<title level="a" type="main">Using encyclopedic knowledge for named entity disambiguation</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Razvan</forename><surname>Bunescu</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Marius</forename><surname>Pas¸capas¸ca</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">11th Conference of the European Chapter</title>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2006" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b2">
+	<analytic>
+		<title level="a" type="main">Relational inference for wikification</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Xiao</forename><surname>Cheng</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Dan</forename><surname>Roth</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2013 Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>the 2013 Conference on Empirical Methods in Natural Language Processing<address><addrLine>Seattle, Washington, USA</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2013" />
+			<biblScope unit="page" from="1787" to="1796" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b3">
+	<analytic>
+		<title level="a" type="main">Entity disambiguation with web links</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Andrew</forename><surname>Chisholm</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ben</forename><surname>Hachey</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Transactions of the Association of Computational Linguistics</title>
+		<imprint>
+			<biblScope unit="volume">3</biblScope>
+			<biblScope unit="page" from="145" to="156" />
+			<date type="published" when="2015" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b4">
+	<analytic>
+		<title level="a" type="main">A joint model for entity analysis: Coreference, typing, and linking</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Greg</forename><surname>Durrett</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Dan</forename><surname>Klein</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Transactions of the Association for Computational Linguistics</title>
+		<imprint>
+			<biblScope unit="volume">2</biblScope>
+			<biblScope unit="page" from="477" to="490" />
+			<date type="published" when="2014" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b5">
+	<monogr>
+		<title level="m" type="main">Facc1: Freebase annotation of clueweb corpora</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Evgeniy</forename><surname>Gabrilovich</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Michael</forename><surname>Ringgaard</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Amarnag</forename><surname>Subramanya</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2013" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b6">
+	<analytic>
+		<title level="a" type="main">Probabilistic bag-of-hyperlinks model for entity linking</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Octavian-Eugen</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Marina</forename><surname>Ganea</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Aurelien</forename><surname>Ganea</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Carsten</forename><surname>Lucchi</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Thomas</forename><surname>Eickhoff</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Hofmann</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 25th International Conference on World Wide Web</title>
+		<meeting>the 25th International Conference on World Wide Web</meeting>
+		<imprint>
+			<date type="published" when="2016" />
+			<biblScope unit="page" from="927" to="938" />
+		</imprint>
+	</monogr>
+	<note>ternational World Wide Web Conferences Steering Committee</note>
+</biblStruct>
+
+<biblStruct xml:id="b7">
+	<analytic>
+		<title level="a" type="main">Deep joint entity disambiguation with local neural attention</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Eugen</forename><surname>Octavian-</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Thomas</forename><surname>Ganea</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Hofmann</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2017 Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>the 2017 Conference on Empirical Methods in Natural Language Processing</meeting>
+		<imprint>
+			<date type="published" when="2017" />
+			<biblScope unit="page" from="2609" to="2619" />
+		</imprint>
+	</monogr>
+	<note>Association for Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b8">
+	<analytic>
+		<title level="a" type="main">Collective entity resolution with multi-focal attention</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Nevena</forename><surname>Amir Globerson</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Soumen</forename><surname>Lazic</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Amarnag</forename><surname>Chakrabarti</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Michael</forename><surname>Subramanya</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Fernando</forename><surname>Ringaard</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Pereira</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 54th Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 54th Annual Meeting of the Association for Computational Linguistics</meeting>
+		<imprint>
+			<publisher>Long Papers</publisher>
+			<date type="published" when="2016" />
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="621" to="631" />
+		</imprint>
+	</monogr>
+	<note>Association for Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b9">
+	<monogr>
+		<title level="m" type="main">Robust named entity disambiguation with random walks. Semantic Web</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Zhaochen</forename><surname>Guo</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Denilson</forename><surname>Barbosa</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+	<note>Preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b10">
+	<analytic>
+		<title level="a" type="main">Learning entity representation for entity disambiguation</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Zhengyan</forename><surname>He</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Shujie</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Mu</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ming</forename><surname>Zhou</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Longkai</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Houfeng</forename><surname>Wang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 51st Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 51st Annual Meeting of the Association for Computational Linguistics<address><addrLine>Sofia, Bulgaria</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2013" />
+			<biblScope unit="volume">2</biblScope>
+			<biblScope unit="page" from="30" to="34" />
+		</imprint>
+	</monogr>
+	<note>Short Papers)</note>
+</biblStruct>
+
+<biblStruct xml:id="b11">
+	<analytic>
+		<title level="a" type="main">Robust disambiguation of named entities in text</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Johannes</forename><surname>Hoffart</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Mohamed</forename><forename type="middle">Amir</forename><surname>Yosef</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ilaria</forename><surname>Bordino</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Hagen</forename><surname>Fürstenau</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Manfred</forename><surname>Pinkal</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Marc</forename><surname>Spaniol</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Bilyana</forename><surname>Taneva</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Stefan</forename><surname>Thater</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Gerhard</forename><surname>Weikum</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2011 Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>the 2011 Conference on Empirical Methods in Natural Language Processing</meeting>
+		<imprint>
+			<date type="published" when="2011" />
+			<biblScope unit="page" from="782" to="792" />
+		</imprint>
+	</monogr>
+	<note>Association for Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b12">
+	<monogr>
+		<title/>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Raphael</forename><surname>Hoffmann</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Congle</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Xiao</forename><surname>Ling</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Luke</forename><surname>Zettlemoyer</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Daniel</forename><forename type="middle">S</forename><surname>Weld</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2011" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b13">
+	<analytic>
+		<title level="a" type="main">Knowledge-based weak supervision for information extraction of overlapping relations</title>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 49th Annual Meeting of the Association for Computational Linguistics: Human Language Technologies</title>
+		<meeting>the 49th Annual Meeting of the Association for Computational Linguistics: Human Language Technologies<address><addrLine>Portland, Oregon, USA</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<biblScope unit="page" from="541" to="550" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b14">
+	<monogr>
+				<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Hongzhao</forename><surname>Huang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Larry</forename><surname>Heck</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Heng</forename><surname>Ji</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1504.07678</idno>
+		<title level="m">Leveraging deep neural networks and knowledge graphs for entity disambiguation</title>
+		<imprint>
+			<date type="published" when="2015" />
+		</imprint>
+	</monogr>
+<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b15">
+	<monogr>
+		<title level="m" type="main">Adam: A method for stochastic optimization</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Diederik</forename><surname>Kingma</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jimmy</forename><surname>Ba</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1412.6980</idno>
+		<imprint>
+			<date type="published" when="2014" />
+		</imprint>
+	</monogr>
+<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b16">
+	<analytic>
+		<title level="a" type="main">Plato: A selective context model for entity resolution</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Nevena</forename><surname>Lazic</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Amarnag</forename><surname>Subramanya</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Michael</forename><surname>Ringgaard</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Fernando</forename><surname>Pereira</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Transactions of the Association for Computational Linguistics</title>
+		<imprint>
+			<date type="published" when="2015" />
+			<biblScope unit="volume">3</biblScope>
+			<biblScope unit="page" from="503" to="515" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b17">
+	<monogr>
+		<title level="m" type="main">Efficient estimation of word representations in vector space</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Tomas</forename><surname>Mikolov</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kai</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Greg</forename><surname>Corrado</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jeffrey</forename><surname>Dean</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1301.3781</idno>
+		<imprint>
+			<date type="published" when="2013" />
+		</imprint>
+	</monogr>
+<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b18">
+	<analytic>
+		<title level="a" type="main">Learning to link with wikipedia</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">David</forename><surname>Milne</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Ian H Witten</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 17th ACM conference on Information and knowledge management</title>
+		<meeting>the 17th ACM conference on Information and knowledge management</meeting>
+		<imprint>
+			<publisher>ACM</publisher>
+			<date type="published" when="2008" />
+			<biblScope unit="page" from="509" to="518" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b19">
+	<analytic>
+		<title level="a" type="main">Loopy belief propagation for approximate inference: An empirical study</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">P</forename><surname>Kevin</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yair</forename><surname>Murphy</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Michael I Jordan</forename><surname>Weiss</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Fifteenth conference on Uncertainty in artificial intelligence</title>
+		<meeting>the Fifteenth conference on Uncertainty in artificial intelligence</meeting>
+		<imprint>
+			<publisher>Morgan Kaufmann Publishers Inc</publisher>
+			<date type="published" when="1999" />
+			<biblScope unit="page" from="467" to="475" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b20">
+	<analytic>
+		<title level="a" type="main">Glove: Global vectors for word representation</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jeffrey</forename><surname>Pennington</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Richard</forename><surname>Socher</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Christopher</forename><surname>Manning</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2014 Conference on Empirical Methods in Natural Language Processing (EMNLP)</title>
+		<meeting>the 2014 Conference on Empirical Methods in Natural Language Processing (EMNLP)</meeting>
+		<imprint>
+			<date type="published" when="2014" />
+			<biblScope unit="page" from="1532" to="1543" />
+		</imprint>
+	</monogr>
+	<note>Association for Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b21">
+	<analytic>
+		<title level="a" type="main">Local and global algorithms for disambiguation to wikipedia</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Lev</forename><surname>Ratinov</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Dan</forename><surname>Roth</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Doug</forename><surname>Downey</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 49th Annual Meeting of the Association for Computational Linguistics: Human Language Technologies</title>
+		<meeting>the 49th Annual Meeting of the Association for Computational Linguistics: Human Language Technologies</meeting>
+		<imprint>
+			<date type="published" when="2011" />
+			<biblScope unit="page" from="1375" to="1384" />
+		</imprint>
+	</monogr>
+	<note>and Mike Anderson. Association for Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b22">
+	<analytic>
+		<title level="a" type="main">Cotype: Joint extraction of typed entities and relations with knowledge bases</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Zeqiu</forename><surname>Xiang Ren</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Wenqi</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Meng</forename><surname>He</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Clare</forename><forename type="middle">R</forename><surname>Qu</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Heng</forename><surname>Voss</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Ji</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">F</forename><surname>Tarek</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jiawei</forename><surname>Abdelzaher</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Han</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 26th International Conference on World Wide Web</title>
+		<meeting>the 26th International Conference on World Wide Web</meeting>
+		<imprint>
+			<date type="published" when="2017" />
+			<biblScope unit="page" from="1015" to="1024" />
+		</imprint>
+	</monogr>
+	<note>International World Wide Web Conferences Steering Committee</note>
+</biblStruct>
+
+<biblStruct xml:id="b23">
+	<analytic>
+		<title level="a" type="main">Attention is all you need</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ashish</forename><surname>Vaswani</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Noam</forename><surname>Shazeer</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Niki</forename><surname>Parmar</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jakob</forename><surname>Uszkoreit</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Llion</forename><surname>Jones</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Aidan</forename><forename type="middle">N</forename><surname>Gomez</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Illia</forename><surname>Kaiser</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Polosukhin</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Advances in Neural Information Processing Systems</title>
+		<editor>I. Guyon, U. V. Luxburg, S. Bengio, H. Wallach, R. Fergus, S. Vishwanathan, and R. Garnett</editor>
+		<imprint>
+			<publisher>Curran Associates, Inc</publisher>
+			<date type="published" when="2017" />
+			<biblScope unit="volume">30</biblScope>
+			<biblScope unit="page" from="6000" to="6010" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b24">
+	<analytic>
+		<title level="a" type="main">Graphical models, exponential families, and variational inference</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">J</forename><surname>Martin</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Michael</forename><forename type="middle">I</forename><surname>Wainwright</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Jordan</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Foundations and Trends R ⃝ in Machine Learning</title>
+		<imprint>
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="issue">1-2</biblScope>
+			<biblScope unit="page" from="1" to="305" />
+			<date type="published" when="2008" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b25">
+	<analytic>
+		<title level="a" type="main">Learning anaphoricity and antecedent ranking features for coreference resolution</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Sam</forename><surname>Wiseman</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Alexander</forename><forename type="middle">M</forename><surname>Rush</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Stuart</forename><surname>Shieber</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jason</forename><surname>Weston</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 53rd Annual Meeting of the Association for Computational Linguistics and the 7th International Joint Conference on Natural Language Processing</title>
+		<meeting>the 53rd Annual Meeting of the Association for Computational Linguistics and the 7th International Joint Conference on Natural Language Processing</meeting>
+		<imprint>
+			<publisher>Long Papers</publisher>
+			<date type="published" when="2015" />
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="1416" to="1426" />
+		</imprint>
+	</monogr>
+	<note>Association for Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b26">
+	<analytic>
+		<title level="a" type="main">Joint learning of the embedding of words and entities for named entity disambiguation</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ikuya</forename><surname>Yamada</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Hiroyuki</forename><surname>Shindo</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Hideaki</forename><surname>Takeda</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yoshiyasu</forename><surname>Takefuji</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of The 20th SIGNLL Conference on Computational Natural Language Learning</title>
+		<meeting>The 20th SIGNLL Conference on Computational Natural Language Learning</meeting>
+		<imprint>
+			<date type="published" when="2016" />
+			<biblScope unit="page" from="250" to="259" />
+		</imprint>
+	</monogr>
+	<note>Association for Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b27">
+	<monogr>
+		<title level="m" type="main">Learning distributed representations of texts and entities from knowledge base</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ikuya</forename><surname>Yamada</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Hiroyuki</forename><surname>Shindo</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Hideaki</forename><surname>Takeda</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yoshiyasu</forename><surname>Takefuji</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1705.02494</idno>
+		<imprint>
+			<date type="published" when="2017" />
+		</imprint>
+	</monogr>
+<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b28">
+	<analytic>
+		<title level="a" type="main">Semantic parsing via staged query graph generation: Question answering with knowledge base</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ming-Wei</forename><surname>Wen-Tau Yih</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Xiaodong</forename><surname>Chang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jianfeng</forename><surname>He</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Gao</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 53rd Annual Meeting of the Association for Computational Linguistics and the 7th International Joint Conference on Natural Language Processing</title>
+		<meeting>the 53rd Annual Meeting of the Association for Computational Linguistics and the 7th International Joint Conference on Natural Language Processing<address><addrLine>Beijing, China</addrLine></address></meeting>
+		<imprint>
+			<publisher>Long Papers</publisher>
+			<date type="published" when="2015" />
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="1321" to="1331" />
+		</imprint>
+	</monogr>
+	<note>Association for Computational Linguistics</note>
+</biblStruct>
+
+				</listBibl>
+			</div>
+		</back>
+	</text>
+</TEI>

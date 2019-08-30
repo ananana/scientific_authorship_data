@@ -1,0 +1,573 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<TEI xmlns="http://www.tei-c.org/ns/1.0" 
+xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+xsi:schemaLocation="http://www.tei-c.org/ns/1.0 /home/ana/installs/grobid/grobid-0.5.1/grobid-home/schemas/xsd/Grobid.xsd"
+ xmlns:xlink="http://www.w3.org/1999/xlink">
+	<teiHeader xml:lang="en">
+		<encodingDesc>
+			<appInfo>
+				<application version="0.5.1-SNAPSHOT" ident="GROBID" when="2019-04-18T12:37+0000">
+					<ref target="https://github.com/kermitt2/grobid">GROBID - A machine learning software for extracting information from scholarly documents</ref>
+				</application>
+			</appInfo>
+		</encodingDesc>
+		<fileDesc>
+			<titleStmt>
+				<title level="a" type="main">Estimating Marginal Probabilities of n-grams for Recurrent Neural Language Models</title>
+			</titleStmt>
+			<publicationStmt>
+				<publisher>Association for Computational Linguistics</publisher>
+				<availability status="unknown"><p>Copyright Association for Computational Linguistics</p>
+				</availability>
+				<date>October 31-November 4, 2018. 2018</date>
+			</publicationStmt>
+			<sourceDesc>
+				<biblStruct>
+					<analytic>
+						<author>
+							<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Thanapon</forename><surname>Noraset</surname></persName>
+						</author>
+						<author>
+							<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Doug</forename><surname>Downey</surname></persName>
+						</author>
+						<author>
+							<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Lidong</forename><surname>Bing</surname></persName>
+						</author>
+						<author>
+							<affiliation key="aff0">
+								<orgName type="institution">Mahidol University Nakhon Pathom</orgName>
+								<address>
+									<country key="TH">Thailand</country>
+								</address>
+							</affiliation>
+						</author>
+						<author>
+							<affiliation key="aff1">
+								<orgName type="department">Tencent AI Lab Shenzhen</orgName>
+								<orgName type="institution">Northwestern University Evanston</orgName>
+								<address>
+									<region>IL</region>
+									<country>USA, China</country>
+								</address>
+							</affiliation>
+						</author>
+						<title level="a" type="main">Estimating Marginal Probabilities of n-grams for Recurrent Neural Language Models</title>
+					</analytic>
+					<monogr>
+						<title level="m">Proceedings of the 2018 Conference on Empirical Methods in Natural Language Processing</title>
+						<meeting>the 2018 Conference on Empirical Methods in Natural Language Processing <address><addrLine>Brussels, Belgium</addrLine></address>
+						</meeting>
+						<imprint>
+							<publisher>Association for Computational Linguistics</publisher>
+							<biblScope unit="page" from="2930" to="2935"/>
+							<date type="published">October 31-November 4, 2018. 2018</date>
+						</imprint>
+					</monogr>
+					<note>2930</note>
+				</biblStruct>
+			</sourceDesc>
+		</fileDesc>
+		<profileDesc>
+			<abstract>
+				<p>Recurrent neural network language models (RNNLMs) are the current standard-bearer for statistical language modeling. However, RNNLMs only estimate probabilities for complete sequences of text, whereas some applications require context-independent phrase probabilities instead. In this paper, we study how to compute an RNNLM&apos;s marginal probability: the probability that the model assigns to a short sequence of text when the preceding context is not known. We introduce a simple method of altering the RNNLM training to make the model more accurate at marginal estimation. Our experiments demonstrate that the technique is effective compared to base-lines including the traditional RNNLM probability and an importance sampling approach. Finally, we show how we can use the marginal estimation to improve an RNNLM by training the marginals to match n-gram probabilities from a larger corpus.</p>
+			</abstract>
+		</profileDesc>
+	</teiHeader>
+	<text xml:lang="en">
+		<body>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="1">Introduction</head><p>Recurrent neural networks (RNNs) are the state- of-the-art architecture for statistical language modeling ( <ref type="bibr" target="#b9">Jozefowicz et al., 2016;</ref><ref type="bibr" target="#b11">Melis et al., 2018)</ref>, the task of assigning a probability distri- bution to a sequence of words. The relative like- lihoods of the sequences are useful in applica- tions such as speech recognition, machine transla- tion, automated conversation, and summarization ( <ref type="bibr" target="#b13">Mikolov et al., 2010;</ref><ref type="bibr" target="#b15">See et al., 2017;</ref><ref type="bibr" target="#b18">Wen et al., 2017)</ref>. Typically, RNN language models (RNNLMs) are trained on com- plete sequences (e.g., a sentence or an utterance), or long sequences (e.g. several documents), and used in the same fashion in applications or testing.</p><p>A question arises when we want to compute the probability of a short sequence without the preced- ing context. For instance, we may wish to query for how likely the RNNLM is to generate a partic- ular phase aggregated over all contexts. We refer to this context-independent probability of a short phrase as a marginal probability, or marginal.</p><p>These marginal probabilities are useful in three board categories of applications. First, they allow us to inspect the behavior of a given RNNLM. We could check, for example, whether an RNNLM- based generator might ever output a given offen- sive phrase. Second, the marginals could be used in phrase-based information extraction, such as extracting cities by finding high-probability x's in the phrase "cities such as x" <ref type="bibr" target="#b16">(Soderland et al., 2004;</ref><ref type="bibr" target="#b1">Bhagavatula et al., 2014</ref>). Finally, we can use the phrase probabilities to train an RNNLM itself, e.g. updating the RNNLM according to n-gram statistics instead of running text <ref type="bibr" target="#b2">(Chelba et al., 2017;</ref><ref type="bibr" target="#b14">Noraset et al., 2018</ref>). In our experi- ments, we show an example of the last application.</p><p>Estimating marginals from an RNNLM is chal- lenging. Unlike an n-gram language model <ref type="bibr" target="#b3">(Chen and Goodman, 1996)</ref>, an RNNLM does not explic- itly store marginal probabilities as its parameters. Instead, previous words are recurrently combined with the RNN's hidden state to produce a new state, which is used to compute a probability dis- tribution of the next word <ref type="bibr" target="#b5">(Elman, 1990;</ref><ref type="bibr" target="#b13">Mikolov et al., 2010)</ref>. When the preceding context is ab- sent, however, the starting state is also missing. In order to compute the marginal probability, in prin- ciple we must marginalize over all possible previ- ous contexts or all continuous-vector states. Both options pose a severe computational challenge.</p><p>In this paper, we study how to efficiently approximate marginal probabilities from an RNNLM, without generating a large amount of text. Given an RNNLM and a phrase, our goal is to estimate how frequently the phrase will occur in text generated by the RNNLM. We present two ap- proaches that can be used to estimate the marginal probabilities: sampling for the starting state, and using a single starting state with altered RNNLM training. We show empirically that we can use a zero vector as a starting state of an RNNLM to compute accurate marginal estimates, but we must randomly reset the RNNLM state to zero during training and add a unigram likelihood term to the RNNLM training objective. Finally, we demon- strate that we can use marginal estimation to in- corporate n-gram statistics from a larger corpus to improve the perplexity of an RNNLM trained on a similar, but smaller corpus.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2">Marginal Estimation</head><p>The goal of marginal estimation is to determine the likelihood of a short phrase where the preced- ing context is not known; we refer to this likeli- hood as a marginal probability. In other words, the marginal probability of a query refers to how likely a language model will generate a query re- gardless of context.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.1">Problem settings</head><p>An RNNLM ( <ref type="bibr" target="#b13">Mikolov et al., 2010</ref>) defines a prob- ability distribution over words conditioned on pre- vious words as the following:</p><formula xml:id="formula_0">P (w 1:T ) = T t=1 P (w t |w 1:t−1 ) P (w t |w 1:t−1 ) = P (w t |h t ) ∝ exp(θ (w) o h t ) h t = g(h t−1 , w t−1 )</formula><p>where w 1:t−1 is a sequence of previous words, θ w o denotes the output weights of a word w, and g(·) is a recurrent function such as an LSTM <ref type="bibr" target="#b7">(Hochreiter and Schmidhuber, 1997</ref>) or GRU unit ( ).</p><p>An initial state, h 1 is needed to start the recur- rent function g(h 1 , w 1 ), and also defines the prob- ability distribution of the first word P (w 1 |h 1 ).</p><p>In the standard language model setting, we com- pute h 1 using a start-of-sentence symbol for w 0 ("&lt;s&gt;"), and a special starting state h 0 (usually set to be a vector of zeros 0). This initialization approach works fine for long sequences, because it is only utilized once and its effect is quickly swamped by the recurrent steps of the network. However, it is not effective for estimating marginal probabilities of a short phrase. For example, if we naively apply the standard approach to com- pute the probability of the phrase "of the", we would obtain:</p><formula xml:id="formula_1">P (of the) =P (of|h 1 = g( 0, &lt;s&gt;))× P (the|h 2 = g(h 1 , the))</formula><p>The initial setting of the network results in low likelihoods of the first few tokens in the evalu- ation. For instance, the probability P (of the) computed in the above fashion will likely be a bad underestimate, because "of the" does not usu- ally start a sentence.</p><p>We would like to compute the likelihood of standalone phrases, where rather than assuming the starting state we instead marginalize out the preceding context. Let the RNN's state prior to our query sequence be z ∈ R d , a vector-valued ran- dom variable representing the RNN initial state, and let w 1:T be a short sequence of text. The marginal probability is defined as:</p><formula xml:id="formula_2">P (w 1:T ) = P (w 1:T |z)P (z)dz (1)</formula><p>The integral form of the marginal probability is in- tractable and requires an unknown density estima- tor of the state, P (z).</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.2">Trace-based approaches</head><p>The integral form of the marginal probability in Eq 1 can be approximated by sampling for z. In this approach, we assume that there is a source of samples which asymptotically approaches the true distribution of the RNN states as the number of samples grows. In this work, we use a collection of RNN states generated in an evaluation, called a trace. Given a corpus of text, a trace of an RNNLM is the corresponding list of RNN states,</p><formula xml:id="formula_3">H (tr) = (h (tr) 1 , h (tr) 2 , ..., h (tr) M )</formula><p>, produced when evaluating the corpus. We can estimate the marginal prob- ability by sampling the initial state z from H as follows:</p><formula xml:id="formula_4">P (w 1:T ) = E z∼H (tr) P (w 1 |z) T t=2 p(w t |h t )<label>(2)</label></formula><p>where h 2 = g(z ψ , w 1 ) and h t = g(h t−1 , w t−1 ) for t &gt; 2 (i.e. the following states are the determin- istic output of the RNN function). Given a large trace this may produce accurate estimates, but it is intractably expensive and also wasteful, since in general there are very few states in the trace that yield a high likelihood for a sequence.</p><p>To reduce the number of times we run the model on the query, we use importance sampling over the trace. We train an encoder to output for a given n- gram query a state "near" the starting state(s) of the query, z χ = q χ (w 1:T ). We define a sampling weight for a state in the trace, h (tr) , proportional to the dot product of the state and the output of the encoder, z χ , as the following:</p><formula xml:id="formula_5">P (h (tr) |w 1:T ) = exp(z χ h (tr) ) h (tr) ∈H (tr) exp(z χ h (tr) )</formula><p>This distribution is biased to toward states that are likely to precede the query w 1:T . We can estimate the marginal probability as the following:</p><formula xml:id="formula_6">P (w 1:T ) = E z∼P (h (tr) |w 1:T ) P (z) P (z|w 1:T ) P (w 1 |z) T t=2 p(w t |h t )</formula><p>Here the choice of the prior P (z) is a uniform dis- tribution over the states in the trace. The encoder, q χ (w 1:T ), is a trained RNN with its input reversed, and z χ is the final output state of q χ . To train the encoder, we randomly draw sub-strings w i:i+n of random length from the text used to produce the trace, and minimize the mean-squared difference between z χ and h</p><p>i .</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.3">Fixed-point approaches</head><p>While the trace-based approaches work on an existing (already trained) RNNLM, they might take several samples to accurately estimate the marginal probability. We would like to have a sin- gle point as the starting state, named z ψ . We can either train this vector or simply set it to a zero vector. Then the marginal probability in Eq 1 can be estimated with a single run i.e. p(z ψ ) = 1.0 and p(z) = 0.0 if z = z ψ . The computation is reduced to:</p><formula xml:id="formula_8">P (w 1:T ) = P (w 1 |z ψ ) T t=2 P (w t |h t )<label>(3)</label></formula><p>where h 2 = g(z ψ , w 1 ) and the rest of the state process is as usual, h t = g(h t−1 , w t−1 ). In this paper, we set z ψ to be a zero vector, and call this method Zero.</p><p>As we previously discussed, our fixed-point state, z ψ , is not a suitable starting state of all n- grams for any given RNNLM, so we need to train an RNNLM to adapt to this state. To achieve this, we use a slight modification of the RNN's trun- cated back-propagation through time training al- gorithm. We randomly reset the states to z ψ when computing a new state during the training of the RNNLM (a similar reset was used for a different purpose-regularization-in <ref type="bibr" target="#b11">Melis et al. (2018)</ref>). This implies that z ψ is trained to maximize the likelihood of different subsequent texts of different lengths, and thus is an approximately good starting point for any sequence. Specifically, a new state is computed during the training as follows:</p><formula xml:id="formula_9">h t = rz ψ + (1 − r)g(h t−1 , w t−1 )</formula><p>where r ∼ Bern(ρ) and ρ is a hyper-parameter for the probability of resetting a state. Larger ρ means more training with z ψ , but it could disrupt the long-term dependency information captured in the state. We keep ρ relatively small at 0.05.</p><p>In addition to the state reset, we introduce a uni- gram regularization to improve the accuracy of the marginal estimation. From Eq 3, z ψ is used to pre- dict the probability distribution of the first token, which should be the unigram distribution. To get this desired behavior, we employ regularization to maximize the likelihood of each token in the train- ing data independently (as if reset every step). We call this a unigram regularizer:</p><formula xml:id="formula_10">L U = − T t=1 logP (w t |z ψ )</formula><p>and we add it to the training objective:</p><formula xml:id="formula_11">L text = − T t=1 logP (w t |h t ). Thus, the overall training loss is: L = L text + L U .</formula></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3">Experiments and Results</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.1">Experimental Settings</head><p>We experiment with a standard medium-size LSTM language model ( <ref type="bibr" target="#b19">Zaremba et al., 2014</ref> employ variational dropout ( <ref type="bibr" target="#b6">Gal and Ghahramani, 2016)</ref>. The final parameter set is chosen as the one minimizing validation loss. For the query model q χ (w 1:T ) used in importance sampling, we use the same settings for the model and the training pro- cedure as the above.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.2">Marginal Estimation</head><p>In this subsection, we evaluate the accuracy of each approach at estimating marginal probabili- ties. Given a model and a phrase, we first obtain a target marginal probability, P text (w 1:T ), from a frequency of the phrase occurring in a text gener- ated by the model. Then, we use each approach to estimate the marginal probability of the phrase, P est (w 1:T ). To measure the performance, we com- pute the absolute value of the log ratio (lower is better) between the target marginal probability and the estimated marginal probability (P est ):</p><formula xml:id="formula_12">E(w 1:T ) = log(P text (w 1:T )/P est (w 1:T ))<label>(4)</label></formula><p>This evaluation measure gives equal importance to every n-gram regardless of its frequency.</p><p>In the following experiments, we generate ap- proximately 2 million and 4 million tokens for PTB and WT-2 models respectively. The prob- ability of phrases occurring in the generated text serves as our target marginal. We form a test set consisting of all n-grams in the generated text for n ≤ 5 words, excluding n-grams with frequency less than 20 to reduce noise from the generation. For the trace-based estimations, we average the marginal probabilities from 100 samples. <ref type="table">Table 1</ref> shows the average discrepancy between marginal probabilities estimated by generated-text 1 2 3 4 5 Zero</p><p>1.02 4.18 6.15 8.78 10.8 Zero (RU ) 0.38 0.72 0.95 1.54 2.10 Trace-IW 0.70 0.81 0.92 1.22 1.48 n-grams 10.7 20.7 10.5 3.7 1.5 <ref type="table">Table 2</ref>: The error aggregate by n-gram lengths. This shows the same trend as in <ref type="table">Table 1</ref>, but Trace-IW per- forms better for longer n-grams.</p><p>statistics and the methods discussed in Section 2 (Eq 4). From the table, the RNNLM trained with the state-reset and the unigram regulariza- tion (Zero (RU ) ) performs better than both zero- start and trace-based approaches on the traditional model. The importance sampling method (Trace- IW) has the second lowest error and performs bet- ter than random sampling (Trace-Rand). Abla- tion analysis shows that both state-reset and the unigram regularization contribute to the accuracy. Note that the trace-based methods use the same model as Zero.</p><p>To show how performance varies depending on the query, we present results aggregated by n- gram lengths. <ref type="table">Table 2</ref> shows the errors of the WT-2 dataset. When the n-gram length is greater than 2, Trace-IW has better accuracy. This makes sense because the encoder has more evidence to use when inferring the likely start state.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.3">Training with marginal probabilities</head><p>We now turn to an application of the marginal es- timation. One way that we can apply our marginal estimation techniques is to train an RNNLM with n-gram probabilities in addition to running text. This is helpful when we want to efficiently in- corporate data from a much larger corpus without training the RNNLM on it directly ( <ref type="bibr" target="#b2">Chelba et al., 2017;</ref><ref type="bibr" target="#b14">Noraset et al., 2018)</ref>. In this work, we frame the problem as a regression and use a loss equal to the squared difference of log probabilities:</p><formula xml:id="formula_13">L N = α 2K K k (logP text (x (k) 1:T ) − logP est (x (k) 1:T )) 2</formula><p>where α is a hyper-parameter and set to 0.1. Fol- lowing the result in <ref type="table">Table 1</ref>, we use the Zero method to estimate P est (x (k) 1:T ) as in Eq 3, and add L N to the training losses that use the running text corpus.</p><p>To evaluate the approach, we follow the <ref type="bibr" target="#b14">Noraset et al. (2018)</ref> experiment in which bi-gram statis- tics from the training text of WT-103 are used to improve an RNNLM trained using WT-2. In our experiment, we use n-grams up to n = 5 with fre- quency greater than 50. We ignore n-gram con- taining &lt;unk&gt;, because the vocabulary sets are different. <ref type="table" target="#tab_1">Table 3</ref> shows the result. Since we do not use the same setting as in the original work, we cannot directly compare to that work -they use different optimization settings, more expen- sive n-gram loss, and Kneser-Ney bi-gram lan- guage model. However, we see that the proposed n-gram loss is beneficial when combined with the unigram loss. Importantly, unlike the approach in <ref type="bibr" target="#b14">Noraset et al. (2018)</ref>, our approach requires no sampling which makes it several times faster.</p><formula xml:id="formula_14">Loss PPL L (2) text (Zero) 104.08 L (2) text + L (2) U (Zero (U ) ) 102.56 L (2) text + L (2) U + L (103) N</formula></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>93.95</head><p>In addition, we present our preliminary result comparing training with the marginal probabil- ity of n-grams to training with the complete data. Given a limited budget of optimization steps, we ask whether training on n-grams is more valu- able than training on the full corpus. To keep the results compatible, we use the vocabulary set of WikiText-2 and convert all OOV tokens in the training data of WikiText-103 to the "&lt;unk&gt;" to- ken. <ref type="figure">Figure 1</ref> shows the loss (average negative log-likelihood) of the validation data as the num- ber of optimization steps increases.</p><p>We can see that training with the marginals does not perform as well as training with WikiText-103 training data, but outperforms the model trained only with WikiText-2 training data. This might be due to our choice of n-grams and optimiza- tion settings such as a number of n-grams per batch, weight of the n-gram loss, and the learning rate decay rate. We leave exploring these hyper- parameters as an item of future work.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4">Conclusion</head><p>We investigated how to estimate marginal prob- abilities of n-grams from an RNNLM, when the preceding context is absent. We presented a sim- ple method to train an RNNLM in which we occa- sionally reset the RNN's state and also maximize 0 100 200 300 steps in hundreds 4.5 5.0 5.5 6.0 6.5 loss WT-2 text WT-2 text and WT-103 n-grams only WT-103 text (WT-2's vocab) <ref type="figure">Figure 1</ref>: Loss in negative log-likelihood over steps in training. The loss computed using the valid data from WikiText-2 corpus. Training with n-grams from a larger corpus is helpful, but not as well as training with the running text from a larger corpus itself.</p><p>unigram likelihood along with the traditional ob- jective. Our experiments showed that an RNNLM trained with our method outperformed other base- lines on the marginal estimation task. Finally, we showed how to improve RNNLM perplexity by efficiently using additional n-gram probabilities from a larger corpus.</p><p>For future work, we would like to evaluate our approaches in more applications. For example, we can use the marginal statistics for information ex- traction, or to detect and remove abnormal phrases in text generation. In addition, we would like to continue improving the marginal estimation by ex- perimenting with recent density estimation tech- niques such as NADE ( <ref type="bibr" target="#b17">Uria et al., 2016</ref>).</p></div><figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_1" validated="false"><head>Table 3 : Test perplexities of RNNLMs trained on dif</head><label>3</label><figDesc></figDesc><table>-
+</table></figure>
+		</body>
+		<back>
+
+			<div type="acknowledgement">
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Acknowledgements</head><p>This work was supported in part by NSF grant IIS-1351029, the Tencent AI Lab Rhino-Bird Gift Fund, and Faculty of ICT, Mahidol University. We thank the reviewers for their valuable input.</p></div>
+			</div>
+
+			<div type="references">
+
+				<listBibl>
+
+<biblStruct xml:id="b0">
+	<analytic>
+		<title level="a" type="main">Neural machine translation by jointly learning to align and translate</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Dzmitry</forename><surname>Bahdanau</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kyunghyun</forename><surname>Cho</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yoshua</forename><surname>Bengio</surname></persName>
+		</author>
+		<idno>e-Prints. 1409.0473</idno>
+	</analytic>
+	<monogr>
+		<title level="m">International Conference on Learning Representations (ICLR2014). ArXiv</title>
+		<imprint>
+			<date type="published" when="2014" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b1">
+	<analytic>
+		<title level="a" type="main">Textjoiner: On-demand information extraction with multi-pattern queries</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Chandra</forename><surname>Sekhar Bhagavatula</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Thanapon</forename><surname>Noraset</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Doug</forename><surname>Downey</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">4th Workshop on Automated Knowledge Base Construction at NIPS 2014</title>
+		<imprint>
+			<publisher>AKBC</publisher>
+			<date type="published" when="2014" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b2">
+	<monogr>
+		<title level="m" type="main">N-gram Language Modeling using Recurrent Neural Network Estimation</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ciprian</forename><surname>Chelba</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Mohammad</forename><surname>Norouzi</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Samy</forename><surname>Bengio</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1703.10724v2[cs.CL</idno>
+		<imprint>
+			<date type="published" when="2017" />
+		</imprint>
+	</monogr>
+<note type="report_type">ArXiv e-prints</note>
+</biblStruct>
+
+<biblStruct xml:id="b3">
+	<analytic>
+		<title level="a" type="main">An Empirical Study of Smoothing Techniques for Language Modeling</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">F</forename><surname>Stanley</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Joshua</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Goodman</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 34th Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 34th Annual Meeting of the Association for Computational Linguistics<address><addrLine>Santa Cruz, California, USA</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="1996" />
+			<biblScope unit="page" from="310" to="318" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b4">
+	<analytic>
+		<title level="a" type="main">On the properties of neural machine translation: Encoder-decoder approaches</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kyunghyun</forename><surname>Cho</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Bart</forename><surname>Van Merrienboer</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Dzmitry</forename><surname>Bahdanau</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yoshua</forename><surname>Bengio</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of SSST-8, Eighth Workshop on Syntax, Semantics and Structure in Statistical Translation</title>
+		<meeting>SSST-8, Eighth Workshop on Syntax, Semantics and Structure in Statistical Translation<address><addrLine>Doha, Qatar</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2014" />
+			<biblScope unit="page" from="103" to="111" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b5">
+	<analytic>
+		<title level="a" type="main">Finding structure in time</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jeffrey</forename><forename type="middle">L</forename><surname>Elman</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Cognitive Science</title>
+		<imprint>
+			<biblScope unit="volume">14</biblScope>
+			<biblScope unit="issue">2</biblScope>
+			<biblScope unit="page" from="179" to="211" />
+			<date type="published" when="1990" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b6">
+	<analytic>
+		<title level="a" type="main">A theoretically grounded application of dropout in recurrent neural networks</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yarin</forename><surname>Gal</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Zoubin</forename><surname>Ghahramani</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Advances in Neural Information Processing Systems</title>
+		<editor>D. D. Lee, M. Sugiyama, U. V. Luxburg, I. Guyon, and R. Garnett</editor>
+		<imprint>
+			<publisher>Curran Associates, Inc</publisher>
+			<date type="published" when="2016" />
+			<biblScope unit="volume">29</biblScope>
+			<biblScope unit="page" from="1019" to="1027" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b7">
+	<analytic>
+		<title level="a" type="main">Long short-term memory</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Sepp</forename><surname>Hochreiter</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jurgen</forename><surname>Schmidhuber</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Neural Computation</title>
+		<imprint>
+			<biblScope unit="volume">9</biblScope>
+			<biblScope unit="issue">8</biblScope>
+			<biblScope unit="page" from="1735" to="1780" />
+			<date type="published" when="1997" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b8">
+	<analytic>
+		<title level="a" type="main">Tying Word Vectors and Word Classifiers: A Loss Framework for Language Modeling</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Khashayar</forename><surname>Hakan Inan</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Richard</forename><surname>Khosravi</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Socher</surname></persName>
+		</author>
+		<idno>e-Prints. 1611.01462</idno>
+	</analytic>
+	<monogr>
+		<title level="m">International Conference on Learning Representations (ICLR2017). ArXiv</title>
+		<imprint>
+			<date type="published" when="2017" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b9">
+	<monogr>
+		<title level="m" type="main">Exploring the Limits of Language Modeling</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Refal</forename><surname>Jozefowicz</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Oriol</forename><surname>Vinyals</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Mike</forename><surname>Schuster</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Noam</forename><surname>Shazeer</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yonghui</forename><surname>Wu</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1602.02410v2[cs.CL</idno>
+		<imprint>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+<note type="report_type">ArXiv e-prints</note>
+</biblStruct>
+
+<biblStruct xml:id="b10">
+	<monogr>
+		<title level="m" type="main">Adam: A Method for Stochastic Optimization</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">P</forename><surname>Diederik</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jimmy</forename><surname>Kingma</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Ba</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2014" />
+		</imprint>
+	</monogr>
+	<note>ArXiv e-prints</note>
+</biblStruct>
+
+<biblStruct xml:id="b11">
+	<analytic>
+		<title level="a" type="main">On the state of the art of evaluation in neural language models</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Gbor</forename><surname>Melis</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Chris</forename><surname>Dyer</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Phil</forename><surname>Blunsom</surname></persName>
+		</author>
+		<idno>e-Prints. 1707.05589</idno>
+	</analytic>
+	<monogr>
+		<title level="m">International Conference on Learning Representations (ICLR2018). ArXiv</title>
+		<imprint>
+			<date type="published" when="2018" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b12">
+	<analytic>
+		<title level="a" type="main">Pointer Sentinel Mixture Models</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Stephen</forename><surname>Merity</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Caiming</forename><surname>Xiong</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">James</forename><surname>Bradbury</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Richard</forename><surname>Socher</surname></persName>
+		</author>
+		<idno>e-Prints. 1609.07843</idno>
+	</analytic>
+	<monogr>
+		<title level="m">International Conference on Learning Representations (ICLR2017). ArXiv</title>
+		<imprint>
+			<date type="published" when="2017" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b13">
+	<analytic>
+		<title level="a" type="main">Recurrent neural network based language model</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Tom</forename><surname>Mikolov</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Martin</forename><surname>Karafit</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Luk</forename><surname>Burget</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jan</forename></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Sanjeev</forename><surname>Khudanpur</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Eleventh Annual Conference of the International Speech Communication Association</title>
+		<imprint>
+			<date type="published" when="2010" />
+			<biblScope unit="page" from="1045" to="1048" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b14">
+	<analytic>
+		<title level="a" type="main">Controlling global statistics in recurrent neural network text generation</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Thanapon</forename><surname>Noraset</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">David</forename><surname>Demeter</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Doug</forename><surname>Downey</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">The Proceedings of the Thirty-Second AAAI Conference on Artificial Intelligence</title>
+		<imprint>
+			<date type="published" when="2018" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b15">
+	<analytic>
+		<title level="a" type="main">Get to the point: Summarization with pointergenerator networks</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Abigail</forename><surname>See</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Peter</forename><forename type="middle">J</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Christopher</forename><forename type="middle">D</forename><surname>Manning</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 55th Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 55th Annual Meeting of the Association for Computational Linguistics<address><addrLine>Vancouver, Canada</addrLine></address></meeting>
+		<imprint>
+			<publisher>Long Papers</publisher>
+			<date type="published" when="2017" />
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="1073" to="1083" />
+		</imprint>
+	</monogr>
+	<note>Association for Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b16">
+	<analytic>
+		<title level="a" type="main">The use of web-based statistics to validate information extraction</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Stephen</forename><surname>Soderland</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Oren</forename><surname>Etzioni</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Tal</forename><surname>Shaked</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Daniel</forename><surname>Weld</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">AAAI-04 Workshop on Adaptive Text Extraction and Mining</title>
+		<imprint>
+			<date type="published" when="2004" />
+			<biblScope unit="page" from="21" to="26" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b17">
+	<analytic>
+		<title level="a" type="main">Neural autoregressive distribution estimation</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Benigno</forename><surname>Uria</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Marc-Alexandre</forename><surname>Côté</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Karol</forename><surname>Gregor</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Iain</forename><surname>Murray</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Hugo</forename><surname>Larochelle</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">J. Mach. Learn. Res</title>
+		<imprint>
+			<biblScope unit="volume">17</biblScope>
+			<biblScope unit="issue">1</biblScope>
+			<biblScope unit="page" from="7184" to="7220" />
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b18">
+	<analytic>
+		<title level="a" type="main">Latent intention dialogue models</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yishu</forename><surname>Tsung-Hsien Wen</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Phil</forename><surname>Miao</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Steve</forename><surname>Blunsom</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Young</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 34th International Conference on Machine Learning</title>
+		<meeting>the 34th International Conference on Machine Learning</meeting>
+		<imprint>
+			<publisher>Australia. PMLR</publisher>
+			<date type="published" when="2017" />
+			<biblScope unit="volume">70</biblScope>
+			<biblScope unit="page" from="3732" to="3741" />
+		</imprint>
+	</monogr>
+	<note>International Convention Centre. Sydney</note>
+</biblStruct>
+
+<biblStruct xml:id="b19">
+	<monogr>
+				<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Wojciech</forename><surname>Zaremba</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ilya</forename><surname>Sutskever</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Oriol</forename><surname>Vinyals</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1409.2329v5[cs.NE</idno>
+		<title level="m">Recurrent Neural Network Regularization. ArXiv e-prints</title>
+		<imprint>
+			<date type="published" when="2014" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+				</listBibl>
+			</div>
+		</back>
+	</text>
+</TEI>

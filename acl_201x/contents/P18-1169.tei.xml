@@ -1,0 +1,932 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<TEI xmlns="http://www.tei-c.org/ns/1.0" 
+xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+xsi:schemaLocation="http://www.tei-c.org/ns/1.0 /home/ana/installs/grobid/grobid-0.5.1/grobid-home/schemas/xsd/Grobid.xsd"
+ xmlns:xlink="http://www.w3.org/1999/xlink">
+	<teiHeader xml:lang="en">
+		<encodingDesc>
+			<appInfo>
+				<application version="0.5.1-SNAPSHOT" ident="GROBID" when="2019-04-18T12:16+0000">
+					<ref target="https://github.com/kermitt2/grobid">GROBID - A machine learning software for extracting information from scholarly documents</ref>
+				</application>
+			</appInfo>
+		</encodingDesc>
+		<fileDesc>
+			<titleStmt>
+				<title level="a" type="main">Improving a Neural Semantic Parser by Counterfactual Learning from Human Bandit Feedback</title>
+			</titleStmt>
+			<publicationStmt>
+				<publisher>Association for Computational Linguistics</publisher>
+				<availability status="unknown"><p>Copyright Association for Computational Linguistics</p>
+				</availability>
+				<date>July 15-20, 2018. 2018</date>
+			</publicationStmt>
+			<sourceDesc>
+				<biblStruct>
+					<analytic>
+						<author>
+							<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Carolin</forename><surname>Lawrence</surname></persName>
+							<email>Lawrence@cl.uni-heidelberg.de</email>
+							<affiliation key="aff0">
+								<orgName type="department" key="dep1">Computational Linguistics</orgName>
+								<orgName type="department" key="dep2">Computational Linguistics &amp;</orgName>
+								<orgName type="institution">Heidelberg University</orgName>
+								<address>
+									<postCode>69120</postCode>
+									<settlement>Heidelberg</settlement>
+									<country key="DE">Germany</country>
+								</address>
+							</affiliation>
+						</author>
+						<author>
+							<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Stefan</forename><surname>Riezler</surname></persName>
+							<email>riezler@cl.uni-heidelberg.de</email>
+							<affiliation key="aff1">
+								<orgName type="institution">IWR Heidelberg University</orgName>
+								<address>
+									<postCode>69120</postCode>
+									<settlement>Heidelberg</settlement>
+									<country key="DE">Germany</country>
+								</address>
+							</affiliation>
+						</author>
+						<title level="a" type="main">Improving a Neural Semantic Parser by Counterfactual Learning from Human Bandit Feedback</title>
+					</analytic>
+					<monogr>
+						<title level="m">Proceedings of the 56th Annual Meeting of the Association for Computational Linguistics (Long Papers)</title>
+						<meeting>the 56th Annual Meeting of the Association for Computational Linguistics (Long Papers) <address><addrLine>Melbourne, Australia</addrLine></address>
+						</meeting>
+						<imprint>
+							<publisher>Association for Computational Linguistics</publisher>
+							<biblScope unit="page" from="1820" to="1830"/>
+							<date type="published">July 15-20, 2018. 2018</date>
+						</imprint>
+					</monogr>
+					<note>1820</note>
+				</biblStruct>
+			</sourceDesc>
+		</fileDesc>
+		<profileDesc>
+			<abstract>
+				<p>Counterfactual learning from human bandit feedback describes a scenario where user feedback on the quality of outputs of a historic system is logged and used to improve a target system. We show how to apply this learning framework to neural semantic parsing. From a machine learning perspective, the key challenge lies in a proper reweighting of the estimator so as to avoid known degeneracies in coun-terfactual learning, while still being applicable to stochastic gradient optimization. To conduct experiments with human users, we devise an easy-to-use interface to collect human feedback on semantic parses. Our work is the first to show that semantic parsers can be improved significantly by counterfactual learning from logged human feedback data.</p>
+			</abstract>
+		</profileDesc>
+	</teiHeader>
+	<text xml:lang="en">
+		<body>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="1">Introduction</head><p>In semantic parsing, natural language utterances are mapped to machine readable parses which are complex and often tailored specifically to the un- derlying task. The cost and difficulty of manu- ally preparing large amounts of such parses thus is a bottleneck for supervised learning in seman- tic parsing. Recent work ( <ref type="bibr" target="#b19">Liang et al. (2017)</ref>; <ref type="bibr" target="#b20">Mou et al. (2017)</ref>; <ref type="bibr" target="#b23">Peng et al. (2017)</ref>; inter alia) has applied reinforcement learning to address the annotation bottleneck as follows: Given a ques- tion, the existence of a corresponding gold answer is assumed. A semantic parser produces multi- ple parses per question and corresponding answers are obtained. These answers are then compared against the gold answer and a positive reward is recorded if there is an overlap. The parser is then guided towards correct parses using the REIN- FORCE algorithm <ref type="bibr" target="#b31">(Williams, 1992)</ref> which scales the gradient for the various parses by their ob- tained reward (see the left half of <ref type="figure">Figure 1</ref>). How- ever, learning from question-answer pairs is only efficient if gold answers are cheap to obtain. For complex open-domain question-answering tasks, correct answers are not unique factoids, but open- ended lists, counts in large ranges, or fuzzily de- fined objects. For example, geographical queries against databases such as OpenStreetMap (OSM) can involve fuzzy operators such as "near" or "in walking distance" and thus need to allow for fuzzi- ness in the answers as well. A possible solution lies in machine learning from even weaker super- vision signals in form of human bandit feedback 1 where the semantic parsing system suggests ex- actly one parse for which feedback is collected from a human user. In this setup neither gold parse nor gold answer are known and feedback is ob- tained for only one system output per question.</p><p>The goal of our paper is to exploit this scenario of learning from human bandit feedback to train semantic parsers. This learning scenario perfectly fits commercial setups such as virtual personal as- sistants that embed a semantic parser. Commercial systems can easily log large amounts of interaction data between users and system. Once sufficient data has been collected, the log can then be used to improve the parser. This leads to a counterfactual learning scenario ( <ref type="bibr">Bottou et al., 2013</ref>) where we have to solve the counterfactual problem of how to improve a target system from logged feedback that was given to the outputs of a different historic system (see the right half of <ref type="figure">Figure 1</ref>).</p><p>In order to achieve our goal of counterfactual learning of semantic parsers from human bandit feedback, the following contributions are required:   <ref type="figure">Figure 1</ref>: Left: Online reinforcement learning setup for semantic parsing setup where both questions and gold answers are available. The parser attempts to find correct machine readable parses (MRPs) by producing multiple parses, obtaining corresponding answers, and comparing them against the gold answer. Right: In our setup, a question does not have an associated gold answer. The parser outputs a single MRP and the corresponding answer is shown to a user who provides some feedback. Such triplets are collected in a log which can be used for offline training of a semantic parser. This scenario is called counterfactual since the feedback was logged for outputs from a system different from the target system to be optimized.</p><p>First, we need to construct an easy-to-use user in- terface that allows to collect feedback based on the parse rather than the answer. To this aim, we au- tomatically convert the parse to a set of statements that can be judged as correct or incorrect by a hu- man. This approach allows us to assign rewards at the token level, which in turn enables us to per- form blame assignment in bandit learning and to learn from partially correct queries where tokens are reinforced individually. We show that users can provide such feedback for one question-parse pair in 16.4 seconds on average. This exempli- fies that our approach is more efficient and cheaper than recruiting experts to annotate parses or asking workers to compile large answer sets.</p><p>Next, we demonstrate experimentally that coun- terfactual learning can be applied to neural sequence-to-sequence learning for semantic pars- ing. A baseline neural semantic parser is trained in fully supervised fashion, human bandit feedback from human users is collected in a log and sub- sequently used to improve the parser. The result- ing parser significantly outperforms the baseline model as well as a simple bandit-to-supervised ap- proach (B2S) where the subset of completely cor- rect parses is treated as a supervised dataset. Fi- nally, we repeat our experiments on a larger but simulated log to show that our gains can scale: the baseline system is improved by 7.45% in answer F1 score without ever seeing a gold standard parse.</p><p>Lastly, from a machine learning perspective, we have to solve problems of degenerate behav- ior in counterfactual learning by lifting the multi- plicative control variate technique <ref type="bibr" target="#b29">(Swaminathan and Joachims, 2015b;</ref><ref type="bibr" target="#b18">Lawrence et al., 2017b</ref>,a) to stochastic learning for neural models. This is done by reweighting target model probabilities over the logged data under a one-step-late model that de- couples the normalization from gradient estima- tion and is thus applicable in stochastic (mini- batch) gradient optimization.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2">Related Work</head><p>Semantic parsers have been successfully trained using neural sequence-to-sequence models with a cross-entropy objective and question-parse pairs <ref type="bibr" target="#b12">(Jia and Liang, 2016;</ref><ref type="bibr" target="#b5">Dong and Lapata, 2016)</ref>) or question-answer pairs ( <ref type="bibr" target="#b21">Neelakantan et al., 2017)</ref>. Improving semantic parsers using weak feedback has previously been studied ( <ref type="bibr" target="#b8">Goldwasser and Roth (2013)</ref>; <ref type="bibr" target="#b0">Artzi and Zettlemoyer (2013)</ref>; inter alia).</p><p>More recently, several works have applied pol- icy gradient techniques such as REINFORCE <ref type="bibr" target="#b31">(Williams, 1992)</ref> to train neural semantic parsers ( <ref type="bibr" target="#b19">Liang et al. (2017)</ref>; <ref type="bibr" target="#b20">Mou et al. (2017)</ref>; <ref type="bibr" target="#b23">Peng et al. (2017)</ref>; inter alia). However, they assume the existence of the true target answers that can be used to obtain a reward for any number of out- put queries suggested by the system. It thus dif- fers from a bandit setup where we assume that a reward is available for only one structure. Our work most closely resembles the work of <ref type="bibr" target="#b11">Iyer et al. (2017)</ref> who do make the assumption of only being able to judge one output. They im- prove their parser using simulated and real user feedback. Parses with negative feedback are given to experts to obtain the correct parse. Corrected queries and queries with positive feedback are added to the training corpus and learning contin- ues with a cross-entropy objective. We show that this bandit-to-supervision approach can be outper- formed by offline bandit learning from partially correct queries. <ref type="bibr" target="#b32">Yih et al. (2016)</ref> proposed a user interface for the Freebase database that enables a fast and easy creation of parses. However, in their setup the worker still requires expert knowledge about the Freebase database, whereas in our ap- proach feedback can be collected freely and from any user interacting with the system. From a machine learning perspective, related work can be found in the areas of counterfactual bandit learning <ref type="bibr" target="#b6">(Dudik et al., 2011;</ref><ref type="bibr" target="#b28">Swaminathan and Joachims, 2015a)</ref>, or equivalently, off-policy reinforcement learning ( <ref type="bibr" target="#b24">Precup et al., 2000;</ref><ref type="bibr" target="#b13">Jiang and Li, 2016)</ref>. Our contribution is to modify the self-normalizing estimator <ref type="bibr" target="#b15">(Kong, 1992;</ref><ref type="bibr" target="#b24">Precup et al., 2000;</ref><ref type="bibr" target="#b29">Swaminathan and Joachims, 2015b;</ref><ref type="bibr" target="#b14">Joachims et al., 2018)</ref> to be applicable to neural networks. Our work is similar to the counterfac- tual learning setup for machine translation intro- duced by <ref type="bibr" target="#b18">Lawrence et al. (2017b)</ref>. Following their insight, we also assume the logs were created de- terministically, i.e. the logging policy always out- puts the most likely sequence. Their framework was applied to statistical machine translation using linear models. We show how to generalize their framework to neural models and how to apply it to the task of neural semantic parsing in the OSM domain.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3">Neural Semantic Parsing</head><p>Our semantic parsing model is a state-of-the- art sequence-to-sequence neural network using an encoder-decoder setup ( <ref type="bibr" target="#b27">Sutskever et al., 2014</ref>) together with an attention mechanism ( <ref type="bibr" target="#b1">Bahdanau et al., 2015)</ref>. We use the settings of <ref type="bibr" target="#b26">Sennrich et al. (2017)</ref>, where an input sequence x = x 1 , x 2 , . . . x |x| (a natural language question) is encoded by a Recurrent Neural Net- work (RNN), each input token has an associated hidden vector</p><formula xml:id="formula_0">h i = [ − → h i ; ← − h i ]</formula><p>where the former is created by a forward pass over the input, and the latter by a backward pass.</p><p>− → h i is obtained by recur-</p><formula xml:id="formula_1">sively computing f (x i , − → h i−1 )</formula><p>where f is a Gated Recurrent Unit (GRU) ( <ref type="bibr" target="#b4">Chung et al., 2014</ref>), and ← − h i is computed analogously. The input sequence is reduced to a single vector c = g({h 1 , . . . , h |x| }) which serves as the initialization of the decoder RNN. g calculates the average over all vectors h i . At each time step t the decoder state is set by s t = q(s t−1 , y t−1 , c t ). q is a conditional GRU with an attention mechanism and c t is the con- text vector computed by the attention mechanism. Given an output vocabulary V y and the decoder state s t = {s 1 , . . . , s |Vy| }, a softmax output layer defines a probability distribution over V y and the probability for a token y j is:</p><formula xml:id="formula_2">π w (y j = t o |y &lt;j , x) = exp(s to ) |Vy| v=1 exp(s tv )</formula><p>.</p><p>(1)</p><p>The model π w can be seen as parameterized pol- icy over an action space defined by the target lan- guage vocabulary. The probability for a full output sequence y = y 1 , y 2 , . . . y |y| is defined by</p><formula xml:id="formula_3">π w (y|x) = |y| j=1 π w (y j |y &lt;j , x).<label>(2)</label></formula><p>In our case, output sequences are linearized ma- chine readable parses, called queries in the follow- ing. Given supervised data</p><formula xml:id="formula_4">D sup = {(x t , ¯ y t )} n t=1</formula><p>of question-query pairs, where ¯ y t is the true tar- get query for x t , the neural network can be trained using SGD and a cross-entropy (CE) objective:</p><formula xml:id="formula_5">L CE = − 1 n n t=1 |¯ y| j=1 log π w (¯ y j |¯ y &lt;j , x).<label>(3)</label></formula></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4">Counterfactual Learning from Deterministic Bandit Logs</head><p>Counterfactual Learning Objectives. We as- sume a policy π w that, given an input x ∈ X , defines a conditional probability distribution over possible outputs y ∈ Y(x). Furthermore, we as- sume that the policy is parameterized by w and its gradient can be derived. In this work, π w is defined by the sequence-to-sequence model de- scribed in Section 3. We also assume that the model decomposes over individual output tokens, i.e. that the model produces the output token by token. <ref type="table">Table 1</ref>: Gradients of counterfactual objectives.</p><formula xml:id="formula_6">w ˆ R DPM = 1 n n t=1 δ t π w (y t |x t ) w log π w (y t |x t ). w ˆ R DPM+R = 1 n n t=1 [δ t ¯ π w (y t |x t )( w log π w (y t |x t ) − 1 n n u=1 ¯ π w (y u |x u ) log π w (y u |x u ))]. w ˆ R DPM+OSL = 1 m m t=1 δ t ¯ π w,w (y t |x t ) w log π w (y t |x t ). w ˆ R DPM+T = 1 n n t=1 |y| j=1 δ j π w (y j |x t ) |y| j=1 w log π w (y j |x t ). w ˆ R DPM+T+OSL = 1 m m t=1 |y| j=1 δ j ¯ π w,w (y t |x t ) |y| j=1 w log π w (y j |x t ).</formula><p>The counterfactual learning problem can be de- scribed as follows: We are given a data log of triples D log = {(x t , y t , δ t )} n t=1 where outputs y t for inputs x t were generated by a logging system under policy π 0 , and loss values δ t ∈ [−1, 0] 2 were observed for the generated data points. Our goal is to optimize the expected reward (in our case: minimize the expected risk) for a target pol- icy π w given the data log D log . In case of deter- ministic logging, outputs are logged with propen- sity π 0 (y t |x t ) = 1, t = 1, . . . , n. This results in a deterministic propensity matching (DPM) objec- tive ( <ref type="bibr" target="#b18">Lawrence et al., 2017b</ref>), without the possi- bility to correct the sampling bias of the logging policy by inverse propensity scoring <ref type="bibr" target="#b25">(Rosenbaum and Rubin, 1983)</ref>:</p><formula xml:id="formula_7">ˆ R DPM (π w ) = 1 n n t=1 δ t π w (y t |x t ).<label>(4)</label></formula><p>This objective can show degenerate behavior in that it overfits to the choices of the logging policy ( <ref type="bibr" target="#b29">Swaminathan and Joachims, 2015b;</ref><ref type="bibr" target="#b16">Lawrence et al., 2017a</ref>). This degenerate behavior can be avoided by reweighting using a multiplicative con- trol variate <ref type="bibr" target="#b15">(Kong, 1992;</ref><ref type="bibr" target="#b24">Precup et al., 2000;</ref><ref type="bibr" target="#b13">Jiang and Li, 2016;</ref><ref type="bibr" target="#b30">Thomas and Brunskill, 2016)</ref>. The new objective is called the reweighted determin- istic propensity matching (DPM+R) objective in <ref type="bibr" target="#b18">Lawrence et al. (2017b)</ref>:</p><formula xml:id="formula_8">ˆ R DPM+R (π w ) = 1 n n t=1 δ t ¯ π w (y t |x t )<label>(5)</label></formula><formula xml:id="formula_9">= 1 n n t=1 δ t π w (y t |x t ) 1 n n t=1 π w (y t |x t )</formula><p>.</p><p>Algorithms for optimizing the discussed objec- tives can be derived as gradient descent algorithms where gradients using the score function gradient estimator <ref type="bibr" target="#b7">(Fu, 2006</ref>) are shown in <ref type="table">Table 1</ref>.</p><p>Reweighting in Stochastic Learning. As shown in Swaminathan and Joachims (2015b) and <ref type="bibr" target="#b16">Lawrence et al. (2017a)</ref>, reweighting over the entire data log D log is crucial since it avoids that high loss outputs in the log take away probability mass from low loss outputs. This multiplicative control variate has the additional effect of reducing the variance of the estimator, at the cost of introducing a bias of order O( 1 n ) that decreases as n increases <ref type="bibr" target="#b15">(Kong, 1992)</ref>. The desirable properties of this control variate cannot be realized in a stochastic (minibatch) learning setup since minibatch sizes large enough to retain the desirable reweighting properties are infeasible for large neural networks.</p><p>We offer a simple solution to this problem that nonetheless retains all desired properties of the reweighting. The idea is inspired by one-step-late algorithms that have been introduced for EM al- gorithms <ref type="bibr" target="#b9">(Green, 1990</ref>). In the EM case, depen- dencies in objectives are decoupled by evaluating certain terms under parameter settings from pre- vious iterations (thus: one-step-late) in order to achieve closed-form solutions. In our case, we de- couple the reweighting from the parameterization of the objective by evaluating the reweighting un- der parameters w from some previous iteration. This allows us to perform gradient descent updates and reweighting asynchronously. Updates are per- formed using minibatches, however, reweighting is based on the entire log, allowing us to retain the desirable properties of the control variate.</p><p>The new objective, called one-step-late reweighted DPM objective (DPM+OSL), opti- mizes π w,w with respect to w for a minibatch of size m, with reweighting over the entire log of size n under parameters w :</p><formula xml:id="formula_10">ˆ R DPM+OSL (π w ) = 1 m m t=1 δ t ¯ π w,w (y t |x t ) (6) = 1 m m t=1 δ t π w (y t |x t ) 1 n n t=1 π w (y t |x t )</formula><p>.</p><p>If the renormalization is updated periodically, e.g. after every validation step, renormalizations under w or w are not much different and will not ham- per convergence. Despite losing the formal justifi- cation from the perspective of control variates, we found empirically that the OSL update schedule for reweighting is sufficient and does not deterio- rate performance. The gradient for learning with OSL updates is given in <ref type="table">Table 1</ref>.</p><p>Token-Level Rewards. For our application of counterfactual learning to human bandit feedback, we found another deviation from standard coun- terfactual learning to be helpful: For humans, it is hard to assign a graded reward to a query at a se- quence level because either the query is correct or it is not. In particular, with a sequence level re- ward of 0 for incorrect queries, we do not know which part of the query is wrong and which parts might be correct. Assigning rewards at token-level will ease the feedback task and allow the seman- tic parser to learn from partially correct queries. Thus, assuming the underlying policy can decom- pose over tokens, a token level (DPM+T) reward objective can be defined:</p><formula xml:id="formula_11">ˆ R DPM+T (π w ) = 1 n n t=1   |y| j=1 δ j π w (y j |x t )   .<label>(7)</label></formula><p>Analogously, we can define an objective that com- bines the token-level rewards and the minibatched reweighting (DPM+T+OSL):</p><formula xml:id="formula_12">ˆ R DPM+T+OSL (π w ) = 1 m m t=1 |y| j=1 δ j π w (y j |x t ) 1 n n t=1 π w (y t |x t ) .<label>(8)</label></formula><p>Gradients for the DPM+T and DPM+T+OSL ob- jectives are given in <ref type="table">Table 1</ref>.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5">Semantic Parsing in the OpenStreetMap Domain</head><p>OpenStreetMap (OSM) is a geographical database in which volunteers annotate points of interests in the world. A point of interest consists of one or more associated GPS points. Further relevant in- formation may be added at the discretion of the volunteer in the form of tags. Each tag consists of a key and an associated value, for example "tourism : hotel". The NLMAPS corpus was in- troduced by <ref type="bibr" target="#b10">Haas and Riezler (2016)</ref> as a basis to create a natural language interface to the OSM database. It pairs English questions with machine readable parses, i.e. queries that can be executed against OSM.</p><p>Human Feedback Collection. The task of cre- ating a natural language interface for OSM demonstrates typical difficulties that make it ex- pensive to collect supervised data. The machine readable language of the queries is based on the OVERPASS query language which was specifically designed for the OSM database. It is thus not eas- ily possible to find experts that could provide cor- rect queries. It is equally difficult to ask work- ers at crowdsourcing platforms for the correct an- swer. For many questions, the answer set is too large to expect a worker to count or list them all in a reasonable amount of time and without er- rors. For example, for the question "How many hotels are there in Paris?" there are 951 hotels annotated in the OSM database. Instead we pro- pose to automatically transform the query into a block of statements that can easily be judged as correct or incorrect by a human. The question and the created block of statements are embedded in a user interface with a form that can be filled out by users. Each statement is accompanied by a set of radio buttons where a user can select either "Yes" or "No". For a screenshot of the interface and an example see <ref type="figure" target="#fig_1">Figure 2</ref>. In total there are 8 different types of statements. The presence of certain tokens in a query trig- ger different statement types. For example, the token "area" triggers the statement type "Town". The statement is then populated with the corre- sponding information from the query. In the case of "area", the following OSM value is used, e.g. "Paris". With this, the meaning of every query can be captured by a set of human-understandable statements. For a full overview of all statement types and their triggers see section B of the sup- plementary material.</p><p>OSM tags and keys are generally understand- able. For example, the correct OSM tag for "ho- tels" is "tourism : hotel" and when searching for websites, the correct question type key would be "website". Nevertheless, for each OSM tag or key, we automatically search for the correspond- ing Wikipedia page on the OpenStreetMap Wiki <ref type="bibr">3</ref> and extract the description for this tag or key. The description is made available to the user in form of a tool-tip that appears when hovering over the tag or key with the mouse. If a user is unsure if a OSM tag or key is correct, they can read this de- scription to help in their decision making. Once the form is submitted, a script maps each state- ment back to the corresponding tokens in the orig- inal query. These tokens then receive negative or positive feedback based on the feedback the user provided for that statement.</p><p>Corpus Extension. Similar to the extension of the NLMAPS corpus by <ref type="bibr" target="#b17">Lawrence and Riezler (2016)</ref> who include shortened questions which are more typically used by humans in search tasks, we present an automatic extension that allows a larger coverage of common OSM tags. <ref type="bibr">4</ref> The basis for the extension is a hand-written, online freely avail- able list 5 that links natural language expressions such as "cash machine" to appropriate OSM tags, in this case "amenity : atm". Using the list, we generate for each unique expression-tag pair a set of question-query pairs. These latter pairs contain   several placeholders which will be filled automat- ically in a second step.</p><p>To fill the area placeholder $LOC, we sample from a list of 30 cities from France, Germany and the UK. $POI is the placeholder for a point of in- terest. We sample it from the list of objects which are located in the prior sampled city and which have a name key. The corresponding value be- longing to the name key will be used to fill this spot. The placeholder $QTYPE is filled by uni- formly sampling from the four primary question types available in the NLMAPS query language. On the natural language side they corresponded to "How many", "Where", "Is there" and $KEY. $KEY is a further parameter belonging to the pri- mary question operator FINDKEY. It can be filled by any OSM key, such as name, website or height. To ensure that there will be an answer for the gen- erated query, we first ran a query with the current tag ("amenity : atm") to find all objects fulfilling this requirement in the area of the already sam- pled city. From the list of returned objects and the keys that appear in association with them, we uni- formly sampled a key. For $DIST we chose be- tween the pre-defined options for walking distance and within city distance. The expressions map to corresponding values which define the size of a ra- dius in which objects of interest (with tag "amenity : atm") will be located. If the walking distance was selected, we added "in walking distance" to the question. Otherwise no extra text was added to the question, assuming the within city distance to be the default. This sampling process was re- peated twice. <ref type="table" target="#tab_2">Table 2</ref> presents the corpus statistics, compar- ing NLMAPS to our extension. The automatic extension, obviating the need for expensive man- ual work, allows a vast increase of question-query pairs by an order of magnitude. Consequently the number of tokens and types increase in a simi- lar vein. However, the average sentence length drops. This comes as no surprise due to the na- ture of the rather simple hand-written list which contains never more than one tag for an element, resulting in simpler question structures. However, the main idea of utilizing this list is to extend the coverage to previously unknown OSM tags. With 6,582 distinct tags compared to the previous 477, this was clearly successful. Together with the still complex sentences from the original corpus, a se- mantic parser is now able to learn both complex questions and a large variety of tags. An exper- iment that empirically validates the usefulness of the automatically created data can be found in the supplementary material, section A.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6">Experiments</head><p>General Settings. In our experiments we use the sequence-to-sequence neural network package NEMATUS ( <ref type="bibr" target="#b26">Sennrich et al., 2017)</ref>. Following the method used by <ref type="bibr" target="#b10">Haas and Riezler (2016)</ref>, we split the queries into in- dividual tokens by taking a pre-order traversal of the original tree-like structure. For exam- ple, "query(west(area(keyval('name','Paris')), nwr(keyval('railway','station'))),qtype(count))" becomes "query@2 west@2 area@1 keyval@2 name@0 Paris@s nwr@1 keyval@2 railway@0 station@s qtype@1 count@0".</p><p>The SGD optimizer used is ADADELTA <ref type="bibr" target="#b33">(Zeiler, 2012)</ref>. The model employs 1,024 hidden units and word embeddings of size 1,000. The maximum sentence length is 200 and gradients are clipped if they exceed a value of 1.0. The stop- ping point is determined by validation on the de- velopment set and selecting the point at which the highest evaluation score is obtained. F1 validation is run after every 100 updates, and each update is made on the basis of a minibatch of size 80.</p><p>The evaluation of all models is based on the an- swers obtained by executing the most likely query obtained after a beam search with a beam of size 12. We report the F1 score which is the harmonic mean of precision and recall. Recall is defined as the percentage of fully correct answers divided by the set size. Precision is the percentage of correct answers out of the set of answers with non-empty strings. Statistical significance between models is measured using an approximate randomization test <ref type="bibr" target="#b22">(Noreen, 1989)</ref>.</p><p>Baseline Parser &amp; Log Creation. Our experi- ment design assumes a baseline neural semantic parser that is trained in fully supervised fashion, and is to be improved by bandit feedback obtained for system outputs from the baseline system for given questions. For this purpose, we select 2,000 question-query pairs randomly from the full ex- tended NLMAPS V2 corpus. We will call this dataset D sup . Using this dataset, a baseline seman- tic parser is trained in supervised fashion under a cross-entropy objective. It obtains an F1 score of 57.45% and serves as the logging policy π 0 .</p><p>Furthermore we randomly split off 1,843 and 2,000 pairs for a development and test set, respec- tively. This leaves a set of 22,765 question-query pairs. The questions can be used as input and ban- dit feedback can be collected for the most likely output of the semantic parser. We refer to this dataset as D log .</p><p>To collect human feedback, we take the first 1,000 questions from D log and use π 0 to parse these questions to obtain one output query for each. 5 question-query pairs are discarded be- cause the suggested query is invalid. For the re- maining question-query pairs, the queries are each transformed into a block of human-understandable statements and embedded into the user interface described in Section 5. We recruited 9 users to provide feedback for these question-query pairs. The resulting log is referred to as D human . Ev- ery question-query pair is purposely evaluated only once to mimic a realistic real-world scenario where user logs are collected as users use the sys- tem. In this scenario, it is also not possible to explicitly obtain several evaluations for the same question-query pair. Some examples of the re- ceived feedback can be found in the supplemen- tary material, section C.</p><p>To verify that the feedback collection is effi- cient, we measured the time each user took from loading a form to submitting it. To provide feed- back for one question-query pair, users took 16.4 seconds on average with a standard deviation of 33.2 seconds. The vast majority (728 instances) are completed in less than 10 seconds.</p><p>Learning from Human Bandit Feedback. An analysis of D human shows that for 531 queries all corresponding statements were marked as correct. We consider a simple baseline that treats com- pletely correct logged data as a supervised data set with which training continues using the cross- entropy objective. We call this baseline bandit- to-supervised conversion (B2S). Furthermore, we present experimental results using the log D human for stochastic (minibatch) gradient descent opti- mization of the counterfactual objectives intro- duced in equations 4, 6, 7 and 8. For the token- level feedback, we map the evaluated statements back to the corresponding tokens in the original query and assign these tokens a feedback of 0 if the corresponding statement was marked as wrong and 1 otherwise. In the case of sequence-level feedback, the query receives a feedback of 1 if all statements are marked correct, 0 otherwise. For the OSL objectives, a separate experiment (see be- low) showed that updating the reweighting con- stant after every validation step promises the best trade-off between performance and speed.</p><p>Results, averaged over 3 runs, are reported in <ref type="table" target="#tab_4">Table 3</ref>. The B2S model can slightly improve upon the baseline but not significantly. DPM im- proves further, significantly beating the baseline. Using the multiplicative control variate modified for SGD by OSL updates does not seem to help in this setup. By moving to token-level rewards, it is possible to learn from partially correct queries. These partially correct queries provide valuable information that is not present in the subset of correct answers employed by the previous mod- els. Optimizing DPM+T leads to a slight improve- ment and combined with the multiplicative control variate, DPM+T+OSL yields an improvement of about 1.0 in F1 score upon the baseline. It beats both the baseline and the B2S model by a signifi- cant margin.</p><p>Learning from Large-Scale Simulated Feed- back. We want to investigate whether the results scale if a larger log is used. Thus, we use π 0 to parse all 22,765 questions from D log and obtain for each an output query. For sequence level re- wards, we assign feedback of 1 for a query if it is identical to the true target query, 0 otherwise. We also simulate token-level rewards by iterating over the indices of the output and assigning a feedback of 1 if the same token appears at the current index for the true target query, 0 otherwise.   thus completely correct. This subset is used to train a bandit-to-supervised (B2S) model using the cross-entropy objective.</p><p>Experimental results for the various optimiza- tion setups, averaged over 3 runs, are reported in <ref type="table" target="#tab_5">Table 4</ref>. We see that the B2S model outperforms the baseline model by a large margin, yielding an increase in F1 score by 6.24 points. Optimiz- ing the DPM objective also yields a significant in- crease over the baseline, but its performance falls short of the stronger B2S baseline. Optimizing the DPM+OSL objective leads to a substantial im- provement in F1 score over optimizing DPM but still falls slightly short of the strong B2S baseline. Token-level rewards are again crucial to beat the B2S baseline significantly. DPM+T is already able to significantly outperform B2S in this setup and DPM+T+OSL can improve upon this further.  <ref type="table">Table 5</ref>: Analysis of which type of errors DPM+T+OSL corrected on the test set compared to the baseline system for both human and simu- lated feedback experiments.</p><p>tained the correct answer and the baseline system did not (see <ref type="table">Table 5</ref>). The analysis showed that the vast majority of previously wrong queries were fixed by correcting an OSM tag in the query. For example, for the question "closest Florist from Manchester in walking distance" the baseline system chose the tag "landuse : retail" in the query, whereas DPM+T+OSL learnt that the correct tag is "shop : florist". In some cases, the question type had to be corrected, e.g. the baseline's suggested query returned the location of a point of interest but DPM+T+OSL correctly returns the phone number. Finally, in a few cases DPM+T+OSL corrected the structure for a query, e.g. by searching for a point of interest in the east of an area rather than the south.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>OSL Update</head><p>Variation. Using the DPM+T+OSL objective and the simulated feedback setup, we vary the frequency of updating the reweighting constant. Results are reported in <ref type="table">Table 6</ref>. Calculating the constant only once at the beginning leads to a near identical result in F1 score as not using OSL. The more frequent update strategies, once or four times per epoch, are more effective. Both strategies reduce variance further and lead to higher F1 scores. Updating four times per epoch compared to once per epoch, leads to a nominally higher performance in F1. It has the additional benefit that the re-calculation is done at the same time as the validation, leading to no additional slow down as executing the queries for the development set against the database takes longer than the re-calculation of the constant. Updating after every minibatch is infeasible as it slows down training too much. Compared to the previous setup, iterating over one epoch takes approximately an additional 5.5 hours.  <ref type="table">Table 6</ref>: Simulated Feedback: Answer F1 scores on the test set for DPM+T and DPM+T+OSL with varying OSL update strategies, averaged over 3 runs. Updating after every minibatch is infeasible as it significantly slows down learning. Statistical significance of system differences at p &lt; 0.05 oc- cur for experiment 4 over experiment 2.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="7">Conclusion</head><p>We introduced a scenario for improving a neu- ral semantic parser from logged bandit feedback. This scenario is important to avoid complex and costly data annotation for supervise learning, and it is realistic in commercial applications where weak feedback can be collected easily in large amounts from users. We presented robust counter- factual learning objectives that allow to perform stochastic gradient optimization which is crucial in working with neural networks. Furthermore, we showed that it is essential to obtain reward sig- nals at the token-level in order to learn from par- tially correct queries. We presented experimental results using feedback collected from humans and a larger scale setup with simulated feedback. In both cases we show that a strong baseline using a bandit-to-supervised conversion can be signifi- cantly outperformed by a combination of a one- step-late reweighting and token-level rewards. Fi- nally, our approach to collecting feedback can also be transferred to other domains. For example, ( <ref type="bibr" target="#b32">Yih et al., 2016</ref>) designed a user interface to help Free- base experts to efficiently create queries. This in- terface could be reversed: given a question and a query produced by a parser, the interface is filled out automatically and the user has to verify if the information fits.</p></div><figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_1"><head>Figure 2 :</head><label>2</label><figDesc>Figure 2: The user interface for collecting feedback from humans with an example question and a correctly filled out form.</figDesc><graphic url="image-1.png" coords="6,77.44,62.53,204.66,192.87" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_2"><head>#</head><label></label><figDesc></figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_2" validated="false"><head>Table 2 :</head><label>2</label><figDesc></figDesc><table>Corpus statistics of the question-
+answering corpora NLMAPS and our extension 
+NLMAPS V2 which additionally contains the 
+search engine style queries (Lawrence and Riezler, 
+2016) and the automatic extensions of the most 
+common OSM tags. 
+
+</table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_4" validated="false"><head>Table 3 :</head><label>3</label><figDesc></figDesc><table>Human Feedback: Answer F1 scores on 
+the test set for the various setups, averaged over 3 
+runs. Statistical significance of system differences 
+at p &lt; 0.05 are indicated by experiment number 
+in superscript. 
+
+F1 
+∆ F1 
+
+1 
+
+baseline 
+57.45 
+
+2 
+
+B2S 1,3 
+63.22±0.27 +5.77 
+
+3 
+
+DPM 1 
+61.80±0.16 +4.35 
+
+4 
+
+DPM+OSL 1,3 
+62.91±0.05 +5.46 
+
+5 
+
+DPM+T 1,2,3,4 
+63.85±0.2 
++6.40 
+
+6 
+
+DPM+T+OSL 1,2,3,4 64.41±0.05 +6.96 
+
+</table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_5" validated="false"><head>Table 4 :</head><label>4</label><figDesc></figDesc><table>Simulated Feedback: Answer F1 scores 
+on the test set for the various setups, averaged over 
+3 runs. Statistical significance of system differ-
+ences at p &lt; 0.05 are indicated by experiment 
+number in superscript. 
+
+</table></figure>
+
+			<note place="foot" n="1"> The term &quot;bandit feedback&quot; is inspired by the scenario of maximizing the reward for a sequence of pulls of arms of &quot;one-armed bandit&quot; slot machines.</note>
+
+			<note place="foot" n="2"> We use the terms loss and (negative) rewards interchangeably, depending on context.</note>
+
+			<note place="foot" n="3"> https://wiki.openstreetmap.org/ 4 The extended dataset, called NLMAPS V2, will be released upon acceptance of the paper. 5 http://wiki.openstreetmap.org/wiki/ Nominatim/Special_Phrases/EN</note>
+		</body>
+		<back>
+
+			<div type="acknowledgement">
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Acknowledgments</head><p>The research reported in this paper was supported in part by DFG grant RI-2221/4-1.</p></div>
+			</div>
+
+			<div type="references">
+
+				<listBibl>
+
+<biblStruct xml:id="b0">
+	<analytic>
+		<title level="a" type="main">Weakly supervised learning of semantic parsers for mapping instructions to actions</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yoav</forename><surname>Artzi</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Luke</forename><surname>Zettlemoyer</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Transactions of the Association for Computational Linguistics</title>
+		<imprint>
+			<biblScope unit="issue">1</biblScope>
+			<biblScope unit="page">1</biblScope>
+			<date type="published" when="2013" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b1">
+	<analytic>
+		<title level="a" type="main">Neural machine translation by jointly learning to align and translate</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Dzmitry</forename><surname>Bahdanau</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kyunghyun</forename><surname>Cho</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yoshua</forename><surname>Bengio</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">International Conference on Learning Representations (ICLR)</title>
+		<meeting><address><addrLine>San Diego, CA</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2015" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b2">
+	<analytic>
+		<title level="a" type="main">Counterfactual reasoning and learning systems: The example of computational advertising</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Léon</forename><surname>Bottou</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jonas</forename><surname>Peters</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Joaquin</forename><surname>Qui</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Denis</forename><forename type="middle">X</forename><surname>Candela</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">D</forename><forename type="middle">Max</forename><surname>Charles</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Elon</forename><surname>Chickering</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Dipankar</forename><surname>Portugaly</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Ray</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Journal of Machine Learning Research</title>
+		<editor>Patrice Simard, and Ed Snelson. 2013</editor>
+		<imprint>
+			<biblScope unit="page">14</biblScope>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b3">
+	<analytic>
+		<title level="a" type="main">Learning phrase representations using rnn encoder-decoder for statistical machine translation</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kyunghyun</forename><surname>Cho</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Bart</forename><surname>Van Merriënboer</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Caglar</forename><surname>Gulcehre</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Dzmitry</forename><surname>Bahdanau</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Fethi</forename><surname>Bougares</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Holger</forename><surname>Schwenk</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yoshua</forename><surname>Bengio</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2014 Conference on Empirical Methods in Natural Language Processing (EMNLP)</title>
+		<meeting>the 2014 Conference on Empirical Methods in Natural Language Processing (EMNLP)<address><addrLine>Doha, Qatar</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2014" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b4">
+	<monogr>
+		<title level="m" type="main">Empirical evaluation of gated recurrent neural networks on sequence modeling</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Junyoung</forename><surname>Chung</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Caglar</forename><surname>Gulcehre</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kyunghyun</forename><surname>Cho</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yoshua</forename><surname>Bengio</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2014" />
+		</imprint>
+	</monogr>
+	<note>ArXiv e-prints, 1412.3555</note>
+</biblStruct>
+
+<biblStruct xml:id="b5">
+	<analytic>
+		<title level="a" type="main">Language to logical form with neural attention</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Li</forename><surname>Dong</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Mirella</forename><surname>Lapata</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 54th Annual Meeting of the Association for Computational Linguistics (ACL)</title>
+		<meeting>the 54th Annual Meeting of the Association for Computational Linguistics (ACL)<address><addrLine>Berlin, Germany</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b6">
+	<analytic>
+		<title level="a" type="main">Doubly robust policy evaluation and learning</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Miroslav</forename><surname>Dudik</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">John</forename><surname>Langford</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Lihong</forename><surname>Li</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 28th International Conference on Machine Learning (ICML)</title>
+		<meeting>the 28th International Conference on Machine Learning (ICML)<address><addrLine>New York, NY</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2011" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b7">
+	<monogr>
+		<title level="m" type="main">Gradient estimation. Handbook in Operations Research and Management Science</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">C</forename><surname>Michael</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Fu</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2006" />
+			<biblScope unit="page">13</biblScope>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b8">
+	<analytic>
+		<title level="a" type="main">Learning from natural instructions</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Dan</forename><surname>Goldwasser</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Dan</forename><surname>Roth</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Machine Learning</title>
+		<imprint>
+			<date type="published" when="2013" />
+			<biblScope unit="page">94</biblScope>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b9">
+	<analytic>
+		<title level="a" type="main">On the use of the EM algorithm for penalized likelihood estimation</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">J</forename><surname>Peter</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Green</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Journal of the Royal Statistical Society B</title>
+		<imprint>
+			<biblScope unit="volume">52</biblScope>
+			<biblScope unit="issue">3</biblScope>
+			<date type="published" when="1990" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b10">
+	<analytic>
+		<title level="a" type="main">A corpus and semantic parser for multilingual natural language querying of openstreetmap</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Carolin</forename><surname>Haas</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Stefan</forename><surname>Riezler</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2016 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies (NAACL)</title>
+		<meeting>the 2016 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies (NAACL)<address><addrLine>San Diego, California</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b11">
+	<analytic>
+		<title level="a" type="main">Learning a neural semantic parser from user feedback</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Srinivasan</forename><surname>Iyer</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ioannis</forename><surname>Konstas</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Alvin</forename><surname>Cheung</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jayant</forename><surname>Krishnamurthy</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Luke</forename><surname>Zettlemoyer</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 55th Annual Meeting of the Association for Computational Linguistics (ACL)</title>
+		<meeting>the 55th Annual Meeting of the Association for Computational Linguistics (ACL)<address><addrLine>Vancouver, Canada</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2017" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b12">
+	<analytic>
+		<title level="a" type="main">Data recombination for neural semantic parsing</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Robin</forename><surname>Jia</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Percy</forename><surname>Liang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 54th Annual Meeting of the Association for Computational Linguistics (ACL)</title>
+		<meeting>the 54th Annual Meeting of the Association for Computational Linguistics (ACL)<address><addrLine>Berlin, Germany</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b13">
+	<analytic>
+		<title level="a" type="main">Doubly robust offpolicy value evaluation for reinforcement learning</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Nan</forename><surname>Jiang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Lihong</forename><surname>Li</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of The 33rd International Conference on Machine Learning (ICML)</title>
+		<meeting>The 33rd International Conference on Machine Learning (ICML)<address><addrLine>New York, New York, USA</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b14">
+	<analytic>
+		<title level="a" type="main">Deep learning with logged bandit feedback</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Thorsten</forename><surname>Joachims</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Adith</forename><surname>Swaminathan</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Maarten</forename><surname>De Rijke</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">International Conference on Learning Representations (ICLR)</title>
+		<imprint>
+			<date type="published" when="2018" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b15">
+	<monogr>
+		<title level="m" type="main">A note on importance sampling using standardized weights</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Augustine</forename><surname>Kong</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="1992" />
+			<pubPlace>Illinois</pubPlace>
+		</imprint>
+		<respStmt>
+			<orgName>Department of Statistics, University of Chicago</orgName>
+		</respStmt>
+	</monogr>
+<note type="report_type">Technical Report 348</note>
+</biblStruct>
+
+<biblStruct xml:id="b16">
+	<analytic>
+		<title level="a" type="main">Counterfactual learning for machine translation: Degeneracies and solutions</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Carolin</forename><surname>Lawrence</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Pratik</forename><surname>Gajane</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Stefan</forename><surname>Riezler</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the NIPS WhatIF Workshop</title>
+		<meeting>the NIPS WhatIF Workshop<address><addrLine>Long Beach, CA</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2017" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b17">
+	<analytic>
+		<title level="a" type="main">Nlmaps: A natural language interface to query openstreetmap</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Carolin</forename><surname>Lawrence</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Stefan</forename><surname>Riezler</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 26th International Conference on Computational Linguistics: System Demonstrations (COLING)</title>
+		<meeting>the 26th International Conference on Computational Linguistics: System Demonstrations (COLING)<address><addrLine>Osaka, Japan</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b18">
+	<analytic>
+		<title level="a" type="main">Counterfactual learning from bandit feedback under deterministic logging : A case study in statistical machine translation</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Carolin</forename><surname>Lawrence</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Artem</forename><surname>Sokolov</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Stefan</forename><surname>Riezler</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2017 Conference on Empirical Methods in Natural Language Processing (EMNLP)</title>
+		<meeting>the 2017 Conference on Empirical Methods in Natural Language Processing (EMNLP)<address><addrLine>Copenhagen, Denmark</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2017" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b19">
+	<analytic>
+		<title level="a" type="main">Neural symbolic machines: Learning semantic parsers on freebase with weak supervision</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Chen</forename><surname>Liang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jonathan</forename><surname>Berant</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Quoc</forename><surname>Le</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kenneth</forename><forename type="middle">D</forename><surname>Forbus</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ni</forename><surname>Lao</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 55th Annual Meeting of the Association for Computational Linguistics (ACL)</title>
+		<meeting>the 55th Annual Meeting of the Association for Computational Linguistics (ACL)<address><addrLine>Vancouver, Canada</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2017" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b20">
+	<analytic>
+		<title level="a" type="main">Coupling distributed and symbolic execution for natural language queries</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Lili</forename><surname>Mou</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Zhengdong</forename><surname>Lu</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Hang</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Zhi</forename><surname>Jin</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 34th International Conference on Machine Learning (ICML)</title>
+		<meeting>the 34th International Conference on Machine Learning (ICML)<address><addrLine>Sydney, Australia</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2017" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b21">
+	<analytic>
+		<title level="a" type="main">Learning a natural language interface with neural programmer</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Arvind</forename><surname>Neelakantan</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">V</forename><surname>Quoc</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Martín</forename><surname>Le</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Andrew</forename><surname>Abadi</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Dario</forename><surname>Mccallum</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Amodei</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">International Conference on Learning Representations (ICLR)</title>
+		<meeting><address><addrLine>Toulon, France</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2017" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b22">
+	<monogr>
+		<title level="m" type="main">Computer Intensive Methods for Testing Hypotheses: An Introduction</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Eric</forename><forename type="middle">W</forename><surname>Noreen</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="1989" />
+			<publisher>Wiley</publisher>
+			<pubPlace>New York</pubPlace>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b23">
+	<analytic>
+		<title level="a" type="main">Maximum margin reward networks for learning from explicit and implicit supervision</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Haoruo</forename><surname>Peng</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ming-Wei</forename><surname>Chang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Wen-Tau</forename><surname>Yih</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2017 Conference on Empirical Methods in Natural Language Processing (EMNLP)</title>
+		<meeting>the 2017 Conference on Empirical Methods in Natural Language Processing (EMNLP)<address><addrLine>Copenhagen, Denmark</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2017" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b24">
+	<analytic>
+		<title level="a" type="main">Eligibility traces for off-policy policy evaluation</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Doina</forename><surname>Precup</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Richard</forename><forename type="middle">S</forename><surname>Sutton</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Satinder</forename><forename type="middle">P</forename><surname>Singh</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Seventeenth International Conference on Machine Learning (ICML)</title>
+		<meeting>the Seventeenth International Conference on Machine Learning (ICML)<address><addrLine>San Francisco, CA, USA</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2000" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b25">
+	<analytic>
+		<title level="a" type="main">The central role of the propensity score in observational studies for causal effects</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">R</forename><surname>Paul</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Donald</forename><forename type="middle">B</forename><surname>Rosenbaum</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Rubin</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Biometrika</title>
+		<imprint>
+			<biblScope unit="issue">1</biblScope>
+			<biblScope unit="page">70</biblScope>
+			<date type="published" when="1983" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b26">
+	<analytic>
+		<title level="a" type="main">Nematus: a toolkit for neural machine translation</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Rico</forename><surname>Sennrich</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Orhan</forename><surname>Firat</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kyunghyun</forename><surname>Cho</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Alexandra</forename><surname>Birch</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Barry</forename><surname>Haddow</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Julian</forename><surname>Hitschler</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Marcin</forename><surname>Junczys-Dowmunt</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Samuel</forename><surname>Läubli</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Antonio</forename><surname>Valerio Miceli</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jozef</forename><surname>Barone</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Maria</forename><surname>Mokry</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Nadejde</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Software Demonstrations of the 15th Conference of the European Chapter of the Association for Computational Linguistics (EACL)</title>
+		<meeting>the Software Demonstrations of the 15th Conference of the European Chapter of the Association for Computational Linguistics (EACL)<address><addrLine>Valencia, Spain</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2017" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b27">
+	<analytic>
+		<title level="a" type="main">Sequence to sequence learning with neural networks</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ilya</forename><surname>Sutskever</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Oriol</forename><surname>Vinyals</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Quoc V</forename><surname>Le</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Advances in Neural Information Processing Systems (NIPS)</title>
+		<meeting><address><addrLine>Montreal, Canada</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2014" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b28">
+	<analytic>
+		<title level="a" type="main">Batch learning from logged bandit feedback through counterfactual risk minimization</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Adith</forename><surname>Swaminathan</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Thorsten</forename><surname>Joachims</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Journal of Machine Learning Research</title>
+		<imprint>
+			<biblScope unit="page">16</biblScope>
+			<date type="published" when="2015" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b29">
+	<analytic>
+		<title level="a" type="main">The self-normalized estimator for counterfactual learning</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Adith</forename><surname>Swaminathan</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Thorsten</forename><surname>Joachims</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Advances in Neural Information Processing Systems (NIPS)</title>
+		<meeting><address><addrLine>Montreal, Canada</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2015" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b30">
+	<analytic>
+		<title level="a" type="main">Dataefficient off-policy policy evaluation for reinforcement learning</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Philip</forename><surname>Thomas</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Emma</forename><surname>Brunskill</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 33nd International Conference on Machine Learning (ICML)</title>
+		<meeting>the 33nd International Conference on Machine Learning (ICML)<address><addrLine>New York, NY</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b31">
+	<analytic>
+		<title level="a" type="main">Simple statistical gradientfollowing algorithms for connectionist reinforcement learning</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ronald</forename><forename type="middle">J</forename><surname>Williams</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Machine Learning</title>
+		<imprint>
+			<date type="published" when="1992" />
+			<biblScope unit="page">20</biblScope>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b32">
+	<analytic>
+		<title level="a" type="main">The value of semantic parse labeling for knowledge base question answering</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Matthew</forename><surname>Wen-Tau Yih</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Chris</forename><surname>Richardson</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Mingwei</forename><surname>Meek</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jina</forename><surname>Chang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Suh</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 54th Annual Meeting of the Association for Computational Linguistics (ACL)</title>
+		<meeting>the 54th Annual Meeting of the Association for Computational Linguistics (ACL)</meeting>
+		<imprint>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b33">
+	<monogr>
+		<title level="m" type="main">ADADELTA: An adaptive learning rate method</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">D</forename><surname>Matthew</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Zeiler</surname></persName>
+		</author>
+		<idno>1212.5701</idno>
+		<imprint>
+			<date type="published" when="2012" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+				</listBibl>
+			</div>
+		</back>
+	</text>
+</TEI>

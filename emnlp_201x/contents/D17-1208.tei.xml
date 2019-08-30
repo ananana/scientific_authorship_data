@@ -1,0 +1,1331 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<TEI xmlns="http://www.tei-c.org/ns/1.0" 
+xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+xsi:schemaLocation="http://www.tei-c.org/ns/1.0 /home/ana/installs/grobid/grobid-0.5.1/grobid-home/schemas/xsd/Grobid.xsd"
+ xmlns:xlink="http://www.w3.org/1999/xlink">
+	<teiHeader xml:lang="en">
+		<encodingDesc>
+			<appInfo>
+				<application version="0.5.1-SNAPSHOT" ident="GROBID" when="2019-04-18T12:58+0000">
+					<ref target="https://github.com/kermitt2/grobid">GROBID - A machine learning software for extracting information from scholarly documents</ref>
+				</application>
+			</appInfo>
+		</encodingDesc>
+		<fileDesc>
+			<titleStmt>
+				<title level="a" type="main">Unfolding and Shrinking Neural Machine Translation Ensembles</title>
+			</titleStmt>
+			<publicationStmt>
+				<publisher/>
+				<availability status="unknown"><licence/></availability>
+				<date>September 7-11, 2017</date>
+			</publicationStmt>
+			<sourceDesc>
+				<biblStruct>
+					<analytic>
+						<author>
+							<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Felix</forename><surname>Stahlberg</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="department">Department of Engineering</orgName>
+								<orgName type="institution">University of Cambridge</orgName>
+								<address>
+									<country key="GB">UK</country>
+								</address>
+							</affiliation>
+						</author>
+						<author>
+							<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Bill</forename><surname>Byrne</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="department">Department of Engineering</orgName>
+								<orgName type="institution">University of Cambridge</orgName>
+								<address>
+									<country key="GB">UK</country>
+								</address>
+							</affiliation>
+						</author>
+						<title level="a" type="main">Unfolding and Shrinking Neural Machine Translation Ensembles</title>
+					</analytic>
+					<monogr>
+						<title level="m">Natural Language Processing</title>
+						<meeting> <address><addrLine>Copenhagen, Denmark</addrLine></address>
+						</meeting>
+						<imprint>
+							<biblScope unit="page" from="1946" to="1956"/>
+							<date type="published">September 7-11, 2017</date>
+						</imprint>
+					</monogr>
+				</biblStruct>
+			</sourceDesc>
+		</fileDesc>
+		<profileDesc>
+			<abstract>
+				<p>Ensembling is a well-known technique in neural machine translation (NMT) to improve system performance. Instead of a single neural net, multiple neural nets with the same topology are trained separately, and the decoder generates predictions by averaging over the individual models. En-sembling often improves the quality of the generated translations drastically. However , it is not suitable for production systems because it is cumbersome and slow. This work aims to reduce the runtime to be on par with a single system without compromising the translation quality. First, we show that the ensemble can be unfolded into a single large neural network which imitates the output of the ensemble system. We show that unfolding can already improve the runtime in practice since more work can be done on the GPU. We proceed by describing a set of techniques to shrink the unfolded network by reducing the dimensionality of layers. On Japanese-English we report that the resulting network has the size and decoding speed of a single NMT network but performs on the level of a 3-ensemble system.</p>
+			</abstract>
+		</profileDesc>
+	</teiHeader>
+	<text xml:lang="en">
+		<body>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="1">Introduction</head><p>The top systems in recent machine translation evaluation campaigns on various language pairs use ensembles of a number of NMT systems <ref type="bibr" target="#b5">(Bojar et al., 2016;</ref><ref type="bibr" target="#b32">Sennrich et al., 2016a;</ref><ref type="bibr" target="#b8">Chung et al., 2016;</ref><ref type="bibr" target="#b28">Neubig, 2016;</ref><ref type="bibr" target="#b38">Wu et al., 2016;</ref><ref type="bibr" target="#b9">Cromieres et al., 2016;</ref><ref type="bibr" target="#b14">Durrani et al., 2017)</ref>. En- sembling <ref type="bibr" target="#b12">(Dietterich, 2000;</ref><ref type="bibr" target="#b18">Hansen and Salamon, 1990)</ref> of neural networks is a simple yet very ef- fective technique to improve the accuracy of NMT.</p><p>The decoder makes use of K NMT networks which are either trained independently <ref type="bibr" target="#b36">(Sutskever et al., 2014;</ref><ref type="bibr" target="#b8">Chung et al., 2016;</ref><ref type="bibr" target="#b28">Neubig, 2016;</ref><ref type="bibr" target="#b38">Wu et al., 2016)</ref> or share some amount of training iter- ations ( <ref type="bibr">Sennrich et al., 2016b,a;</ref><ref type="bibr" target="#b9">Cromieres et al., 2016;</ref><ref type="bibr" target="#b14">Durrani et al., 2017</ref>). The ensemble decoder computes predictions from each of the individual models which are then combined using the arith- metic average <ref type="bibr" target="#b36">(Sutskever et al., 2014</ref>) or the geo- metric average <ref type="bibr" target="#b9">(Cromieres et al., 2016)</ref>.</p><p>Ensembling consistently outperforms single NMT by a large margin. However, the decod- ing speed is significantly worse since the decoder needs to apply K NMT models rather than only one. Therefore, a recent line of research transfers the idea of knowledge distillation ( <ref type="bibr" target="#b6">Bucilu et al., 2006;</ref><ref type="bibr" target="#b20">Hinton et al., 2014</ref>) to NMT and trains a smaller network (the student) by minimizing the cross-entropy to the output of the ensemble system (the teacher) <ref type="bibr" target="#b23">(Kim and Rush, 2016;</ref><ref type="bibr" target="#b15">Freitag et al., 2017)</ref>. This paper presents an alternative to knowl- edge distillation as we aim to speed up decoding to be comparable to single NMT while retaining the boost in translation accuracy from the ensem- ble. In a first step, we describe how to construct a single large neural network which imitates the output of an ensemble of multiple networks with the same topology. We will refer to this process as unfolding. GPU-based decoding with the unfolded network is often much faster than ensemble decod- ing since more work can be done on the GPU. In a second step, we explore methods to reduce the size of the unfolded network. This idea is justified by the fact that ensembled neural networks are often over-parameterized and have a large degree of re- dundancy ( <ref type="bibr" target="#b24">LeCun et al., 1989;</ref><ref type="bibr" target="#b19">Hassibi et al., 1993;</ref><ref type="bibr" target="#b34">Srinivas and Babu, 2015)</ref>. Shrinking the unfolded network leads to a smaller model which consumes less space on the disk and in the memory; a crucial factor on mobile devices. More importantly, the  decoding speed on all platforms benefits greatly from the reduced number of neurons. We find that the dimensionality of linear embedding layers in the NMT network can be reduced heavily by low- rank matrix approximation based on singular value decomposition (SVD). This suggest that high di- mensional embedding layers may be needed for training, but do not play an important role for de- coding. The NMT network, however, also consists of complex layers like gated recurrent units ( <ref type="bibr" target="#b7">Cho et al., 2014</ref>, GRUs) and attention ( ). Therefore, we introduce a novel algorithm based on linear combinations of neurons which can be applied either during training (data-bound) or directly on the weight matrices without using training data (data-free). We report that with a mix of the presented shrinking methods we are able to reduce the size of the unfolded network to the size of the single NMT network while keep- ing the boost in BLEU score from the ensemble. Depending on the aggressiveness of shrinking, we report either a gain of 2.2 BLEU at the same de- coding speed, or a 3.4× CPU decoding speed up with only a minor drop in BLEU compared to the original single NMT system. Furthermore, it is often much easier to stage a single NMT system than an ensemble in a commercial MT workflow, and it is crucial to be able to optimize quality at specific speed and memory constraints. Unfolding and shrinking address these problems directly.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2">Unfolding K Networks into a Single Large Neural Network</head><p>The first concept of our approach is called unfold- ing. Unfolding is an alternative to ensembling of multiple neural networks with the same topology. Rather than averaging their predictions, unfolding constructs a single large neural net out of the indi- vidual models which has the same number of in- put and output neurons but larger inner layers. Our main motivation for unfolding is to obtain a single network with ensemble level performance which can be shrunk with the techniques in Sec. 3.</p><p>Suppose we ensemble two single layer feed- forward neural nets as shown in <ref type="figure" target="#fig_1">Fig. 1</ref>. Nor- mally, ensembling is implemented by performing an isolated forward pass through the first network ( <ref type="figure" target="#fig_1">Fig. 1(a)</ref>), another isolated forward pass through the second network ( <ref type="figure" target="#fig_1">Fig. 1(b)</ref>), and averaging the activities in the output layers of both networks. This can be simulated by merging both networks into a single large network as shown in <ref type="figure" target="#fig_1">Fig. 1(c)</ref>. The first neurons in the hidden layer of the com- bined network correspond to the hidden layer in the first single network, and the others to the hid- den layer of the second network. A single pass through the combined network yields the same output as the ensemble if the output layer is lin- ear (up to a factor 2). The weight matrices in the unfolded network can be constructed by stacking the corresponding weight matrices (either horizon- tally or vertically) in network 1 and 2. This kind of aggregation of multiple networks with the same topology is not only possible for single-layer feed- forward architectures but also for complex net- works consisting of multiple GRU layers and at- tention.</p><p>For a formal description of unfolding we ad- dress layers with indices d = 0, 1, . . . , D. The special layer 0 has a single neuron for modelling bias vectors. Layer 1 holds the input neurons and layer D is the output layer. We denote the size of a layer in the individual models as s(d). When combining K networks, the layer size s (d) in the unfolded network is increased by factor K if d is an inner layer, and equal to s(d) if d is the in- put or output layer. We denote the weight ma- trix between two layers</p><formula xml:id="formula_0">W (d1, d2) =                                           W1(d1, d2) 0 · · · 0 0 W2(d1, d2) . . . . . . . . . · · · . . . 0 0 · · · WK (d1, d2)        if d1 ∈ InnerLayers and d2 ∈ InnerLayers 1 K     W1(d1, d2) . . . WK (d1, d2)     if d1 ∈ InnerLayers and d2 / ∈ InnerLayers W1(d1, d2) · · · WK (d1, d2) if d1 / ∈</formula><formula xml:id="formula_1">d 1 , d 2 ∈ [0, D] in the k-th individual model (k ∈ [1, K]) as W k (d 1 , d 2 ) ∈ R s(d 1 )×s(d 2 )</formula><p>, and the corresponding weight ma- trix in the unfolded network as</p><formula xml:id="formula_2">W (d 1 , d 2 ) ∈ R s (d 1 )×s (d 2 )</formula><p>. We explicitly allow d 1 and d 2 to be non-consecutive or reversed to be able to model recurrent networks. We use the zero-matrix if lay- ers d 1 and d 2 are not connected. The construc- tion of the unfolded weight matrix</p><formula xml:id="formula_3">W (d 1 , d 2 ) from the individual matrices W k (d 1 , d 2 )</formula><p>depends on whether the connected layers are inner layers or not. The complete formula is listed in <ref type="figure">Fig. 2</ref>. Unfolded NMT networks approximate but do not exactly match the output of the ensemble due to two reasons. First, the unfolded network syn- chronizes the attentions of the individual models. Each decoding step in the unfolded network com- putes a single attention weight vector. In contrast, ensemble decoding would compute one attention weight vector for each of the K input models. A second difference is that the ensemble decoder first applies the softmax at the output layer, and then averages the prediction probabilities. The un- folded network averages the neuron activities (i.e. the logits) first, and then applies the softmax func- tion. Interestingly, as shown in Sec. 4, these differ- ences do not have any impact on the BLEU score but yield potential speed advantages of unfolding since the computationally expensive softmax layer is only applied once.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3">Shrinking the Unfolded Network</head><p>After constructing the weight matrices of the un- folded network we reduce the size of it by iter- atively shrinking layer sizes. In this section we denote the incoming weight matrix of the layer to shrink as U ∈ R m in ×m and the outgoing weight matrix as V ∈ R m×mout . Our procedure is in- spired by the method of Srinivas and Babu (2015). They propose a criterion for removing neurons in inner layers of the network based on two intu- itions. First, similarly to Hebb's learning rule, they detect redundancy by the principle neurons which fire together, wire together. If the incom- ing weight vectors U :,i and U :,j are exactly the same for two neurons i and j, we can remove the neuron j and add its outgoing connections to neu- ron i (V i,: ← V i,: + V j,: ) without changing the output. 1 This holds since the activity in neuron j will always be equal to the activity in neuron i. In practice, Srinivas and Babu use a distance measure based on the difference of the incoming weight vectors to search for similar neurons as ex- act matches are very rare.</p><p>The second intuition of the criterion used by <ref type="bibr" target="#b34">Srinivas and Babu (2015)</ref> is that neurons with small outgoing weights contribute very little over- all. Therefore, they search for a pair of neurons i, j ∈ [1, m] according the following term and re- move the j-th neuron. <ref type="bibr">2</ref> arg min i,j∈ <ref type="bibr">[1,m]</ref> </p><formula xml:id="formula_4">||U :,i − U :,j || 2 2 ||V j,: || 2 2 (1)</formula><p>Neuron j is selected for removal if (1) there is another neuron i which has a very similar set of incoming weights and if (2) j has a small outgoing weight vector. Their criterion is data-free since it does not require any training data. For further details we refer to Srinivas and Babu (2015).</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.1">Data-Free Neuron Removal</head><p>Srinivas and <ref type="bibr" target="#b34">Babu (2015)</ref> propose to add the out- going weights of j to the weights of a similar neu- ron i to compensate for the removal of j. However, we have found that this approach does not work well on NMT networks. We propose instead to compensate for the removal of a neuron by a lin- ear combination of the remaining neurons in the layer. Data-free shrinking assumes for the sake of deriving the update rule that the neuron activation function is linear. We now ask the following ques- tion: How can we compensate as well as possible for the loss of neuron j such that the impact on the output of the whole network is minimized? Data- free shrinking represents the incoming weight vec- tor of neuron j (U :,j ) as linear combination of the incoming weight vectors of the other neurons. The linear factors can be found by satisfying the fol- lowing linear system:</p><formula xml:id="formula_5">U :,¬j λ = U :,j<label>(2)</label></formula><p>where U :,¬j is matrix U without the j-th col- umn. In practice, we use the method of ordi- nary least squares to find λ because the system may be overdetermined. The idea is that if we mix the outputs of all neurons in the layer by the λ-weights, we get the output of the j-th neuron. The row vector V j,: contains the contributions of the j-th neuron to each of the neurons in the next layer. Rather than using these connections, we approximate their effect by adding some weight to the outgoing connections of the other neurons. How much weight depends on λ and the outgoing weights V j,: . The factor D k,l which we need to add to the outgoing connection of the k-th neuron to compensate for the loss of the j-th neuron on the l-th neuron in the next layer is:</p><formula xml:id="formula_6">D k,l = λ k V j,l<label>(3)</label></formula><p>Therefore, the update rule for V is:</p><formula xml:id="formula_7">V ← V + D<label>(4)</label></formula><p>In the remainder we will refer to this method as data-free shrinking. Note that we recover the update rule of <ref type="bibr" target="#b34">Srinivas and Babu (2015)</ref> by setting λ to the i-th unit vector. Also note that the error introduced by our shrinking method is due to the fact that we ignore the non-linearity, and that the solution for λ may not be exact. The method is error-free on linear layers as long as the residuals of the least-squares analysis in Eq. 2 are zero.</p><p>GRU layers The terminology of neurons needs some further elaboration for GRU layers which rather consist of update and reset gates and states <ref type="bibr" target="#b7">(Cho et al., 2014</ref>). On GRU layers, we treat the states as neurons, i.e. the j-th neuron refers to the j-th entry in the GRU state vector. Input con- nections to the gates are included in the incoming weight matrix U for estimating λ in Eq. 2. Re- moving neuron j in a GRU layer means deleting the j-th entry in the states and both gate vectors.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.2">Data-Bound Neuron Removal</head><p>Although we find our data-free approach to be a substantial improvement over the methods of Srinivas and Babu (2015) on NMT networks, it still leads to a non-negligible decline in BLEU score when applied to recurrent GRU layers. Our data-free method uses the incoming weights to identify similar neurons, i.e. neurons expected to have similar activities. This works well enough for simple layers, but the interdependencies be- tween the states and the gates inside gated layers like GRUs or LSTMs are complex enough that re- dundancies cannot be found simply by looking for similar weights. In the spirit of <ref type="bibr" target="#b1">Babaeizadeh et al. (2016)</ref>, our data-bound version records neuron activities during training to estimate λ. We com- pensate for the removal of the j-th neuron by us- ing a linear combination of the output of remain- ing neurons with similar activity patterns. In each layer, we prune 40 neurons each 450 training it- erations until the target layer size is reached. Let A be the matrix which holds the records of neu- ron activities in the layer since the last removal. For example, for the decoder GRU layer, a batch size of 80, and target sentence lengths of 20, A has 20 · 80 · 450 = 720K rows and m (the number of neurons in the layer) columns. <ref type="bibr">3</ref> Similarly to Eq. 2 we find interpolation weights λ using the method of least squares on the following linear system.</p><formula xml:id="formula_8">A :,¬j λ = A :,j<label>(5)</label></formula><p>The update rule for the outgoing weight matrix is the same as for our data-free method (Eq. 4).</p><p>The key difference between data-free and data- bound shrinking is the way λ is estimated. Data- free shrinking uses the similarities between in- coming weights, and data-bound shrinking uses neuron activities recorded during training. Once we select a neuron to remove, we estimate λ,</p><note type="other">compensate for the removal, and proceed with the shrunk network. Both methods are prior to any de- coding and result in shrunk parameter files which are then loaded to the decoder. Both methods re- move neurons rather than single weights. The data-bound algorithm runs gradient-based optimization on the unfolded network. We use the AdaGrad (Duchi et al., 2011) step rule, a small learning rate of 0.0001, and aggressive step clip- ping at 0.05 to avoid destroying useful weights which were learned in the individual networks prior to the construction of the unfolded network. Our data-bound algorithm uses a data-bound version of the neuron selection criterion in Eq. 1 which operates on the activity matrix A. We search for the pair i, j ∈ [1, m] according the fol- lowing term and remove neuron j.</note></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>arg min</head><p>i,j∈ <ref type="bibr">[1,m]</ref> ||A :,i − A :,j || 2 2 ||A :,j || 2 2 (6)</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.3">Shrinking Embedding Layers with SVD</head><p>The standard attention-based NMT network archi- tecture ( ) includes three lin- ear layers: the embedding layer in the encoder, and the output and feedback embedding layers in the decoder. We have found that linear layers are par- ticularly easy to shrink using low-rank matrix ap- proximation. As before we denote the incoming weight matrix as U ∈ R m in ×m and the outgoing weight matrix as V ∈ R m×mout . Since the layer is linear, we could directly connect the previous layer with the next layer using the product of both weight matrices X = U · V . However, X may be very large. Therefore, we approximate X as a product of two low rank matrices Y ∈ R m in ×m and Z ∈ R m ×mout (X ≈ Y Z) where m m is the desired layer size. A very common way to find such a matrix factorization is using truncated singular value decomposition (SVD). The layer is eventually shrunk by replacing U with Y and V with Z.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4">Results</head><p>The individual NMT systems we use as source for constructing the unfolded networks are trained us- ing AdaDelta (Zeiler, 2012) on the Blocks/Theano implementation <ref type="bibr" target="#b26">(van Merriënboer et al., 2015;</ref><ref type="bibr" target="#b3">Bastien et al., 2012</ref>) of the standard attention- based NMT model ( ) with: 1000 dimensional GRU layers ( <ref type="bibr" target="#b7">Cho et al., 2014</ref>) in both the decoder and bidrectional encoder; a single maxout output layer ( <ref type="bibr" target="#b16">Goodfellow et al., 2013)</ref>; and 620 dimensional embedding layers. We follow  and use sub- word units based on byte pair encoding rather than words as modelling units. Our SGNMT de- coder (Stahlberg et al., 2017) 4 with a beam size of 12 is used in all experiments. Our primary cor- pus is the Japanese-English (Ja-En) ASPEC data set ( ). We select a sub- set of 500K sentence pairs to train our models as suggested by <ref type="bibr" target="#b29">Neubig et al. (2015)</ref>. We re- port cased BLEU scores calculated with Moses' multi-bleu.pl to be strictly comparable to the evaluation done in the Workshop of Asian Translation (WAT). We also apply our method to the WMT data set for English-German (En-De), using the news-test2014 as a development set, and keeping news-test2015 and news-test2016 as test sets. En-De BLEU scores are computed using mteval-v13a.pl as in the WMT evaluation. We set the vocabulary sizes to 30K for Ja-En and 50K for En-De. We also report the size factor for each model which is the total number of model parameters (sum of all weight matrix sizes) di- vided by the number of parameters in the original NMT network (86M for Ja-En and 120M for En- De). We choose a widely used, simple ensembling method (prediction averaging) as our baseline. We feel that the prevalence of this method makes it a reasonable baseline for our experiments.</p><p>Shrinking the Unfolded Network First, we in- vestigate which shrinking methods are effective for which layers. Tab. 1 summarizes our results on a 2-unfold network for Ja-En, i.e. two separate NMT networks are combined in a single large net- work as described in Sec. 2. The layers in the com- bined network are shrunk to the size of the original networks using the methods discussed in Sec. 3. Shrinking the linear embedding layers with SVD (Sec. 3.3) is very effective. The unfolded model with shrunk embedding layers performs at the same level as the ensemble (compare rows (b) and (c)). In our initial experiments, we ap- plied the method of <ref type="bibr" target="#b34">Srinivas and Babu (2015)</ref>   <ref type="table">Table 1</ref>: Shrinking layers of the unfolded network on Ja-En to their original size.</p><p>shrink the other layers, but their approach per- formed very poorly on this kind of network: the BLEU score dropped down to 15.5 on the devel- opment set when shrinking all layers except the decoder maxout and embedding layers, and to 9.9 BLEU when applying their method only to em- bedding layers. 5 Row (e) in Tab. 1 shows that our data-free algorithm from Sec. 3.1 is better suited for shrinking the GRU and attention layers, lead- ing to a drop of only 1 BLEU point compared to the ensemble (b) (i.e. 0.8 BLEU better than the single system (a)). However, using the data-bound version of our shrinking algorithm (Sec. 3.2) for the GRU layers performs best. <ref type="bibr">6</ref> The shrunk model yields about the same BLEU score as the ensemble on the test set (25.2 in (b) and 25.3 in (f)). Shrink- ing the maxout layer remains more of a challenge (rows (g) and (h)), but the number of parameters in this layer is small. Therefore, shrinking all layers except the maxout layer leads to almost the same number of parameters (factor 1.05 in row (f)) as the original NMT network (a), and thus to a sim- ilar storage size, memory consumption, and de- coding speed, but with a 1.8 BLEU gain. Based on these results we fix the shrinking method used for each layer for all remaining experiments as fol- lows: We shrink linear embedding layers with our SVD-based method, GRU layers with our data- bound method, the attention layer with our data- free method, and do not shrink the maxout layer. Our data-bound algorithm from Sec. 3.2 has two mechanisms to compensate for the removal of a neuron. First, we use a linear combination of the remaining neurons to update the outgoing weight matrix by imitating its activations (Eq. 4). Second, stochastic gradient descent (SGD) fine-tunes all <ref type="bibr">5</ref> Results with the original method of <ref type="bibr" target="#b34">Srinivas and Babu (2015)</ref> are not included in Tab. 1. <ref type="bibr">6</ref> If we apply different methods to different layers of the same network, we first apply SVD-based shrinking, then the data-free method, and finally the data-bound method.  GHz and an Nvidia GeForce GTX Titan X GPU. CPU decoding uses a single thread. We used the first 500 sentences of the Ja-En WAT development set for the time measurements.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Compensation</head><p>Our results in Tab. 3 show that decoding with ensembles (rows (b) and (e)) is slow: combin- ing the predictions of the individual models on the CPU is computationally expensive, and en- semble decoding requires K passes through the softmax layer which is also computationally ex- pensive. Unfolding the ensemble into a single net- work and shrinking the embedding and attention layers improves the runtimes on the GPU signifi- cantly without noticeable impact on BLEU (rows (c) and (f)). This can be attributed to the fact that unfolding can reduce the communication overhead between CPU and GPU. Comparing rows (d) and (g) with row (a) reveals that shrinking the un- folded networks even further speeds up CPU and GPU decoding almost to the level of single sys- tem decoding. However, more aggressive shrink- ing yields a BLEU score of 25.3 when combining three systems (row (g)) -1.8 BLEU better than the single system, but 0.6 BLEU worse than the 3-      <ref type="table">Table 4</ref>: Layer sizes of our setups for Ja-En.</p><note type="other">Layer size relative to original model Encoder Embed. Encoder GRUs Attention Layer Decoder GRU Decoder Embeds.</note><p>ensemble. Therefore, we will investigate the im- pact of shrinking on the different layers in the next sections more thoroughly.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Degrees of Redundancy in Different Layers</head><p>We applied our shrinking methods to isolated lay- ers in the 2-Unfold network of Tab. 1 (f). <ref type="figure" target="#fig_3">Fig. 3</ref> plots the BLEU score when isolated layers are shrunk even below their size in the original NMT network. The attention layer is very robust against shrinking and can be reduced to 100 neurons (10% of the original size) without impacting the BLEU score. The embedding layers can be reduced to 60% but are sensitive to more aggressive pruning. Shrinking the GRU layers affects the BLEU score the most but still outperforms the single system when the GRU layers are shrunk to 30%.</p><p>Adjusting the Target Sizes of Layers Based on our previous experiments we revise our approach to shrink the 3-Unfold system in <ref type="table">Tab</ref>  <ref type="table">Table 5</ref>: Our best models on Ja-En.</p><p>of shrinking all layers except the maxout layer to the same degree, we adjust the aggressiveness of shrinking for each layer. We suggest three dif- ferent setups (Normal, Small, and Tiny) with the layer sizes specified in Tab. 4. 3-Unfold-Normal has the same number of parameters as the orig- inal NMT networks (size factor: 1.0), 3-Unfold- Small is only half their size (size factor: 0.5), and 3-Unfold-Tiny reduces the size by two thirds (size factor: 0.33). When comparing rows (a) and (c) in Tab. 5 we observe that 3-Unfold-Normal yields a gain of 2.2 BLEU with respect to the original sin- gle system and a slight improvement in decoding speed at the same time. <ref type="bibr">7</ref> Networks with the size factor 1.0 like 3-Unfold-Normal are very likely to yield about the same decoding speed as the Sin- gle network regardless of the decoder implementa- tion, machine learning framework, and hardware. Therefore, we think that similar results are possi- ble on other platforms as well. CPU decoding speed directly benefits even more from smaller setups -3-Unfold-Tiny is only 0.3 BLEU worse than Single but decoding on a single CPU is 3.4 times faster (row (a) vs. row (e) in Tab. 5). This is of great practical use: batch de- coding with only two CPU threads surpasses pro- duction speed which is often set to 2000 words per minute <ref type="bibr" target="#b4">(Beck et al., 2016</ref>  <ref type="table">Table 6</ref>: Our best models on En-De.</p><p>ments in BLEU compared to Single with about the same decoding speed.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5">Related Work</head><p>The idea of pruning neural networks to improve the compactness of the models dates back more than 25 years ( <ref type="bibr" target="#b24">LeCun et al., 1989</ref>). The literature is therefore vast <ref type="bibr" target="#b0">(Augasta and Kathirvalavakumar, 2013)</ref>. One line of research aims to remove unim- portant network connections. The connections can be selected for deletion based on the second- derivative of the training error with respect to the weight ( <ref type="bibr" target="#b24">LeCun et al., 1989;</ref><ref type="bibr" target="#b19">Hassibi et al., 1993)</ref>, or by a threshold criterion on its magnitude ( <ref type="bibr" target="#b17">Han et al., 2015)</ref>. See et al. <ref type="formula" target="#formula_5">(2016)</ref> confirmed a high degree of weight redundancy in NMT networks. In this work we are interested in removing neu- rons rather than single connections since we strive to shrink the unfolded network such that it resem- bles the layout of an individual model. We ar- gued in Sec. 4 that removing neurons rather than connections does not only improve the model size but also the memory footprint and decoding speed. As explained in Sec. 3.1, our data-free method is an extension of the approach by <ref type="bibr" target="#b34">Srinivas and Babu (2015)</ref>; our extension performs significantly better on NMT networks. Our data-bound method (Sec. 3.2) is inspired by <ref type="bibr" target="#b1">Babaeizadeh et al. (2016)</ref> as we combine neurons with similar activities dur- ing training, but we use linear combinations of multiple neurons to compensate for the loss of a neuron rather than merging pairs of neurons.</p><p>Using low rank matrices for neural net- work compression, particularly approximations via SVD, has been studied widely in the litera- ture <ref type="bibr" target="#b10">(Denil et al., 2013;</ref><ref type="bibr" target="#b11">Denton et al., 2014;</ref><ref type="bibr" target="#b39">Xue et al., 2013;</ref><ref type="bibr" target="#b30">Prabhavalkar et al., 2016;</ref><ref type="bibr" target="#b25">Lu et al., 2016</ref>). These approaches often use low rank matri- ces to approximate a full rank weight matrix in the original network. In contrast, we shrink an entire linear layer by applying SVD on the product of the incoming and outgoing weight matrices <ref type="bibr">(Sec. 3.3)</ref>.</p><p>In this paper we mimicked the output of the high performing but cumbersome ensemble by con- structing a large unfolded network, and shrank this network afterwards. Another approach, known as knowledge distillation, uses the large model (the teacher) to generate soft training labels for the smaller student network ( <ref type="bibr" target="#b6">Bucilu et al., 2006;</ref><ref type="bibr" target="#b20">Hinton et al., 2014</ref>). The student network is trained by minimizing the cross-entropy to the teacher. This idea has been applied to sequence modelling tasks such as machine translation and speech recogni- tion ( <ref type="bibr" target="#b37">Wong and Gales, 2016;</ref><ref type="bibr" target="#b23">Kim and Rush, 2016;</ref><ref type="bibr" target="#b15">Freitag et al., 2017)</ref>. Our approach can be compu- tationally more efficient as the training set does not have to be decoded by the large teacher network. <ref type="bibr" target="#b21">Junczys-Dowmunt et al. (2016a;</ref> re- ported gains from averaging the weight matrices of multiple checkpoints of the same training run. However, our attempts to replicate their approach were not successful. Averaging might work well when the behaviour of corresponding units is sim- ilar across networks, but that cannot be guaranteed when networks are trained independently.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6">Conclusion</head><p>We have described a generic method for improv- ing the decoding speed and BLEU score of single system NMT. Our approach involves unfolding an ensemble of multiple systems into a single large neural network and shrinking this network by re- moving redundant neurons. Our best results on Japanese-English either yield a gain of 2.2 BLEU compared to the original single NMT network at about the same decoding speed, or a 3.4× CPU de- coding speed up with only a minor drop in BLEU.</p><p>The current formulation of unfolding works for networks of the same topology as the concatena- tion of layers is only possible for analogous layers in different networks. Unfolding and shrinking di- verse networks could be possible, for example by applying the technique only to the input and out- put layers or by some other scheme of finding as- sociations between units in different models, but we leave this investigation to future work as mod- els in NMT ensembles in current research usually have the same topology ( <ref type="bibr" target="#b5">Bojar et al., 2016;</ref><ref type="bibr" target="#b32">Sennrich et al., 2016a;</ref><ref type="bibr" target="#b8">Chung et al., 2016;</ref><ref type="bibr" target="#b28">Neubig, 2016;</ref><ref type="bibr" target="#b38">Wu et al., 2016;</ref><ref type="bibr" target="#b14">Durrani et al., 2017)</ref>.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Appendix: Probabilistic Interpretation of Data-Free and Data-Bound Shrinking</head><p>Data-free and data-bound shrinking can be inter- preted as setting the expected difference between network outputs before and after a removal opera- tion to zero under different assumptions.</p><p>For simplicity, we focus our probabilistic treat- ment of shrinking on single layer feedforward net- works. Such a network maps an input x ∈ R m in to an output y ∈ R mout . The l-th output y l is com- puted according the following equation</p><formula xml:id="formula_9">y l = k∈[1,m] σ(xu T k )V k,l<label>(7)</label></formula><p>where u k ∈ R m in is the incoming weight vec- tor of the k-th hidden neuron (denoted as U :,k in the main paper) and V ∈ R m×mout the outgoing weight matrix of the m-dimensional hidden layer. We now remove the j-th neuron in the hidden layer and modify the outgoing weights to compensate for the removal:</p><formula xml:id="formula_10">y l = k∈[1,m]\{j} σ(xu T k )V k,l<label>(8)</label></formula><p>where y l is the output after the removal operation and V ∈ R m×mout are the modified outgoing weights. Our goal is to choose V such that the expected error introduced by removing neuron j is zero:</p><formula xml:id="formula_11">E x (y l − y l ) = 0<label>(9)</label></formula><p>Data-free shrinking Data-free shrinking makes two assumptions to satisfy Eq. 9. First, we assume that the incoming weight vector u j can be repre- sented as linear combination of the other weight vectors.</p><formula xml:id="formula_12">u j = k∈[1,m]\{j} λ k u k<label>(10)</label></formula><p>Second, it assumes that the neuron activation function σ(·) is linear. Starting with Eqs. 7 and 8 we can write E x (y l − y l ) as</p><formula xml:id="formula_13">E x σ(xu T j )V j,l + k∈[1,m]\{j} σ(xu T k )(V k,l − V k,l ) :=R Eq. 10 = E x σ(x( k∈[1,m]\{j} λ k u k ) T )V j,l + R σ(·) lin. = E x k∈[1,m]\{j} σ(xu T k )λ k V j,l + R = k∈[1,m]\{j} E x σ(xu T k ) (V k,l − V k,l + λ k V j,l )</formula><p>We set this term to zero (and thus satisfy Eq. 9) by setting each component of the sum to zero.</p><formula xml:id="formula_14">∀k ∈ [1, m] \ {j} : V k,l = V k,l + λ k V j,l (11)</formula><p>This condition is directly implemented by the up- date rule in our shrinking algorithm (Eq. 3 and 4).</p><p>Data-bound shrinking Data-bound shrinking does not require linearity in σ(·). It rather assumes that the expected value of the neuron activity j is a linear combination of the expected values of the other activities:</p><formula xml:id="formula_15">E x (σ(xu T j )) = k∈[1,m]\{j} λ k E x (σ(xu T k ))<label>(12)</label></formula><p>E x (·) is estimated using importance sampling:</p><formula xml:id="formula_16">ˆ E x (σ(xu T k ); X ) = 1 |X | x ∈X σ(x u T k )<label>(13)</label></formula><p>In practice, the samples in X are collected in the activity matrix A from Sec. 3.2. We can satisfy Eq. 9 by using the λ-values from Eq. 12, so that E x (y l − y l ) becomes</p><formula xml:id="formula_17">Eqs. 7,8 = E x σ(xu T j )V j,l + k∈[1,m]\{j} σ(xu T k )(V k,l − V k,l ) = E x (σ(xu T j )V j,l ) + k∈[1,m]\{j} E x (σ(xu T k ))(V k,l − V k,l )</formula><p>Eq. 12</p><formula xml:id="formula_18">= k∈[1,m]\{j} E x (σ(xu T k ))(V k,l − V k,l + λ k V j,l )</formula><p>Again, we set this to zero using Eq. 11.</p></div><figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_1"><head>Figure 1 :</head><label>1</label><figDesc>Figure 1: Unfolding mimics the output of the ensemble of two single layer feedforward networks.</figDesc><graphic url="image-1.png" coords="2,78.34,97.67,145.14,84.31" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_2"><head></head><label></label><figDesc>Figure 2: General formula for unfolding weight matrices. The set InnerLayers := [2, D − 1] includes all layers except the input, output, and bias layer.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_3"><head>Figure 3 :</head><label>3</label><figDesc>Figure 3: Impact of shrinking on the BLEU score.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_4"><head>Single</head><label></label><figDesc></figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_0" validated="false"><head>to</head><label></label><figDesc></figDesc><table>Shrinking Methods 
+Base 
+Encoder 
+Attention 
+Decoder 
+Size 
+BLEU 
+Embed. 
+GRUs 
+Match 
+GRU 
+Maxout 
+Embeds. 
+Factor 
+dev 
+test 
+(a) Single 
+-
+-
+-
+-
+-
+-
+1.00 20.8 23.5 
+(b) 2-Ens. 
+-
+-
+-
+-
+-
+-
+2×1.00 22.7 25.2 
+(c) 2-Unfold 
+SVD 
+-
+-
+-
+-
+SVD 
+1.85 22.7 25.1 
+(d) 2-Unfold 
+SVD 
+-
+Data-Free 
+-
+-
+SVD 
+1.77 22.7 25.1 
+(e) 2-Unfold 
+SVD 
+Data-Free 
+Data-Free 
+Data-Free 
+-
+SVD 
+1.05 21.6 24.2 
+(f) 2-Unfold 
+SVD 
+Data-Bound Data-Free Data-Bound 
+-
+SVD 
+1.05 22.4 25.3 
+(g) 2-Unfold 
+SVD 
+Data-Bound Data-Free Data-Bound 
+Data-Free 
+SVD 
+1.00 16.9 19.3 
+(h) 2-Unfold 
+SVD 
+Data-Bound Data-Free Data-Bound Data-Bound 
+SVD 
+1.00 21.9 24.6 
+
+</table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_2" validated="false"><head>Table 2 :</head><label>2</label><figDesc></figDesc><table>Compensating for neuron removal in 
+the data-bound algorithm. Row (d) corresponds 
+to row (f) in Tab. 1. 
+
+weights during this process. Tab. 2 demonstrates 
+that both mechanisms are crucial for minimizing 
+the effect of shrinking on the BLEU score. 
+
+Decoding Speed Our testing environment is an 
+Ubuntu 16.04 with Linux 4.4.0 kernel, 32 GB 
+RAM, an Intel R 
+Core i7-6700 CPU at 3.40 </table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_4" validated="false"><head>Table 3 :</head><label>3</label><figDesc></figDesc><table>Time measurements on Ja-En. Layers are shrunk to their size in the original NMT model. 
+
+20.5 
+
+21.0 
+
+21.5 
+
+22.0 
+
+22.5 
+
+10% 
+20% 
+30% 
+40% 
+50% 
+60% 
+70% 
+80% 
+90% 
+100% 
+
+Single system 
+
+BLEU 
+
+</table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_7" validated="false"><head></head><label></label><figDesc>). Our initial experiments in Tab. 6 suggest that the Normal setup is appli- cable to En-De as well, with substantial improve-</figDesc><table>System 
+
+Wrds/Min. BLEU on news-test* 
+(GPU) 
+2014 2015 2016 
+Single 
+2128.7 
+19.6 
+21.9 
+24.6 
+2-Ensemble 
+1135.3 
+20.5 
+22.9 
+26.1 
+2-Unfold-Norm. 
+2099.1 
+20.7 
+23.1 
+25.8 
+
+</table></figure>
+
+			<note place="foot" n="1"> We denote the i-th row vector of a matrix A with Ai,: and the i-th column vector as A:,i. 2 Note that the criterion in Eq. 1 generalizes the criterion of Srinivas and Babu (2015) to multiple outgoing weights. Also note that Srinivas and Babu (2015) propose some heuristic improvements to this criterion. However, these heuristics did not work well in our NMT experiments.</note>
+
+			<note place="foot" n="3"> In practice, we use a random sample of 50K rows rather than the full matrix to keep the complexity of the leastsquares analysis under control.</note>
+
+			<note place="foot" n="4"> &apos;vanilla&apos; decoding strategy</note>
+
+			<note place="foot" n="7"> To validate that the gains come from ensembling and unfolding and not from the layer sizes in 3-Unfold-Normal we trained a network from scratch with the same dimensions. This network performed similarly to our Single system.</note>
+		</body>
+		<back>
+
+			<div type="acknowledgement">
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Acknowledgments</head><p>This work was supported by the U.K. Engineering and Physical Sciences Research Council (EPSRC grant EP/L027623/1).</p></div>
+			</div>
+
+			<div type="references">
+
+				<listBibl>
+
+<biblStruct xml:id="b0">
+	<analytic>
+		<title level="a" type="main">Pruning algorithms of neural networks-a comparative study</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">M</forename></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Gethsiyal</forename><surname>Augasta</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Thangairulappan</forename><surname>Kathirvalavakumar</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Central European Journal of Computer Science</title>
+		<imprint>
+			<biblScope unit="volume">3</biblScope>
+			<biblScope unit="issue">3</biblScope>
+			<biblScope unit="page" from="105" to="115" />
+			<date type="published" when="2013" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b1">
+	<analytic>
+		<title level="a" type="main">NoiseOut: A simple way to prune neural networks</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Mohammad</forename><surname>Babaeizadeh</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Paris</forename><surname>Smaragdis</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Roy</forename><forename type="middle">H</forename><surname>Campbell</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 1st International Workshop on Efficient Methods for Deep Neural Networks (EMDNN)</title>
+		<meeting>the 1st International Workshop on Efficient Methods for Deep Neural Networks (EMDNN)</meeting>
+		<imprint>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b2">
+	<analytic>
+		<title level="a" type="main">Neural machine translation by jointly learning to align and translate</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Dzmitry</forename><surname>Bahdanau</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kyunghyun</forename><surname>Cho</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yoshua</forename><surname>Bengio</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">ICLR</title>
+		<meeting><address><addrLine>Toulon, France</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2015" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b3">
+	<analytic>
+		<title level="a" type="main">Theano: new features and speed improvements</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Frédéric</forename><surname>Bastien</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Pascal</forename><surname>Lamblin</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Razvan</forename><surname>Pascanu</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">James</forename><surname>Bergstra</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ian</forename><surname>Goodfellow</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Arnaud</forename><surname>Bergeron</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Nicolas</forename><surname>Bouchard</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">David</forename><surname>Warde-Farley</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yoshua</forename><surname>Bengio</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">NIPS</title>
+		<meeting><address><addrLine>South Lake Tahoe, Nevada, USA</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2012" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b4">
+	<analytic>
+		<title level="a" type="main">Speedconstrained tuning for statistical machine translation using Bayesian optimization</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Daniel</forename><surname>Beck</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Gonzalo</forename><surname>De Gispert</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Aurelien</forename><surname>Iglesias</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Bill</forename><surname>Waite</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Byrne</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2016 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies</title>
+		<meeting>the 2016 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies<address><addrLine>San Diego, California</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2016" />
+			<biblScope unit="page" from="856" to="865" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b5">
+	<analytic>
+		<title level="a" type="main">Findings of the 2016 conference on machine translation</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ondřej</forename><surname>Bojar</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Rajen</forename><surname>Chatterjee</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Christian</forename><surname>Federmann</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yvette</forename><surname>Graham</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Barry</forename><surname>Haddow</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Matthias</forename><surname>Huck</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Antonio</forename><forename type="middle">Jimeno</forename><surname>Yepes</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Philipp</forename><surname>Koehn</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Varvara</forename><surname>Logacheva</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Christof</forename><surname>Monz</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Matteo</forename><surname>Negri</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Aurelie</forename><surname>Neveol</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Mariana</forename><surname>Neves</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Martin</forename><surname>Popel</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Matt</forename><surname>Post</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Raphael</forename><surname>Rubino</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Carolina</forename><surname>Scarton</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Lucia</forename><surname>Specia</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Marco</forename><surname>Turchi</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Karin</forename><surname>Verspoor</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Marcos</forename><surname>Zampieri</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the First Conference on Machine Translation</title>
+		<meeting>the First Conference on Machine Translation<address><addrLine>Berlin, Germany</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2016" />
+			<biblScope unit="page" from="131" to="198" />
+		</imprint>
+	</monogr>
+	<note>Association for Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b6">
+	<analytic>
+		<title level="a" type="main">Model compression</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Cristian</forename><surname>Bucilu</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Rich</forename><surname>Caruana</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Alexandru</forename><surname>Niculescu-Mizil</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 12th ACM SIGKDD international conference on Knowledge discovery and data mining</title>
+		<meeting>the 12th ACM SIGKDD international conference on Knowledge discovery and data mining</meeting>
+		<imprint>
+			<publisher>ACM</publisher>
+			<date type="published" when="2006" />
+			<biblScope unit="page" from="535" to="541" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b7">
+	<analytic>
+		<title level="a" type="main">Learning phrase representations using RNN encoder-decoder for statistical machine translation</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kyunghyun</forename><surname>Cho</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Bart</forename><surname>Van Merrienboer</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Caglar</forename><surname>Gulcehre</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Dzmitry</forename><surname>Bahdanau</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Fethi</forename><surname>Bougares</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Holger</forename><surname>Schwenk</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yoshua</forename><surname>Bengio</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2014 Conference on Empirical Methods in Natural Language Processing (EMNLP)</title>
+		<meeting>the 2014 Conference on Empirical Methods in Natural Language Processing (EMNLP)<address><addrLine>Doha, Qatar</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2014" />
+			<biblScope unit="page" from="1724" to="1734" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b8">
+	<analytic>
+		<title level="a" type="main">A character-level decoder without explicit segmentation for neural machine translation</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Junyoung</forename><surname>Chung</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kyunghyun</forename><surname>Cho</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yoshua</forename><surname>Bengio</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 54th Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 54th Annual Meeting of the Association for Computational Linguistics<address><addrLine>Berlin, Germany</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2016" />
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="1693" to="1703" />
+		</imprint>
+	</monogr>
+	<note>Long Papers)</note>
+</biblStruct>
+
+<biblStruct xml:id="b9">
+	<analytic>
+		<title level="a" type="main">Kyoto university participation to WAT 2016</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Fabien</forename><surname>Cromieres</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Chenhui</forename><surname>Chu</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Toshiaki</forename><surname>Nakazawa</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Sadao</forename><surname>Kurohashi</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 3rd Workshop on Asian Translation (WAT2016)</title>
+		<meeting>the 3rd Workshop on Asian Translation (WAT2016)<address><addrLine>Osaka, Japan</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2016" />
+			<biblScope unit="page" from="166" to="174" />
+		</imprint>
+	</monogr>
+	<note>The COLING 2016 Organizing Committee</note>
+</biblStruct>
+
+<biblStruct xml:id="b10">
+	<analytic>
+		<title level="a" type="main">Predicting parameters in deep learning</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Misha</forename><surname>Denil</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Babak</forename><surname>Shakibi</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Laurent</forename><surname>Dinh</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Nando De Freitas</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Advances in Neural Information Processing Systems</title>
+		<imprint>
+			<date type="published" when="2013" />
+			<biblScope unit="page" from="2148" to="2156" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b11">
+	<analytic>
+		<title level="a" type="main">Exploiting linear structure within convolutional networks for efficient evaluation</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Emily</forename><forename type="middle">L</forename><surname>Denton</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Wojciech</forename><surname>Zaremba</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Joan</forename><surname>Bruna</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Advances in Neural Information Processing Systems</title>
+		<imprint>
+			<date type="published" when="2014" />
+			<biblScope unit="page" from="1269" to="1277" />
+		</imprint>
+	</monogr>
+	<note>Yann LeCun, and Rob Fergus</note>
+</biblStruct>
+
+<biblStruct xml:id="b12">
+	<analytic>
+		<title level="a" type="main">Ensemble methods in machine learning</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">G</forename><surname>Thomas</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Dietterich</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">International workshop on multiple classifier systems</title>
+		<imprint>
+			<publisher>Springer</publisher>
+			<date type="published" when="2000" />
+			<biblScope unit="page" from="1" to="15" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b13">
+	<analytic>
+		<title level="a" type="main">Adaptive subgradient methods for online learning and stochastic optimization</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">John</forename><surname>Duchi</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Elad</forename><surname>Hazan</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yoram</forename><surname>Singer</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Journal of Machine Learning Research</title>
+		<imprint>
+			<biblScope unit="page" from="2121" to="2159" />
+			<date type="published" when="2011" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b14">
+	<monogr>
+				<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Nadir</forename><surname>Durrani</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Fahim</forename><surname>Dalvi</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Hassan</forename><surname>Sajjad</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Stephan</forename><surname>Vogel</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1701.03924</idno>
+		<title level="m">QCRI machine translation systems for IWSLT 16</title>
+		<imprint>
+			<date type="published" when="2017" />
+		</imprint>
+	</monogr>
+<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b15">
+	<monogr>
+		<title level="m" type="main">Ensemble distillation for neural machine translation</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Markus</forename><surname>Freitag</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yaser</forename><surname>Al-Onaizan</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Baskaran</forename><surname>Sankaran</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1702.01802</idno>
+		<imprint>
+			<date type="published" when="2017" />
+		</imprint>
+	</monogr>
+<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b16">
+	<analytic>
+		<title level="a" type="main">Maxout networks</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ian</forename><surname>Goodfellow</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">David</forename><surname>Warde-Farley</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Mehdi</forename><surname>Mirza</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Aaron</forename><surname>Courville</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yoshua</forename><surname>Bengio</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">ICML</title>
+		<imprint>
+			<date type="published" when="2013" />
+			<biblScope unit="page" from="1319" to="1327" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b17">
+	<analytic>
+		<title level="a" type="main">Learning both weights and connections for efficient neural network</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Song</forename><surname>Han</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jeff</forename><surname>Pool</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">John</forename><surname>Tran</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">William</forename><surname>Dally</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Advances in Neural Information Processing Systems</title>
+		<imprint>
+			<date type="published" when="2015" />
+			<biblScope unit="page" from="1135" to="1143" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b18">
+	<analytic>
+		<title level="a" type="main">Neural network ensembles</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Lars</forename></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kai</forename><surname>Hansen</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Peter</forename><surname>Salamon</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">IEEE transactions on pattern analysis and machine intelligence</title>
+		<imprint>
+			<date type="published" when="1990" />
+			<biblScope unit="volume">12</biblScope>
+			<biblScope unit="page" from="993" to="1001" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b19">
+	<analytic>
+		<title level="a" type="main">Second order derivatives for network pruning: Optimal brain surgeon</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Babak</forename><surname>Hassibi</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">David</forename><forename type="middle">G</forename><surname>Stork</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Advances in neural information processing systems</title>
+		<imprint>
+			<date type="published" when="1993" />
+			<biblScope unit="page" from="164" to="164" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b20">
+	<analytic>
+		<title level="a" type="main">Distilling the knowledge in a neural network</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Geoffrey</forename><surname>Hinton</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Oriol</forename><surname>Vinyals</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jeff</forename><surname>Dean</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">NIPS Deep Learning Workshop</title>
+		<imprint>
+			<date type="published" when="2014" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b21">
+	<analytic>
+		<title level="a" type="main">Is neural machine translation ready for deployment? A case study on 30 translation directions</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Marcin</forename><surname>Junczys-Dowmunt</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Tomasz</forename><surname>Dwojak</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Hieu</forename><surname>Hoang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">International Workshop on Spoken Language Translation IWSLT</title>
+		<imprint>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b22">
+	<analytic>
+		<title level="a" type="main">The AMU-UEDIN submission to the WMT16 news translation task: Attention-based NMT models as feature functions in phrase-based SMT</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Marcin</forename><surname>Junczys-Dowmunt</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Tomasz</forename><surname>Dwojak</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Rico</forename><surname>Sennrich</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the First Conference on Machine Translation</title>
+		<meeting>the First Conference on Machine Translation<address><addrLine>Berlin, Germany</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2016" />
+			<biblScope unit="page" from="319" to="325" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b23">
+	<analytic>
+		<title level="a" type="main">Sequencelevel knowledge distillation</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yoon</forename><surname>Kim</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Alexander</forename><forename type="middle">M</forename><surname>Rush</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2016 Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>the 2016 Conference on Empirical Methods in Natural Language Processing<address><addrLine>Austin, Texas</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2016" />
+			<biblScope unit="page" from="1317" to="1327" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b24">
+	<analytic>
+		<title level="a" type="main">Optimal brain damage</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yann</forename><surname>Lecun</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">John</forename><forename type="middle">S</forename><surname>Denker</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Sara</forename><forename type="middle">A</forename><surname>Solla</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Richard</forename><forename type="middle">E</forename><surname>Howard</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Lawrence</forename><forename type="middle">D</forename><surname>Jackel</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">NIPS</title>
+		<imprint>
+			<date type="published" when="1989" />
+			<biblScope unit="volume">2</biblScope>
+			<biblScope unit="page" from="598" to="605" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b25">
+	<analytic>
+		<title level="a" type="main">Learning compact recurrent neural networks</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Zhiyun</forename><surname>Lu</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Vikas</forename><surname>Sindhwani</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Tara</forename><forename type="middle">N</forename><surname>Sainath</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Acoustics, Speech and Signal Processing</title>
+		<imprint>
+			<publisher>IEEE</publisher>
+			<date type="published" when="2016" />
+			<biblScope unit="page" from="5960" to="5964" />
+		</imprint>
+	</monogr>
+	<note>2016 IEEE International Conference on</note>
+</biblStruct>
+
+<biblStruct xml:id="b26">
+	<monogr>
+		<title level="m" type="main">Blocks and Fuel: Frameworks for deep learning</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Dzmitry</forename><surname>Bart Van Merriënboer</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Vincent</forename><surname>Bahdanau</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Dmitriy</forename><surname>Dumoulin</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">David</forename><surname>Serdyuk</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jan</forename><surname>Warde-Farley</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yoshua</forename><surname>Chorowski</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Bengio</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2015" />
+			<publisher>CoRR</publisher>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b27">
+	<analytic>
+		<title level="a" type="main">ASPEC: Asian scientific paper excerpt corpus</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Toshiaki</forename><surname>Nakazawa</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Manabu</forename><surname>Yaguchi</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kiyotaka</forename><surname>Uchimoto</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Masao</forename><surname>Utiyama</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Eiichiro</forename><surname>Sumita</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Sadao</forename><surname>Kurohashi</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Hitoshi</forename><surname>Isahara</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">LREC</title>
+		<meeting><address><addrLine>Portoroz, Slovenia</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2016" />
+			<biblScope unit="page" from="2204" to="2208" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b28">
+	<analytic>
+		<title level="a" type="main">Lexicons and minimum risk training for neural machine translation: NAISTCMU at WAT2016</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Graham</forename><surname>Neubig</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 3rd Workshop on Asian Translation (WAT2016)</title>
+		<meeting>the 3rd Workshop on Asian Translation (WAT2016)<address><addrLine>Osaka, Japan</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2016" />
+			<biblScope unit="page" from="119" to="125" />
+		</imprint>
+	</monogr>
+	<note>The COLING 2016 Organizing Committee</note>
+</biblStruct>
+
+<biblStruct xml:id="b29">
+	<analytic>
+		<title level="a" type="main">Neural reranking improves subjective quality of machine translation: NAIST at WAT2015</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Graham</forename><surname>Neubig</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Makoto</forename><surname>Morishita</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Satoshi</forename><surname>Nakamura</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Workshop on Asian Translation</title>
+		<imprint>
+			<date type="published" when="2015" />
+			<biblScope unit="page" from="35" to="41" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b30">
+	<analytic>
+		<title level="a" type="main">On the compression of recurrent neural networks with an application to LVCSR acoustic modeling for embedded speech recognition</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Rohit</forename><surname>Prabhavalkar</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ouais</forename><surname>Alsharif</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Antoine</forename><surname>Bruguier</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Lan</forename><surname>Mcgraw</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Acoustics, Speech and Signal Processing (ICASSP)</title>
+		<imprint>
+			<publisher>IEEE</publisher>
+			<date type="published" when="2016" />
+			<biblScope unit="page" from="5970" to="5974" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b31">
+	<analytic>
+		<title level="a" type="main">Compression of neural machine translation models via pruning</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Abigail</forename><surname>See</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Minh-Thang</forename><surname>Luong</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">D</forename><forename type="middle">Christopher</forename><surname>Manning</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of The 20th SIGNLL Conference on Computational Natural Language Learning</title>
+		<meeting>The 20th SIGNLL Conference on Computational Natural Language Learning</meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2016" />
+			<biblScope unit="page" from="291" to="301" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b32">
+	<analytic>
+		<title level="a" type="main">Edinburgh neural machine translation systems for WMT 16</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Rico</forename><surname>Sennrich</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Barry</forename><surname>Haddow</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Alexandra</forename><surname>Birch</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the First Conference on Machine Translation</title>
+		<meeting>the First Conference on Machine Translation<address><addrLine>Berlin, Germany</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2016" />
+			<biblScope unit="page" from="371" to="376" />
+		</imprint>
+	</monogr>
+	<note>Association for Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b33">
+	<analytic>
+		<title level="a" type="main">Neural machine translation of rare words with subword units</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Rico</forename><surname>Sennrich</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Barry</forename><surname>Haddow</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Alexandra</forename><surname>Birch</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 54th Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 54th Annual Meeting of the Association for Computational Linguistics<address><addrLine>Berlin, Germany</addrLine></address></meeting>
+		<imprint>
+			<publisher>Long Papers</publisher>
+			<date type="published" when="2016" />
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="1715" to="1725" />
+		</imprint>
+	</monogr>
+	<note>Association for Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b34">
+	<analytic>
+		<title level="a" type="main">Data-free parameter pruning for deep neural networks</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Suraj</forename><surname>Srinivas</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">R</forename><surname>Venkatesh</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Babu</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the British Machine Vision Conference (BMVC)</title>
+		<meeting>the British Machine Vision Conference (BMVC)</meeting>
+		<imprint>
+			<publisher>BMVA Press</publisher>
+			<date type="published" when="2015" />
+			<biblScope unit="volume">12</biblScope>
+			<biblScope unit="page" from="31" to="32" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b35">
+	<analytic>
+		<title level="a" type="main">SGNMT-A flexible NMT decoding platform for quick prototyping of new models and search strategies</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Felix</forename><surname>Stahlberg</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Eva</forename><surname>Hasler</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Danielle</forename><surname>Saunders</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Bill</forename><surname>Byrne</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2017 Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>the 2017 Conference on Empirical Methods in Natural Language Processing</meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2017" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b36">
+	<analytic>
+		<title level="a" type="main">Sequence to sequence learning with neural networks</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ilya</forename><surname>Sutskever</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Oriol</forename><surname>Vinyals</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">V</forename><surname>Quoc</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Le</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 27th International Conference on Neural Information Processing Systems</title>
+		<meeting>the 27th International Conference on Neural Information Processing Systems</meeting>
+		<imprint>
+			<publisher>MIT Press</publisher>
+			<date type="published" when="2014" />
+			<biblScope unit="page" from="3104" to="3112" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b37">
+	<monogr>
+		<title level="m" type="main">Sequence student-teacher training of deep neural networks</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">H</forename><forename type="middle">M</forename><surname>Jeremy</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Mark</forename><forename type="middle">Jf</forename><surname>Wong</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Gales</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2016" />
+			<biblScope unit="page" from="2761" to="2765" />
+		</imprint>
+	</monogr>
+	<note>Interspeech</note>
+</biblStruct>
+
+<biblStruct xml:id="b38">
+	<analytic>
+		<title level="a" type="main">Google&apos;s neural machine translation system</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yonghui</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Mike</forename><surname>Schuster</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Zhifeng</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">V</forename><surname>Quoc</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Mohammad</forename><surname>Le</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Wolfgang</forename><surname>Norouzi</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Maxim</forename><surname>Macherey</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yuan</forename><surname>Krikun</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Qin</forename><surname>Cao</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Klaus</forename><surname>Gao</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Macherey</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1609.08144</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Bridging the gap between human and machine translation</title>
+		<imprint>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b39">
+	<analytic>
+		<title level="a" type="main">Restructuring of deep neural network acoustic models with singular value decomposition</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jian</forename><surname>Xue</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jinyu</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yifan</forename><surname>Gong</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Interspeech</title>
+		<imprint>
+			<date type="published" when="2013" />
+			<biblScope unit="page" from="2365" to="2369" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b40">
+	<monogr>
+		<title level="m" type="main">ADADELTA: an adaptive learning rate method</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">D</forename><surname>Matthew</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Zeiler</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1212.5701</idno>
+		<imprint>
+			<date type="published" when="2012" />
+		</imprint>
+	</monogr>
+<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+				</listBibl>
+			</div>
+		</back>
+	</text>
+</TEI>

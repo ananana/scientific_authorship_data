@@ -1,0 +1,567 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<TEI xmlns="http://www.tei-c.org/ns/1.0" 
+xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+xsi:schemaLocation="http://www.tei-c.org/ns/1.0 /home/ana/installs/grobid/grobid-0.5.1/grobid-home/schemas/xsd/Grobid.xsd"
+ xmlns:xlink="http://www.w3.org/1999/xlink">
+	<teiHeader xml:lang="en">
+		<encodingDesc>
+			<appInfo>
+				<application version="0.5.1-SNAPSHOT" ident="GROBID" when="2019-04-18T10:57+0000">
+					<ref target="https://github.com/kermitt2/grobid">GROBID - A machine learning software for extracting information from scholarly documents</ref>
+				</application>
+			</appInfo>
+		</encodingDesc>
+		<fileDesc>
+			<titleStmt>
+				<title level="a" type="main">Incremental Skip-gram Model with Negative Sampling</title>
+			</titleStmt>
+			<publicationStmt>
+				<publisher>Association for Computational Linguistics</publisher>
+				<availability status="unknown"><p>Copyright Association for Computational Linguistics</p>
+				</availability>
+				<date>September 7-11, 2017. 2017</date>
+			</publicationStmt>
+			<sourceDesc>
+				<biblStruct>
+					<analytic>
+						<author>
+							<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Nobuhiro</forename><surname>Kaji</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="institution">Yahoo Japan Corporation</orgName>
+							</affiliation>
+						</author>
+						<author>
+							<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Hayato</forename><surname>Kobayashi</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="institution">Yahoo Japan Corporation</orgName>
+							</affiliation>
+						</author>
+						<title level="a" type="main">Incremental Skip-gram Model with Negative Sampling</title>
+					</analytic>
+					<monogr>
+						<title level="m">Natural Language Processing</title>
+						<meeting> <address><addrLine>Copenhagen, Denmark</addrLine></address>
+						</meeting>
+						<imprint>
+							<publisher>Association for Computational Linguistics</publisher>
+							<biblScope unit="page" from="363" to="371"/>
+							<date type="published">September 7-11, 2017. 2017</date>
+						</imprint>
+					</monogr>
+				</biblStruct>
+			</sourceDesc>
+		</fileDesc>
+		<profileDesc>
+			<abstract>
+				<p>This paper explores an incremental training strategy for the skip-gram model with negative sampling (SGNS) from both empirical and theoretical perspectives. Existing methods of neural word embed-dings, including SGNS, are multi-pass algorithms and thus cannot perform incre-mental model update. To address this problem, we present a simple incremen-tal extension of SGNS and provide a thorough theoretical analysis to demonstrate its validity. Empirical experiments demonstrated the correctness of the theoretical analysis as well as the practical usefulness of the incremental algorithm.</p>
+			</abstract>
+		</profileDesc>
+	</teiHeader>
+	<text xml:lang="en">
+		<body>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="1">Introduction</head><p>Existing methods of neural word embeddings are typically designed to go through the entire train- ing data multiple times. For example, negative sampling ( <ref type="bibr" target="#b11">Mikolov et al., 2013b</ref>) needs to pre- compute the noise distribution from the entire training data before performing Stochastic Gradi- ent Descent (SGD). It thus needs to go through the training data at least twice. Similarly, hierarchical soft-max ( <ref type="bibr" target="#b11">Mikolov et al., 2013b</ref>) has to determine the tree structure and GloVe ( <ref type="bibr" target="#b16">Pennington et al., 2014</ref>) has to count co-occurrence frequencies be- fore performing SGD.</p><p>The fact that those existing methods are multi- pass algorithms means that they cannot perform incremental model update when additional train- ing data is provided. Instead, they have to re-train the model on the old and new training data from scratch.</p><p>However, the re-training is obviously inefficient since it has to process the entire training data received thus far whenever new training data is provided. This is especially problematic when the amount of the new training data is relatively smaller than the old one. One such situation is that the embedding model is updated on a small amount of training data that includes newly emerged words for instantly adding them to the vocabulary set. Another situation is that the word embeddings are learned from ever-evolving data such as news articles and microblogs <ref type="bibr" target="#b15">(Peng et al., 2017</ref>) and the embedding model is periodically updated on newly generated data (e.g., once in a week or month).</p><p>This paper investigates an incremental training method of word embeddings with a focus on the skip-gram model with negative sampling (SGNS) ( <ref type="bibr" target="#b11">Mikolov et al., 2013b</ref>) for its popularity. We present a simple incremental extension of SGNS, referred to as incremental SGNS, and provide a thorough theoretical analysis to demonstrate its validity. Our analysis reveals that, under a mild assumption, the optimal solution of incremental SGNS agrees with the original SGNS when the training data size is infinitely large. See Section 4 for the formal and strict statement. Additionally, we present techniques for the efficient implemen- tation of incremental SGNS.</p><p>Three experiments were conducted to assess the correctness of the theoretical analysis as well as the practical usefulness of incremental SGNS. The first experiment empirically investigates the validity of the theoretical analysis result. The second experiment compares the word embed- dings learned by incremental SGNS and the orig- inal SGNS across five benchmark datasets, and demonstrates that those word embeddings are of comparable quality. The last experiment explores the training time of incremental SGNS, demon- strating that it is able to save much training time by avoiding expensive re-training when additional training data is provided.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>363</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2">SGNS Overview</head><p>As a preliminary, this section provides a brief overview of SGNS.</p><p>Given a word sequence, w 1 , w 2 , . . . , w n , for training, the skip-gram model seeks to minimize the following objective to learn word embeddings:</p><formula xml:id="formula_0">L SG = − 1 n n ∑ i=1 ∑ |j|≤c j̸ =0 log p(w i+j | w i ),</formula><p>where w i is a target word and w i+j is a context word within a window of size c. p(w i+j | w i ) represents the probability that w i+j appears within the neighbor of w i , and is defined as</p><formula xml:id="formula_1">p(w i+j | w i ) = exp(t w i · c w i+j ) ∑ w∈W exp(t w i · c w ) ,<label>(1)</label></formula><p>where t w and c w are w's embeddings when it be- haves as a target and context, respectively. W rep- resents the vocabulary set.</p><p>Since it is too expensive to optimize the above objective, <ref type="bibr" target="#b11">Mikolov et al. (2013b)</ref> proposed nega- tive sampling to speed up skip-gram training. This approximates Eq. (1) using sigmoid functions and k randomly-sampled words, called negative sam- ples. The resulting objective is given as</p><formula xml:id="formula_2">L SGNS = − 1 n n ∑ i=1 ∑ |j|≤c j̸ =0 ψ + w i ,w i+j +kE v∼q(v) [ψ − w i ,v ],</formula><p>where ψ + w,v = log σ(t w · c v ), ψ − w,v = log σ(−t w · c v ), and σ(x) is the sigmoid function. The nega- tive sample v is drawn from a smoothed unigram probability distribution referred to as noise distri- bution: q(v) ∝ f (v) α , where f (v) represents the frequency of a word v in the training data and α is a smoothing parameter (0 &lt; α ≤ 1).</p><p>The objective is optimized by SGD. Given a target-context word pair (w i and w i+j ) and k negative samples (v 1 , v 2 , . . . , v k ) drawn from the noise distribution, the gradient of</p><formula xml:id="formula_3">−ψ + w i ,w i+j − kE v∼q(v) [ψ − w i ,v ] ≈ −ψ + w i ,w i+j − ∑ k k ′ =1 ψ − w i ,v k ′</formula><p>is computed. Then, the gradient descent is per- formed to update t w i , c w i+j , and c v 1 , . . . , c v k . SGNS training needs to go over the entire train- ing data to pre-compute the noise distribution q(v) before performing SGD. This makes it difficult to perform incremental model update when addi- tional training data is provided.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3">Incremental SGNS</head><p>This section explores incremental training of SGNS. The incremental training algorithm (Sec- tion 3.1), its efficient implementation (Section 3.2), and the computational complexity (Section 3.3) are discussed in turn.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.1">Algorithm</head><p>Algorithm 1 presents incremental SGNS, which goes through the training data in a single-pass to update word embeddings incrementally. Unlike the original SGNS, it does not pre-compute the noise distribution. Instead, it reads the training data word by word 1 to incrementally update the word frequency distribution and the noise distribu- tion while performing SGD. Hereafter, the origi- nal SGNS (c.f., Section 2) is referred to as batch SGNS to emphasize that the noise distribution is computed in a batch fashion.</p><p>The learning rate for SGD is adjusted by using AdaGrad <ref type="bibr" target="#b3">(Duchi et al., 2011)</ref>. Although the linear decay function has widely been used for training batch SGNS <ref type="bibr" target="#b9">(Mikolov, 2013)</ref>, adaptive methods such as AdaGrad are more suitable for the incre- mental training since the amount of training data is unknown in advance or can increase unboundedly.</p><p>It is straightforward to extend the incremental SGNS to the mini-batch setting by reading a sub- set of the training data (or mini-batch), rather than a single word, at a time to update the noise distri- bution and perform SGD (Algorithm 2). Although this paper primarily focuses on the incremental SGNS, the mini-batch algorithm is also important in practical terms because it is easier to be multi- threaded.</p><p>Alternatives to Algorithms 2 might be possi- ble. Other possible approaches include computing the noise distribution separately on each subset of the training data, fixing the noise distribution after computing it from the first (possibly large) subset, and so on. We exclude such alternatives from our investigation because it is considered difficult to provide them with theoretical justification.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.2">Efficient implementation</head><p>Although the incremental SGNS is conceptually simple, implementation issues are involved. </p><formula xml:id="formula_4">Algorithm 1 Incremental SGNS 1: f (w) ← 0 for all w ∈ W 2: for i = 1, . . . , n do 3: f (wi) ← f (wi) + 1 4: q(w) ← f (w) α ∑ w ′ ∈W f (w ′ ) α for all w ∈ W 5: for j = −c, . . . , −1, 1, . . . , c</formula></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.2.1">Dynamic vocabulary</head><p>One problem that arises when training incremen- tal SGNS is how to maintain the vocabulary set.</p><p>Since new words emerge endlessly in the train- ing data, the vocabulary set can grow unboundedly and exhaust a memory.</p><p>We address this problem by dynamically chang- ing the vocabulary set. The Misra-Gries algorithm <ref type="bibr" target="#b13">(Misra and Gries, 1982)</ref> is used to approximately keep track of top-m frequent words during train- ing, and those words are used as the dynamic vo- cabulary set. This method allows the maximum vocabulary size to be explicitly limited to m, while being able to dynamically change the vocabulary set.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.2.2">Adaptive unigram table</head><p>Another problem is how to generate negative sam- ples efficiently. Since k negative samples per target-context pair have to be generated by the noise distribution, the sampling speed has a sig- nificant effect on the overall training efficiency.</p><p>Let us first examine how negative samples are generated in batch SGNS. In a popular implemen- tation <ref type="bibr" target="#b9">(Mikolov, 2013)</ref>, a word array (referred to as a unigram table) is constructed such that the number of a word w in it is proportional to q(w). See <ref type="table">Table 1</ref>  The above method assumes that the noise dis- tribution is fixed and thus cannot be used directly for the incremental training. One simple solution is to reconstruct the unigram table whenever new training data is provided. However, such a method <ref type="table">Table 1</ref>: Example noise distribution q(w) for the vocabulary set W = {a, b, c} (left) and the corre- sponding unigram table T of size 10 (right).</p><formula xml:id="formula_5">w a b c q(w) 0.5 0.3 0.2 T = (a, a, a, a, a, b, b, b, c, c)</formula><p>Algorithm 3 Adaptive unigram table.</p><p>1:</p><formula xml:id="formula_6">f (w) ← 0 for all w ∈ W 2: z ← 0 3: for i = 1, . . . , n do 4: f (wi) ← f (wi) + 1 5: F ← f (wi) α − (f (wi) − 1) α 6: z ← z + F 7: if |T | &lt; τ then 8:</formula><p>add F copies of wi to T 9: else 10:</p><p>for j = 1, . . . , τ do 11:</p><p>T  <ref type="bibr">2</ref> We propose a reservoir-based algorithm for ef- ficiently updating the unigram table <ref type="bibr" target="#b19">(Vitter, 1985;</ref><ref type="bibr" target="#b4">Efraimidis, 2015</ref>) (Algorithm 3). The algorithm incrementally update the unigram table T while limiting its maximum size to τ . In case |T | &lt; τ , it can be easily confirmed that the number of a word w in T is f (w) α (∝ q(w)). In case |T | = τ , since z = ∑ w∈W f (w) α is equal to the normalization factor of the noise distribution, it can be proven by induction that, for all j, T [j] is a word w with probability q(w). See <ref type="bibr" target="#b19">(Vitter, 1985;</ref><ref type="bibr" target="#b4">Efraimidis, 2015)</ref> for reference.</p><p>Note on implementation In line 8, F copies of w i are added to T . When F is not an integer, the copies are generated so that their expected number becomes F . Specifically, ⌈F ⌉ copies are added to T with probability F − ⌊F ⌋, and ⌊F ⌋ copies are added otherwise.</p><p>The loop from line 10 to 12 becomes expen- sive if implemented straightforwardly because the maximum table size τ is typically set large (e.g., τ = 10 8 in word2vec <ref type="bibr" target="#b9">(Mikolov, 2013)</ref>). For ac- celeration, instead of checking all elements in the unigram table, randomly chosen τ F z elements are substituted with w i . Note that τ F z is the expected number of table elements to be substituted in the original algorithm. This approximation achieves great speed-up because we usually have F ≪ z.</p><p>In fact, it can be proven that it takes O(1) time when α = 1.0. See Appendix 3 A for more discus- sions.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.3">Computational complexity</head><p>Both incremental and batch SGNS have the same space complexity, which is independent of the training data size n. Both require O(|W|) space to store the word embeddings and the word fre- quency counts, and O(|T |) space to store the uni- gram table.</p><p>The two algorithms also have the same time complexity. Both require O(n) training time when the training data size is n. Although incremen- tal SGNS requires extra time for updating the dynamic vocabulary and adaptive unigram table, these costs are practically negligible, as will be demonstrated in Section 5.3.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4">Theoretical Analysis</head><p>Although the extension from batch to incremental SGNS is simple and intuitive, it is not readily clear whether incremental SGNS can learn word em- beddings as well as the batch counterpart. To an- swer this question, in this section we examine in- cremental SGNS from a theoretical point of view.</p><p>The analysis begins by examining the difference between the objectives optimized by batch and in- cremental SGNS (Section 4.1). Then, probabilis- tic properties of their difference are investigated to demonstrate the relationship between batch and incremental SGNS (Sections 4.2 and 4.3). We shortly touch the mini-batch SGNS at the end of this section (Section 4.4).</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.1">Objective difference</head><p>As discussed in Section 2, batch SGNS optimizes the following objective:</p><formula xml:id="formula_7">L B (θ) = − 1 n n ∑ i=1 ∑ |j|≤c j̸ =0 ψ + w i ,w i+j +kE v∼qn(v) [ψ − w i ,v ],</formula><p>where θ = (t 1 , t 2 , . . . , t |W| , c 1 , c 2 , . . . , c |W| ) col- lectively represents the model parameters 4 (i.e., word embeddings) and q n (v) represents the noise distribution. Note that the noise distribution is rep- resented in a different notation than Section 2 to make its dependence on the whole training data explicit. The function q i (v) is defined as q i (v) =</p><formula xml:id="formula_8">f i (v) α ∑ v ′ ∈W f i (v ′ ) α ,</formula><p>where f i (v) represents the word frequency in the first i words of the training data.</p><p>In contrast, incremental SGNS computes the gradient of</p><formula xml:id="formula_9">−ψ + w i ,w i+j − kE v∼q i (v) [ψ − w i ,v ]</formula><p>at each step to perform gradient descent. Note that the noise distribution does not depend on n but rather on i. Because it can be seen as a sample approxi- mation of the gradient of</p><formula xml:id="formula_10">L I (θ) = − 1 n n ∑ i=1 ∑ |j|≤c j̸ =0 ψ + w i ,w i+j +kE v∼q i (v) [ψ − w i ,v ],</formula><p>incremental SGNS can be interpreted as optimiz- ing L I (θ) with SGD.</p><p>Since the expectation terms in the objec- tives can be rewritten as</p><formula xml:id="formula_11">E v∼q i (v) [ψ − w i ,v ] = ∑ v∈W q i (v)ψ − w i ,v</formula><p>, the difference between the two objectives can be given as</p><formula xml:id="formula_12">∆L(θ) = L B (θ) − L I (θ) = 1 n n ∑ i=1 ∑ |j|≤c j̸ =0 k ∑ v∈W (q i (v)−q n (v))ψ − w i ,v = 2ck n n ∑ i=1 ∑ v∈W (q i (v) − q n (v))ψ − w i ,v = 2ck n ∑ w,v∈W n ∑ i=1 δ w i ,w (q i (v) − q n (v))ψ − w,v</formula><p>where δ w,v = δ(w = v) is the delta function.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.2">Unsmoothed case</head><p>Let us begin by examining the objective difference ∆L(θ) in the unsmoothed case, α = 1.0. The technical difficulty in analyzing ∆L(θ) is that it is dependent on the word order in the train- ing data. To address this difficulty, we assume that the words in the training data are generated from some stationary distribution. This assumption al- lows us to investigate the property of ∆L(θ) from a probabilistic perspective. Regarding the validity of this assumption, we want to note that this as- sumption is already taken by the original SGNS: the probability that the target and context words co-occur is assumed to be independent of their po- sition in the training data.</p><p>We below introduce some definitions and nota- tions as the preparation of the analysis. Definition 1. Let X i,w be a random variable that represents δ w i ,w . It takes 1 when the i-th word in the training data is w ∈ W and 0 otherwise.</p><p>Remind that we assume that the words in the training data are generated from a stationary dis- tribution. This assumption means that the expec- tation and (co)variance of X i,w do not depend on the index i. Hereafter, they are respectively de- noted as E[X i,w ] = µ w and V[X i,w , X j,v ] = ρ w,v . Definition 2. Let Y i,w be a random variable that represents q i (w) when α = 1.0. It is given as</p><formula xml:id="formula_13">Y i,w = 1 i ∑ i i ′ =1 X i ′ ,w .</formula></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.2.1">Convergence of the first and second</head><p>order moments of ∆L(θ) It can be shown that the first order moment of ∆L(θ) has an analytical form.</p><p>Theorem 1. The first order moment of ∆L(θ) is given as</p><formula xml:id="formula_14">E[∆L(θ)] = 2ck(H n − 1) n ∑ w,v∈W ρ w,v ψ − w,v ,</formula><p>where H n is the n-th harmonic number.</p><p>Sketch of proof. Notice that E[∆L(θ)] can be written as</p><formula xml:id="formula_15">2ck n ∑ w,v∈W n ∑ i=1 ( E[X i,w Y i,v ] − E[X i,w Y n,v ] ) ψ − w,v .</formula><p>Because we have, for any i and j such that i ≤ j,</p><formula xml:id="formula_16">E[X i,w Y j,v ] = j ∑ j ′ =1 E[X i,w X j ′ ,v j ] = µ w µ v + ρ w,v j ,</formula><p>plugging this into E[∆L(θ)] proves the theorem. See Appendix B.1 for the complete proof.</p><p>Theorem 1 readily gives the convergence prop- erty of the first order moment of ∆L(θ):</p><p>Theorem 2. The first-order moment of ∆L(θ) de- creases in the order of O( log(n) n ):</p><formula xml:id="formula_17">E[∆L(θ)] = O ( log(n) n ) ,</formula><p>and thus converges to zero in the limit of infinity:</p><formula xml:id="formula_18">lim n→∞ E[∆L(θ)] = 0.</formula><p>Proof. We have H n = O(log(n)) from the up- per integral bound, and thus Theorem 1 gives the proof.</p><p>A similar result to Theorem 2 can be obtained for the second order moment of ∆L(θ) as well.</p><p>Theorem 3. The second-order moment of ∆L(θ) decreases in the order of O( log(n) n ):</p><formula xml:id="formula_19">E[∆L(θ) 2 ] = O ( log(n) n ) ,</formula><p>and thus converges to zero in the limit of infinity:</p><formula xml:id="formula_20">lim n→∞ E[∆L(θ) 2 ] = 0.</formula><p>Proof. Omitted. See Appendix B.2.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.2.2">Main result</head><p>The above theorems reveal the relationship be- tween the optimal solutions of the two objectives, as stated in the next lemma.</p><p>Lemma 4. Let θ * andˆθandˆ andˆθ be the optimal solu- tions of L B (θ) and L I (θ), respectively:</p><formula xml:id="formula_21">θ * = arg min θ L B (θ) andˆθandˆ andˆθ = arg min θ L I (θ). Then, lim n→∞ E[L B ( ˆ θ) − L B (θ * )] = 0,<label>(2)</label></formula><formula xml:id="formula_22">lim n→∞ V[L B ( ˆ θ) − L B (θ * )] = 0.<label>(3)</label></formula><p>Proof. The proof is made by the squeeze theorem.</p><formula xml:id="formula_23">Let l = L B ( ˆ θ) − L B (θ * ).</formula><p>The optimality of θ * gives 0 ≤ l. Also, the optimality ofˆθofˆ ofˆθ gives</p><formula xml:id="formula_24">l = L B ( ˆ θ) − L I (θ * ) + L I (θ * ) − L B (θ * ) ≤ L B ( ˆ θ) − L I ( ˆ θ) + L I (θ * ) − L B (θ * ) = ∆L( ˆ θ) − ∆L(θ * ). We thus have 0 ≤ E[l] ≤ E[∆L( ˆ θ) − ∆L(θ * )].</formula><p>Since Theorem 2 implies that the right hand side converges to zero when n → ∞, the squeeze the- orem gives Eq. (2). Next, we have</p><formula xml:id="formula_25">V[l] = E[l 2 ] − E[l] 2 ≤ E[l 2 ] ≤ E[(∆L( ˆ θ) − ∆L(θ * )) 2 ] ≤ E[(∆L( ˆ θ) − ∆L(θ * )) 2 ] + E[(∆L( ˆ θ)+∆L(θ * )) 2 ] = 2E[∆L( ˆ θ) 2 ] + 2E[∆L(θ * ) 2 ].<label>(4)</label></formula><p>Theorem 3 suggests that Eq. (4) converges to zero when n → ∞. Also, the non-negativity of the variance gives 0 ≤ V <ref type="bibr">[l]</ref>. Therefore, the squeeze theorem gives Eq. (3).</p><p>We are now ready to provide the main result of the analysis. The next theorem shows the conver- gence of L B ( ˆ θ).</p><p>Theorem 5. L B ( ˆ θ) converges in probability to L B (θ * ):</p><formula xml:id="formula_26">∀ϵ &gt; 0, lim n→∞ Pr [ |L B ( ˆ θ) − L B (θ * )| ≥ ϵ ] = 0. Sketch of proof. Let again l = L B ( ˆ θ) − L B (θ * ). Chebyshev's inequality gives, for any ϵ 1 &gt; 0, lim n→∞ V[l] ϵ 2 1 ≥ lim n→∞ Pr [ |l − E[l]| ≥ ϵ 1 ] .</formula><p>Remember that Eq. (2) means that for any ϵ 2 &gt; 0, there exists n ′ such that if n ′ ≤ n then |E[l]| &lt; ϵ 2 . Therefore, we have</p><formula xml:id="formula_27">lim n→∞ V[l] ϵ 2 1 ≥ lim n→∞ Pr [ |l| ≥ ϵ 1 + ϵ 2 ] ≥ 0.</formula><p>The arbitrary property of ϵ 1 and ϵ 2 allows ϵ 1 + ϵ 2 to be rewritten as ϵ. Also, Eq. <ref type="formula" target="#formula_22">(3)</ref>  Informally, this theorem can be interpreted as sug- gesting that the optimal solutions of batch and in- cremental SGNS agree when n is infinitely large.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.3">Smoothed case</head><p>We next examine the smoothed case (0 &lt; α &lt; 1). In this case, the noise distribution can be repre- sented by using the ones in the unsmoothed case:</p><formula xml:id="formula_28">q i (w) = f i (w) α ∑ w ′ ∈W f i (w ′ ) α = ( f i (w) F i ) α ∑ w ′ ∈W ( f i (w ′ ) F i ) α</formula><p>where</p><formula xml:id="formula_29">F i = ∑ w ′ ∈W f i (w ′ ) and f i (w)</formula><p>F i corresponds to the unsmoothed noise distribution. Definition 3. Let Z i,w be a random variable that represents q i (w) in the smoothed case. Then, it can be written by using Y i,w :</p><formula xml:id="formula_30">Z i,w = g w (Y i,1 , Y i,2 , . . . , Y i,|W| )</formula><p>where</p><formula xml:id="formula_31">g w (x 1 , x 2 , . . . , x |W| ) = x α w ∑ w ′ ∈W x α w ′ .</formula><p>Because Z i,w is no longer a linear combina- tion of X i,w , it becomes difficult to derive simi- lar proofs to the unsmoothed case. To address this difficulty, Z i,w is approximated by the first-order Taylor expansion around</p><formula xml:id="formula_32">E[(Y i,1 , Y i,2 , . . . , Y i,|W| )] = (µ 1 , µ 2 , . . . , µ |W| ).</formula><p>The first-order Taylor approximation gives</p><formula xml:id="formula_33">Z i,w ≈ g w (µ) + ∑ v∈W M w,v (Y i,v − g v (µ))</formula><p>where µ = (µ 1 , µ 2 , . . . , µ |W| ) and M w,v = ∂gw(x) ∂xv | x=µ . Consequently, it can be shown that the first and second order moments of ∆L(θ) have the order of O( log(n) n ) in the smoothed case as well. See Appendix C for the details.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.4">Mini-batch SGNS</head><p>The same analysis result can also be obtained for the mini-batch SGNS. We can prove Theorems 2 and 3 in the mini-batch case as well (see Ap- pendix D for the proof). The other part of the anal- ysis remains the same.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5">Experiments</head><p>Three experiments were conducted to investigate the correctness of the theoretical analysis (Sec- tion 5.1) and the practical usefulness of incremen- tal SGNS (Sections 5.2 and 5.3). Details of the experimental settings that do not fit into the paper are presented in Appendix E.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.1">Validation of theorems</head><p>An empirical experiment was conducted to vali- date the result of the theoretical analysis. Since it is difficult to assess the main result in Section 4.2.2 directly, the theorems in Sections 4.2.1, from which the main result is readily derived, were in- vestigated. Specifically, the first and second order moments of ∆L(θ) were computed on datasets of increasing sizes to empirically investigate the con- vergence property.</p><p>Datasets of various sizes were constructed from the English Gigaword corpus ( <ref type="bibr" target="#b14">Napoles et al., 2012</ref>). The datasets made up of n words were constructed by randomly sampling sentences from the Gigaword corpus. The value of n was varied over {10 3 , 10 4 , 10 5 , 10 6 , 10 7 }. 10, 000 different datasets were created for each size n to compute the first and second order moments. <ref type="figure" target="#fig_1">Figure 1</ref> (top left) shows log-log plots of the first order moments of ∆L(θ) computed on the different sized datasets when α = 1.0. The crosses 368 <ref type="bibr">10 -6</ref> 10 -5  <ref type="figure" target="#fig_1">Figure 1</ref> (top right) similarly illustrates the second order moments of ∆L(θ). Since Theo- rem 3 suggests that the second order moment de- creases in the order of O( log(n) n ), the graph y ∝ log(x) x is also shown. The graph was fitted to the empirical data by minimizing the squared error.</p><note type="other">10 -4 10 -3 10 -2 10 -1 10 0 10 2 10 3 10 4 10 5 10 6 10 7 10 8 First order moment Data size 10 -6 10 -5 10 -4 10 -3 10 -2 10 -1 10 0 10 2 10 3 10 4 10 5 10 6 10 7 10 8 Second order moment Data size 10 -6 10 -5 10 -4 10 -3 10 -2 10 -1 10 0 10 2 10 3 10 4 10 5 10 6 10 7 10 8 First order moment Data size 10 -6 10 -5 10 -4 10 -3 10 -2 10 -1 10 0 10 2 10 3 10 4 10 5 10 6 10 7 10 8</note><p>The top left figure demonstrates that the empiri- cal values of the first order moments fit the theoret- ical result very well, providing a strong empirical evidence for the correctness of Theorem 1. In ad- dition, the two figures show that the first and sec- ond order moments decrease almost in the order of O( log(n) n ), converging to zero as the data size increases. This result validates Theorems 2 and 3.</p><p>Figures 1 (bottom left) and (bottom right) show similar results when α = 0.75. Since we do not have theoretical estimates of the first order mo- ment when α ̸ = 1.0, the graphs y ∝ log(n) n are shown in both figures. From these, we can again observe that the first and second order moments decrease almost in the order of O( log(n) n ). This indicates the validity of the investigation in Sec- tion 4.3. The relatively larger deviations from the graphs y ∝ log(n) n , compared with the top right figure, are considered to be attributed to the first- order Taylor approximation.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.2">Quality of word embeddings</head><p>The next experiment investigates the quality of the word embeddings learned by incremental SGNS through comparison with the batch counterparts.</p><p>The Gigaword corpus was used for the training.</p><p>For the comparison, both our own implementation of batch SGNS as well as <ref type="bibr">WORD2VEC (Mikolov et al., 2013c</ref>) were used (denoted as batch and w2v). The training configurations of the three methods were set the same as much as possible, although it is impossible to do so perfectly. For ex- ample, incremental SGNS (denoted as incremen- tal) utilized the dynamic vocabulary (c.f., Section 3.2.1) and thus we set the maximum vocabulary size m to control the vocabulary size. On the other hand, we set a frequency threshold to determine the vocabulary size of w2v. We set m = 240k for incremental, while setting the frequency thresh- old to 100 for w2v. This yields vocabulary sets of comparable sizes: 220, 389 and 246, 134.</p><p>The learned word embeddings were assessed on five benchmark datasets commonly used in the literature ( <ref type="bibr" target="#b7">Levy et al., 2015</ref>): WordSim353 (Agirre et al., 2009), MEN ( <ref type="bibr" target="#b2">Bruni et al., 2013)</ref>, <ref type="bibr">SimLex-999 (Hill et al., 2015)</ref>, the MSR analogy dataset ( <ref type="bibr" target="#b12">Mikolov et al., 2013c</ref>), the Google anal- ogy dataset <ref type="bibr" target="#b10">(Mikolov et al., 2013a</ref>). The former three are for a semantic similarity task, and the remaining two are for a word analogy task. As evaluation measures, Spearman's ρ and prediction accuracy were used in the two tasks, respectively.</p><p>Figures 2 (a) and (b) represent the results on the similarity datasets and the analogy datasets. We see that the three methods (incremental, batch, and w2v) perform equally well on all of the datasets. This indicates that incremental SGNS can learn as good word embeddings as the batch counterparts, while being able to perform incre- mental model update. Although incremental per- forms slightly better than the batch methods in some datasets, the difference seems to be a prod- uct of chance.</p><p>The figures also show the results of incremen- tal SGNS when the maximum vocabulary size m was reduced to 150k and 100k (incremental-150k and incremental-100k). The resulting vocabulary sizes were 135, 447 and 86, 993, respectively. We see that incremental-150k and incremental-100k perform comparatively well with incremental, al- though relatively large performance drops are ob- served in some datasets <ref type="bibr">(MEN and MSR)</ref>. This demonstrates that the Misra-Gries algorithm can effectively control the vocabulary size.  </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.3">Update time</head><p>The last experiment investigates how much time incremental SGNS can save by avoiding re- training when updating the word embeddings. In this experiment, incremental was first trained on the initial training data of size 5 n 1 and then updated on the new training data of size n 2 to measure the update time. For comparison, batch and w2v were re-trained on the combination of the initial and new training data. We fixed n 1 = 10 7 and varied n 2 over {1×10 6 , 2×10 6 , . . . , 5×10 6 }. The experiment was conducted on Intel R ⃝ Xeon R ⃝ 2GHz CPU. The update time was averaged over five trials. <ref type="figure" target="#fig_2">Figure 2</ref> (c) compares the update time of the three methods across various values of n 2 . We see that incremental significantly reduces the update time. It achieves 10 and 7.3 times speed-up com- pared with batch and w2v (when n 2 = 10 6 ). This represents the advantage of the incremental algo- rithm, as well as the time efficiency of the dynamic vocabulary and adaptive unigram table. We note that batch is slower than w2v because it uses Ada- Grad, which maintains different learning rates for different dimensions of the parameter, while w2v uses the same learning rate for all dimensions.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6">Related Work</head><p>Word representations based on distributional se- mantics have been common <ref type="bibr" target="#b18">(Turney and Pantel, 2010;</ref><ref type="bibr" target="#b1">Baroni and Lenci, 2010)</ref>. The distributional methods typically begin by constructing a word- context matrix and then applying dimension re- duction techniques such as SVD to obtain high- quality word meaning representations. Although some studies investigated incremental updating of the word-context matrix ( <ref type="bibr" target="#b20">Yin et al., 2015</ref>; Goyal <ref type="bibr">5</ref> The number of sentences here. and Daume III, 2011), they did not explore the re- duced representations. On the other hand, neural word embeddings have recently gained much pop- ularity as an alternative. However, most previous studies have not explored incremental strategies ( <ref type="bibr">Mikolov et al., 2013a,b;</ref><ref type="bibr" target="#b16">Pennington et al., 2014</ref>). <ref type="bibr" target="#b15">Peng et al. (2017)</ref> proposed an incremental learning method of hierarchical soft-max. Be- cause hierarchical soft-max and negative sampling have different advantages <ref type="bibr" target="#b15">(Peng et al., 2017)</ref>, the incremental SGNS and their method are com- plementary to each other. Also, their updating method needs to scan not only new but also old training data, and thus is not an incremental algo- rithm in a strict sense. As a consequence, it poten- tially incurs the same time complexity as the re- training. Another consequence is that their method has to retain the old training data and thus wastes space, while incremental SGNS can discard old training examples after processing them.</p><p>Very recently, <ref type="bibr" target="#b8">May et al. (2017)</ref> also proposed an incremental algorithm for SGNS. However, their work differs from ours in that their algorithm is not designed to use smoothed noise distribution (i.e., the smoothing parameter α is assumed fixed as α = 1.0 in their method), which is a key to learn high-quality word embeddings. Another dif- ference is that they did not provide theoretical jus- tification for their algorithm.</p><p>There are publicly available implementations for training SGNS, one of the most popular being WORD2VEC <ref type="bibr" target="#b9">(Mikolov, 2013)</ref>. However, it does not support an incremental training method. GEN- SIM <ref type="bibr">( ˇ Rehůřek and Sojka, 2010</ref>) also offers SGNS training. Although GENSIM allows the incremen- tal updating of SGNS models, it is done in an ad- hoc manner. In GENSIM, the vocabulary set as well as the unigram table are fixed once trained, meaning that new words cannot be added. Also, they do not provide any theoretical accounts for the validity of their training method. Finally, we want to note that most of the existing implemen- tations can be easily extended to support the in- cremental (or mini-batch) SGNS by simply keep updating the noise distribution.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="7">Conclusion and Future Work</head><p>This paper proposed incremental SGNS and pro- vided thorough theoretical analysis to demonstrate its validity. We also conducted experiments to em- pirically demonstrate its effectiveness. Although the incremental model update is often required in practical machine learning applications, only a lit- tle attention has been paid to learning word em- beddings incrementally. We consider that incre- mental SGNS successfully addresses this situation and serves as an useful tool for practitioners.</p><p>The success of this work suggests several re- search directions to be explored in the future. One possibility is to explore extending other embed- ding methods such as GloVe ( <ref type="bibr" target="#b16">Pennington et al., 2014</ref>) to incremental algorithms. Such studies would further extend the potential of word embed- ding methods.</p></div><figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_0"><head>= 0 .</head><label>0</label><figDesc>This completes the proof. See Appendix B.3 for the detailed proof.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_1"><head>Figure 1 :</head><label>1</label><figDesc>Figure 1: Log-log plots of the first and second order moments of ∆L(θ) on the different sized datasets when α = 1.0 (top left and top right) and α = 0.75 (bottom left and bottom right).</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_2"><head>Figure 2 :</head><label>2</label><figDesc>Figure 2: (a): Spearman's ρ on the word similarity datasets. (b): Accuracy on the analogy datasets. (c): Update time when new training data is provided.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_1" validated="false"><head></head><label></label><figDesc>for an example. Using the unigram table, negative samples can be efficiently gener- ated by sampling the table elements uniformly at random. It takes only O(1) time to generate one negative sample.</figDesc><table></table></figure>
+
+			<note place="foot" n="1"> In practice, Algorithm 1 buffers a sequence of words wi−c,. .. , wi+c (rather than a single word wi) at each step, as it requires an access to the context words wi+j in line 7. This is not a practical problem because the window size c is usually small and independent from the training data size n.</note>
+
+			<note place="foot" n="2"> This overhead is amortized in mini-batch SGNS if the mini-batch size is sufficiently large. Our discussion here is dedicated to efficiently perform the incremental training irrespective of the mini-batch size.</note>
+
+			<note place="foot" n="3"> The appendices are in the supplementary material. 4 We treat words as integers and thus W = {1, 2,. .. |W|}.</note>
+		</body>
+		<back>
+			<div type="references">
+
+				<listBibl>
+
+<biblStruct xml:id="b0">
+	<analytic>
+		<title level="a" type="main">A study on similarity and relatedness using distributional and wordnet-based approaches</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Eneko</forename><surname>Agirre</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Enrique</forename><surname>Alfonseca</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Keith</forename><surname>Hall</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jana</forename><surname>Kravalova</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Marius</forename><surname>Pasca</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Aitor</forename><surname>Soroa</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of NAACL</title>
+		<meeting>NAACL</meeting>
+		<imprint>
+			<date type="published" when="2009" />
+			<biblScope unit="page" from="19" to="27" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b1">
+	<analytic>
+		<title level="a" type="main">Distributional memory: A general framework for corpus-based semantics</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Marco</forename><surname>Baroni</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Alessandro</forename><surname>Lenci</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Computatoinal Linguistics</title>
+		<imprint>
+			<biblScope unit="volume">36</biblScope>
+			<biblScope unit="page" from="673" to="721" />
+			<date type="published" when="2010" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b2">
+	<analytic>
+		<title level="a" type="main">Multimodal distributional semantics</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">E</forename><surname>Bruni</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">N</forename><forename type="middle">K</forename><surname>Tran</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">M</forename><surname>Baroni</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Journal of Artificial Intelligence Research</title>
+		<imprint>
+			<biblScope unit="volume">49</biblScope>
+			<biblScope unit="page" from="1" to="49" />
+			<date type="published" when="2013" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b3">
+	<analytic>
+		<title level="a" type="main">Adaptive subgradient methods for online learning and stochastic optimization</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">John</forename><surname>Duchi</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Elad</forename><surname>Hazan</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yoram</forename><surname>Singer</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Journal of Machine Learning Research</title>
+		<imprint>
+			<biblScope unit="volume">12</biblScope>
+			<biblScope unit="page" from="2121" to="2159" />
+			<date type="published" when="2011" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b4">
+	<monogr>
+		<title level="m" type="main">Weighted random sampling over data streams</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">S</forename><surname>Pavlos</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Efraimidis</surname></persName>
+		</author>
+		<idno>ArXiv:1012.0256</idno>
+		<imprint>
+			<date type="published" when="2015" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b5">
+	<analytic>
+		<title level="a" type="main">Approximate scalable bounded space sketch for large data nlp</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Amit</forename><surname>Goyal</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Hal</forename><surname>Daume</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Iii</forename></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of EMNLP</title>
+		<meeting>EMNLP</meeting>
+		<imprint>
+			<date type="published" when="2011" />
+			<biblScope unit="page" from="250" to="261" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b6">
+	<analytic>
+		<title level="a" type="main">Simlex-999: Evaluating semantic models with (genuine) similarity estimation</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Felix</forename><surname>Hill</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Roi</forename><surname>Reichart</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Anna</forename><surname>Korhonen</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Computational Linguistics</title>
+		<imprint>
+			<biblScope unit="volume">41</biblScope>
+			<biblScope unit="page" from="665" to="695" />
+			<date type="published" when="2015" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b7">
+	<analytic>
+		<title level="a" type="main">Improving distributional similarity with lessons learned from word embeddings</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Omer</forename><surname>Levy</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yoav</forename><surname>Goldberg</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ido</forename><surname>Dagan</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Transactions of the Association for Computational Linguistics</title>
+		<imprint>
+			<biblScope unit="volume">3</biblScope>
+			<biblScope unit="page" from="211" to="225" />
+			<date type="published" when="2015" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b8">
+	<monogr>
+		<title level="m" type="main">Streaming word embeddings with the space-saving algorithm</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Chandler</forename><surname>May</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kevin</forename><surname>Duh</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Benjamin</forename><surname>Van Durme</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ashwin</forename><surname>Lall</surname></persName>
+		</author>
+		<idno>ArXiv:1704.07463</idno>
+		<imprint>
+			<date type="published" when="2017" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b9">
+	<monogr>
+		<title/>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Tomas</forename><surname>Mikolov</surname></persName>
+		</author>
+		<ptr target="https://code.google.com/archive/p/word2vec" />
+		<imprint>
+			<date type="published" when="2013" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b10">
+	<analytic>
+		<title level="a" type="main">Efficient estimation of word representations in vector space</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Tomas</forename><surname>Mikolov</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kai</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Greg</forename><surname>Corrado</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jeffrey</forename><surname>Dean</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Workshop at ICLR</title>
+		<imprint>
+			<date type="published" when="2013" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b11">
+	<analytic>
+		<title level="a" type="main">Distributed representations of words and phrases and their compositionality</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Tomas</forename><surname>Mikolov</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ilya</forename><surname>Sutskever</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kai</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Greg</forename><forename type="middle">S</forename><surname>Corrado</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jeff</forename><surname>Dean</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Advances in NIPS</title>
+		<imprint>
+			<date type="published" when="2013" />
+			<biblScope unit="page" from="3111" to="3119" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b12">
+	<analytic>
+		<title level="a" type="main">Linguistic regularities in continuous space word representations</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Tomas</forename><surname>Mikolov</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Wen-Tau</forename><surname>Yih</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Geoffrey</forename><surname>Zweig</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of NAACL</title>
+		<meeting>NAACL</meeting>
+		<imprint>
+			<date type="published" when="2013" />
+			<biblScope unit="page" from="746" to="751" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b13">
+	<analytic>
+		<title level="a" type="main">Finding repeated elements</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jayadev</forename><surname>Misra</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">David</forename><surname>Gries</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Science of Computer Programming</title>
+		<imprint>
+			<biblScope unit="volume">2</biblScope>
+			<biblScope unit="issue">2</biblScope>
+			<biblScope unit="page" from="143" to="152" />
+			<date type="published" when="1982" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b14">
+	<monogr>
+		<title level="m" type="main">Annotated english gigaword ldc2012t21</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Courtney</forename><surname>Napoles</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Matthew</forename><surname>Gormley</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Benjamin</forename><surname>Van Durme</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2012" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b15">
+	<analytic>
+		<title level="a" type="main">Incrementally learning the hierarchical softmax function for neural language models</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Hao</forename><surname>Peng</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jianxin</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yangqiu</forename><surname>Song</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yaopeng</forename><surname>Liu</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of AAAI</title>
+		<meeting>AAAI</meeting>
+		<imprint>
+			<date type="published" when="2017" />
+			<biblScope unit="page" from="3267" to="3273" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b16">
+	<analytic>
+		<title level="a" type="main">Glove: Global vectors for word representation</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jeffrey</forename><surname>Pennington</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Richard</forename><surname>Socher</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Christopher</forename><surname>Manning</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of EMNLP</title>
+		<meeting>EMNLP</meeting>
+		<imprint>
+			<date type="published" when="2014" />
+			<biblScope unit="page" from="1532" to="1543" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b17">
+	<analytic>
+		<title level="a" type="main">Software framework for topic modelling with large corpora</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Petr</forename><surname>Radimřehůřekradimˇradimřehůřek</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Sojka</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the LREC 2010 Workshop on New Challenges for NLP Frameworks</title>
+		<meeting>the LREC 2010 Workshop on New Challenges for NLP Frameworks</meeting>
+		<imprint>
+			<date type="published" when="2010" />
+			<biblScope unit="page" from="45" to="50" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b18">
+	<analytic>
+		<title level="a" type="main">From frequency to meaning: Vector space models of semantics</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">D</forename><surname>Peter</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Patrick</forename><surname>Turney</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Pantel</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Journal of Artificial Intelligence Research</title>
+		<imprint>
+			<biblScope unit="volume">37</biblScope>
+			<biblScope unit="page" from="141" to="188" />
+			<date type="published" when="2010" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b19">
+	<analytic>
+		<title level="a" type="main">Random sampling with a reservoir</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jeffrey</forename><forename type="middle">S</forename><surname>Vitter</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">ACM Transactions on Mathematical Software</title>
+		<imprint>
+			<biblScope unit="volume">11</biblScope>
+			<biblScope unit="page" from="37" to="57" />
+			<date type="published" when="1985" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b20">
+	<analytic>
+		<title level="a" type="main">Online updating of word representations for part-of-speech tagging</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Wenpeng</forename><surname>Yin</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Tobias</forename><surname>Schnabel</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Hinrich</forename><surname>Schütze</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of EMNLP</title>
+		<meeting>EMNLP</meeting>
+		<imprint>
+			<date type="published" when="2015" />
+			<biblScope unit="page" from="1329" to="1334" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+				</listBibl>
+			</div>
+		</back>
+	</text>
+</TEI>

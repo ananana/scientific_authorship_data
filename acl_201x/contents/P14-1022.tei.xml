@@ -1,0 +1,838 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<TEI xmlns="http://www.tei-c.org/ns/1.0" 
+xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+xsi:schemaLocation="http://www.tei-c.org/ns/1.0 /home/ana/installs/grobid/grobid-0.5.1/grobid-home/schemas/xsd/Grobid.xsd"
+ xmlns:xlink="http://www.w3.org/1999/xlink">
+	<teiHeader xml:lang="en">
+		<encodingDesc>
+			<appInfo>
+				<application version="0.5.1-SNAPSHOT" ident="GROBID" when="2019-04-18T12:11+0000">
+					<ref target="https://github.com/kermitt2/grobid">GROBID - A machine learning software for extracting information from scholarly documents</ref>
+				</application>
+			</appInfo>
+		</encodingDesc>
+		<fileDesc>
+			<titleStmt>
+				<title level="a" type="main">Less Grammar, More Features</title>
+			</titleStmt>
+			<publicationStmt>
+				<publisher>Association for Computational Linguistics</publisher>
+				<availability status="unknown"><p>Copyright Association for Computational Linguistics</p>
+				</availability>
+				<date>June 23-25 2014. 2014</date>
+			</publicationStmt>
+			<sourceDesc>
+				<biblStruct>
+					<analytic>
+						<author>
+							<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">David</forename><surname>Hall</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="department">Computer Science Division</orgName>
+								<orgName type="institution">University of California</orgName>
+								<address>
+									<settlement>Berkeley</settlement>
+								</address>
+							</affiliation>
+						</author>
+						<author>
+							<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Greg</forename><surname>Durrett</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="department">Computer Science Division</orgName>
+								<orgName type="institution">University of California</orgName>
+								<address>
+									<settlement>Berkeley</settlement>
+								</address>
+							</affiliation>
+						</author>
+						<author>
+							<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Dan</forename><surname>Klein</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="department">Computer Science Division</orgName>
+								<orgName type="institution">University of California</orgName>
+								<address>
+									<settlement>Berkeley</settlement>
+								</address>
+							</affiliation>
+						</author>
+						<title level="a" type="main">Less Grammar, More Features</title>
+					</analytic>
+					<monogr>
+						<title level="m">Proceedings of the 52nd Annual Meeting of the Association for Computational Linguistics</title>
+						<meeting>the 52nd Annual Meeting of the Association for Computational Linguistics <address><addrLine>Baltimore, Maryland, USA</addrLine></address>
+						</meeting>
+						<imprint>
+							<publisher>Association for Computational Linguistics</publisher>
+							<biblScope unit="page" from="228" to="237"/>
+							<date type="published">June 23-25 2014. 2014</date>
+						</imprint>
+					</monogr>
+				</biblStruct>
+			</sourceDesc>
+		</fileDesc>
+		<profileDesc>
+			<abstract>
+				<p>We present a parser that relies primarily on extracting information directly from surface spans rather than on propagating information through enriched grammar structure. For example, instead of creating separate grammar symbols to mark the definiteness of an NP, our parser might instead capture the same information from the first word of the NP. Moving context out of the grammar and onto surface features can greatly simplify the structural component of the parser: because so many deep syntactic cues have surface reflexes, our system can still parse accurately with context-free backbones as minimal as X-bar grammars. Keeping the structural backbone simple and moving features to the surface also allows easy adaptation to new languages and even to new tasks. On the SPMRL 2013 multilingual constituency parsing shared task (Seddah et al., 2013), our system outperforms the top single parser system of Björkelund et al. (2013) on a range of languages. In addition , despite being designed for syntactic analysis, our system also achieves state-of-the-art numbers on the structural sentiment task of Socher et al. (2013). Finally, we show that, in both syntactic parsing and sentiment analysis, many broad linguistic trends can be captured via surface features.</p>
+			</abstract>
+		</profileDesc>
+	</teiHeader>
+	<text xml:lang="en">
+		<body>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="1">Introduction</head><p>Na¨ıveNa¨ıve context-free grammars, such as those em- bodied by standard treebank annotations, do not parse well because their symbols have too little context to constrain their syntactic behavior. For example, to PPs usually attach to verbs and of PPs usually attach to nouns, but a context-free PP symbol can equally well attach to either. Much of the last few decades of parsing research has therefore focused on propagating contextual in- formation from the leaves of the tree to inter- nal nodes. For example, head lexicalization <ref type="bibr" target="#b8">(Eisner, 1996;</ref><ref type="bibr" target="#b6">Collins, 1997;</ref><ref type="bibr" target="#b4">Charniak, 1997)</ref>, struc- tural annotation <ref type="bibr" target="#b14">(Johnson, 1998;</ref>, and state-splitting ( <ref type="bibr" target="#b17">Matsuzaki et al., 2005;</ref><ref type="bibr" target="#b23">Petrov et al., 2006</ref>) are all designed to take coarse symbols like PP and decorate them with additional context. The underlying reason that such propagation is even needed is that PCFG parsers score trees based on local configurations only, and any information that is not threaded through the tree becomes inaccessible to the scor- ing function. There have been non-local ap- proaches as well, such as tree-substitution parsers <ref type="bibr" target="#b1">(Bod, 1993;</ref><ref type="bibr" target="#b25">Sima'an, 2000</ref>), neural net parsers <ref type="bibr" target="#b12">(Henderson, 2003)</ref>, and rerankers <ref type="bibr" target="#b5">(Collins and Koo, 2005;</ref><ref type="bibr" target="#b3">Charniak and Johnson, 2005;</ref><ref type="bibr" target="#b13">Huang, 2008)</ref>. These non-local approaches can actually go even further in enriching the grammar's struc- tural complexity by coupling larger domains in various ways, though their non-locality generally complicates inference.</p><p>In this work, we instead try to minimize the structural complexity of the grammar by moving as much context as possible onto local surface fea- tures. We examine the position that grammars should not propagate any information that is avail- able from surface strings, since a discriminative parser can access that information directly. We therefore begin with a minimal grammar and it- eratively augment it with rich input features that do not enrich the context-free backbone. Previ- ous work has also used surface features in their parsers, but the focus has been on machine learn- ing methods <ref type="bibr" target="#b27">(Taskar et al., 2004</ref>), latent annota- tions ( <ref type="bibr" target="#b21">Petrov and Klein, 2008a;</ref><ref type="bibr" target="#b22">Petrov and Klein, 2008b)</ref>, or implementation ( <ref type="bibr" target="#b9">Finkel et al., 2008)</ref>.</p><p>By contrast, we investigate the extent to which we need a grammar at all. As a thought experi- ment, consider a parser with no grammar, which functions by independently classifying each span (i, j) of a sentence as an NP, VP, and so on, or null if that span is a non-constituent. For exam- ple, spans that begin with the might tend to be NPs, while spans that end with of might tend to be non-constituents. An independent classification approach is actually very viable for part-of-speech tagging ( <ref type="bibr" target="#b28">Toutanova et al., 2003)</ref>, but is problem- atic for parsing -if nothing else, parsing comes with a structural requirement that the output be a well-formed, nested tree. Our parser uses a min- imal PCFG backbone grammar to ensure a ba- sic level of structural well-formedness, but relies mostly on features of surface spans to drive accu- racy. Formally, our model is a CRF where the fea- tures factor over anchored rules of a small back- bone grammar, as shown in <ref type="figure">Figure 1</ref>.</p><p>Some aspects of the parsing problem, such as the tree constraint, are clearly best captured by a PCFG. Others, such as heaviness effects, are nat- urally captured using surface information. The open question is whether surface features are ade- quate for key effects like subcategorization, which have deep definitions but regular surface reflexes (e.g. the preposition selected by a verb will often linearly follow it). Empirically, the answer seems to be yes, and our system produces strong results, e.g. up to 90.5 F1 on English parsing. Our parser is also able to generalize well across languages with little tuning: it achieves state-of-the-art re- sults on multilingual parsing, scoring higher than the best single-parser system from the SPMRL 2013 Shared Task on a range of languages, as well as on the competition's average F1 metric.</p><p>One advantage of a system that relies on surface features and a simple grammar is that it is portable not only across languages but also across tasks to an extent. For example, <ref type="bibr" target="#b26">Socher et al. (2013)</ref> demonstrates that sentiment analysis, which is usually approached as a flat classification task, can be viewed as tree-structured. In their work, they propagate real-valued vectors up a tree using neural tensor nets and see gains from their recur- sive approach. Our parser can be easily adapted to this task by replacing the X-bar grammar over treebank symbols with a grammar over the sen- timent values to encode the output variables and then adding n-gram indicators to our feature set to capture the bulk of the lexical effects. When applied to this task, our system generally matches their accuracy overall and is able to outperform it on the overall sentence-level subtask.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2">Parsing Model</head><p>In order to exploit non-independent surface fea- tures of the input, we use a discriminative formula- tion. Our model is a conditional random field <ref type="bibr" target="#b16">(Lafferty et al., 2001</ref>) over trees, in the same vein as <ref type="bibr" target="#b9">Finkel et al. (2008)</ref> and <ref type="bibr" target="#b21">Petrov and Klein (2008a)</ref>. Formally, we define the probability of a tree T conditioned on a sentence w as</p><formula xml:id="formula_0">p(T |w) ∝ exp θ r∈T f (r, w) (1)</formula><p>where the feature domains r range over the (an- chored) rules used in the tree. An anchored rule r is the conjunction of an unanchored grammar rule rule(r) and the start, stop, and split indexes where that rule is anchored, which we refer to as span(r). It is important to note that the richness of the backbone grammar is reflected in the structure of the trees T , while the features that condition di- rectly on the input enter the equation through the anchoring span(r). To optimize model parame- ters, we use the Adagrad algorithm of <ref type="bibr" target="#b7">Duchi et al. (2010)</ref> with L2 regularization.</p><p>We start with a simple X-bar grammar whose only symbols are NP, NP-bar, VP, and so on. Our base model has no surface features: formally, on each anchored rule r we have only an indicator of the (unanchored) rule identity, rule(r). Because the X-bar grammar is so minimal, this grammar does not parse very accurately, scoring just 73 F1 on the standard English Penn Treebank task.</p><p>In past work that has used tree-structured CRFs in this way, increased accuracy partially came from decorating trees T with additional annota- tions, giving a tree T over a more complex symbol set. These annotations introduce additional con- text into the model, usually capturing linguistic in- tuition about the factors that influence grammati- cality. For instance, we might annotate every con- stituent X in the tree with its parent Y , giving a tree with symbols X <ref type="bibr">[ˆY ]</ref>. <ref type="bibr" target="#b9">Finkel et al. (2008)</ref> used parent annotation, head tag annotation, and hori- zontal sibling annotation together in a single large grammar. In <ref type="bibr" target="#b21">Petrov and Klein (2008a)</ref> and <ref type="bibr" target="#b22">Petrov and Klein (2008b)</ref>, these annotations were latent; they were inferred automatically during training. <ref type="bibr" target="#b11">Hall and Klein (2012)</ref> employed both kinds of an- notations, along with lexicalized head word anno- tation. All of these past CRF parsers do also ex- ploit span features, as did the structured margin parser of <ref type="bibr" target="#b27">Taskar et al. (2004)</ref>; the current work pri- marily differs in shifting the work from the gram- mar to the surface features.</p><p>The problem with rich annotations is that they increase the state space of the grammar substan- tially. For example, adding parent annotation can square the number of symbols, and each subse- quent annotation causes a multiplicative increase in the size of the state space. <ref type="bibr" target="#b11">Hall and Klein (2012)</ref> attempted to reduce this state space by fac- toring these annotations into individual compo- nents. Their approach changed the multiplicative penalty of annotation into an additive penalty, but even so their individual grammar projections are much larger than the base X-bar grammar.</p><p>In this work, we want to see how much of the expressive capability of annotations can be cap- tured using surface evidence, with little or no an- notation of the underlying grammar. To that end, we avoid annotating our trees at all, opting instead to see how far simple surface features will go in achieving a high-performance parser. We will re- turn to the question of annotation in Section 5.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3">Surface Feature Framework</head><p>To improve the performance of our X-bar gram- mar, we will add a number of surface feature tem- plates derived only from the words in the sentence. We say that an indicator is a surface property if it can be extracted without reference to the parse tree. These features can be implemented with- out reference to structured linguistic notions like headedness; however, we will argue that they still capture a wide range of linguistic phenomena in a data-driven way.</p><p>Throughout this and the following section, we will draw on motivating examples from the En- glish Penn Treebank, though similar examples could be equally argued for other languages. For performance on other languages, see Section 6.</p><p>Recall that our CRF factors over anchored rules r, where each r has identity rule(r) and anchor- ing span(r). The X-bar grammar has only indi- cators of rule(r), ignoring the anchoring. Let a surface property of r be an indicator function of span(r) and the sentence itself. For example, the first word in a constituent is a surface property, as is the word directly preceding the constituent. As illustrated in <ref type="figure">Figure 1</ref>, the actual features of the model are obtained by conjoining surface proper- ties with various abstractions of the rule identity.</p><p>For rule abstractions, we use two templates: the parent of the rule and the identity of the rule. The surface features are somewhat more involved, and so we introduce them incrementally.</p><p>One immediate computational and statistical is- sue arises from the sheer number of possible sur- face features. There are a great number of spans in a typical treebank; extracting features for ev- ery possible combination of span and rule is pro- hibitive. One simple solution is to only extract features for rule/span pairs that are actually ob- served in gold annotated examples during train- ing. Because these "positive" features correspond to observed constituents, they are far less numer- ous than the set of all possible features extracted from all spans. As far as we can tell, all past CRF parsers have used "positive" features only.</p><p>However, negative features-features that are not observed in any tree-are still powerful indica- tors of (un)grammaticality: if we have never seen a PRN that starts with "has," or a span that be- gins with a quotation mark and ends with a close bracket, then we would like the model to be able to place negative weights on these features. Thus, we use a simple feature hashing scheme where posi- tive features are indexed individually, while nega-   <ref type="table">Table 1</ref>: Results for the Penn Treebank development set, reported in F1 on sentences of length ≤ 40 on Section 22, for a number of incrementally growing feature sets. We show that each feature type presented in Section 4 adds benefit over the previous, and in combination they produce a reasonably good yet simple parser.</p><p>tive features are bucketed together. During train- ing there are no collisions between positive fea- tures, which generally receive positive weight, and negative features, which generally receive nega- tive weight; only negative features can collide. Early experiments indicated that using a number of negative buckets equal to the number of posi- tive features was effective.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4">Features</head><p>Our goal is to use surface features to replicate the functionality of other annotations, without in- creasing the state space of our grammar, meaning that the rules rule(r) remain simple, as does the state space used during inference. Before we present our main features, we briefly discuss the issue of feature sparsity. While lexical features are a powerful driver of our parser, firing features on rare words would allow it to overfit the training data quite heavily. To that end, for the purposes of computing our features, a word is rep- resented by its longest suffix that occurs 100 or more times in the training data (which will be the entire word, for common words). 1 <ref type="table">Table 1</ref> shows the results of incrementally building up our feature set on the Penn Treebank development set. RULE specifies that we use only indicators on rule identity for binary production and nonterminal unaries. For this experiment and all others, we include a basic set of lexicon fea- tures, i.e. features on preterminal part-of-speech tags. A given preterminal unary at position i in the sentence includes features on the words (suf- fixes) at position i − 1, i, and i + 1. Because the lexicon is especially sensitive to morphological ef- fects, we also fire features on all prefixes and suf-fixes of the current word up to length 5, regardless of frequency.</p><p>Subsequent lines in <ref type="table">Table 1</ref> indicate additional surface feature templates computed over the span, which are then conjoined with the rule identity as shown in <ref type="figure">Figure 1</ref> to give additional features. In the rest of the section, we describe the features of this type that we use. Note that many of these fea- tures have been used before ( <ref type="bibr" target="#b27">Taskar et al., 2004;</ref><ref type="bibr" target="#b9">Finkel et al., 2008;</ref><ref type="bibr" target="#b22">Petrov and Klein, 2008b)</ref>; our goal here is not to amass as many feature tem- plates as possible, but rather to examine the ex- tent to which a simple set of features can replace a complicated state space.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.1">Basic Span Features</head><p>We start with some of the most obvious proper- ties available to us, namely, the identity of the first and last words of a span. Because heads of con- stituents are often at the beginning or the end of a span, these feature templates can (noisily) cap- ture monolexical properties of heads without hav- ing to incur the inferential cost of lexicalized an- notations. For example, in English, the syntactic head of a verb phrase is typically at the beginning of the span, while the head of a simple noun phrase is the last word. Other languages, like Korean or Japanese, are more consistently head final.</p><p>Structural contexts like those captured by par- ent annotation <ref type="bibr" target="#b14">(Johnson, 1998</ref>) are more subtle. Parent annotation can capture, for instance, the difference in distribution in NPs that have S as a parent (that is, subjects) and NPs under VPs (ob- jects). We try to capture some of this same intu- ition by introducing a feature on the length of a span. For instance, VPs embedded in NPs tend to be short, usually as embedded gerund phrases. Because constituents in the treebank can be quite long, we bin our length features into 8 buckets, of Adding these simple features (first word, last word, and lengths) as span features of the X- bar grammar already gives us a substantial im- provement over our baseline system, improving the parser's performance from 73.0 F1 to 85.0 F1 (see <ref type="table">Table 1</ref>).</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.2">Span Context Features</head><p>Of course, there is no reason why we should con- fine ourselves to just the words within the span: words outside the span also provide a rich source of context. As an example, consider disambiguat- ing the POS tag of the word read in <ref type="figure">Figure 2</ref>. A VP is most frequently preceded by a subject NP, whose rightmost word is often its head. Therefore, we fire features that (separately) look at the words immediately preceding and immediately follow- ing the span.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.3">Split Point Features</head><p>Another important source of features are the words at and around the split point of a binary rule ap- plication. <ref type="figure" target="#fig_2">Figure 3</ref> shows an example of one in- stance of this feature template. impact is a noun that is more likely to take a PP than other nouns, and so we expect this feature to have high weight and encourage the attachment; this feature proves generally useful in resolving such cases of right- attachments to noun phrases, since the last word of the noun phrase is often the head. As another example, coordination can be represented by an indicator of the conjunction, which comes imme- diately after the split point. Finally, control struc- tures with infinitival complements can be captured with a rule S → NP VP with the word "to" at the split point.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.4">Span Shape Features</head><p>We add one final feature characterizing the span, which we call span shape. <ref type="figure" target="#fig_3">Figure 4</ref> shows how this feature is computed. For each word in the span, <ref type="bibr">2</ref> we indicate whether that word begins with a cap- ital letter, lowercase letter, digit, or punctuation mark. If it begins with punctuation, we indicate the punctuation mark explicitly. <ref type="figure" target="#fig_3">Figure 4</ref> shows that this is especially useful in characterizing con- structions such as parentheticals and quoted ex- pressions. Because this feature indicates capital- ization, it can also capture properties of NP in- ternal structure relevant to named entities, and its sensitivity to capitalization and punctuation makes it useful for recognizing appositive constructions.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5">Annotations</head><p>We have built up a strong set of features by this point, but have not yet answered the question of whether or not grammar annotation is useful on top of them. In this section, we examine two of the most commonly used types of additional annota- tion, structural annotation, and lexical annotation.</p><formula xml:id="formula_1">Annotation Dev, len ≤ 40 v = 0, h = 0 90.1 v = 1, h = 0 90.5 v = 0, h = 1</formula><p>90.2 v = 1, h = 1 90.9 Lexicalized 90.3 <ref type="table">Table 2</ref>: Results for the Penn Treebank develop- ment set, sentences of length ≤ 40, for different annotation schemes implemented on top of the X- bar grammar.</p><p>Recall from Section 3 that every span feature is conjoined with indicators over rules and rule par- ents to produce features over anchored rule pro- ductions; when we consider adding an annotation layer to the grammar, what that does is refine the rule indicators that are conjoined with every span feature. While this is a powerful way of refining features, we show that common successful anno- tation schemes provide at best modest benefit on top of the base parser.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.1">Structural Annotation</head><p>The most basic, well-understood kind of annota- tion on top of an X-bar grammar is structural an- notation, which annotates each nonterminal with properties of its environment <ref type="bibr" target="#b14">(Johnson, 1998;</ref>. This includes vertical annotation (parent, grandparent, etc.) as well as horizontal annotation (only partially Markovizing rules as opposed to using an X-bar grammar). <ref type="table">Table 2</ref> shows the performance of our feature set in grammars with several different levels of structural annotation. 3  find large gains (6% absolute improvement, 20% relative improvement) going from v = 0, h = 0 to v = 1, h = 1; however, we do not find the same level of benefit. To the extent that our parser needs to make use of extra information in order to ap- ply a rule correctly, simply inspecting the input to determine this information appears to be almost as effective as relying on information threaded through the parser.</p><p>In Section 6 and Section 7, we use v = 1 and h = 0; we find that v = 1 provides a small, reli- able improvement across a range of languages and tasks, whereas other annotations are less clearly beneficial.</p><p>Test <ref type="table">≤ 40 Test all  Berkeley  90.6  90.1  This work  89.9  89.2   Table 3</ref>: Final Parseval results for the v = 1, h = 0 parser on Section 23 of the Penn Treebank.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.2">Lexical Annotation</head><p>Another commonly-used kind of structural an- notation is lexicalization <ref type="bibr" target="#b8">(Eisner, 1996;</ref><ref type="bibr" target="#b6">Collins, 1997;</ref><ref type="bibr" target="#b4">Charniak, 1997)</ref>. By annotating grammar nonterminals with their headwords, the idea is to better model phenomena that depend heavily on the semantics of the words involved, such as coor- dination and PP attachment. <ref type="table">Table 2</ref> shows results from lexicalizing the X- bar grammar; it provides meager improvements. One probable reason for this is that our parser al- ready includes monolexical features that inspect the first and last words of each span, which cap- tures the syntactic or the semantic head in many cases or can otherwise provide information about what the constituent's type may be and how it is likely to combine. Lexicalization allows us to cap- ture bilexical relationships along dependency arcs, but it has been previously shown that these add only marginal benefit to Collins's model anyway <ref type="bibr" target="#b10">(Gildea, 2001</ref>).</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.3">English Evaluation</head><p>Finally, <ref type="table">Table 3</ref> shows our final evaluation on Sec- tion 23 of the Penn Treebank. We use the v = 1, h = 0 grammar. While we do not do as well as the Berkeley parser, we will see in Section 6 that our parser does a substantially better job of gener- alizing to other languages.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6">Other Languages</head><p>Historically, many annotation schemes for parsers have required language-specific engineering: for example, lexicalized parsers require a set of head rules and manually-annotated grammars require detailed analysis of the treebank itself ( . A key strength of a parser that does not rely heavily on an annotated grammar is that it may be more portable to other languages. We show that this is indeed the case: on nine lan- guages, our system is competitive with or better than the Berkeley parser, which is the best single  <ref type="table">Table 4</ref>: Results for the nine treebanks in the SPMRL 2013 Shared Task; all values are F-scores for sentences of all lengths using the version of evalb distributed with the shared task. Berkeley-Rep is the best single parser from <ref type="bibr" target="#b0">(Björkelund et al., 2013)</ref>; we only compare to this parser on the development set because neither the system nor test set values are publicly available. Berkeley-Tags is a version of the Berkeley parser run by the task organizers where tags are provided to the model, and is the best single parser submitted to the official task. In both cases, we match or outperform the baseline parsers in aggregate and on the majority of individual languages.</p><note type="other">Arabic Basque French German Hebrew Hungarian Korean Polish Swedish Avg Dev, all</note><p>parser <ref type="bibr">4</ref> for the majority of cases we consider. We evaluate on the constituency treebanks from the Statistical Parsing of Morphologically Rich Languages Shared Task ( <ref type="bibr">Seddah et al., 2013)</ref>. We compare to the Berkeley parser <ref type="bibr" target="#b20">(Petrov and Klein, 2007)</ref> as well as two variants. First, we use the "Replaced" system of <ref type="bibr" target="#b0">Björkelund et al. (2013)</ref>  <ref type="figure">(Berkeley-Rep)</ref>, which is their best single parser. <ref type="bibr">5</ref> The "Replaced" system modi- fies the Berkeley parser by replacing rare words with morphological descriptors of those words computed using language-specific modules, which have been hand-crafted for individual languages or are trained with additional annotation layers in the treebanks that we do not exploit. Unfor- tunately, <ref type="bibr" target="#b0">Björkelund et al. (2013)</ref> only report re- sults on the development set for the Berkeley-Rep model; however, the task organizers also use a ver- sion of the Berkeley parser provided with parts of speech from high-quality POS taggers for each language (Berkeley-Tags). These part-of-speech taggers often incorporate substantial knowledge of each language's morphology. Both Berkeley- Rep and Berkeley-Tags make up for some short- comings of the Berkeley parser's unknown word model, which is tuned to English.</p><p>In <ref type="table">Table 4</ref>, we see that our performance is over- all substantially higher than that of the Berkeley parser. On the development set, we outperform the Berkeley parser and match the performance of the Berkeley-Rep parser. On the test set, we outper-form both the Berkeley parser and the Berkeley- Tags parser on seven of nine languages, losing only on Arabic and French.</p><p>These results suggest that the Berkeley parser may be heavily fit to English, particularly in its lexicon. However, even when language-specific unknown word handling is added to the parser, our model still outperforms the Berkeley parser over- all, showing that our model generalizes even bet- ter across languages than a parser for which this is touted as a strength <ref type="bibr" target="#b20">(Petrov and Klein, 2007)</ref>. Our span features appear to work well on both head-initial and head-final languages (see Basque and Korean in the table), and the fact that our parser performs well on such morphologically- rich languages as Hungarian indicates that our suf- fix model is sufficient to capture most of the mor- phological effects relevant to parsing. Of course, a language that was heavily prefixing would likely require this feature to be modified. Likewise, our parser does not perform as well on Arabic and He- brew. These closely related languages use tem- platic morphology, for which suffixing is not ap- propriate; however, using additional surface fea- tures based on the output of a morphological ana- lyzer did not lead to increased performance.</p><p>Finally, our high performance on languages such as Polish and Swedish, whose training tree- banks consist of 6578 and 5000 sentences, respec- tively, show that our feature-rich model performs robustly even on treebanks much smaller than the Penn Treebank. <ref type="bibr">6</ref> While " Gangs " is never lethargic , it is hindered by its plot . <ref type="bibr">4</ref> 1 2 2 → (4 While...) 1 <ref type="figure">Figure 5</ref>: An example of a sentence from the Stan- ford Sentiment Treebank which shows the utility of our span features for this task. The presence of "While" under this kind of rule tells us that the sentiment of the constituent to the right dominates the sentiment to the left.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="7">Sentiment Analysis</head><p>Finally, because the system is, at its core, a classi- fier of spans, it can be used equally well for tasks that do not normally use parsing algorithms. One example is sentiment analysis. While approaches to sentiment analysis often simply classify the sen- tence monolithically, treating it as a bag of n- grams ( <ref type="bibr" target="#b19">Pang et al., 2002;</ref><ref type="bibr" target="#b18">Pang and Lee, 2005;</ref><ref type="bibr" target="#b30">Wang and Manning, 2012)</ref>, the recent dataset of <ref type="bibr" target="#b26">Socher et al. (2013)</ref> imposes a layer of structure on the problem that we can exploit. They annotate every constituent in a number of training trees with an integer sentiment value from 1 (very negative) to 5 (very positive), opening the door for models such as ours to learn how syntax can structurally affect sentiment. 7 <ref type="figure">Figure 5</ref> shows an example that requires some analysis of sentence structure to correctly under- stand. The first constituent conveys positive senti- ment with never lethargic and the second conveys negative sentiment with hindered, but to determine the overall sentiment of the sentence, we need to exploit the fact that while signals a discounting of the information that follows it. The grammar rule</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="7.1">Adapting to Sentiment</head><p>Our parser is almost entirely unchanged from the parser that we used for syntactic analysis. Though the treebank grammar is substantially different, with the nonterminals consisting of five integers with very different semantics from syntactic non- terminals, we still find that parent annotation is ef- fective and otherwise additional annotation layers are not useful.</p><p>One structural difference between sentiment analysis and syntactic parsing lies in where the rel- evant information is present in a span. Syntax is often driven by heads of constituents, which tend to be located at the beginning or the end, whereas sentiment is more likely to depend on modifiers such as adjectives, which are typically present in the middle of spans. Therefore, we augment our existing model with standard sentiment anal- ysis features that look at unigrams and bigrams in the span ( <ref type="bibr" target="#b30">Wang and Manning, 2012)</ref>. More- over, the Stanford Sentiment Treebank is unique in that each constituent was annotated in isolation, meaning that context never affects sentiment and that every word always has the same tag. We ex- ploit this by adding an additional feature template similar to our span shape feature from Section 4.4 which uses the (deterministic) tag for each word as its descriptor.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="7.2">Results</head><p>We evaluated our model on the fine-grained sen- timent analysis task presented in <ref type="bibr" target="#b26">Socher et al. (2013)</ref> and compare to their released system. The task is to predict the root sentiment label of each parse tree; however, because the data is annotated with sentiment at each span of each parse tree, we can also evaluate how well our model does at these intermediate computations. Following their exper- imental conditions, we filter the test set so that it only contains trees with non-neutral sentiment la- bels at the root. <ref type="table" target="#tab_2">Table 5</ref> shows that our model outperforms the model of <ref type="bibr" target="#b26">Socher et al. (2013)</ref>-both the published numbers and latest released version-on the task of root classification, even though the system was not explicitly designed for this task. Their model has high capacity to model complex interactions of words through a combinatory tensor, but it ap- pears that our simpler, feature-driven model is justRoot All Spans Non-neutral Dev (872 trees) Stanford CoreNLP current 50.7 80.8 This work 53.1 80.5 Non-neutral Test (1821 trees) Stanford CoreNLP current 49.1 80.2 Stanford EMNLP 2013 45.7 80.7 This work 49.6 80.4 </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="8">Conclusion</head><p>To date, the most successful constituency parsers have largely been generative, and operate by refin- ing the grammar either manually or automatically so that relevant information is available locally to each parsing decision. Our main contribution is to show that there is an alternative to such anno- tation schemes: namely, conditioning on the input and firing features based on anchored spans. We build up a small set of feature templates as part of a discriminative constituency parser and outperform the Berkeley parser on a wide range of languages. Moreover, we show that our parser is adaptable to other tree-structured tasks such as sentiment anal- ysis; we outperform the recent system of <ref type="bibr" target="#b26">Socher et al. (2013)</ref> and obtain state of the art performance on their dataset. Our system is available as open-source at https://www.github.com/dlwh/epic.</p></div><figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_0"><head></head><label></label><figDesc>Figure 1: Features computed over the application of the rule VP → VBD NP over the anchored span averted financial disaster with the shown indices. Span properties are generated as described throughout Section 4; they are then conjoined with the rule and just the parent nonterminal to give the features fired over the anchored production.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_1"><head>Features</head><label></label><figDesc></figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_2"><head>Figure 3 :</head><label>3</label><figDesc>Figure 2: An example showing the utility of span context. The ambiguity about whether read is an adjective or a verb is resolved when we construct a VP and notice that the word proceeding it is unlikely.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_3"><head>Figure 4 :</head><label>4</label><figDesc>Figure 4: Computation of span shape features on two examples. Parentheticals, quotes, and other punctuation-heavy, short constituents benefit from being explicitly modeled by a descriptor like this.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_2" validated="false"><head>Table 5 :</head><label>5</label><figDesc></figDesc><table>Fine-grained sentiment analysis results 
+on the Stanford Sentiment Treebank of Socher et 
+al. (2013). We compare against the printed num-
+bers in Socher et al. (2013) as well as the per-
+formance of the corresponding release, namely 
+the sentiment component in the latest version of 
+the Stanford CoreNLP at the time of this writ-
+ing. Our model handily outperforms the results 
+from Socher et al. (2013) at root classification and 
+edges out the performance of the latest version of 
+the Stanford system. On all spans of the tree, our 
+model has comparable accuracy to the others. 
+
+</table></figure>
+
+			<note place="foot" n="1"> Experiments with the Brown clusters (Brown et al., 1992) provided by Turian et al. (2010) in lieu of suffixes were not promising. Moreover, lowering this threshold did not improve performance.</note>
+
+			<note place="foot" n="2"> For longer spans, we only use words sufficiently close to the span&apos;s beginning and end.</note>
+
+			<note place="foot" n="3"> We use v = 0 to indicate no annotation, diverging from the notation in Klein and Manning (2003).</note>
+
+			<note place="foot" n="4"> I.e. it does not use a reranking step or post-hoc combination of parser results. 5 Their best parser, and the best overall parser from the shared task, is a reranked product of &quot;Replaced&quot; Berkeley parsers.</note>
+
+			<note place="foot" n="6"> The especially strong performance on Polish relative to other systems is partially a result of our model being able to produce unary chains of length two, which occur frequently in the Polish treebank (Björkelund et al., 2013).</note>
+
+			<note place="foot" n="2"> → 4 1 already encodes the notion of the sentiment of the right child being dominant, so when this is conjoined with our span feature on the first word (While), we end up with a feature that captures this effect. Our features can also lexicalize on other discourse connectives such as but or however, which often occur at the split point between two spans. 7 Note that the tree structure is assumed to be given; the problem is one of labeling a fixed parse backbone.</note>
+
+			<note place="foot">as effective at capturing the key effects of compositionality for sentiment analysis.</note>
+		</body>
+		<back>
+
+			<div type="acknowledgement">
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Acknowledgments</head><p>This work was partially supported by BBN un-der DARPA contract HR0011-12-C-0014, by a Google PhD fellowship to the first author, and an NSF fellowship to the second. We further gratefully acknowledge a hardware donation by NVIDIA Corporation.</p></div>
+			</div>
+
+			<div type="references">
+
+				<listBibl>
+
+<biblStruct xml:id="b0">
+	<analytic>
+		<title level="a" type="main">Re)ranking Meets Morphosyntax: State-of-the-art Results from the SPMRL 2013 Shared Task</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Anders</forename><surname>Björkelund</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ozlem</forename><surname>Cetinoglu</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Richárd</forename><surname>Farkas</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Thomas</forename><surname>Mueller</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Wolfgang</forename><surname>Seeker</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Fourth Workshop on Statistical Parsing of Morphologically-Rich Languages</title>
+		<meeting>the Fourth Workshop on Statistical Parsing of Morphologically-Rich Languages</meeting>
+		<imprint>
+			<date type="published" when="2013" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b1">
+	<analytic>
+		<title level="a" type="main">Using an Annotated Corpus As a Stochastic Grammar</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Rens</forename><surname>Bod</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Sixth Conference on European Chapter</title>
+		<meeting>the Sixth Conference on European Chapter</meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="1993" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b2">
+	<analytic>
+		<title level="a" type="main">Class-based n-gram models of natural language</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Peter F Brown</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">V</forename><surname>Peter</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Robert</forename><forename type="middle">L</forename><surname>Desouza</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Vincent J Della</forename><surname>Mercer</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jenifer C</forename><surname>Pietra</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Lai</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Computational linguistics</title>
+		<imprint>
+			<biblScope unit="volume">18</biblScope>
+			<biblScope unit="issue">4</biblScope>
+			<biblScope unit="page" from="467" to="479" />
+			<date type="published" when="1992" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b3">
+	<analytic>
+		<title level="a" type="main">Coarseto-fine N-best Parsing and MaxEnt Discriminative Reranking</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Eugene</forename><surname>Charniak</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Mark</forename><surname>Johnson</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 43rd Annual Meeting on Association for Computational Linguistics</title>
+		<meeting>the 43rd Annual Meeting on Association for Computational Linguistics</meeting>
+		<imprint>
+			<date type="published" when="2005" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b4">
+	<monogr>
+				<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Eugene</forename><surname>Charniak</surname></persName>
+		</author>
+		<title level="m">Statistical Techniques for Natural Language Parsing. AI Magazine</title>
+		<imprint>
+			<date type="published" when="1997" />
+			<biblScope unit="volume">18</biblScope>
+			<biblScope unit="page" from="33" to="44" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b5">
+	<analytic>
+		<title level="a" type="main">Discriminative Reranking for Natural Language Parsing</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Michael</forename><surname>Collins</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Terry</forename><surname>Koo</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Computational Linguistics</title>
+		<imprint>
+			<biblScope unit="volume">31</biblScope>
+			<biblScope unit="issue">1</biblScope>
+			<biblScope unit="page" from="25" to="70" />
+			<date type="published" when="2005-03" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b6">
+	<analytic>
+		<title level="a" type="main">Three generative, lexicalised models for statistical parsing</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Michael</forename><surname>Collins</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">ACL</title>
+		<imprint>
+			<date type="published" when="1997" />
+			<biblScope unit="page" from="16" to="23" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b7">
+	<monogr>
+		<title level="m" type="main">Adaptive Subgradient Methods for Online Learning and Stochastic Optimization</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">John</forename><surname>Duchi</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Elad</forename><surname>Hazan</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yoram</forename><surname>Singer</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2010" />
+		</imprint>
+		<respStmt>
+			<orgName>COLT</orgName>
+		</respStmt>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b8">
+	<analytic>
+		<title level="a" type="main">Three New Probabilistic Models for Dependency Parsing: An Exploration</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jason</forename><surname>Eisner</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 16th International Conference on Computational Linguistics (COLING-96)</title>
+		<meeting>the 16th International Conference on Computational Linguistics (COLING-96)</meeting>
+		<imprint>
+			<date type="published" when="1996" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b9">
+	<analytic>
+		<title level="a" type="main">Efficient, feature-based, conditional random field parsing</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jenny</forename><forename type="middle">Rose</forename><surname>Finkel</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Alex</forename><surname>Kleeman</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Christopher</forename><forename type="middle">D</forename><surname>Manning</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">ACL 2008</title>
+		<imprint>
+			<date type="published" when="2008" />
+			<biblScope unit="page" from="959" to="967" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b10">
+	<analytic>
+		<title level="a" type="main">Corpus variation and parser performance</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Daniel</forename><surname>Gildea</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of Empirical Methods in Natural Language Processing</title>
+		<meeting>Empirical Methods in Natural Language Processing</meeting>
+		<imprint>
+			<date type="published" when="2001" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b11">
+	<analytic>
+		<title level="a" type="main">Training factored PCFGs with expectation propagation</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">David</forename><surname>Hall</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Dan</forename><surname>Klein</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">EMNLP</title>
+		<imprint>
+			<date type="published" when="2012" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b12">
+	<analytic>
+		<title level="a" type="main">Inducing History Representations for Broad Coverage Statistical Parsing</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">James</forename><surname>Henderson</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the North American Chapter</title>
+		<meeting>the North American Chapter</meeting>
+		<imprint>
+			<date type="published" when="2003" />
+			<biblScope unit="volume">1</biblScope>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b13">
+	<analytic>
+		<title level="a" type="main">Forest reranking: Discriminative parsing with non-local features</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Liang</forename><surname>Huang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of ACL-08: HLT</title>
+		<meeting>ACL-08: HLT<address><addrLine>Columbus, Ohio</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2008-06" />
+			<biblScope unit="page" from="586" to="594" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b14">
+	<analytic>
+		<title level="a" type="main">PCFG Models of Linguistic Tree Representations</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Mark</forename><surname>Johnson</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Computational Linguistics</title>
+		<imprint>
+			<biblScope unit="volume">24</biblScope>
+			<biblScope unit="issue">4</biblScope>
+			<biblScope unit="page" from="613" to="632" />
+			<date type="published" when="1998-12" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b15">
+	<analytic>
+		<title level="a" type="main">Accurate unlexicalized parsing</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Dan</forename><surname>Klein</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Christopher</forename><forename type="middle">D</forename><surname>Manning</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">ACL</title>
+		<imprint>
+			<date type="published" when="2003" />
+			<biblScope unit="page" from="423" to="430" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b16">
+	<analytic>
+		<title level="a" type="main">Conditional Random Fields: Probabilistic Models for Segmenting and Labeling Sequence Data</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">John</forename><forename type="middle">D</forename><surname>Lafferty</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Andrew</forename><surname>Mccallum</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Fernando</forename><forename type="middle">C N</forename><surname>Pereira</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Eighteenth International Conference on Machine Learning</title>
+		<meeting>the Eighteenth International Conference on Machine Learning</meeting>
+		<imprint>
+			<date type="published" when="2001" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b17">
+	<analytic>
+		<title level="a" type="main">Probabilistic CFG with latent annotations</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Takuya</forename><surname>Matsuzaki</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yusuke</forename><surname>Miyao</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jun&amp;apos;ichi</forename><surname>Tsujii</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">ACL</title>
+		<meeting><address><addrLine>Morristown, NJ, USA</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2005" />
+			<biblScope unit="page" from="75" to="82" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b18">
+	<analytic>
+		<title level="a" type="main">Seeing Stars: Exploiting Class Relationships for Sentiment Categorization with Respect to Rating Scales</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Bo</forename><surname>Pang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Lillian</forename><surname>Lee</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 43rd Annual Meeting on Association for Computational Linguistics</title>
+		<meeting>the 43rd Annual Meeting on Association for Computational Linguistics</meeting>
+		<imprint>
+			<date type="published" when="2005" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b19">
+	<analytic>
+		<title level="a" type="main">Thumbs Up?: Sentiment Classification Using Machine Learning Techniques</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Bo</forename><surname>Pang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Lillian</forename><surname>Lee</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Shivakumar</forename><surname>Vaithyanathan</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the ACL-02 Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>the ACL-02 Conference on Empirical Methods in Natural Language Processing</meeting>
+		<imprint>
+			<date type="published" when="2002" />
+			<biblScope unit="volume">10</biblScope>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b20">
+	<analytic>
+		<title level="a" type="main">Improved inference for unlexicalized parsing</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Slav</forename><surname>Petrov</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Dan</forename><surname>Klein</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">NAACL-HLT</title>
+		<imprint>
+			<date type="published" when="2007" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b21">
+	<analytic>
+		<title level="a" type="main">Discriminative log-linear grammars with latent variables</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Slav</forename><surname>Petrov</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Dan</forename><surname>Klein</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">NIPS</title>
+		<imprint>
+			<date type="published" when="2008" />
+			<biblScope unit="page" from="1153" to="1160" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b22">
+	<analytic>
+		<title level="a" type="main">Sparse multi-scale grammars for discriminative latent variable parsing</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Slav</forename><surname>Petrov</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Dan</forename><surname>Klein</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2008 Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>the 2008 Conference on Empirical Methods in Natural Language Processing<address><addrLine>Honolulu, Hawaii</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2008-10" />
+			<biblScope unit="page" from="867" to="876" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b23">
+	<analytic>
+		<title level="a" type="main">Learning accurate, compact, and interpretable tree annotation</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Slav</forename><surname>Petrov</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Leon</forename><surname>Barrett</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Romain</forename><surname>Thibaux</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Dan</forename><surname>Klein</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 21st International Conference on Computational Linguistics and 44th Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 21st International Conference on Computational Linguistics and 44th Annual Meeting of the Association for Computational Linguistics<address><addrLine>Sydney, Australia</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2006-07" />
+			<biblScope unit="page" from="433" to="440" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b24">
+	<analytic>
+		<title level="a" type="main">Wolfgang Seeker, Yannick Versley, Veronika Vincze, Marcin Woli´nskiWoli´nski, and Alina Wróblewska. 2013. Overview of the SPMRL 2013 Shared Task: A Cross-Framework Evaluation of Parsing Morphologically Rich Languages</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Djamé</forename><surname>Seddah</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Reut</forename><surname>Tsarfaty</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Sandra</forename><surname>Kübler</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Marie</forename><surname>Candito</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jinho</forename><forename type="middle">D</forename><surname>Choi</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Richárd</forename><surname>Farkas</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jennifer</forename><surname>Foster</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Iakes</forename><surname>Goenaga</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Koldo</forename><forename type="middle">Gojenola</forename><surname>Galletebeitia</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yoav</forename><surname>Goldberg</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Spence</forename><surname>Green</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Nizar</forename><surname>Habash</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Marco</forename><surname>Kuhlmann</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Wolfgang</forename><surname>Maier</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Joakim</forename><surname>Nivre</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Adam</forename><surname>Przepiórkowski</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ryan</forename><surname>Roth</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Fourth Workshop on Statistical Parsing of Morphologically-Rich Languages</title>
+		<meeting>the Fourth Workshop on Statistical Parsing of Morphologically-Rich Languages</meeting>
+		<imprint/>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b25">
+	<analytic>
+		<title level="a" type="main">Tree-gram Parsing Lexical Dependencies and Structural Relations</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Khalil</forename><surname>Sima</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 38th Annual Meeting on Association for Computational Linguistics</title>
+		<meeting>the 38th Annual Meeting on Association for Computational Linguistics</meeting>
+		<imprint>
+			<date type="published" when="2000" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b26">
+	<analytic>
+		<title level="a" type="main">Recursive Deep Models for Semantic Compositionality Over a Sentiment Treebank</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Richard</forename><surname>Socher</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Alex</forename><surname>Perelygin</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jean</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jason</forename><surname>Chuang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Christopher</forename><forename type="middle">D</forename><surname>Manning</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Andrew</forename><surname>Ng</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Christopher</forename><surname>Potts</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of Empirical Methods in Natural Language Processing</title>
+		<meeting>Empirical Methods in Natural Language Processing</meeting>
+		<imprint>
+			<date type="published" when="2013" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b27">
+	<analytic>
+		<title level="a" type="main">MaxMargin Parsing</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ben</forename><surname>Taskar</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Dan</forename><surname>Klein</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Michael</forename><surname>Collins</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Daphne</forename><surname>Koller</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Christopher</forename><surname>Manning</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of Empirical Methods in Natural Language Processing</title>
+		<meeting>Empirical Methods in Natural Language Processing</meeting>
+		<imprint>
+			<date type="published" when="2004" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b28">
+	<analytic>
+		<title level="a" type="main">Feature-rich Partof-speech Tagging with a Cyclic Dependency Network</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kristina</forename><surname>Toutanova</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Dan</forename><surname>Klein</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Christopher</forename><forename type="middle">D</forename><surname>Manning</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yoram</forename><surname>Singer</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the North American Chapter of the Association for Computational Linguistics on Human Language Technology</title>
+		<meeting>the North American Chapter of the Association for Computational Linguistics on Human Language Technology</meeting>
+		<imprint>
+			<date type="published" when="2003" />
+			<biblScope unit="volume">1</biblScope>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b29">
+	<analytic>
+		<title level="a" type="main">Word representations: a simple and general method for semi-supervised learning</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Joseph</forename><surname>Turian</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Lev</forename><surname>Ratinov</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yoshua</forename><surname>Bengio</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 48th Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 48th Annual Meeting of the Association for Computational Linguistics</meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2010" />
+			<biblScope unit="page" from="384" to="394" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b30">
+	<analytic>
+		<title level="a" type="main">Baselines and Bigrams: Simple, Good Sentiment and Topic Classification</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Sida</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Christopher</forename><surname>Manning</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 50th Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 50th Annual Meeting of the Association for Computational Linguistics</meeting>
+		<imprint>
+			<publisher>Short Papers</publisher>
+			<date type="published" when="2012" />
+			<biblScope unit="volume">2</biblScope>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+				</listBibl>
+			</div>
+		</back>
+	</text>
+</TEI>

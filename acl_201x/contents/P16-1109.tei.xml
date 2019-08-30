@@ -1,0 +1,771 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<TEI xmlns="http://www.tei-c.org/ns/1.0" 
+xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+xsi:schemaLocation="http://www.tei-c.org/ns/1.0 /home/ana/installs/grobid/grobid-0.5.1/grobid-home/schemas/xsd/Grobid.xsd"
+ xmlns:xlink="http://www.w3.org/1999/xlink">
+	<teiHeader xml:lang="en">
+		<encodingDesc>
+			<appInfo>
+				<application version="0.5.1-SNAPSHOT" ident="GROBID" when="2019-04-18T11:52+0000">
+					<ref target="https://github.com/kermitt2/grobid">GROBID - A machine learning software for extracting information from scholarly documents</ref>
+				</application>
+			</appInfo>
+		</encodingDesc>
+		<fileDesc>
+			<titleStmt>
+				<title level="a" type="main">Scaling a Natural Language Generation System</title>
+			</titleStmt>
+			<publicationStmt>
+				<publisher>Association for Computational Linguistics</publisher>
+				<availability status="unknown"><p>Copyright Association for Computational Linguistics</p>
+				</availability>
+				<date>August 7-12, 2016. 2016</date>
+			</publicationStmt>
+			<sourceDesc>
+				<biblStruct>
+					<analytic>
+						<author>
+							<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jonathan</forename><surname>Pfeil</surname></persName>
+							<email>jonathan.pfeil@case.edu</email>
+							<affiliation key="aff0">
+								<orgName type="department" key="dep1">Department of EECS Case</orgName>
+								<orgName type="department" key="dep2">Department of EECS Case Western Reserve University Cleveland</orgName>
+								<orgName type="institution">Western Reserve University Cleveland</orgName>
+								<address>
+									<region>OH, OH</region>
+									<country>USA, USA</country>
+								</address>
+							</affiliation>
+						</author>
+						<author>
+							<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Soumya</forename><surname>Ray</surname></persName>
+							<email>sray@case.edu</email>
+							<affiliation key="aff0">
+								<orgName type="department" key="dep1">Department of EECS Case</orgName>
+								<orgName type="department" key="dep2">Department of EECS Case Western Reserve University Cleveland</orgName>
+								<orgName type="institution">Western Reserve University Cleveland</orgName>
+								<address>
+									<region>OH, OH</region>
+									<country>USA, USA</country>
+								</address>
+							</affiliation>
+						</author>
+						<title level="a" type="main">Scaling a Natural Language Generation System</title>
+					</analytic>
+					<monogr>
+						<title level="m">Proceedings of the 54th Annual Meeting of the Association for Computational Linguistics</title>
+						<meeting>the 54th Annual Meeting of the Association for Computational Linguistics <address><addrLine>Berlin, Germany</addrLine></address>
+						</meeting>
+						<imprint>
+							<publisher>Association for Computational Linguistics</publisher>
+							<biblScope unit="page" from="1148" to="1157"/>
+							<date type="published">August 7-12, 2016. 2016</date>
+						</imprint>
+					</monogr>
+				</biblStruct>
+			</sourceDesc>
+		</fileDesc>
+		<profileDesc>
+			<abstract>
+				<p>A key goal in natural language generation (NLG) is to enable fast generation even with large vocabularies, grammars and worlds. In this work, we build upon a recently proposed NLG system, Sentence Tree Realization with UCT (STRUCT). We describe four enhancements to this system: (i) pruning the grammar based on the world and the communicative goal, (ii) intelligently caching and pruning the com-binatorial space of semantic bindings, (iii) reusing the lookahead search tree at different search depths, and (iv) learning and using a search control heuristic. We evaluate the resulting system on three datasets of increasing size and complexity, the largest of which has a vocabulary of about 10K words, a grammar of about 32K lexical-ized trees and a world with about 11K entities and 23K relations between them. Our results show that the system has a median generation time of 8.5s and finds the best sentence on average within 25s. These results are based on a sequential, interpreted implementation and are significantly better than the state of the art for planning-based NLG systems.</p>
+			</abstract>
+		</profileDesc>
+	</teiHeader>
+	<text xml:lang="en">
+		<body>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="1">Introduction and Related Work</head><p>We consider the restricted natural language gen- eration (NLG) problem <ref type="bibr" target="#b17">(Reiter and Dale, 1997)</ref>: given a grammar, lexicon, world and a commu- nicative goal, output a valid sentence that satis- fies this goal. Though restricted, this problem is still challenging when the NLG system has to deal with the large probabilistic grammars of natural language, large knowledge bases representing re- alistic worlds with many entities and relations be- tween them, and complex communicative goals.</p><p>Prior work has approach NLG from two di- rections. One strategy is over-generation and ranking, in which an intermediate structure gen- erates many candidate sentences which are then ranked according to how well they match the goal. This includes systems built on chart parsers <ref type="bibr" target="#b19">(Shieber, 1988;</ref><ref type="bibr" target="#b9">Kay, 1996;</ref><ref type="bibr" target="#b22">White and Baldridge, 2003)</ref>, systems that use forest architectures such as HALogen/Nitrogen, <ref type="bibr" target="#b12">(Langkilde-Geary, 2002</ref>), systems that use tree conditional random fields ( <ref type="bibr" target="#b13">Lu et al., 2009)</ref>, and newer systems that use recur- rent neural networks <ref type="bibr" target="#b21">(Wen et al., 2015b;</ref><ref type="bibr" target="#b20">Wen et al., 2015a</ref>). Another strategy formalizes NLG as a goal-directed planning problem to be solved using an automated planner. This plan is then semanti- cally enriched, followed by surface realization to turn it into natural language. This is often viewed as a pipeline generation process <ref type="bibr" target="#b17">(Reiter and Dale, 1997</ref>).</p><p>An alternative to pipeline generation is inte- grated generation, in which the sentence plan- ning and surface realization tasks happen simul- taneously <ref type="bibr" target="#b17">(Reiter and Dale, 1997)</ref>. CRISP ( <ref type="bibr" target="#b11">Koller and Stone, 2007)</ref> and PCRISP ( <ref type="bibr" target="#b1">Bauer and Koller, 2010</ref>) are two such systems. These generators en- code semantic components and grammar actions in PDDL ( <ref type="bibr" target="#b6">Fox and Long, 2003)</ref>, the input format for many off-the-shelf planners such as Graphplan <ref type="bibr" target="#b2">(Blum and Furst, 1997)</ref>. During the planning pro- cess a semantically annotated parse is generated alongside the sentence, preventing ungrammatical sentences and structures that cannot be realized. PCRISP builds upon the CRISP system by incor- porating grammar probabilities as costs in an off- the-shelf metric planner ( <ref type="bibr" target="#b1">Bauer and Koller, 2010)</ref>. Our work builds upon the Sentence Tree Realiza- tion with UCT (STRUCT) system <ref type="bibr" target="#b15">(McKinley and Ray, 2014)</ref>, described further in the next section. STRUCT performs integrated generation by for-malizing the generation problem as planning in a Markov decision process (MDP), and using a probabilistic planner to solve it.</p><p>Results reported in previous work <ref type="bibr" target="#b15">(McKinley and Ray, 2014)</ref> show that STRUCT is able to cor- rectly generate sentences for a variety of commu- nicative goals. Further, the system scaled better with grammar size (in terms of vocabulary) than CRISP. Nonetheless, these experiments were per- formed with toy grammars and worlds with arti- ficial communicative goals written to test specific experimental variables in isolation. In this work, we consider the question: can we enable STRUCT to scale to realistic generation tasks? For exam- ple, we would like STRUCT to be able to generate any sentence from the Wall Street Journal (WSJ) corpus <ref type="bibr" target="#b14">(Marcus et al., 1993)</ref>. We describe four en- hancements to the STRUCT system: (i) pruning the grammar based on the world and the commu- nicative goal, (ii) intelligently caching and prun- ing the combinatorial space of semantic bindings, (iii) reusing the lookahead search tree at different search depths, and (iv) learning and using a search control heuristic. We call this enhanced version Scalable-STRUCT (S-STRUCT). In our experi- ments, we evaluate S-STRUCT on three datasets of increasing size and complexity derived from the WSJ corpus. Our results show that even with vo- cabularies, grammars and worlds containing tens of thousands of constituents, S-STRUCT has a median generation time of 8.5s and finds the best sentence on average within 25s, which is signifi- cantly better than the state of the art for planning- based NLG systems.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2">Background: LTAG and STRUCT</head><p>STRUCT uses an MDP <ref type="bibr" target="#b16">(Puterman, 1994)</ref> to for- malize the NLG process. The states of the MDP are semantically-annotated partial sentences. The actions of the MDP are defined by the rules of the grammar. STRUCT uses a probabilistic lexical- ized tree adjoining grammar (PLTAG).</p><p>Tree Adjoining Grammars (TAGs) <ref type="figure" target="#fig_0">(Figure 1</ref>) consist of two sets of trees: initial trees and aux- iliary (adjoining) trees. An initial tree can be ap- plied to an existing sentence tree by replacing a leaf node whose label matches the initial tree's root label in an action called "substitution". Aux- iliary trees have a special "foot" node whose label matches the label of its root, and uses this to en- code recursive language structures. Given an ex- isting sentence tree, an auxiliary tree can be ap- plied in a three-step process called "adjunction". First, an adjunction site is selected from the sen- tence tree; that is, any node whose label matches that of the auxiliary tree's root and foot. Then, the subtree rooted by the adjunction site is removed from the sentence tree and substituted into the foot node of the auxiliary tree. Finally, the modified auxiliary tree is substituted back into the original adjunction location. LTAG is a variation of TAG in which each tree is associated with a lexical item known as an anchor <ref type="bibr" target="#b7">(Joshi and Schabes, 1997</ref>). Semantics can be added to an LTAG by annotat- ing each tree with compositional lambda seman- tics that are unified via β-reduction <ref type="bibr" target="#b8">(Jurafsky and Martin, 2000)</ref>. A PLTAG associates probabilities with every tree in the LTAG and includes proba- bilities for starting a derivation, probabilities for substituting into a specific node, and probabilities for adjoining at a node, or not adjoining.</p><p>The STRUCT reward function is a measure of progress towards the communicative goal as mea- sured by the overlap with the semantics of a partial sentence. It gives positive reward to subgoals ful- filled and gives negative reward for unbound enti- ties, unmet semantic constraints, sentence length, and ambiguous entities. Therefore, the best sen- tence for a given goal is the shortest unambiguous sentence which fulfills the communicative goal and all semantic constraints. The transition func- tion of the STRUCT MDP assigns the total proba- bility of selecting and applying an action in a state to transition to the next, given by the action's prob- ability in the grammar. The final component of the MDP is the discount factor, which is set to 1. This is because with lexicalized actions, the state does not loop, and the algorithm may need to generate long sentences to match the communicative goal.</p><p>STRUCT uses a modified version of the prob- abilistic planner UCT ( <ref type="bibr" target="#b10">Kocsis and Szepesvári, 2006</ref>), which can generate near-optimal plans with a time complexity independent of the state space size. UCT's online planning happens in two steps: for each action available, a lookahead search tree is constructed to estimate the action's utility. Then, the best available action is taken and the procedure is repeated. If there are any unex- plored actions, UCT will choose one according to an "open action policy" which samples PLTAGs without replacement. If no unexplored actions re- main, an action a is chosen in state s according to the "tree policy" which maximizes Equation 1.</p><formula xml:id="formula_0">P (s, a) = Q(s, a) + c lnN (s) N (s, a)<label>(1)</label></formula><p>Here Q(s, a) is the estimated value of a, com- puted as the sum of expected future rewards after (s, a). N (s, a) and N (s) are the visit counts for s and (s, a) respectively. c is a constant term con- trolling the exploration/exploitation trade off. Af- ter an action is chosen, the policy is rolled out to depth D by repeatedly sampling actions from the PLTAG, thereby creating the lookahead tree.</p><p>UCT was originally used in an adversarial en- vironment, so it selects actions leading to the best average reward; however, language generation is not adversarial, so STRUCT chooses actions lead- ing to the best overall reward instead.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Algorithm 1 S-STRUCT Algorithm</head><p>Require: Grammar R, World W , Goal G, num trials N , lookahead depth D, timeout T 1: † R ← pruneGrammar(R) 2: state ← empty state 3: uctT ree ← new search tree at state 4: while state not terminal and time &lt; T do</p><formula xml:id="formula_1">5: † uctT ree ← getAction(uctT ree, N, D) 6:</formula><p>state ← uctT ree.state 7: end while 8: return extractBestSentence(uctT ree)</p><p>The modified STRUCT algorithm presented in this paper, which we call Scalable-STRUCT (S-STRUCT), is shown in Algorithm 1.</p><p>If the changes described in the next section (lines marked with †) are removed, we recover the origi- nal STRUCT system.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3">Scaling the STRUCT system</head><p>In this section, we describe five enhancements to STRUCT that will allow it to scale to real world</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Algorithm 2 getAction (Algorithm 1, line 5)</head><p>Require: Search Tree uctT ree, num trials N , lookahead depth D, grammar R 1: for N do propagate reward up uctT ree <ref type="bibr">15:</ref> depth ← depth + 1</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>16:</head><p>end while 17: end for 18: uctT ree ← best child of uctT ree 19: return uctT ree NLG tasks. Although the implementation details of these are specific to STRUCT, all but one (reuse of the UCT search tree) could theoretically be ap- plied to any planning-based NLG system.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.1">Grammar Pruning</head><p>It is clear that for a given communicative goal, only a small percentage of the lexicalized trees in the grammar will be helpful in generating a sen- tence. Since these trees correspond to actions, if we prune the grammar suitably, we reduce the number of actions our planner has to consider.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Algorithm 3 pruneGrammar (Algorithm 1, line 1)</head><formula xml:id="formula_2">Require: Grammar R, World W , Goal G 1: G ← ∅ 2: for e ∈ G.entities do 3: G ← G ∪ ref erringExpression(e, W ) 4: end for 5: R ← ∅ 6: for tree ∈ R do 7:</formula><p>if tree fulfills semantic constraints or tree.relations ⊆ G .relations then 8:</p><formula xml:id="formula_3">R ← R ∪ {tree} 9:</formula><p>end if 10: end for 11: return R There are four cases in which an action is rele-vant. First, the action could directly contribute to the goal semantics. Second, the action could sat- isfy a semantic constraint, such as mandatory de- terminer adjunction which would turn "cat" into "the cat" in <ref type="figure" target="#fig_0">Figure 1</ref>. Third, the action allows for additional beneficial actions later in the gener- ation. An auxiliary tree anchored by "that", which introduces a relative clause, would not add any se- mantic content itself. However, it would add sub- stitution locations that would let us go from "the cat" to "the cat that chased the rabbit" later in the generation process. Finally, the action could dis- ambiguate entities in the communicative goal. In the most conservative approach, we cannot discard actions that introduce a relation sharing an entity with a goal entity (through any number of other relations), as it may be used in a referring expres- sion <ref type="bibr" target="#b8">(Jurafsky and Martin, 2000</ref>). However, we can optimize this by ensuring that we can find at least one, instead of all, referring expressions.</p><p>This grammar pruning is "lossless" in that, after pruning, the full communicative goal can still be reached, all semantic constraints can be met, and all entities can be disambiguated. However it is possible that the solution found will be longer than necessary. This can happen if we use two separate descriptors to disambiguate two entities where one would have sufficed. For example, we could gen- erate the sentence "the black dog chased the red cat" where saying "the large dog chased the cat" would have sufficed (if "black", "red", and "large" were only included for disambiguation purposes).</p><p>We implement the pruning logic in the pruneGrammar algorithm shown in Algorithm 3. First, an expanded goal G is constructed by explicitly solving for a referring expression for each goal entity and adding it to the original goal. The algorithm is based on prior work <ref type="bibr" target="#b3">(Bohnet and Dale, 2005</ref>) and uses an alternating greedy search, which chooses the relation that eliminates the most distractors, and a depth-first search to describe the entities. Then, we loop through the trees in the grammar and only keep those that can fulfill se- mantic constraints or can contribute to the goal. This includes trees introducing relative clauses.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.2">Handling Semantic Bindings</head><p>As a part of the reward calculation in Algorithm 4, we must generate the valid bindings between the entities in the partial sentence and the entities in the world (line 2). We must have at least one Algorithm 4 calcReward (Algorithm 2, line 13)</p><formula xml:id="formula_4">Require: Partial Sentence S, World W , Goal G 1: score ← 0 2: † B ← getV alidBindings(S, W ) 3: if |B| &gt; 0 then 4: † m ← getV alidBinding(S, G) 5:</formula><p>S ← apply m to S</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>6:</head><p>score += C 1 |G.relations ∩ S.relations|</p><formula xml:id="formula_5">7:</formula><p>score −= C 2 |G.conds − S.conds| 8:</p><p>score −= C 3 |G.entities S.entities| 9:</p><p>score −= C 4 |S.sentence|</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>10:</head><p>score /= C 5 |B| 11: end if 12: return score valid binding, as this indicates that our partial sen- tence is factual (with respect to the world); how- ever, more than one binding means that the sen- tence is ambiguous, so a penalty is applied. Unfor- tunately, computing the valid bindings is a com- binatorial problem. If there are N world entities and K partial sentence entities, there are N K bind- ings between them that we must check for validity. This quickly becomes infeasible as the world size grows.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Algorithm 5 getValidBindings (Alg. 4, line 2)</head><p>Require: Partial Sentence S, World W 1: validBindings ← ∅ 2: queue ← prevBindings if exists else <ref type="bibr">[∅]</ref> 3: while |queue| &gt; 0 do</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>4:</head><p>b ← queue.pop()</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>5:</head><p>S ← apply binding b to S</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>6:</head><p>if S , W consistent and S .entities all bound then Instead of trying every binding, we use the pro- cedure shown in Algorithm 5 to greatly reduce the number of bindings we must check. Starting with an initially empty binding, we repeatedly add a single {sentenceEntity → worldEntity} pair (line 12). If a binding contains all partial sentence entities and the semantics are consistent with the world, the binding is valid (lines 6-7). If at any point, a binding yields partial sentence semantics that are inconsistent with the world, we no longer need to consider any bindings which it is a sub- set of (when condition on line 8 is false, no chil- dren expanded). The benefit of this bottom-up ap- proach is that when an inconsistency is caused by adding a mapping of partial sentence entity e 1 and world entity e 2 , all of the N −1</p><formula xml:id="formula_6">K−1</formula><p>bindings contain- ing {e 1 → e 2 } are ruled out as well. This pro- cedure is especially effective in worlds/goals with low ambiguity (such as real-world text).</p><p>We further note that many of the binding checks are repeated between action selections. Because our sentence semantics are conjunctive, entity specifications only get more specific with addi- tional relations; therefore, bindings that were in- validated earlier in the search procedure can never again become valid. Thus, we can cache and reuse valid bindings from the previous partial sen- tence (line 2). For domains with very large worlds (where most relations have no bearing on the com- municative goal), most of the possible bindings will be ruled out with the first few action appli- cations, resulting in large computational savings.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.3">Reusing the Search Tree</head><p>The STRUCT algorithm constructs a lookahead tree of depth D via policy rollout to estimate the value of each action. This tree is then discarded and the procedure repeated at the next state. But it may be that at the next state, many of the use- ful actions will already have been visited by prior iterations of the algorithm. For a lookahead depth D, some actions will have already been explored up to depth D − 1.</p><p>For example if we have generated the par- tial sentence "the cat chased the rabbit" and S- STRUCT looks ahead to find that a greater reward is possible by introducing the relative clause "the rabbit that ate", when we transition to "the rabbit that", we do not need to re-explore "ate" and can directly try actions that result in "that ate grass", "that ate carrots", etc. Note that if there are still unexplored actions at an earlier depth, these will still be explored as well (action rollouts such as "that drank water" in this example).</p><p>Reusing the search tree is especially effective given that the tree policy causes us to favor areas of the search space with high value. Therefore, when we transition to the state with highest value, it is likely that many useful actions have already been explored. Reusing the search tree is reflected in Algorithms 1-2 by passing uctT ree back and forth to/from getAction instead of starting a new search tree at each step. In applyAction, when a state/action already in the tree is chosen, S- STRUCT transitions to the next state without hav- ing to recompute the state or its reward.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.4">Learning and Using Search Control</head><p>During the search procedure, a large number of actions are explored but relatively few of them are helpful. Ideally, we would know which ac- tions would lead to valuable states without actu- ally having to expand and evaluate the resultant states, which is an expensive operation. From prior knowledge, we know that if we have a par- tial sentence of "the sky is", we should try actions resulting in "the sky is blue" before those result- ing in "the sky is yellow". This prior knowledge can be estimated through learned heuristics from previous runs of the planner ( <ref type="bibr" target="#b24">Yoon et al., 2008)</ref>. To do this, a set of previously completed plans can be treated as a training set: for each (state, action) pair considered, a feature vector Φ(s, a) is emit- ted, along with either the distance to the goal state or a binary indicator of whether or not the state is on the path to the goal. A perceptron (or similar model) H(s, a) is trained on the <ref type="figure">(Φ(s, a)</ref>, target) pairs. H(s, a) can be incorporated into the plan- ning process to help guide future searches.</p><p>We apply this idea to our S-STRUCT system by tracking the (state, action) pairs visited in previ- ous runs of the STRUCT system where STRUCT obtained at least 90% of the reward of the known best sentence and emit a feature vector for each, containing: global tree frequency, tree probability (as defined in Section 4.1), and the word corre- lation of the action's anchor with the two words on either side of the action location. We define the global tree frequency as the number of times the tree appeared in the corpus normalized by the number of trees in the corpus; this is different than the tree probability as it does not take any context into account (such as the parent tree and substitu- tion location). Upon search completion, the fea- ture vectors are annotated with a binary indicator label of whether or not the (state, action) pair was on the path to the best sentence. This training set is then used to train a perceptron H(s, a). </p><formula xml:id="formula_7">P (s, a) = Q(s, a)+λH(s, a)+c lnN (s) N (s, a) .<label>(2)</label></formula><p>Here, H(s, a) is a value prediction from prior knowledge and λ is a parameter controlling the trade-off between prior knowledge and estimated value on this goal.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4">Empirical Evaluation</head><p>In this section, we evaluate three hypotheses: (1) S-STRUCT can handle real-world datasets, as they scale in terms of (a) grammar size, (b) world size, (c) entities/relations in the goal, (d) lookahead required to generate sentences, (2) S-STRUCT scales better than STRUCT to such datasets and (3) Each of the enhancements above provides a positive contribution to STRUCT's scalability in isolation.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.1">Datasets</head><p>We collected data in the form of grammars, worlds and goals for our experiments, starting from the WSJ corpus of the Penn TreeBank ( <ref type="bibr" target="#b14">Marcus et al., 1993)</ref>. We parsed this with an LTAG parser to generate the best parse and derivation tree <ref type="bibr" target="#b18">(Sarkar, 2000;</ref><ref type="bibr" target="#b23">XTAG Research Group, 2001</ref>). The parser generated valid parses for 18,159 of the WSJ sen- tences. To pick the best parse for a given sentence, we choose the parse which minimizes the PAR- SEVAL bracket-crossing metric against the gold- standard ( <ref type="bibr" target="#b0">Abney et al., 1991)</ref>. This ensures that the major structures of the parse tree are retained. We then pick the 31 most frequently occurring XTAG trees (giving us 74% coverage of the parsed sentences) and annotate them with compositional semantics. The final result of this process was a corpus of semantically annotated WSJ sentences along with their parse and derivation trees <ref type="bibr">1</ref> .</p><p>To show the scalability of the improved STRUCT system, we extracted 3 datasets of in- creasing size and complexity from the semanti- cally annotated WSJ corpus. We nominally refer to these datasets as Small, Medium, and Large. Summary statistics of the data sets are shown in <ref type="table" target="#tab_1">Table 1</ref>. For each test set, we take the grammar to be all possible lexicalizations of the unlexical- ized trees given the anchors of the test set. We set the world as the union of all communicative goals in the test set. The PLTAG probabilities are de- rived from the entire parseable portion of the WSJ. Due to the data sparsity issues ( <ref type="bibr" target="#b1">Bauer and Koller, 2010)</ref>, we use unlexicalized probabilities.</p><p>The reward function constants C were set to <ref type="bibr">[500,</ref><ref type="bibr">100,</ref><ref type="bibr">10,</ref><ref type="bibr">10,</ref><ref type="bibr">1]</ref>. In the tree policy, c was set to 0.5. These are as in the original STRUCT system. λ was chosen as 100 after evaluating {0, 10, 100, 1000, 10000} on a tuning set.</p><p>In addition to test sets, we extract an inde- pendent training set using 100 goals to learn the heuristic H(s, a). We train a separate perceptron for each test set and incorporate this into the S- STRUCT algorithm as described in Section 3.4.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.2">Results</head><p>For these experiments, S-STRUCT was imple- mented in Python 3.4. The experiments were run on a single core of a Intel(R) Xeon(R) CPU E5- 2450 v2 processor clocked at 2.50GHz with ac- cess to 8GB of RAM. The times reported are from the start of the generation process instead of the start of the program execution to reduce variation caused by interpreter startup, input parsing, etc. In all experiments, we normalize the reward of a sen- tence by the reward of the actual parse tree, which we take to be the gold standard. Note that this means that in some cases, S-STRUCT can produce solutions with better than this value, e.g. if there are multiple ways to achieve the semantic goal.</p><p>To investigate the first two hypotheses that S-STRUCT can handle the scale of real-world datasets and scales better than STRUCT, we plot the average best reward of all goals in the test set over time in <ref type="figure">Figure 2</ref>. The results show the cu- mulative effect of the enhancements; working up through the legend, each line represents "switch- ing on" another option and includes the effects of all improvements listed below it. The addition of the heuristic represents the entire S-STRUCT sys- tem. On each line, × marks the time at which the first grammatically correct sentence was available.</p><p>The Baseline shown in <ref type="figure">Figure 2a</ref> is the origi- nal STRUCT system proposed in <ref type="bibr" target="#b15">(McKinley and Ray, 2014</ref>). Due to the large number of actions that must be considered, the Baseline experiment's average first sentence is not available until 26.20 seconds, even on the Small dataset. In previ- ous work, the experiments for both STRUCT and CRISP were on toy examples, with grammars hav- ing 6 unlexicalized trees and typically &lt; 100 lexi- calized trees <ref type="bibr" target="#b15">(McKinley and Ray, 2014;</ref><ref type="bibr" target="#b11">Koller and Stone, 2007)</ref>. In these experiments, STRUCT was shown to perform better than or as well as CRISP. Even in our smallest domain, however, the base- line STRUCT system is impractically slow. Fur- ther, prior work on PCRISP used a grammar that was extracted from the WSJ Penn TreeBank, how- ever it was restricted to the 416 sentences in Sec- tion 0 with &lt;16 words. With PCRISP's extracted grammar, the most successful realization experi- ment yielded a sentence in only 62% of the tri- als, the remainder having timed out after five min- utes ( <ref type="bibr" target="#b1">Bauer and Koller, 2010)</ref>. Thus it is clear that these systems do not scale to real NLG tasks.</p><p>Adding the grammar pruning to the Baseline al- lows S-STRUCT to find the first grammatically correct sentence in 1.3 seconds, even if the re- ward is still sub-optimal. For data sets larger than Small, the Baseline and Prune Grammar ex- periments could not be completed, as they still enumerated all semantic bindings. For even the medium world, a sentence with 4 entities would have to consider 1.2 × 10 10 bindings. There- fore, the cumulative experiments start with Prune Grammar and Search Bindings turned on. <ref type="figure">Figures 2b, 2c and 2d</ref> show the results for each enhancement above on the corresponding dataset. We observe that the improved binding search fur- ther improves performance on the Small task. The Small test set does not require any lookahead, so it is expected that there would be no benefit to reusing the search tree, and little to no benefit from caching bindings or using a heuristic. In the Small domain, S-STRUCT is able to generate sentences very quickly; the first sentence is available by 44ms and the best sentence is available by 100ms.</p><p>In the medium and large domains, the "Reuse Search Tree", "Cache Bindings", and "Heuristic" changes do improve upon the use of only "Search Bindings". The Medium domain is still extremely fast, with the first sentence available in 344ms and the best sentence available around 1s. The large domain slows down due to the larger lookahead re- quired, the larger grammar, and the huge number of bindings that have to be considered. Even with this, S-STRUCT can generate a first sentence in 7.5s and the best sentence in 25s. In <ref type="figure" target="#fig_3">Figure 4c</ref>, we show a histogram of the generation time to 90% of the best reward. The median time is 8.55s (• symbol). Additionally, histograms of the lookahead re- quired for guaranteed optimal generation are shown for the entire parsable WSJ and our Large world in <ref type="figure" target="#fig_3">Figure 4d</ref>. The complexity of the en- tire WSJ does not exceed our Large world, thus we argue that our results are representative of S- STRUCT's performance on real-world tasks.</p><p>To investigate the third hypothesis that each im- provement contributes positively to the scalability, the noncumulative impact of each improvement is shown in <ref type="figure" target="#fig_3">Figure 4a</ref>. All experiments still must have Prune Grammar and Search Bindings turned on in order to terminate. Therefore, we take this as a baseline to show that the other changes pro- vide additional benefits. Looking at <ref type="figure" target="#fig_3">Figure 4a</ref>, we see that each of the changes improves the reward curve and the time to generate the first sentence.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.3">Discussion, Limitations and Future Work</head><p>As an example of sentences available at a given time in the process, we annotate the Large Cumu- lative Heuristic Experiment with symbols for a specific trial of the Large dataset. <ref type="figure">Figure 3</ref> shows the best sentence that was available at three differ- ent times. The first grammatically correct sentence was available 5.5 seconds into the generation pro- cess, reading "The provision eliminated losses". This sentence captured the major idea of the com- municative goal, but missed some critical details. As the search procedure continued, S-STRUCT explored adjunction actions. By 18 seconds, addi- tional semantic content was added to expand upon the details of the provision and losses. S-STRUCT settled on the best sentence it could find at 28.2 seconds, able to match the entire communicative goal with the sentence "The one-time provision eliminated future losses at the unit".</p><p>In domains with large lookaheads required, reusing the Search Tree has a large effect on both the best reward at a given time and on the time to generate the first sentence. This is because S- STRUCT has already explored some actions from depth 1 to D − 1. Additionally, in domains with a large world, the Cache Binding improvement is significant. The learned heuristic, which achieves the best reward and the shortest time to a complete sentence, tries to make S-STRUCT choose better actions at each step instead of allowing STRUCT to explore actions faster; this means that there is less overlap between the improvement of the heuristic and other strategies, allowing the total improvement to be higher.</p><p>One strength of the heuristic is in helping S- STRUCT to avoid "bad" actions. For example, the XTAG tree αnx0Ax1 shown in <ref type="figure" target="#fig_3">Figure 4b</ref> is an initial tree lexicalized by an adjective. This tree would be used to say something like "The dog is red." S-STRUCT may choose this as an initial ac- tion to fulfill a subgoal; however, if the goal was to say that a red dog chased a cat, S-STRUCT will be shoehorned into a substantially worse goal down the line, when it can no longer use an initial tree that adds the "chase" semantics. Although the rollout process helps, some sentences can share the same reward up to the lookahead and only di- verge later. The heuristic can help by biasing the search against such troublesome scenarios.</p><p>All of the results discussed above are with- out parallelization and other engineering optimiza- tions (such as writing S-STRUCT in C), as it would make for an unfair comparison with the original system. The core UCT procedure used by STRUCT and S-STRUCT could easily be par- allelized, as the sampling shown in Algorithm 2 can be done independently. This has been done in other domains in which UCT is used (Computer Go), to achieve a speedup factor of 14.9 using 16 processor threads <ref type="bibr" target="#b5">(Chaslot et al., 2008b)</ref>. There- fore, we believe these optimizations would result in a constant factor speedup.</p><p>Currently, the STRUCT and S-STRUCT sys- tems only focuses on the domain of single sen- tence generation, rather than discourse-level plan- ning. Additionally, neither system handles non- semantic feature unification, such as constraints on number, tense, or gender. While these represent practical concerns for a production system, we ar- gue that their presence will not affect the system's scalability, as there is already feature unification happening in the λ-semantics. In fact, we believe that additional features could improve the scalabil- ity, as many available actions will be ruled out at each state.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5">Conclusion</head><p>In this paper we have presented S-STRUCT, which enhances the STRUCT system to enable better scaling to real generation tasks. We show via experiments that this system can scale to large worlds and generate complete sentences in real- world datasets with a median time of 8.5s. To our knowledge, these results and the scale of these NLG experiments (in terms of grammar size, world size, and lookahead complexity) represents the state-of-the-art for planning-based NLG sys- tems. We conjecture that the parallelization of S- STRUCT could achieve the response times nec- essary for real-time applications such as dialog. S-STRUCT is available through Github upon re- quest.</p></div><figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_0"><head>Figure 1 :</head><label>1</label><figDesc>Figure 1: LTAG examples: initial tree (chased), substitution (cat), and adjunction (black)</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_1"><head></head><label></label><figDesc>if node.state has unexplored actions then 4: † action ← pick with open action policy 5: else 6: † action ← pick with tree policy 7: end if 8: † node ← applyAction(node, action) 9: depth ← 1 10: while depth &lt; D do 11: action ← sample PLTAG from R 12: † node ← applyAction(node, action) 13: reward ← calcReward(node.state) 14:</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_2"><head>Figure 2 :Figure 3 :</head><label>23</label><figDesc>Figure 2: Avg. Best Normalized Reward (y-axis) vs. Time in Seconds (x-axis) for (a) Small Baseline, (b) Small, (c) Medium, (d) Large. Time when first grammatical sentence available marked as ×. Experiments are cumulative (a trial contains all improvements below it in the legend). S</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_3"><head>Figure 4 :</head><label>4</label><figDesc>Figure 4: (a) Large Non-Cumulative Experiment (b) αnx0Ax1 XTAG tree (c) Time to 90% Reward (d) Lookahead Required.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_1" validated="true"><head>Table 1 : Summary statistics for test data sets</head><label>1</label><figDesc></figDesc><table>Test Set 
+Goals / 
+Sentences 
+Vocab 
+Size 
+Lex Trees / 
+Actions 
+World 
+Entities 
+World 
+Relations 
+Avg. Goal 
+Entities 
+Avg. Goal 
+Relations 
+Max 
+Depth 
+
+Small 
+50 
+130 
+395 
+77 
+135 
+1.54 
+2.70 
+0 
+Medium 500 
+1165 
+3734 
+741 
+1418 
+1.48 
+2.83 
+1 
+Large 
+5000 
+9872 
+31966 
+10998 
+23097 
+2.20 
+4.62 
+6 
+
+We use H(s, a) to inform both the open action 
+policy (Algorithm 2, line 4) and the tree policy 
+(Algorithm 2, line 6). In the open action policy , 
+we choose open actions according to their heuris-
+tic values, instead of just their tree probabilities. 
+In the tree policy, we incorporate H(s, a) into the 
+reward estimation by using Equation 2 in place of 
+Equation 1 in Algorithm 2 (Chaslot et al., 2008a): 
+
+</table></figure>
+
+			<note place="foot" n="1"> Not all of the covered trees were able to recursively derive their semantics, despite every constituent tree being semantically annotated. This is because β-reduction of the λsemantics is not associative in many cases where the syntactic composition is associative, causing errors during semantic unification. Due to this and other issues, the number of usable parse trees/sentences was about 7500.</note>
+		</body>
+		<back>
+			<div type="references">
+
+				<listBibl>
+
+<biblStruct xml:id="b0">
+	<analytic>
+		<title level="a" type="main">Procedure for quantitatively comparing the syntactic coverage of english grammars</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">S</forename><surname>Abney</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">C</forename><surname>Flickenger</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">C</forename><surname>Gdaniec</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">P</forename><surname>Grishman</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">D</forename><surname>Harrison</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">R</forename><surname>Hindle</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">F</forename><surname>Ingria</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">J</forename><surname>Jelinek</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">M</forename><surname>Klavans</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">M</forename><surname>Liberman</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">S</forename><surname>Marcus</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">B</forename><surname>Roukos</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">T</forename><surname>Santorini</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Strzalkowski</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Workshop on Speech and Natural Language, HLT &apos;91</title>
+		<editor>E. Black</editor>
+		<meeting>the Workshop on Speech and Natural Language, HLT &apos;91<address><addrLine>Stroudsburg, PA, USA</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="1991" />
+			<biblScope unit="page" from="306" to="311" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b1">
+	<analytic>
+		<title level="a" type="main">Sentence generation as planning with probabilistic LTAG</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">D</forename><surname>Bauer</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">A</forename><surname>Koller</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 10th International Workshop on Tree Adjoining Grammar and Related Formalisms</title>
+		<meeting>the 10th International Workshop on Tree Adjoining Grammar and Related Formalisms<address><addrLine>New Haven, CT</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2010" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b2">
+	<monogr>
+		<title level="m" type="main">Fast planning through planning graph analysis. Artificial intelligence</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">A</forename><forename type="middle">L</forename><surname>Blum</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">M</forename><forename type="middle">L</forename><surname>Furst</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="1997" />
+			<biblScope unit="volume">90</biblScope>
+			<biblScope unit="page" from="281" to="300" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b3">
+	<analytic>
+		<title level="a" type="main">Viewing referring expression generation as search</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Bernd</forename><surname>Bohnet</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Robert</forename><surname>Dale</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">International Joint Conference on Artificial Intelligence</title>
+		<imprint>
+			<date type="published" when="2005" />
+			<biblScope unit="page" from="1004" to="1009" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b4">
+	<analytic>
+		<title level="a" type="main">Progressive strategies for monte-carlo tree search</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">M</forename><surname>Guillaume</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Chaslot</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">H</forename><forename type="middle">M</forename><surname>Mark</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">H</forename><surname>Winands</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Jaap Van Den</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Herik</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">W</forename><forename type="middle">H M</forename><surname>Jos</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Bruno</forename><surname>Uiterwijk</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Bouzy</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">New Mathematics and Natural Computation</title>
+		<imprint>
+			<date type="published" when="2008" />
+			<biblScope unit="volume">4</biblScope>
+			<biblScope unit="page" from="343" to="357" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b5">
+	<analytic>
+		<title level="a" type="main">Parallel monte-carlo tree search</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">M</forename><surname>Guillaume</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Chaslot</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">H</forename><forename type="middle">M</forename><surname>Mark</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">H Jaap</forename><surname>Winands</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Van Den</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Herik</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Computers and Games</title>
+		<imprint>
+			<publisher>Springer</publisher>
+			<date type="published" when="2008" />
+			<biblScope unit="page" from="60" to="71" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b6">
+	<analytic>
+		<title level="a" type="main">PDDL2.1: An extension to PDDL for expressing temporal planning domains</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">M</forename><surname>Fox</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">D</forename><surname>Long</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Journal of Artificial Intelligence Research</title>
+		<imprint>
+			<biblScope unit="volume">20</biblScope>
+			<biblScope unit="page" from="61" to="124" />
+			<date type="published" when="2003" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b7">
+	<analytic>
+		<title level="a" type="main">Treeadjoining grammars</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">K</forename><surname>Aravind</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yves</forename><surname>Joshi</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Schabes</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Handbook of formal languages</title>
+		<imprint>
+			<publisher>Springer</publisher>
+			<date type="published" when="1997" />
+			<biblScope unit="page" from="69" to="123" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b8">
+	<monogr>
+		<title level="m" type="main">Speech and Language Processing: An Introduction to Natural Language Processing, Computational Linguistics, and Speech Recognition</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Daniel</forename><surname>Jurafsky</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">H</forename><surname>James</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Martin</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2000" />
+			<publisher>Prentice Hall PTR</publisher>
+			<pubPlace>Upper Saddle River, NJ, USA</pubPlace>
+		</imprint>
+	</monogr>
+	<note>1st edition</note>
+</biblStruct>
+
+<biblStruct xml:id="b9">
+	<analytic>
+		<title level="a" type="main">Chart generation</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Martin</forename><surname>Kay</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 34th annual meeting on Association for Computational Linguistics, ACL &apos;96</title>
+		<meeting>the 34th annual meeting on Association for Computational Linguistics, ACL &apos;96<address><addrLine>Stroudsburg, PA, USA</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="1996" />
+			<biblScope unit="page" from="200" to="204" />
+		</imprint>
+	</monogr>
+	<note>Association for Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b10">
+	<analytic>
+		<title level="a" type="main">Bandit based monte-carlo planning</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Levente</forename><surname>Kocsis</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Csaba</forename><surname>Szepesvári</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 17th European Conference on Machine Learning, ECML&apos;06</title>
+		<meeting>the 17th European Conference on Machine Learning, ECML&apos;06<address><addrLine>Berlin, Heidelberg</addrLine></address></meeting>
+		<imprint>
+			<publisher>Springer-Verlag</publisher>
+			<date type="published" when="2006" />
+			<biblScope unit="page" from="282" to="293" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b11">
+	<analytic>
+		<title level="a" type="main">Sentence generation as a planning problem</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Alexander</forename><surname>Koller</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Matthew</forename><surname>Stone</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 45th Annual Meeting of the Association of Computational Linguistics</title>
+		<meeting>the 45th Annual Meeting of the Association of Computational Linguistics<address><addrLine>Prague, Czech Republic</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2007-06" />
+			<biblScope unit="page" from="336" to="343" />
+		</imprint>
+	</monogr>
+	<note>Association for Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b12">
+	<analytic>
+		<title level="a" type="main">An empirical verification of coverage and correctness for a general-purpose sentence generator</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">I</forename><surname>Langkilde-Geary</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 12th International Natural Language Generation Workshop</title>
+		<meeting>the 12th International Natural Language Generation Workshop</meeting>
+		<imprint>
+			<publisher>Citeseer</publisher>
+			<date type="published" when="2002" />
+			<biblScope unit="page" from="17" to="24" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b13">
+	<analytic>
+		<title level="a" type="main">Natural language generation with tree conditional random fields</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">W</forename><surname>Lu</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">H</forename><forename type="middle">T</forename><surname>Ng</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">W</forename><forename type="middle">S</forename><surname>Lee</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2009 Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>the 2009 Conference on Empirical Methods in Natural Language Processing</meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2009" />
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="400" to="409" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b14">
+	<analytic>
+		<title level="a" type="main">Building a large annotated corpus of english: The Penn Treebank</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Mary</forename><forename type="middle">Ann</forename><surname>Mitchell P Marcus</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Beatrice</forename><surname>Marcinkiewicz</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Santorini</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Computational linguistics</title>
+		<imprint>
+			<biblScope unit="volume">19</biblScope>
+			<biblScope unit="issue">2</biblScope>
+			<biblScope unit="page" from="313" to="330" />
+			<date type="published" when="1993" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b15">
+	<analytic>
+		<title level="a" type="main">A decisiontheoretic approach to natural language generation</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Nathan</forename><surname>Mckinley</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Soumya</forename><surname>Ray</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 52nd Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 52nd Annual Meeting of the Association for Computational Linguistics<address><addrLine>Baltimore, Maryland</addrLine></address></meeting>
+		<imprint>
+			<publisher>Long Papers</publisher>
+			<date type="published" when="2014-06" />
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="552" to="561" />
+		</imprint>
+	</monogr>
+	<note>Association for Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b16">
+	<monogr>
+		<title level="m" type="main">Markov decision processes: Discrete stochastic dynamic programming</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">M</forename><forename type="middle">L</forename><surname>Puterman</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="1994" />
+			<publisher>John Wiley &amp; Sons, Inc</publisher>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b17">
+	<analytic>
+		<title level="a" type="main">Building applied natural language generation systems</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ehud</forename><surname>Reiter</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Robert</forename><surname>Dale</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Natural Language Engineering</title>
+		<imprint>
+			<biblScope unit="volume">3</biblScope>
+			<biblScope unit="issue">1</biblScope>
+			<biblScope unit="page" from="57" to="87" />
+			<date type="published" when="1997" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b18">
+	<analytic>
+		<title level="a" type="main">Practical experiments in parsing using tree adjoining grammars</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Anoop</forename><surname>Sarkar</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of TAG</title>
+		<meeting>TAG</meeting>
+		<imprint>
+			<date type="published" when="2000" />
+			<biblScope unit="volume">5</biblScope>
+			<biblScope unit="page" from="25" to="27" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b19">
+	<analytic>
+		<title level="a" type="main">A uniform architecture for parsing and generation</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">M</forename><surname>Stuart</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Shieber</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 12th conference on Computational linguistics</title>
+		<meeting>the 12th conference on Computational linguistics<address><addrLine>Stroudsburg, PA, USA</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="1988" />
+			<biblScope unit="volume">2</biblScope>
+			<biblScope unit="page" from="614" to="619" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b20">
+	<analytic>
+		<title level="a" type="main">Stochastic language generation in dialogue using recurrent neural networks with convolutional sentence reranking</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Milica</forename><surname>Tsung-Hsien Wen</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Dongho</forename><surname>Gasic</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Nikola</forename><surname>Kim</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Pei-Hao</forename><surname>Mrksic</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">David</forename><surname>Su</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Steve</forename><surname>Vandyke</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Young</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 16th Annual Meeting of the Special Interest Group on Discourse and Dialogue</title>
+		<meeting>the 16th Annual Meeting of the Special Interest Group on Discourse and Dialogue<address><addrLine>Prague, Czech Republic</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2015-09" />
+			<biblScope unit="page" from="275" to="284" />
+		</imprint>
+	</monogr>
+	<note>Association for Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b21">
+	<analytic>
+		<title level="a" type="main">Semantically conditioned lstm-based natural language generation for spoken dialogue systems</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Milica</forename><surname>Tsung-Hsien Wen</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Nikola</forename><surname>Gasic</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Peihao</forename><surname>Mrkši´mrkši´c</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">David</forename><surname>Su</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Steve</forename><surname>Vandyke</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Young</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2015 Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>the 2015 Conference on Empirical Methods in Natural Language Processing<address><addrLine>Lisbon, Portugal</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2015-09" />
+			<biblScope unit="page" from="1711" to="1721" />
+		</imprint>
+	</monogr>
+	<note>Association for Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b22">
+	<analytic>
+		<title level="a" type="main">Adapting chart realization to CCG</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">M</forename><surname>White</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">J</forename><surname>Baldridge</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 9th European Workshop on Natural Language Generation</title>
+		<meeting>the 9th European Workshop on Natural Language Generation</meeting>
+		<imprint>
+			<date type="published" when="2003" />
+			<biblScope unit="page" from="119" to="126" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b23">
+	<monogr>
+		<title level="m" type="main">A lexicalized tree adjoining grammar for english</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Xtag Research Group</surname></persName>
+		</author>
+		<idno>IRCS-01-03</idno>
+		<imprint>
+			<date type="published" when="2001" />
+		</imprint>
+		<respStmt>
+			<orgName>IRCS, University of Pennsylvania</orgName>
+		</respStmt>
+	</monogr>
+<note type="report_type">Technical Report</note>
+</biblStruct>
+
+<biblStruct xml:id="b24">
+	<analytic>
+		<title level="a" type="main">Learning control knowledge for forward search planning</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Sungwook</forename><surname>Yoon</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Alan</forename><surname>Fern</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Robert</forename><surname>Givan</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">The Journal of Machine Learning Research</title>
+		<imprint>
+			<biblScope unit="volume">9</biblScope>
+			<biblScope unit="page" from="683" to="718" />
+			<date type="published" when="2008" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+				</listBibl>
+			</div>
+		</back>
+	</text>
+</TEI>

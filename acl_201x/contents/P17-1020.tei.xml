@@ -1,0 +1,1236 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<TEI xmlns="http://www.tei-c.org/ns/1.0" 
+xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+xsi:schemaLocation="http://www.tei-c.org/ns/1.0 /home/ana/installs/grobid/grobid-0.5.1/grobid-home/schemas/xsd/Grobid.xsd"
+ xmlns:xlink="http://www.w3.org/1999/xlink">
+	<teiHeader xml:lang="en">
+		<encodingDesc>
+			<appInfo>
+				<application version="0.5.1-SNAPSHOT" ident="GROBID" when="2019-04-18T12:08+0000">
+					<ref target="https://github.com/kermitt2/grobid">GROBID - A machine learning software for extracting information from scholarly documents</ref>
+				</application>
+			</appInfo>
+		</encodingDesc>
+		<fileDesc>
+			<titleStmt>
+				<title level="a" type="main">Coarse-to-Fine Question Answering for Long Documents</title>
+			</titleStmt>
+			<publicationStmt>
+				<publisher>Association for Computational Linguistics</publisher>
+				<availability status="unknown"><p>Copyright Association for Computational Linguistics</p>
+				</availability>
+				<date>July 30-August 4, 2017. July 30-August 4, 2017</date>
+			</publicationStmt>
+			<sourceDesc>
+				<biblStruct>
+					<analytic>
+						<author>
+							<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Eunsol</forename><surname>Choi</surname></persName>
+						</author>
+						<author>
+							<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Daniel</forename><surname>Hewlett</surname></persName>
+						</author>
+						<author>
+							<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jakob</forename><surname>Uszkoreit</surname></persName>
+						</author>
+						<author>
+							<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Illia</forename><surname>Polosukhin</surname></persName>
+						</author>
+						<author>
+							<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Alexandre</forename><surname>Lacoste</surname></persName>
+						</author>
+						<author>
+							<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jonathan</forename><surname>Berant</surname></persName>
+						</author>
+						<title level="a" type="main">Coarse-to-Fine Question Answering for Long Documents</title>
+					</analytic>
+					<monogr>
+						<title level="m">Proceedings of the 55th Annual Meeting of the Association for Computational Linguistics (Volume 1: Long Papers)</title>
+						<meeting>the 55th Annual Meeting of the Association for Computational Linguistics (Volume 1: Long Papers) <address><addrLine>Vancouver, Canada; Vancouver, Canada</addrLine></address>
+						</meeting>
+						<imprint>
+							<publisher>Association for Computational Linguistics</publisher>
+							<biblScope unit="page" from="209" to="220"/>
+							<date type="published">July 30-August 4, 2017. July 30-August 4, 2017</date>
+						</imprint>
+					</monogr>
+					<idno type="DOI">10.18653/v1/p17-1020</idno>
+				</biblStruct>
+			</sourceDesc>
+		</fileDesc>
+		<profileDesc>
+			<abstract>
+				<p>We present a framework for question answering that can efficiently scale to longer documents while maintaining or even improving performance of state-of-the-art models. While most successful approaches for reading comprehension rely on recurrent neural networks (RNNs), running them over long documents is prohibitively slow because it is difficult to parallelize over sequences. Inspired by how people first skim the document, identify relevant parts, and carefully read these parts to produce an answer, we combine a coarse, fast model for selecting relevant sentences and a more expensive RNN for producing the answer from those sentences. We treat sentence selection as a latent variable trained jointly from the answer only using reinforcement learning. Experiments demonstrate the state of the art performance on a challenging subset of the WIKIREADING dataset (Hewlett et al., 2016) and on a new dataset, while speeding up the model by 3.5x-6.7x.</p>
+			</abstract>
+		</profileDesc>
+	</teiHeader>
+	<text xml:lang="en">
+		<body>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="1">Introduction</head><p>Reading a document and answering questions about its content are among the hallmarks of nat- ural language understanding. Recently, interest in question answering (QA) from unstructured doc- uments has increased along with the availability of large scale datasets for reading comprehension ( <ref type="bibr" target="#b3">Hermann et al., 2015;</ref><ref type="bibr" target="#b5">Hill et al., 2015;</ref><ref type="bibr" target="#b19">Rajpurkar et al., 2016;</ref><ref type="bibr" target="#b18">Onishi et al., 2016;</ref><ref type="bibr" target="#b17">Nguyen et al., 2016;</ref><ref type="bibr" target="#b25">Trischler et al., 2016a)</ref>.</p><p>Current state-of-the-art approaches for QA over documents are based on recurrent neural networks † Work done while the authors were at Google. (RNNs) that encode the document and the ques- tion to determine the answer ( <ref type="bibr" target="#b3">Hermann et al., 2015;</ref><ref type="bibr" target="#b2">Chen et al., 2016;</ref><ref type="bibr" target="#b11">Kumar et al., 2016;</ref><ref type="bibr" target="#b7">Kadlec et al., 2016;</ref><ref type="bibr" target="#b32">Xiong et al., 2016)</ref>. While such models have access to all the relevant infor- mation, they are slow because the model needs to be run sequentially over possibly thousands of to- kens, and the computation is not parallelizable. In fact, such models usually truncate the docu- ments and consider only a limited number of to- kens ( <ref type="bibr" target="#b14">Miller et al., 2016;</ref><ref type="bibr" target="#b4">Hewlett et al., 2016)</ref>. Inspired by studies on how people answer ques- tions by first skimming the document, identifying relevant parts, and carefully reading these parts to produce an answer <ref type="bibr" target="#b13">(Masson, 1983)</ref>, we propose a coarse-to-fine model for question answering. Our model takes a hierarchical approach (see <ref type="figure" target="#fig_0">Figure 1</ref>), where first a fast model is used to select a few sentences from the document that are rele- vant for answering the question ( <ref type="bibr" target="#b37">Yu et al., 2014;</ref><ref type="bibr" target="#b34">Yang et al., 2016a</ref>). Then, a slow RNN is em- ployed to produce the final answer from the se- lected sentences. The RNN is run over a fixed number of tokens, regardless of the length of the document. Empirically, our model encodes the s1: The 2011 Joplin tornado was a catastrophic EF5- rated multiple-vortex tornado that struck Joplin, Mis- souri . . . s4: It was the third tornado to strike Joplin since <ref type="bibr">May 1971. s5</ref>: Overall, the tornado killed 158 people . . ., in- jured some 1,150 others, and caused damages . . .</p><p>x: how many people died in joplin mo tornado y: 158 people text up to 6.7 times faster than the base model, which reads the first few paragraphs, while having access to four times more tokens.</p><p>A defining characteristic of our setup is that an answer does not necessarily appear verbatim in the input (the genre of a movie can be determined even if not mentioned explicitly). Furthermore, the an- swer often appears multiple times in the document in spurious contexts (the year '2012' can appear many times while only once in relation to the ques- tion). Thus, we treat sentence selection as a la- tent variable that is trained jointly with the answer generation model from the answer only using re- inforcement learning. Treating sentence selection as a latent variable has been explored in classifi- cation ( <ref type="bibr" target="#b36">Yessenalina et al., 2010;</ref><ref type="bibr" target="#b12">Lei et al., 2016)</ref>, however, to our knowledge, has not been applied for question answering.</p><p>We find that jointly training sentence selec- tion and answer generation is especially helpful when locating the sentence containing the answer is hard. We evaluate our model on the WIKIREAD- ING dataset <ref type="bibr" target="#b4">(Hewlett et al., 2016)</ref>, focusing on ex- amples where the document is long and sentence selection is challenging, and on a new dataset called WIKISUGGEST that contains more natural questions gathered from a search engine.</p><p>To conclude, we present a modular framework and learning procedure for QA over long text. It captures a limited form of document structure such as sentence boundaries and deals with long docu- ments or potentially multiple documents. Exper- iments show improved performance compared to the state of the art on the subset of WIKIREADING, comparable performance on other datasets, and a 3.5x-6.7x speed up in document encoding, while allowing access to much longer documents.  <ref type="table" target="#tab_1"># of  % match  string exists ans. match first sent   WIKIREADING  47.1  1.22  75.1  WR-LONG  50.4  2.18  31.3  WIKISUGGEST  100  13.95  33.6   Table 1</ref>: Statistics on string matches of the answer y * in the document. The third column only considers examples with answer match. Often the answer string is missing or appears many times while it is relevant to query only once.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2">Problem Setting</head><p>Given a training set of question-document-answer triples</p><formula xml:id="formula_0">{x (i) , d (i) , y (i) } N i=1</formula><p>, our goal is to learn a model that produces an answer y for a question- document pair <ref type="bibr">(x, d)</ref>. A document d is a list of sentences s 1 , s 2 , . . . , s |d| , and we assume that the answer can be produced from a small latent sub- set of the sentences. <ref type="figure" target="#fig_2">Figure 2</ref> illustrates a training example in which sentence s 5 is in this subset.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3">Data</head><p>We evaluate on WIKIREADING, WIKIREADING LONG, and a new dataset, WIKISUGGEST.</p><p>WIKIREADING <ref type="bibr" target="#b4">(Hewlett et al., 2016</ref>) is a QA dataset automatically generated from Wikipedia and Wikidata: given a Wikipedia page about an entity and a Wikidata property, such as PROFES- SION, or GENDER, the goal is to infer the tar- get value based on the document. Unlike other recently released large-scale datasets <ref type="bibr" target="#b19">(Rajpurkar et al., 2016;</ref><ref type="bibr" target="#b25">Trischler et al., 2016a</ref>), WIKIREAD- ING does not annotate answer spans, making sen- tence selection more challenging.</p><p>Due to the structure and short length of most Wikipedia documents (median number of sen- tences: 9), the answer can usually be inferred from the first few sentences. Thus, the data is not ideal for testing a sentence selection model compared to a model that uses the first few sentences. Ta- ble 1 quantifies this intuition: We consider sen- tences containing the answer y * as a proxy for sen- tences that should be selected, and report how of- ten y * appears in the document. Additionally, we report how frequently this proxy oracle sentence is the first sentence. We observe that in WIKIREAD- ING, the answer appears verbatim in 47.1% of the examples, and in 75% of them the match is in the first sentence. Thus, the importance of modeling sentence selection is limited.</p><p>To remedy that, we filter WIKIREADING and ensure a more even distribution of answers throughout the document. We prune short docu-     <ref type="table" target="#tab_1">Table 2</ref>). <ref type="table">Table 1</ref> shows that the exact answer string is often missing from the document in WIKIREADING. This is since Wikidata state- ments include properties such as NATIONALITY, which are not explicitly mentioned, but can still be inferred. A drawback of this dataset is that the queries, Wikidata properties, are not natural lan- guage questions and are limited to 858 properties.</p><p>To model more realistic language queries, we collect the WIKISUGGEST dataset as follows. We use the Google Suggest API to harvest natural language questions and submit them to Google Search. Whenever Google Search returns a box with a short answer from Wikipedia <ref type="figure" target="#fig_6">(Figure 3)</ref>, we create an example from the question, answer, and the Wikipedia document. If the answer string is missing from the document this often implies a spurious question-answer pair, such as ('what time is half time in rugby', '80 minutes, 40 minutes'). Thus, we pruned question-answer pairs without the exact answer string. We examined fifty ex- amples after filtering and found that 54% were well-formed question-answer pairs where we can ground answers in the document, 20% contained answers without textual evidence in the document (the answer string exists in an irreleveant context), and 26% contain incorrect QA pairs such as the last two examples in <ref type="figure" target="#fig_6">Figure 3</ref>  </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4">Model</head><p>Our model has two parts ( <ref type="figure" target="#fig_0">Figure 1</ref>): a fast sen- tence selection model (Section 4.1) that defines a distribution p(s | x, d) over sentences given the in- put question (x) and the document (d), and a more costly answer generation model (Section 4.3) that generates an answer y given the question and a document summary, ˆ d (Section 4.2), that focuses on the relevant parts of the document.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.1">Sentence Selection Model</head><p>Following recent work on sentence selection ( <ref type="bibr" target="#b37">Yu et al., 2014;</ref><ref type="bibr" target="#b35">Yang et al., 2016b</ref>), we build a feed-forward network to define a distribution over the sentences s 1 , s 2 , . . . , s |d| . We consider three simple sentence representations: a bag-of-words (BoW) model, a chunking model, and a (paral- lelizable) convolutional model. These models are efficient at dealing with long documents, but do not fully capture the sequential nature of text.</p><p>BoW Model Given a sentence s, we denote by BoW(s) the bag-of-words representation that av- erages the embeddings of the tokens in s. To de- fine a distribution over the document sentences, we employ a standard attention model (e.g., <ref type="bibr" target="#b3">(Hermann et al., 2015)</ref>), where the BoW representation of the query is concatenated to the BoW represen- tation of each sentence s l , and then passed through a single layer feed-forward network:</p><formula xml:id="formula_1">h l = [BoW(x); BoW(s l )] v l = v ReLU(W h l ), p(s = s l | x, d) = softmax(v l ),</formula><p>where <ref type="bibr">[; ]</ref> indicates row-wise concatenation, and the matrix W , the vector v, and the word embed- dings are learned parameters.</p><p>Chunked BoW Model To get more fine-grained granularity, we split sentences into fixed-size smaller chunks (seven tokens per chunk) and score each chunk separately <ref type="bibr" target="#b14">(Miller et al., 2016)</ref>. This is beneficial if questions are answered with sub- sentential units, by allowing to learn attention over different chunks. We split a sentence s l into a fixed number of chunks (c l,1 , c l,2 . . . , c l,J ), generate a BoW representation for each chunk, and score it exactly as in the BoW model. We obtain a distribu- tion over chunks, and compute sentence probabil- ities by marginalizing over chunks from the same sentence. Let p(c = c l,j | x, d) be the distribution over chunks from all sentences, then:</p><formula xml:id="formula_2">p(s = s l | x, d) = J j=1 p(c = c l,j | x, d),</formula><p>with the same parameters as in the BoW model.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Convolutional Neural Network Model</head><p>While our sentence selection model is designed to be fast, we explore a convolutional neural network (CNN) that can compose the meaning of nearby words. A CNN is still efficient, since all filters can be com- puted in parallel. Following previous work <ref type="bibr" target="#b9">(Kim, 2014;</ref><ref type="bibr" target="#b8">Kalchbrenner et al., 2014</ref>), we concatenate the embeddings of tokens in the query x and the sentence s l , and run a convolutional layer with F filters and width w over the concatenated embed- dings. This results in F features for every span of length w, and we employ max-over-time-pooling <ref type="bibr" target="#b0">(Collobert et al., 2011</ref>) to get a final representa- tion h l ∈ R F . We then compute p(s = s l | x, d) by passing h l through a single layer feed-forward network as in the BoW model.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.2">Document Summary</head><p>After computing attention over sentences, we cre- ate a summary that focuses on the document parts related to the question using deterministic soft at- tention or stochastic hard attention. Hard attention is more flexible, as it can focus on multiple sen- tences, while soft attention is easier to optimize and retains information from multiple sentences.</p><p>Hard Attention We sample a sentencê s ∼ p(s | x, d) and fix the document summaryˆdsummaryˆ summaryˆd = ˆ s to be that sentence during training. At test time, we choose the most probable sentence. To extend the document summary to contain more informa- tion, we can sample without replacement K sen- tences from the document and define the summary to be the concatenation of the sampled sentencesˆd</p><formula xml:id="formula_3">sentencesˆ sentencesˆd = [ˆ s 1 ; ˆ s 2 ; . . . ; ˆ s K ].</formula><p>Soft Attention In the soft attention model (Bah- danau et al., 2015) we compute a weighted av- erage of the tokens in the sentences according to p(s | x, d). More explicitly, letˆdletˆ letˆd m be the mth to- ken of the document summary. Then, by fixing the length of every sentence to M tokens, 2 the blended tokens are computed as follows:</p><formula xml:id="formula_4">ˆ d m = |d| l=1 p(s = s l | x, d) · s l,m ,</formula><p>where s l,m is the mth word in the lth sentence (m ∈ {1, . . . , M }).</p><p>As the answer generation models (Section 4.3) take a sequence of vectors as input, we average the tokens at the word level. This gives the hard attention an advantage since it samples a "real" sentence without mixing words from different sen- tences. Conversely, soft attention is trained more easily, and has the capacity to learn a low-entropy distribution that is similar to hard attention.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.3">Answer Generation Model</head><p>State-of-the-art question answering models use RNN models to encode the document and ques- tion and selects the answer. We focus on a hierar- chical model with fast sentence selection, and do not subscribe to a particular answer generation ar- chitecture.</p><p>Here we implemented the state-of-the-art word- level sequence-to-sequence model with placehold- ers, described by <ref type="bibr" target="#b4">Hewlett et al. (2016)</ref>. This mod- els can produce answers that does not appear in the sentence verbatim. This model takes the query to- kens, and the document (or document summary) tokens as input and encodes them with a Gated Recurrent Unit (GRU; <ref type="bibr">Cho et al. (2014)</ref>). Then, the answer is decoded with another GRU model, defining a distribution over answers p(y | x, ˆ d). In this work, we modified the original RNN: the word embeddings for the RNN decoder input, out- put and original word embeddings are shared.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5">Learning</head><p>We consider three approaches for learning the model parameters (denoted by θ): (1) We present a pipeline model, where we use distant super- vision to train a sentence selection model inde- pendently from an answer generation model. <ref type="formula">(2)</ref> The hard attention model is optimized with REIN- FORCE <ref type="bibr" target="#b31">(Williams, 1992)</ref> </p><note type="other">algorithm. (3) The soft attention model is fully differentiable and is opti- mized end-to-end with backpropagation.</note><p>Distant Supervision While we do not have an explicit supervision for sentence selection, we can define a simple heuristic for labeling sentences. We define the gold sentence to be the first sen- tence that has a full match of the answer string, or the first sentence in the document if no full match exists. By labeling gold sentences, we can train sentence selection and answer generation indepen- dently with standard supervised learning, maxi- mizing the log-likelihood of the gold sentence and answer, given the document and query. Let y * and s * be the target answer and sentence , where s * also serves as the document summary. The objec- tive is to maximize:</p><formula xml:id="formula_5">J(θ) = log p θ (y * , s * | x, d) = log p θ (s * | x, d) + log p θ (y * | s * , x).</formula><p>Since at test time we do not have access to the target sentence s * needed for answer gen- eration, we replace it by the model prediction</p><formula xml:id="formula_6">arg max s l ∈d p θ (s = s l | d, x).</formula><p>Reinforcement Learning Because the target sentence is missing, we use reinforcement learn- ing where our action is sentence selection, and our goal is to select sentences that lead to a high re- ward. We define the reward for selecting a sen- tence as the log probability of the correct answer given that sentence, that is, R θ (s l ) = log p θ (y = y * | s l , x). Then the learning objective is to maxi- mize the expected reward:</p><formula xml:id="formula_7">J(θ) = s l ∈d p θ (s = s l | x, d) · R θ (s l ) = s l ∈d p θ (s = s l | x, d) · log p θ (y = y * | s l , x).</formula><p>Following REINFORCE <ref type="bibr" target="#b31">(Williams, 1992)</ref>, we approximate the gradient of the objective with a sample, ˆ s ∼ p θ (s | x, d):</p><formula xml:id="formula_8">J(θ) ≈ log p θ (y | ˆ s, x) + log p θ (y | ˆ s, x) · log p θ (ˆ s | x, d).</formula><p>Sampling K sentences is similar and omitted for brevity.</p><p>Training with REINFORCE is known to be un- stable due to the high variance induced by sam- pling. To reduce variance, we use curriculum learning, start training with distant supervision and gently transition to reinforcement learning, similar to DAGGER <ref type="bibr" target="#b21">(Ross et al., 2011)</ref>. Given an example, we define the probability of using the distant supervision objective at each step as r e , where r is the decay rate and e is the index of the current training epoch. <ref type="bibr">3</ref> Soft Attention We train the soft attention model by maximizing the log likelihood of the correct an- swer y * given the input question and document log p θ (y * | d, x). Recall that the answer gener- ation model takes as input the query x and doc- ument summaryˆdsummaryˆ summaryˆd, and sincê d is an average of sentences weighted by sentence selection, the ob- jective is differentiable and is trained end-to-end.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6">Experiments</head><p>Experimental Setup We used 70% of the data for training, 10% for development, and 20% for testing in all datasets. We used the first 35 sen- tences in each document as input to the hierarchi- cal models, where each sentence has a maximum length of 35 tokens. Similar to <ref type="bibr" target="#b14">Miller et al. (2016)</ref>, we add the first five words in the document (typi- cally the title) at the end of each sentence sequence for WIKISUGGEST. We add the sentence index as a one hot vector to the sentence representation.</p><p>We coarsely tuned and fixed most hyper- parameters for all models. The word embedding dimension is set to 256 for both sentence selection and answer generation models. We used the decay rate of 0.8 for curriculum learning. Hidden dimen- sion is fixed at 128, batch size at 128, GRU state cell at 512, and vocabulary size at 100K. For CNN sentence selection model, we used 100 filters and set filter width as five. The initial learning rate and gradient clipping coefficients for each model are tuned on the development set. The ranges for learning rates were 0.00025, 0.0005, 0.001, 0.002, 0.004 and 0.5, 1.0 for gradient clipping coefficient. We halved the learning rate every 25k steps. We use the Adam ( <ref type="bibr" target="#b10">Kingma and Ba, 2015)</ref> optimizer and TensorFlow framework ( <ref type="bibr">Abadi et al., 2015)</ref>.</p><p>Evaluation Metrics Our main evaluation metric is answer accuracy, the proportion of questions an- swered correctly. For sentence selection, since we do not know which sentence contains the answer, we report approximate accuracy by matching sen- tences that contain the answer string (y * ). For the soft attention model, we treat the sentence with the highest probability as the predicted sentence.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Models and Baselines</head><p>The models PIPELINE, REINFORCE, and SOFTATTEND correspond to the learning objectives in Section 5. We compare these models against the following baselines:</p><p>FIRST always selects the first sentence of the document. The answer appears in the first sentence in 33% and 15% of documents in WIKISUGGEST and WIKIREADING LONG. BASE is the re-implementation of the best model by <ref type="bibr" target="#b4">Hewlett et al. (2016)</ref>, consum- ing the first 300 tokens. We experimented with providing additional tokens to match the length of document available to hierarchical models, but this performed poorly. <ref type="bibr">4</ref> ORACLE selects the first sentence with the answer string if it exists, or otherwise the first sentence in the document. <ref type="bibr">4</ref> Our numbers on WIKIREADING outperform previously reported numbers due to modifications in implementation and better optimization.  Answer Accuracy Results <ref type="table" target="#tab_4">Table 3</ref> summarizes answer accuracy on all datasets. We use BOW en- coder for sentence selection as it is the fastest. The proposed hierarchical models match or exceed the performance of BASE, while reducing the number of RNN steps significantly, from 300 to 35 (or 70 for K=2), and allowing access to later parts of the document. <ref type="figure" target="#fig_7">Figure 4</ref> reports the speed gain of our system. While throughput at training time can be improved by increasing the batch size, at test time real-life QA systems use batch size 1, where RE- INFORCE obtains a 3.5x-6.7x speedup (for K=2 or K=1). In all settings, REINFORCE was at least three times faster than the BASE model. All models outperform the FIRST baseline, and utilizing the proxy oracle sentence (ORACLE) improves performance on WIKISUGGEST and WIKIREADNG LONG. In WIKIREADING, where the proxy oracle sentence is often missing and documents are short, BASE outperforms ORACLE.</p><p>Jointly learning answer generation and sentence selection, REINFORCE outperforms PIPELINE, which relies on a noisy supervision signal for sen- tence selection. The improvement is larger in WIKIREADING LONG, where the approximate su- pervision for sentence selection is missing for 51% of examples compared to 22% of examples in WIKISUGGEST. <ref type="bibr">5</ref> On WIKIREADING LONG, REINFORCE outper-  <ref type="table">Table 4</ref>: Approximate sentence selection accuracy on the de- velopment set for all models. We use ORACLE to find a proxy gold sentence and report the proportion of times each model selects the proxy sentence.</p><p>forms all other models (excluding ORACLE, which has access to gold labels at test time). In other datasets, BASE performs slightly better than the proposed models, at the cost of speed. In these datasets, the answers are concentrated in the first few sentences. BASE is advantageous in categori- cal questions (such as GENDER), gathering bits of evidence from the whole document, at the cost of speed. Encouragingly, our system almost reaches the performance of ORACLE in WIKIREADING, showing strong results in a limited token setting. Sampling an additional sentence into the doc- ument summary increased performance in all datasets, illustrating the flexibility of hard at- tention compared to soft attention.</p><p>Addi- tional sampling allows recovery from mistakes in WIKIREADING LONG, where sentence selection is challenging. <ref type="bibr">6</ref> Comparing hard attention to soft attention, we observe that REINFORCE performed better than SOFTATTEND. The attention distribu- tion learned by the soft attention model was often less peaked, generating noisier summaries. <ref type="table">Table 4</ref> reports sen- tence selection accuracy by showing the pro- portion of times models selects the proxy gold sentence when it is found by ORACLE. In WIKIREADING LONG, REINFORCE finds the ap- proximate gold sentence in 74.4% of the examples where the the answer is in the document. In WIK- ISUGGEST performance is at 67.5%, mostly due to noise in the data. PIPELINE performs slightly bet- ter as it is directly trained towards our noisy eval- 6 Sampling more help pipeline methods less.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Sentence Selection Results</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>WR WIKI LONG SUGGEST</head><p>No evidence in <ref type="table" target="#tab_1">doc.  29  8  Error in answer generation  13  15  Noisy query &amp; answer  0  24  Error in sentence selection  8  3   Table 5</ref>: Manual error analysis on 50 errors from the devel- opment set for REINFORCE (K=1).</p><p>uation. However, not all sentences that contain the answer are useful to answer the question (first ex- ample in <ref type="table" target="#tab_7">Table 6</ref>). REINFORCE learned to choose sentences that are likely to generate a correct an- swer rather than proxy gold sentences, improv- ing the final answer accuracy. On WIKIREADING LONG, complex models (CNN and CHUNKBOW) outperform the simple BOW, while on WIKISUG- GEST BOW performed best.</p><p>Qualitative Analysis We categorized the pri- mary reasons for the errors in <ref type="table">Table 5</ref> and present an example for each error type in <ref type="table" target="#tab_7">Table 6</ref>. All examples are from REINFORCE with BOW sen- tence selection. The most frequent source of error for WIKIREADING LONG was lack of evidence in the document. While the dataset does not contain false answers, the document does not always pro- vide supporting evidence (examples of properties without clues are ELEVATION ABOVE SEA LEVEL and SISTER). Interestingly, the answer string can still appear in the document as in the first ex- ample in <ref type="table" target="#tab_7">Table 6</ref>: 'Saint Petersburg' appears in the document (4th sentence). Answer generation at times failed to generate the answer even when the correct sentence was selected. This was pro- nounced especially in long answers. For the auto- matically collected WIKISUGGEST dataset, noisy question-answer pairs were problematic, as dis- cussed in Section 3. However, the models fre- quently guessed the spurious answer. We attribute higher proxy performance in sentence selection for WIKISUGGEST to noise. In manual analysis, sentence selection was harder in WIKIREADING LONG, explaining why sampling two sentences improved performance.</p><p>In the first correct prediction <ref type="table" target="#tab_7">(Table 6)</ref>, the model generates the answer, even when it is not in the document. The second example shows when our model spots the relevant sentence without ob- vious clues. In the last example the model spots a sentence far from the head of the document. <ref type="figure" target="#fig_8">Figure 5</ref> contains a visualization of the atten-  Answer sentence selection is studied with the TREC QA <ref type="bibr" target="#b27">(Voorhees and Tice, 2000</ref>), Wik- iQA ( <ref type="bibr" target="#b35">Yang et al., 2016b</ref>) and <ref type="bibr">SelQA (Jurczyk et al., 2016</ref>) datasets. Recently, neural networks models ( <ref type="bibr" target="#b28">Wang and Nyberg, 2015</ref>; Severyn and Moschitti, 2015; dos <ref type="bibr" target="#b1">Santos et al., 2016</ref>) achieved improvements on TREC datsaet. <ref type="bibr" target="#b24">Sultan et al. (2016)</ref> optimized the answer sentence extraction and the answer extraction jointly, but with gold la- bels for both parts. <ref type="bibr" target="#b26">Trischler et al. (2016b)</ref> pro- posed a model that shares the intuition of ob- serving inputs at multiple granularities (sentence, word), but deals with multiple choice questions. Our model considers answer sentence selection as latent and generates answer strings instead of se- lecting text spans, and we found that WIKIREAD- ING dataset suits our purposes best with some pruning, which still provided 1.97 million exam- ples compared to 2K questions for TREC dataset.</p><p>Hierarchical models which treats sentence se- lection as a latent variable have been applied text categorization <ref type="bibr" target="#b35">(Yang et al., 2016b</ref>), extractive summarization ( <ref type="bibr">Cheng and Lapata, 2016)</ref>, ma- chine translation ( <ref type="bibr">Ba et al., 2014</ref>) and sentiment analysis ( <ref type="bibr" target="#b36">Yessenalina et al., 2010;</ref><ref type="bibr" target="#b12">Lei et al., 2016)</ref>. To the best of our knowledge, we are the first to use the hierarchical nature of a document for QA.</p><p>Finally, our work is related to the reinforcement learning literature. Hard and soft attention were examined in the context of caption generation ( <ref type="bibr" target="#b33">Xu et al., 2015)</ref>. Curriculum learning was investigated in <ref type="bibr" target="#b22">Sachan and Xing (2016)</ref>, but they focused on the ordering of training examples while we com- bine supervision signals. Reinforcement learning recently gained popularity in tasks such as co- reference resolution <ref type="bibr">(Clark and Manning, 2016)</ref>, information extraction ( <ref type="bibr" target="#b16">Narasimhan et al., 2016)</ref>, semantic parsing ( <ref type="bibr">Andreas et al., 2016</ref>) and textual games ( <ref type="bibr" target="#b15">Narasimhan et al., 2015;</ref><ref type="bibr" target="#b2">He et al., 2016</ref>).</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="8">Conclusion</head><p>We presented a coarse-to-fine framework for QA over long documents that quickly focuses on the relevant portions of a document. In future work we would like to deepen the use of structural clues and answer questions over multiple documents, using paragraph structure, titles, sections and more. In- corporating coreference resolution would be an- other important direction for future work. We ar- gue that this is necessary for developing systems that can efficiently answer the information needs of users over large quantities of text.</p></div><figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_0"><head>Figure 1 :</head><label>1</label><figDesc>Figure 1: Hierarchical question answering: the model first selects relevant sentences that produce a document summary ( ˆ d) for the given query (x), and then generates an answer (y) based on the summary ( ˆ d) and the query x.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_2"><head>Figure 2 :</head><label>2</label><figDesc>Figure 2: A training example containing a document d, a question x and an answer y in the WIKISUGGEST dataset. In this example, the sentence s5 is necessary to answer the question.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_5"><head>#</head><label></label><figDesc></figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_6"><head>Figure 3 :</head><label>3</label><figDesc>Figure 3: Example queries and answers of WIKISUGGEST.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_7"><head>Figure 4 :</head><label>4</label><figDesc>Figure 4: Runtime for document encoding on an Intel Xeon CPU E5-1650 @3.20GHz on WIKIREADING at test time. The boxplot represents the throughput of BASE and each line plot shows the proposed models' speed gain over BASE. Exact numbers are reported in the supplementary material.</figDesc><graphic url="image-2.png" coords="6,72.00,62.81,222.91,165.24" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_8"><head>Figure 5 :</head><label>5</label><figDesc>Figure 5: For a random subset of documents in the development set, we visualized the learned attention over the sentences (p(s l |d, x)).</figDesc><graphic url="image-3.png" coords="9,92.27,62.81,413.00,281.75" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_1" validated="true"><head>Table 2 : Data statistics.</head><label>2</label><figDesc></figDesc><table>ments with less than 10 sentences, and only con-
+sider Wikidata properties for which Hewlett et al. 
+(2016)'s best model obtains an accuracy of less 
+than 60%. This prunes out properties such as 
+GENDER, GIVEN NAME, and INSTANCE OF. 1 
+The resulting WIKIREADING LONG dataset con-
+tains 1.97M examples, where the answer appears 
+in 50.4% of the examples, and appears in the first 
+sentence only 31% of the time. On average, the 
+documents in WIKIREADING LONG contain 1.2k 
+tokens, more tokens than those of SQuAD (av-
+erage 122 tokens) or CNN (average 763 tokens) 
+datasets (see </table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_2" validated="false"><head></head><label></label><figDesc>. The data collection was performed in May 2016. 1 These three relations alone account for 33% of the data.</figDesc><table>WIKISUGGEST Query 
+Answer 
+
+what year did virgina became a state 1788 
+general manager of smackdown 
+Theodore Long 
+minnesota viking colors 
+purple 
+coco martin latest movies 
+maybe this time 
+longest railway station in asia 
+Gorakhpur 
+son from modern family 
+Claire Dunphy 
+north dakota main religion 
+Christian 
+lands end' brand 
+Lands' End 
+wdsu radio station 
+WCBE 
+
+</table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_4" validated="false"><head>Table 3 :</head><label>3</label><figDesc>Answer prediction accuracy on the test set. K is the number of sentences in the document summary.</figDesc><table></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_6" validated="false"><head>215 WIKIREADING LONG (WR LONG)</head><label></label><figDesc></figDesc><table>Error Type 
+No evidence in doc. 
+(Query, Answer) (place of death, Saint Petersburg) 
+System Output 
+Crimean Peninsula 
+
+1 
+11.7 
+Alexandrovich Friedmann ( also spelled Friedman or [Fridman] , Russian : . . . 
+4 
+3.4 
+Friedmann was baptized . . . and lived much of his life in Saint Petersburg . 
+25 
+63.6 
+Friedmann died on September 16 , 1925 , at the age of 37 , from typhoid fever that 
+he contracted while returning from a vacation in Crimean Peninsula . 
+
+Error Type 
+Error in sentence selection 
+(Query, Answer) (position played on team speciality, power forward) 
+System Output 
+point guard 
+
+1 
+37.8 
+James Patrick Johnson (born February 20 , 1987) is an American professional basketball player 
+for the Toronto Raptors of the National Basketball Association ( NBA ). 
+3 
+22.9 
+Johnson was the starting power forward for the Demon Deacons of Wake Forest University 
+
+WIKISUGGEST (WS) 
+
+Error Type 
+Error in answer generation 
+(Query, Answer) (david blaine's mother, Patrice Maureen White) 
+System Output 
+Maureen 
+
+1 
+14.1 
+David Blaine (born David Blaine White; April 4, 1973) is an American magician, illusionist . . . 
+8 
+22.6 
+Blaine was born and raised in, Brooklyn , New York the son of Patrice Maureen White . . . 
+
+Error Type 
+Noisy query &amp; answer 
+(Query, Answer) (what are dried red grapes called, dry red wines) 
+System Output 
+Chardonnay 
+
+1 
+2.8 
+Burgundy wine ( French : Bourgogne or vin de Bourgogne ) is wine made in the . . . 
+2 
+90.8 
+The most famous wines produced here . . . are dry red wines made from Pinot noir grapes . . . 
+
+Correctly Predicted Examples 
+
+WR LONG 
+
+(Query, Answer) (position held, member of the National Assembly of South Africa) 
+
+1 
+98.4 
+Anchen Margaretha Dreyer (born 27 March 1952) is a South African politician, a Member of 
+Parliament for the opposition Democratic Alliance , and currently . . . 
+
+(Query, Answer) (headquarters locations, Solihull) 
+
+1 
+13.8 
+LaSer UK is a provider of credit and loyalty programmes , operating in the UK and Republic . . . 
+4 
+82.3 
+The company 's operations are in Solihull and Belfast where it employs 800 people . 
+
+WS 
+(Query, Answer) (avril lavigne husband, Chad Kroeger) 
+
+1 
+17.6 
+Avril Ramona Lavigne ([vrłl] [lvin] / ; French pronunciation : ¡200b¿ ( [avil] [lavi] ) ;. . . 
+23 
+68.4 
+Lavigne married Nickelback frontman , Chad Kroeger , in 2013 . Avril Ramona Lavigne was . . . 
+
+</table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_7" validated="false"><head>Table 6 :</head><label>6</label><figDesc></figDesc><table>Example outputs from REINFORCE (K=1) with BOW sentence selection model. First column: sentence index (l). 
+Second column: attention distribution p θ (s l |d, x). Last column: text s l . 
+
+tion distribution over sentences, p(s l | d, x), for 
+different learning procedures. The increased fre-
+quency of the answer string in WIKISUGGEST vs. 
+WIKIREADING LONG is evident in the leftmost 
+plot. SOFTATTEND and CHUNKBOW clearly dis-
+tribute attention more evenly across the sentences 
+compared to BOW and CNN. 
+
+7 Related Work 
+
+There has been substantial interest in datasets 
+for reading comprehension. MCTest (Richard-
+son et al., 2013) is a smaller-scale datasets focus-
+ing on common sense reasoning; bAbi (Weston 
+et al., 2015) is a synthetic dataset that captures 
+various aspects of reasoning; and SQuAD (Ra-
+jpurkar et al., 2016; Wang et al., 2016; Xiong 
+
+et al., 2016) and NewsQA (Trischler et al., 2016a) 
+are QA datasets where the answer is a span in 
+the document. Compared to Wikireading, some 
+datasets covers shorter passages (average 122 
+words for SQuAD). Cloze-style question answer-
+ing datasets (Hermann et al., 2015; Onishi et al., 
+2016; Hill et al., 2015) assess machine compre-
+hension but do not form questions. The recently 
+released MS MARCO dataset (Nguyen et al., 
+2016) consists of query logs, web documents and 
+crowd-sourced answers. 
+
+</table></figure>
+
+			<note place="foot" n="2"> Long sentences are truncated and short ones are padded.</note>
+
+			<note place="foot" n="3"> We tuned r ∈ [0.3, 1] on the development set.</note>
+
+			<note place="foot" n="5"> The number is lower than in Table 1 because we cropped sentences and documents, as mentioned above.</note>
+		</body>
+		<back>
+
+			<div type="acknowledgement">
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Acknowledgement</head><p>We appreciate feedbacks from Google colleagues. We also thank Yejin Choi, Kenton Lee, Mike Lewis, Mark Yatskar and Luke Zettlemoyer for comments on the earlier draft of the paper. The last author is partially supported by Israel Science Foundation, grant 942/16.</p></div>
+			</div>
+
+			<div type="annex">
+			</div>
+			<div type="references">
+
+				<listBibl>
+
+<biblStruct xml:id="b0">
+	<analytic>
+		<title level="a" type="main">Natural language processing (almost) from scratch</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">R</forename><surname>Collobert</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">J</forename><surname>Weston</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">L</forename><surname>Bottou</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">M</forename><surname>Karlen</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">K</forename><surname>Kavukcuoglu</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">P</forename><surname>Kuksa</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Journal of Machine Learning Research (JMLR)</title>
+		<imprint>
+			<biblScope unit="volume">12</biblScope>
+			<biblScope unit="page" from="2493" to="2537" />
+			<date type="published" when="2011" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b1">
+	<monogr>
+		<title level="m" type="main">Attentive pooling networks</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Cícero</forename><surname>Nogueira</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ming</forename><surname>Santos</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Bing</forename><surname>Tan</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Bowen</forename><surname>Xiang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Zhou</surname></persName>
+		</author>
+		<idno>CoRR abs/1602.03609</idno>
+		<imprint>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b2">
+	<analytic>
+		<title level="a" type="main">Deep reinforcement learning with an unbounded action space</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ji</forename><surname>He</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jianshu</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Xiaodong</forename><surname>He</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jianfeng</forename><surname>Gao</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Lihong</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Li</forename><surname>Deng</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Mari</forename><surname>Ostendorf</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Conference of the Association for Computational Linguistics</title>
+		<meeting>the Conference of the Association for Computational Linguistics</meeting>
+		<imprint>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b3">
+	<analytic>
+		<title level="a" type="main">Teaching machines to read and comprehend</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Karl</forename><surname>Moritz Hermann</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Tomáš</forename><surname>Kočisk´kočisk´y</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Edward</forename><surname>Grefenstette</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Lasse</forename><surname>Espeholt</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Will</forename><surname>Kay</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Mustafa</forename><surname>Suleyman</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Phil</forename><surname>Blunsom</surname></persName>
+		</author>
+		<ptr target="http://arxiv.org/abs/1506.03340" />
+	</analytic>
+	<monogr>
+		<title level="m">Advances in Neural Information Processing Systems</title>
+		<imprint>
+			<date type="published" when="2015" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b4">
+	<analytic>
+		<title level="a" type="main">Wikireading: A novel large-scale language understanding task over wikipedia</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Daniel</forename><surname>Hewlett</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Alexandre</forename><surname>Lacoste</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Llion</forename><surname>Jones</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Illia</forename><surname>Polosukhin</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Andrew</forename><surname>Fandrianto</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jay</forename><surname>Han</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Matthew</forename><surname>Kelcey</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">David</forename><surname>Berthelot</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Conference of the Association for Computational Linguistics</title>
+		<meeting>the Conference of the Association for Computational Linguistics</meeting>
+		<imprint>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b5">
+	<analytic>
+		<title level="a" type="main">The goldilocks principle: Reading children&apos;s books with explicit memory representations</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Felix</forename><surname>Hill</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Antoine</forename><surname>Bordes</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Sumit</forename><surname>Chopra</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jason</forename><surname>Weston</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">The International Conference on Learning Representations</title>
+		<imprint>
+			<date type="published" when="2015" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b6">
+	<analytic>
+		<title level="a" type="main">SelQA: A New Benchmark for Selectionbased Question Answering</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Tomasz</forename><surname>Jurczyk</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Michael</forename><surname>Zhai</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jinho</forename><forename type="middle">D</forename><surname>Choi</surname></persName>
+		</author>
+		<ptr target="https://arxiv.org/abs/1606.08513" />
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 28th International Conference on Tools with Artificial Intelligence</title>
+		<meeting>the 28th International Conference on Tools with Artificial Intelligence<address><addrLine>San Jose, CA</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b7">
+	<analytic>
+		<title level="a" type="main">Text understanding with the attention sum reader network</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Rudolf</forename><surname>Kadlec</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Martin</forename><surname>Schmid</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ondřej</forename><surname>Bajgar</surname></persName>
+		</author>
+		<ptr target="http://www.aclweb.org/anthology/P16-1086" />
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 54th Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 54th Annual Meeting of the Association for Computational Linguistics<address><addrLine>Berlin, Germany</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2016" />
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="908" to="918" />
+		</imprint>
+	</monogr>
+	<note>Long Papers)</note>
+</biblStruct>
+
+<biblStruct xml:id="b8">
+	<analytic>
+		<title level="a" type="main">A convolutional neural network for modelling sentences</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Nal</forename><surname>Kalchbrenner</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Edward</forename><surname>Grefenstette</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Phil</forename><surname>Blunsom</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the Annual Meeting of the Association for Computational Linguistics</meeting>
+		<imprint>
+			<date type="published" when="2014" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b9">
+	<analytic>
+		<title level="a" type="main">Convolutional neural networks for sentence classification</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yoon</forename><surname>Kim</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Conference of the Empirical Methods in Natural Language Processing</title>
+		<meeting>the Conference of the Empirical Methods in Natural Language Processing</meeting>
+		<imprint>
+			<date type="published" when="2014" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b10">
+	<analytic>
+		<title level="a" type="main">Adam: A method for stochastic optimization</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Diederik</forename><surname>Kingma</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jimmy</forename><surname>Ba</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">The International Conference on Learning Representations</title>
+		<imprint>
+			<date type="published" when="2015" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b11">
+	<analytic>
+		<title level="a" type="main">Ask me anything: Dynamic memory networks for natural language processing</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ankit</forename><surname>Kumar</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ozan</forename><surname>Irsoy</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Peter</forename><surname>Ondruska</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Mohit</forename><surname>Iyyer</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">James</forename><surname>Bradbury</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ishaan</forename><surname>Gulrajani</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Victor</forename><surname>Zhong</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Romain</forename><surname>Paulus</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Richard</forename><surname>Socher</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the International Conference on Machine Learning</title>
+		<meeting>the International Conference on Machine Learning</meeting>
+		<imprint>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b12">
+	<analytic>
+		<title level="a" type="main">Rationalizing neural predictions</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Tao</forename><surname>Lei</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Regina</forename><surname>Barzilay</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Tommi</forename><forename type="middle">S</forename><surname>Jaakkola</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Conference of the Empirical Methods in Natural Language Processing</title>
+		<meeting>the Conference of the Empirical Methods in Natural Language Processing</meeting>
+		<imprint>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b13">
+	<analytic>
+		<title level="a" type="main">Conceptual processing of text during skimming and rapid sequential reading</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Michael Ej Masson</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Memory &amp; Cognition</title>
+		<imprint>
+			<biblScope unit="volume">11</biblScope>
+			<biblScope unit="issue">3</biblScope>
+			<biblScope unit="page" from="262" to="274" />
+			<date type="published" when="1983" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b14">
+	<analytic>
+		<title level="a" type="main">Key-value memory networks for directly reading documents</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Alexander</forename><surname>Miller</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Adam</forename><surname>Fisch</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jesse</forename><surname>Dodge</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Conference of the Empirical Methods in Natural Language Processing</title>
+		<meeting>the Conference of the Empirical Methods in Natural Language Processing</meeting>
+		<imprint>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+	<note>AmirHossein Karimi, Antoine Bordes, and Jason Weston</note>
+</biblStruct>
+
+<biblStruct xml:id="b15">
+	<analytic>
+		<title level="a" type="main">Language understanding for textbased games using deep reinforcement learning</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Karthik</forename><surname>Narasimhan</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Tejas</forename><surname>Kulkarni</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Regina</forename><surname>Barzilay</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Conference of the Empirical Methods in Natural Language Processing</title>
+		<meeting>the Conference of the Empirical Methods in Natural Language Processing</meeting>
+		<imprint>
+			<date type="published" when="2015" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b16">
+	<analytic>
+		<title level="a" type="main">Improving information extraction by acquiring external evidence with reinforcement learning</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Karthik</forename><surname>Narasimhan</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Adam</forename><surname>Yala</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Regina</forename><surname>Barzilay</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Conference of the Empirical Methods in Natural Language Processing</title>
+		<meeting>the Conference of the Empirical Methods in Natural Language Processing</meeting>
+		<imprint>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b17">
+	<analytic>
+		<title level="a" type="main">MS MARCO: A human generated machine reading comprehension dataset</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Tri</forename><surname>Nguyen</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Mir</forename><surname>Rosenberg</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Xia</forename><surname>Song</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jianfeng</forename><surname>Gao</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Saurabh</forename><surname>Tiwary</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Rangan</forename><surname>Majumder</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Li</forename><surname>Deng</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Workshop in Advances in Neural Information Processing Systems</title>
+		<imprint>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b18">
+	<monogr>
+		<title level="m" type="main">Who did what: A large-scale person-centered cloze dataset. Proceedings of Empirical Methods in Natural Language Processing</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Takeshi</forename><surname>Onishi</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Hai</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Mohit</forename><surname>Bansal</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kevin</forename><surname>Gimpel</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">David</forename><surname>Mcallester</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b19">
+	<analytic>
+		<title level="a" type="main">Squad: 100,000+ questions for machine comprehension of text</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">P</forename><surname>Rajpurkar</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">J</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">K</forename><surname>Lopyrev</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">P</forename><surname>Liang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Conference of the Empirical Methods in Natural Language Processing</title>
+		<meeting>the Conference of the Empirical Methods in Natural Language Processing</meeting>
+		<imprint>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b20">
+	<analytic>
+		<title level="a" type="main">Mctest: A challenge dataset for the open-domain machine comprehension of text</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Matthew</forename><surname>Richardson</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">J</forename><forename type="middle">C</forename><surname>Christopher</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Erin</forename><surname>Burges</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Renshaw</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Conference of the Empirical Methods in Natural Language Processing</title>
+		<meeting>the Conference of the Empirical Methods in Natural Language Processing</meeting>
+		<imprint>
+			<date type="published" when="2013" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b21">
+	<analytic>
+		<title level="a" type="main">A reduction of imitation learning and structured prediction to no-regret online learning</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Stéphane</forename><surname>Ross</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Geoffrey</forename><forename type="middle">J</forename><surname>Gordon</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Drew</forename><surname>Bagnell</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">International Conference on Artificial Intelligence and Statistics</title>
+		<imprint>
+			<date type="published" when="2011" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b22">
+	<analytic>
+		<title level="a" type="main">Easy questions first? a case study on curriculum learning for question answering</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Mrinmaya</forename><surname>Sachan</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Eric</forename><forename type="middle">P</forename><surname>Xing</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the Annual Meeting of the Association for Computational Linguistics</meeting>
+		<imprint>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b23">
+	<analytic>
+		<title level="a" type="main">Learning to rank short text pairs with convolutional deep neural networks</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Aliaksei</forename><surname>Severyn</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Alessandro</forename><surname>Moschitti</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 38th International ACM SIGIR Conference on Research and Development in Information Retrieval</title>
+		<meeting>the 38th International ACM SIGIR Conference on Research and Development in Information Retrieval</meeting>
+		<imprint>
+			<publisher>ACM</publisher>
+			<date type="published" when="2015" />
+			<biblScope unit="page" from="373" to="382" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b24">
+	<analytic>
+		<title level="a" type="main">A joint model for answer sentence ranking and answer extraction</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Md</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Vittorio</forename><surname>Arafat Sultan</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Radu</forename><surname>Castelli</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Florian</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Transactions of the Association for Computational Linguistics</title>
+		<imprint>
+			<biblScope unit="volume">4</biblScope>
+			<biblScope unit="page" from="113" to="125" />
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b25">
+	<monogr>
+				<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Adam</forename><surname>Trischler</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Tong</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Xingdi</forename><surname>Yuan</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Justin</forename><surname>Harris</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Alessandro</forename><surname>Sordoni</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Philip</forename><surname>Bachman</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kaheer</forename><surname>Suleman</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1611.09830</idno>
+		<title level="m">Newsqa: A machine comprehension dataset</title>
+		<imprint>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b26">
+	<analytic>
+		<title level="a" type="main">A parallel-hierarchical model for machine comprehension on sparse data</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Adam</forename><surname>Trischler</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Zheng</forename><surname>Ye</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Xingdi</forename><surname>Yuan</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jing</forename><surname>He</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Phillip</forename><surname>Bachman</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kaheer</forename><surname>Suleman</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 54th Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 54th Annual Meeting of the Association for Computational Linguistics</meeting>
+		<imprint>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b27">
+	<analytic>
+		<title level="a" type="main">Building a question answering test collection</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">M</forename><surname>Ellen</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Dawn</forename><forename type="middle">M</forename><surname>Voorhees</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Tice</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 23rd annual international ACM SIGIR conference on Research and development in information retrieval</title>
+		<meeting>the 23rd annual international ACM SIGIR conference on Research and development in information retrieval</meeting>
+		<imprint>
+			<publisher>ACM</publisher>
+			<date type="published" when="2000" />
+			<biblScope unit="page" from="200" to="207" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b28">
+	<analytic>
+		<title level="a" type="main">A long short-term memory model for answer sentence selection in question answering</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Di</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Eric</forename><surname>Nyberg</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the Annual Meeting of the Association for Computational Linguistics</meeting>
+		<imprint>
+			<date type="published" when="2015" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b29">
+	<monogr>
+		<title level="m" type="main">Multi-perspective context matching for machine comprehension</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Zhiguo</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Haitao</forename><surname>Mi</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Wael</forename><surname>Hamza</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Radu</forename><surname>Florian</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1612.04211</idno>
+		<imprint>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b30">
+	<monogr>
+		<title level="m" type="main">Towards ai-complete question answering: A set of prerequisite toy tasks</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jason</forename><surname>Weston</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Antoine</forename><surname>Bordes</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Sumit</forename><surname>Chopra</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Alexander</forename><forename type="middle">M</forename><surname>Rush</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Bart</forename><surname>Van Merriënboer</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Armand</forename><surname>Joulin</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Tomas</forename><surname>Mikolov</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1502.05698</idno>
+		<imprint>
+			<date type="published" when="2015" />
+		</imprint>
+	</monogr>
+<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b31">
+	<analytic>
+		<title level="a" type="main">Simple statistical gradientfollowing algorithms for connectionist reinforcement learning</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">J</forename><surname>Ronald</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Williams</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Machine learning</title>
+		<imprint>
+			<biblScope unit="volume">8</biblScope>
+			<biblScope unit="issue">3-4</biblScope>
+			<biblScope unit="page" from="229" to="256" />
+			<date type="published" when="1992" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b32">
+	<monogr>
+		<title level="m" type="main">Dynamic coattention networks for question answering</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Caiming</forename><surname>Xiong</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Victor</forename><surname>Zhong</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Richard</forename><surname>Socher</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1611.01604</idno>
+		<imprint>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b33">
+	<analytic>
+		<title level="a" type="main">Show, attend and tell: Neural image caption generation with visual attention</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kelvin</forename><surname>Xu</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jimmy</forename><surname>Ba</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ryan</forename><surname>Kiros</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kyunghyun</forename><surname>Cho</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Aaron</forename><surname>Courville</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ruslan</forename><surname>Salakhutdinov</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Richard</forename><surname>Zemel</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yoshua</forename><surname>Bengio</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the International Conference on Machine Learning</title>
+		<meeting>the International Conference on Machine Learning</meeting>
+		<imprint>
+			<date type="published" when="2015" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b34">
+	<analytic>
+		<title level="a" type="main">Wikiqa: A challenge dataset for open-domain question answering</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yi</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Wen-Tau</forename><surname>Yih</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Christopher</forename><surname>Meek</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Conference of the Empirical Methods in Natural Language Processing</title>
+		<meeting>the Conference of the Empirical Methods in Natural Language Processing</meeting>
+		<imprint>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b35">
+	<analytic>
+		<title level="a" type="main">Hierarchical attention networks for document classification</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Zichao</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Diyi</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Chris</forename><surname>Dyer</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies</title>
+		<meeting>the Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies</meeting>
+		<imprint>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+	<note>Xiaodong He, Alex Smola, and Eduard Hovy</note>
+</biblStruct>
+
+<biblStruct xml:id="b36">
+	<analytic>
+		<title level="a" type="main">Multi-level structured models for documentlevel sentiment classification</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ainur</forename><surname>Yessenalina</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yisong</forename><surname>Yue</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Claire</forename><surname>Cardie</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2010 Conference on Empirical Methods in Natural Language Processing. Association for Computational Linguistics</title>
+		<meeting>the 2010 Conference on Empirical Methods in Natural Language Processing. Association for Computational Linguistics</meeting>
+		<imprint>
+			<date type="published" when="2010" />
+			<biblScope unit="page" from="1046" to="1056" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b37">
+	<analytic>
+		<title level="a" type="main">Deep Learning for Answer Sentence Selection</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Lei</forename><surname>Yu</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Karl</forename><forename type="middle">Moritz</forename><surname>Hermann</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Phil</forename><surname>Blunsom</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Stephen</forename><surname>Pulman</surname></persName>
+		</author>
+		<ptr target="http://arxiv.org/abs/1412.1632" />
+	</analytic>
+	<monogr>
+		<title level="m">NIPS Deep Learning Workshop</title>
+		<imprint>
+			<date type="published" when="2014" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+				</listBibl>
+			</div>
+		</back>
+	</text>
+</TEI>

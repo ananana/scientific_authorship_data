@@ -1,0 +1,1117 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<TEI xmlns="http://www.tei-c.org/ns/1.0" 
+xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+xsi:schemaLocation="http://www.tei-c.org/ns/1.0 /home/ana/installs/grobid/grobid-0.5.1/grobid-home/schemas/xsd/Grobid.xsd"
+ xmlns:xlink="http://www.w3.org/1999/xlink">
+	<teiHeader xml:lang="en">
+		<encodingDesc>
+			<appInfo>
+				<application version="0.5.1-SNAPSHOT" ident="GROBID" when="2019-04-18T11:36+0000">
+					<ref target="https://github.com/kermitt2/grobid">GROBID - A machine learning software for extracting information from scholarly documents</ref>
+				</application>
+			</appInfo>
+		</encodingDesc>
+		<fileDesc>
+			<titleStmt>
+				<title level="a" type="main">Neural CRF Parsing</title>
+			</titleStmt>
+			<publicationStmt>
+				<publisher>Association for Computational Linguistics</publisher>
+				<availability status="unknown"><p>Copyright Association for Computational Linguistics</p>
+				</availability>
+				<date>July 26-31, 2015. 2015</date>
+			</publicationStmt>
+			<sourceDesc>
+				<biblStruct>
+					<analytic>
+						<author>
+							<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Greg</forename><surname>Durrett</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="department">Computer Science Division</orgName>
+								<orgName type="institution">University of California</orgName>
+								<address>
+									<settlement>Berkeley</settlement>
+								</address>
+							</affiliation>
+						</author>
+						<author>
+							<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Dan</forename><surname>Klein</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="department">Computer Science Division</orgName>
+								<orgName type="institution">University of California</orgName>
+								<address>
+									<settlement>Berkeley</settlement>
+								</address>
+							</affiliation>
+						</author>
+						<title level="a" type="main">Neural CRF Parsing</title>
+					</analytic>
+					<monogr>
+						<title level="m">Proceedings of the 53rd Annual Meeting of the Association for Computational Linguistics and the 7th International Joint Conference on Natural Language Processing</title>
+						<meeting>the 53rd Annual Meeting of the Association for Computational Linguistics and the 7th International Joint Conference on Natural Language Processing <address><addrLine>Beijing, China</addrLine></address>
+						</meeting>
+						<imprint>
+							<publisher>Association for Computational Linguistics</publisher>
+							<biblScope unit="page" from="302" to="312"/>
+							<date type="published">July 26-31, 2015. 2015</date>
+						</imprint>
+					</monogr>
+				</biblStruct>
+			</sourceDesc>
+		</fileDesc>
+		<profileDesc>
+			<abstract>
+				<p>This paper describes a parsing model that combines the exact dynamic programming of CRF parsing with the rich nonlinear fea-turization of neural net approaches. Our model is structurally a CRF that factors over anchored rule productions, but instead of linear potential functions based on sparse features, we use nonlinear potentials computed via a feedforward neu-ral network. Because potentials are still local to anchored rules, structured inference (CKY) is unchanged from the sparse case. Computing gradients during learning involves backpropagating an error signal formed from standard CRF sufficient statistics (expected rule counts). Using only dense features, our neural CRF already exceeds a strong baseline CRF model (Hall et al., 2014). In combination with sparse features, our system 1 achieves 91.1 F 1 on section 23 of the Penn Tree-bank, and more generally outperforms the best prior single parser results on a range of languages.</p>
+			</abstract>
+		</profileDesc>
+	</teiHeader>
+	<text xml:lang="en">
+		<body>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="1">Introduction</head><p>Neural network-based approaches to structured NLP tasks have both strengths and weaknesses when compared to more conventional models, such conditional random fields (CRFs). A key strength of neural approaches is their ability to learn nonlinear interactions between underlying features. In the case of unstructured output spaces, this capability has led to gains in problems rang- ing from syntax ( <ref type="bibr" target="#b10">Chen and Manning, 2014;</ref><ref type="bibr" target="#b2">Belinkov et al., 2014</ref>) to lexical semantics <ref type="bibr" target="#b20">(Kalchbrenner et al., 2014;</ref><ref type="bibr" target="#b21">Kim, 2014)</ref>. Neural methods are also powerful tools in the case of structured <ref type="bibr">1</ref> System available at http://nlp.cs.berkeley.edu output spaces. Here, past work has often relied on recurrent architectures <ref type="bibr" target="#b17">(Henderson, 2003;</ref><ref type="bibr" target="#b36">Socher et al., 2013;</ref><ref type="bibr" target="#b19">˙ Irsoy and Cardie, 2014</ref>), which can propagate information through structure via real- valued hidden state, but as a result do not admit ef- ficient dynamic programming <ref type="bibr" target="#b36">(Socher et al., 2013;</ref><ref type="bibr" target="#b25">Le and Zuidema, 2014</ref>). However, there is a nat- ural marriage of nonlinear induced features and efficient structured inference, as explored by <ref type="bibr" target="#b12">Collobert et al. (2011)</ref> for the case of sequence mod- eling: feedforward neural networks can be used to score local decisions which are then "reconciled" in a discrete structured modeling framework, al- lowing inference via dynamic programming.</p><p>In this work, we present a CRF constituency parser based on these principles, where individ- ual anchored rule productions are scored based on nonlinear features computed with a feedfor- ward neural network. A separate, identically- parameterized replicate of the network exists for each possible span and split point. As input, it takes vector representations of words at the split point and span boundaries; it then outputs scores for anchored rules applied to that span and split point. These scores can be thought of as non- linear potentials analogous to linear potentials in conventional CRFs. Crucially, while the network replicates are connected in a unified model, their computations factor along the same substructures as in standard CRFs.</p><p>Prior work on parsing using neural network models has often sidestepped the problem of struc- tured inference by making sequential decisions <ref type="bibr" target="#b17">(Henderson, 2003;</ref><ref type="bibr" target="#b10">Chen and Manning, 2014;</ref><ref type="bibr" target="#b38">Tsuboi, 2014)</ref> or by doing reranking <ref type="bibr" target="#b36">(Socher et al., 2013;</ref><ref type="bibr" target="#b25">Le and Zuidema, 2014)</ref>; by contrast, our framework permits exact inference via CKY, since the model's structured interactions are purely dis- crete and do not involve continuous hidden state. Therefore, we can exploit a neural net's capac- ity to learn nonlinear features without modifying Figure 1: Neural CRF model. On the right, each anchored rule (r, s) in the tree is independently scored by a function φ, so we can perform in- ference with CKY to compute marginals or the Viterbi tree. On the left, we show the process for scoring an anchored rule with neural features: words in f w (see <ref type="figure">Figure 2</ref>) are embedded, then fed through a neural network with one hidden layer to compute dense intermediate features, whose con- junctions with sparse rule indicator features f o are scored according to parameters W .</p><p>our core inference mechanism, allowing us to use tricks like coarse pruning that make inference ef- ficient in the purely sparse model. Our model can be trained by gradient descent exactly as in a con- ventional CRF, with the gradient of the network parameters naturally computed by backpropagat- ing a difference of expected anchored rule counts through the network for each span and split point. Using dense learned features alone, the neu- ral CRF model obtains high performance, out- performing the CRF parser of <ref type="bibr" target="#b16">Hall et al. (2014)</ref>. When sparse indicators are used in addition, the resulting model gets 91.1 F 1 on section 23 of the Penn Treebank, outperforming the parser of <ref type="bibr" target="#b36">Socher et al. (2013)</ref> as well as the Berkeley Parser ( <ref type="bibr" target="#b30">Petrov and Klein, 2007)</ref> and matching the dis- criminative parser of . The model also obtains the best single parser results on nine other languages, again outperforming the system of <ref type="bibr" target="#b16">Hall et al. (2014)</ref>. <ref type="figure">Figure 1</ref> shows our neural CRF model. The model decomposes over anchored rules, and it scores each of these with a potential function; in a standard CRF, these potentials are typically lin- ear functions of sparse indicator features, whereas reflected the flip side of the Stoltzman personality .</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2">Model</head><p>reflected the side of personality .</p><formula xml:id="formula_0">i j k [[PreviousWord = reflected]], [[SpanLength = 7]], … f s NP PP NP r = NP NP PP ! f w v(f w )</formula><p>Figure 2: Example of an anchored rule production for the rule NP → NP PP. From the anchoring s = (i, j, k), we extract either sparse surface features f s or a sequence of word indicators f w which are embedded to form a vector representation v(f w ) of the anchoring's lexical properties.</p><p>in our approach they are nonlinear functions of word embeddings. 2 Section 2.1 describes our no- tation for anchored rules, and Section 2.2 talks about how they are scored. We then discuss spe- cific choices of our featurization (Section 2.3) and the backbone grammar used for structured infer- ence (Section 2.4).</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.1">Anchored Rules</head><p>The fundamental units that our parsing models consider are anchored rules. As shown in <ref type="figure">Fig- ure 2</ref>, we define an anchored rule as a tuple (r, s), where r is an indicator of the rule's identity and s = (i, j, k) indicates the span (i, k) and split point j of the rule. 3 A tree T is simply a collec- tion of anchored rules subject to the constraint that those rules form a tree. All of our parsing models are CRFs that decompose over anchored rule pro- ductions and place a probability distribution over trees conditioned on a sentence w as follows:</p><formula xml:id="formula_1">P (T |w) ∝ exp   (r,s)∈T φ(w, r, s)  </formula><p>where φ is a scoring function that considers the input sentence and the anchored rule in question. <ref type="figure">Figure 1</ref> shows this scoring process schematically. As we will see, the module on the left can be be a neural net, a linear function of surface features, or a combination of the two, as long as it provides anchored rule scores, and the structured inference component is the same regardless (CKY). A PCFG estimated with maximum likelihood has φ(w, r, s) = log P (r|parent(r)), which is in- dependent of the anchoring s and the words w ex- cept for preterminal productions; a basic discrimi- native parser might let this be a learned parameter but still disregard the surface information. How- ever, surface features can capture useful syntactic cues ( <ref type="bibr" target="#b15">Finkel et al., 2008;</ref><ref type="bibr" target="#b16">Hall et al., 2014</ref>). Con- sider the example in <ref type="figure">Figure 2</ref>: the proposed parent NP is preceded by the word reflected and followed by a period, which is a surface context character- istic of NPs or PPs in object position. Beginning with the and ending with personality are typical properties of NPs as well, and the choice of the particular rule NP → NP PP is supported by the fact that the proposed child PP begins with of. This information can be captured with sparse features (f s in <ref type="figure">Figure 2</ref>) or, as we describe below, with a neural network taking lexical context as input.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.2">Scoring Anchored Rules</head><p>Following <ref type="bibr" target="#b16">Hall et al. (2014)</ref>, our baseline sparse scoring function takes the following bilinear form:</p><formula xml:id="formula_2">φ sparse (w, r, s; W ) = f s (w, s) W f o (r)</formula><p>where f o (r) ∈ {0, 1} no is a sparse vector of features expressing properties of r (such as the rule's identity or its parent label) and f s (w, s) ∈ {0, 1} ns is a sparse vector of surface features as- sociated with the words in the sentence and the anchoring, as shown in <ref type="figure">Figure 2</ref>. W is a n s × n o matrix of weights. <ref type="bibr">4</ref> The scoring of a particular an- chored rule is depicted in <ref type="figure" target="#fig_1">Figure 3a</ref>; note that sur- face features and rule indicators are conjoined in a systematic way.</p><p>The role of f s can be equally well played by a vector of dense features learned via a neural net- 4 A more conventional expression of the scoring function for a CRF is φ(w, r, s) = θ f (w, r, s), with a vector θ for the parameters and a single feature extractor f that jointly inspects the surface and the rule. However, when the feature representation conjoins each rule r with surface properties of the sentence in a systematic way (an assumption that holds in our case as well as for standard CRF models for POS tagging and NER), this is equivalent to our formalism. work. We will now describe how to compute these features, which represent a transformation of sur- face lexical indicators f w . Define f w (w, s) ∈ N nw to be a function that produces a fixed-length se- quence of word indicators based on the input sen- tence and the anchoring. This vector of word identities is then passed to an embedding function v : N → R ne and the dense representations of the words are subsequently concatenated to form a vector we denote by v(f w ). 5 Finally, we mul- tiply this by a matrix H ∈ R n h ×(nwne) of real- valued parameters and pass it through an elemen- twise nonlinearity g(·). We use rectified linear units g(x) = max(x, 0) and discuss this choice more in Section 6. Replacing f s with the end result of this compu- tation h(w, s; H) = g(Hv(f w (w, s))), our scor- ing function becomes</p><formula xml:id="formula_3">f o W f o W f s W ij = weight([[f s,i ^ f o,j ]]) a) b) f w v(f w ) h = f &gt; s W f o = g(Hv(f w )) &gt; W f o</formula><formula xml:id="formula_4">φ neural (w, r, s; H, W ) = h(w, s; H) W f o (r)</formula><p>as shown in <ref type="figure" target="#fig_1">Figure 3b</ref>. For a fixed H, this model can be viewed as a basic CRF with dense input fea- tures. By learning H, we learn intermediate fea- ture representations that provide the model with more discriminating power. Also note that it is possible to use deeper networks or more sophis- ticated architectures here; we will return to this in Section 6.</p><p>Our two models can be easily combined:</p><formula xml:id="formula_5">φ(w, r, s; W 1 , H, W 2 ) = φ sparse (w, r, s; W 1 ) + φ neural (w, r, s; H, W 2 )</formula><p>Weights for each component of the scoring func- tion can be learned fully jointly and inference pro- ceeds as before.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.3">Features</head><p>We take f s to be the set of features described in <ref type="bibr" target="#b16">Hall et al. (2014)</ref>. At the preterminal layer, the model considers prefixes and suffixes up to length 5 of the current word and neighboring words, as well as the words' identities. For nonterminal pro- ductions, we fire indicators on the words 6 before and after the start, end, and split point of the an- chored rule (as shown in <ref type="figure">Figure 2</ref>) as well as on two other span properties, span length and span shape (an indicator of where capitalized words, numbers, and punctuation occur in the span). For our neural model, we take f w for all pro- ductions (preterminal and nonterminal) to be the words surrounding the beginning and end of a span and the split point, as shown in <ref type="figure">Figure 2</ref>; in partic- ular, we look two words in either direction around each point of interest, meaning the neural net takes 12 words as input. <ref type="bibr">7</ref> For our word embeddings v, we use pre-trained word vectors from <ref type="bibr" target="#b1">Bansal et al. (2014)</ref>. We compare with other sources of word vectors in Section 5. Contrary to standard practice, we do not update these vectors during training; we found that doing so did not provide an accuracy benefit and slowed down training considerably.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.4">Grammar Refinements</head><p>A recurring issue in discriminative constituency parsing is the granularity of annotation in the base grammar ( <ref type="bibr" target="#b15">Finkel et al., 2008;</ref><ref type="bibr" target="#b31">Petrov and Klein, 2008;</ref><ref type="bibr" target="#b16">Hall et al., 2014</ref>). Using finer-grained sym- bols in our rules r gives the model greater capacity, but also introduces more parameters into W and <ref type="bibr">6</ref> The model actually uses the longest suffix of each word occurring at least 100 times in the training set, up to the entire word. Removing this abstraction of rare words harms perfor- mance. <ref type="bibr">7</ref> The sparse model did not benefit from using this larger neighborhood, so improvements from the neural net are not simply due to considering more lexical context. increases the ability to overfit. Following <ref type="bibr" target="#b16">Hall et al. (2014)</ref>, we use grammars with very little anno- tation: we use no horizontal Markovization for any of experiments, and all of our English experiments with the neural CRF use no vertical Markovization (V = 0). This also has the benefit of making the system much faster, due to the smaller state space for dynamic programming. We do find that using parent annotation (V = 1) is useful on other lan- guages (see Section 7.2), but this is the only gram- mar refinement we consider.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3">Learning</head><p>To learn weights for our neural model, we maxi- mize the conditional log likelihood of our D train- ing trees T * :</p><formula xml:id="formula_6">L(H, W ) = D i=1 log P (T * i |w i ; H, W )</formula><p>Because we are using rectified linear units as our nonlinearity, our objective is not everywhere dif- ferentiable. The interaction of the parameters and the nonlinearity also makes the objective non- convex. However, in spite of this, we can still fol- low subgradients to optimize this objective, as is standard practice.</p><p>Recall that h(w, s; H) are the hidden layer ac- tivations. The gradient of W takes the standard form of log-linear models:</p><formula xml:id="formula_7">∂L ∂W =   (r,s)∈T * h(w, s; H)f o (r)   −   T P (T |w; H, W ) (r,s)∈T h(w, s; H)f o (r)  </formula><p>Note that the outer products give matrices of fea- ture counts isomorphic to W . The second expres- sion can be simplified to be in terms of expected feature counts. To update H, we use standard backpropagation by first computing:</p><formula xml:id="formula_8">∂L ∂h =   (r,s)∈T * W f o (r)   −   T P (T |w; H, W ) (r,s)∈T W f o (r)  </formula><p>Since h is the output of the neural network, we can then apply the chain rule to compute gradients for H and any other parameters in the neural network.</p><p>Learning uses Adadelta <ref type="bibr" target="#b42">(Zeiler, 2012)</ref>, which has been employed in past work <ref type="bibr" target="#b21">(Kim, 2014</ref>). We found that Adagrad ( <ref type="bibr" target="#b14">Duchi et al., 2011</ref>) performed equally well with tuned regularization and step size parameters, but Adadelta worked better out of the box. We set the momentum term ρ = 0.95 (as suggested by Zeiler (2012)) and did not reg- ularize the weights at all. We used a minibatch size of 200 trees, although the system was not par- ticularly sensitive to this. For each treebank, we trained for either 10 passes through the treebank or 1000 minibatches, whichever is shorter.</p><p>We initialized the output weight matrix W to zero. To break symmetry, the lower level neural network parameters H were initialized with each entry being independently sampled from a Gaus- sian with mean 0 and variance 0.01; Gaussian per- formed better than uniform initialization, but the variance was not important.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4">Inference</head><p>Our baseline and neural model both score an- chored rule productions. We can use CKY in the standard fashion to compute either expected an- chored rule counts E P (T |w) [(r, s)] or the Viterbi tree arg max T P (T |w).</p><p>We speed up inference by using a coarse prun- ing pass. We follow <ref type="bibr" target="#b16">Hall et al. (2014)</ref> and prune according to an X-bar grammar with head- outward binarization, ruling out any constituent whose max marginal probability is less than e −9 . With this pruning, the number of spans and split points to be considered is greatly reduced; how- ever, we still need to compute the neural network activations for each remaining span and split point, of which there may be thousands for a given sen- tence. <ref type="bibr">8</ref> We can improve efficiency further by not- ing that the same word will appear in the same po- sition in a large number of span/split point combi- nations, and cache the contribution to the hidden layer caused by that word <ref type="bibr" target="#b10">(Chen and Manning, 2014</ref>). Computing the hidden layer then simply requires adding n w vectors together and applying the nonlinearity, instead of a more costly matrix multiply.</p><p>Because the number of rule indicators n o is fairly large (approximately 4000 in the Penn Tree- bank), the multiplication by W in the model is also expensive. However, because only a small number of rules can apply to a given span and split point, f o is sparse and we can selectively compute the terms necessary for the final bilinear product.</p><p>Our combined sparse and neural model trains on the Penn Treebank in 24 hours on a single machine with a parallelized CPU implementation. For ref- erence, the purely sparse model with a parent- annotated grammar (necessary for the best results) takes around 15 hours on the same machine. <ref type="table">Table 1</ref> shows results on section 22 (the develop- ment set) of the English Penn Treebank ( <ref type="bibr" target="#b28">Marcus et al., 1993)</ref>, computed using evalb. Full test re- sults and comparisons to other systems are shown in <ref type="table" target="#tab_2">Table 4</ref>. We compare variants of our system along two axes: whether they use standard linear sparse features, nonlinear dense features from the neural net, or both, and whether any word repre- sentations (vectors or clusters) are used.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5">System Ablations</head><p>Sparse vs. neural The neural CRF (line (d) in <ref type="table">Table 1</ref>) on its own outperforms the sparse CRF (a, b) even when the sparse CRF has a more heav- ily annotated grammar. This is a surprising re- sult: the features in the sparse CRF have been carefully engineered to capture a range of linguis- tic phenomena ( <ref type="bibr" target="#b16">Hall et al., 2014</ref>), and there is no guarantee that word vectors will capture the same. For example, at the POS tagging layer, the sparse model looks at prefixes and suffixes of words, which give the model access to morphol- ogy for predicting tags of unknown words, which typically have regular inflection patterns. By con- trast, the neural model must rely on the geometry of the vector space exposing useful regularities. At the same time, the strong performance of the combination of the two systems (g) indicates that not only are both featurization approaches high- performing on their own, but that they have com- plementary strengths.</p><p>Unlabeled data Much attention has been paid to the choice of word vectors for various NLP tasks, notably whether they capture more syntac- tic or semantic phenomena ( <ref type="bibr" target="#b1">Bansal et al., 2014;</ref><ref type="bibr" target="#b27">Levy and Goldberg, 2014</ref>). We primarily use vec- tors from <ref type="bibr" target="#b1">Bansal et al. (2014)</ref>, who train the skip- gram model of <ref type="bibr" target="#b29">Mikolov et al. (2013)</ref> using con- texts from dependency links; a similar approach was also suggested by <ref type="bibr" target="#b27">Levy and Goldberg (2014)</ref>. <ref type="bibr">Sparse Neural V Word Reps F1 len ≤ 40 F1 all Hall et al. (2014)</ref>  However, as these embeddings are trained on a relatively small corpus (BLLIP minus the Penn Treebank), it is natural to wonder whether less- syntactic embeddings trained on a larger corpus might be more useful. This is not the case: line (e) in <ref type="table">Table 1</ref> shows the performance of the neu- ral CRF using the Wikipedia-trained word embed- dings of <ref type="bibr" target="#b12">Collobert et al. (2011)</ref>, which do not per- form better than the vectors of <ref type="bibr" target="#b1">Bansal et al. (2014)</ref>. To isolate the contribution of continuous word representations themselves, we also experimented with vectors trained on just the text from the train- ing set of the Penn Treebank using the skip-gram model with a window size of 1. While these vec- tors are somewhat lower performing on their own (f), they still provide a surprising and noticeable gain when stacked on top of sparse features (h), again suggesting that dense and sparse represen- tations have complementary strengths. This result also reinforces the notion that the utility of word vectors does not come primarily from importing information about out-of-vocabulary words <ref type="bibr" target="#b0">(Andreas and Klein, 2014)</ref>.</p><p>Since the neural features incorporate informa- tion from unlabeled data, we should provide the   <ref type="table">Table 2</ref>: Exploration of other implementation choices in the feedforward neural network on sen- tences of length ≤ 40 from section 22 of the Penn Treebank. Rectified linear units perform better than tanh or cubic units, a network with one hid- den layer performs best, and embedding the output feature vector gives worse performance.</p><p>sparse model with similar information for a true apples-to-apples comparison. Brown clusters have been shown to be effective vehicles in the past ( <ref type="bibr" target="#b39">Turian et al., 2010;</ref><ref type="bibr" target="#b1">Bansal et al., 2014</ref>). We can incorporate Brown clusters into the baseline CRF model in an analogous way to how embedding features are used in the dense model: surface features are fired on Brown cluster iden- tities (we use prefixes of length 4 and 10) of key words. We use the Brown clusters from , which are trained on the same data as the vectors of <ref type="bibr" target="#b1">Bansal et al. (2014)</ref>. However, <ref type="table">Table 1</ref> shows that these features provide no benefit to the baseline model, which suggests either that it is dif- ficult to learn reliable weights for these as sparse features or that different regularities are being cap- tured by the word embeddings.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6">Design Choices</head><p>The neural net design space is large, so we wish to analyze the particular design choices we made for this system by examining the performance of several variants of the neural net architecture used in our system. <ref type="table">Table 2</ref> shows development re- sults from potential alternate architectural choices, which we now discuss.</p><p>Choice of nonlinearity The choice of nonlin- earity g has been frequently discussed in the neural network literature. Our choice g(x) = max(x, 0), a rectified linear unit, is increasingly popular in computer vision ( <ref type="bibr" target="#b24">Krizhevsky et al., 2012)</ref>. g(x) = tanh(x) is a traditional nonlinearity widely used throughout the history of neural nets ( <ref type="bibr" target="#b4">Bengio et al., 2003)</ref>. g(x) = x 3 (cube) was found to be most successful by <ref type="bibr" target="#b10">Chen and Manning (2014)</ref>. <ref type="table">Table 2</ref> compares the performance of these three nonlinearities. We see that rectified linear units perform the best, followed by tanh units, followed by cubic units. <ref type="bibr">9</ref> One drawback of tanh as an activation function is that it is easily "satu- rated" if the input to the unit is too far away from zero, causing the backpropagation of derivatives through that unit to essentially cease; this is known to cause problems for training, requiring special purpose machinery for use in deep networks <ref type="bibr" target="#b18">(Ioffe and Szegedy, 2015</ref>).</p><p>Depth Given that we are using rectified linear units, it bears asking whether or not our imple- mentation is improving substantially over linear features of the continuous input. We can use the embedding vector of an anchored span v(f w ) di- rectly as input to a basic linear CRF, as shown in <ref type="figure" target="#fig_4">Figure 4a</ref>. <ref type="table">Table 1</ref> shows that the purely linear ar- chitecture (0 HL) performs surprisingly well, but is still less effective than the network with one hid- den layer. This agrees with the results of <ref type="bibr" target="#b41">Wang and Manning (2013)</ref>, who noted that dense fea- tures typically benefit from nonlinear modeling. We also compare against a two-layer neural net- work, but find that this also performs worse than the one-layer architecture.</p><p>Densifying output features Overall, it appears beneficial to use dense representations of surface features; a natural question that one might ask is whether the same technique can be applied to the sparse output feature vector f o . We can apply the approach of <ref type="bibr" target="#b37">Srikumar and Manning (2014)</ref> and multiply the sparse output vector by a dense matrix K, giving the following scoring function (shown in <ref type="figure" target="#fig_4">Figure 4b</ref>):</p><formula xml:id="formula_9">φ(w, r, s; H, W, K) = g(Hv(f w (w, s))) W Kf o (r)</formula><p>where W is now n h × n oe and K is n oe × n o . W K can be seen a low-rank approximation of the original W at the output layer, similar to low-rank factorizations of parameter matrices used in past <ref type="bibr">9</ref> The performance of cube decreased substantially late in learning; it peaked at around 90.52. Dropout may be useful for alleviating this type of overfitting, but in our experiments we did not find dropout to be beneficial overall. work ( ). This approach saves us from having to learn a separate row of W for ev- ery rule in the grammar; if rules are given similar embeddings, then they will behave similarly ac- cording to the model. We experimented with n oe = 20 and show the results in <ref type="table">Table 2</ref>. Unfortunately, this approach does not seem to work well for parsing. Learn- ing the output representation was empirically very unstable, and it also required careful initialization. We tried Gaussian initialization (as in the rest of our model) and initializing the model by clustering rules either randomly or according to their parent symbol. The latter is what is shown in the table, and gave substantially better performance. We hy- pothesize that blurring distinctions between output classes may harm the model's ability to differenti- ate between closely-related symbols, which is re- quired for good parsing performance. Using pre- trained rule embeddings at this layer might also improve performance of this method.</p><formula xml:id="formula_10">f o W W h a) b) f o Kfo = g(Hv(f w )) &gt; W Kf o = v(f w ) &gt; W f o f w v(f w ) f w v(f w )</formula></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="7">Test Results</head><p>We evaluate our system under two conditions: first, on the English Penn Treebank, and second, on the nine languages used in the SPMRL 2013 and 2014 shared tasks.   <ref type="bibr" target="#b5">Björkelund et al., 2013;</ref><ref type="bibr">Björkelund et al., 2014</ref>).  four parsers trained only on the PTB with no aux- iliary data: the CRF parser of <ref type="bibr" target="#b16">Hall et al. (2014)</ref>, the Berkeley parser ( <ref type="bibr" target="#b30">Petrov and Klein, 2007)</ref>, the discriminative parser of , and the single TSG parser of <ref type="bibr" target="#b35">Shindo et al. (2012)</ref>. To our knowledge, the latter two systems are the high- est performing in this PTB-only, single parser data condition; we match their performance at 91.1 F 1 , though we also use word vectors computed from unlabeled data. We further compare to the shift- reduce parser of <ref type="bibr" target="#b43">Zhu et al. (2013)</ref>, which uses un- labeled data in the form of Brown clusters. Our method achieves performance close to that of their parser.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="7.1">Penn Treebank</head><p>We also compare to the compositional vector grammar (CVG) parser of <ref type="bibr" target="#b36">Socher et al. (2013)</ref> as well as the LSTM-based parser of <ref type="bibr" target="#b40">Vinyals et al. (2014)</ref>. The conditions these parsers are op- erating under are slightly different: the former is a reranker on top of the Stanford Parser ( <ref type="bibr" target="#b22">Klein and Manning, 2003)</ref> and the latter trains on much larger amounts of data parsed by a product of Berkeley parsers <ref type="bibr" target="#b32">(Petrov, 2010)</ref>. Regardless, we outperform the CVG parser as well as the single parser results from <ref type="bibr" target="#b40">Vinyals et al. (2014)</ref>.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="7.2">SPMRL</head><p>We also examine the performance of our parser on other languages, specifically the nine morphologically-rich languages used in the SPMRL 2013/2014 shared tasks ( <ref type="bibr">Seddah et al., 2013;</ref>). We train word vec- tors on the monolingual data distributed with the SPMRL 2014 shared task (typically 100M-200M tokens per language) using the skip-gram ap- proach of word2vec with a window size of 1 ( <ref type="bibr" target="#b29">Mikolov et al., 2013)</ref>. <ref type="bibr" target="#b3">10</ref> Here we use V = 1 in the backbone grammar, which we found to be beneficial overall. <ref type="table" target="#tab_3">Table 3</ref> shows that our system improves upon the performance of the parser from <ref type="bibr" target="#b16">Hall et al. (2014)</ref> as well as the top single parser from the shared task <ref type="bibr" target="#b13">(Crabbé and Seddah, 2014)</ref>, with robust improvements on all languages.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="8">Conclusion</head><p>In this work, we presented a CRF parser that scores anchored rule productions using dense in- put features computed from a feedforward neu- ral net. Because the neural component is mod- ularized, we can easily integrate it into a pre- existing learning and inference framework based around dynamic programming of a discrete parse chart. Our combined neural and sparse model gives strong performance both on English and on other languages.</p><p>Our system is publicly available at http://nlp.cs.berkeley.edu.</p></div><figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_1"><head>Figure 3 :</head><label>3</label><figDesc>Figure 3: Our sparse (left) and neural (right) scoring functions for CRF parsing. f s and f w are raw surface feature vectors for the sparse and neural models (respectively) extracted over anchored spans with split points. (a) In the sparse case, we multiply f s by a weight matrix W and then a sparse output vector f o to score the rule production. (b) In the neural case, we first embed f w and then transform it with a one-layer neural network in order to produce an intermediate feature representation h before combining with W and f o .</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_2"><head></head><label></label><figDesc>Systems are broken down by whether local potentials come from sparse features and/or the neural network (the primary contribution of this work), their level of vertical Markovization, and what kind of word represen- tations they use. The neural CRF (d) outperforms the sparse CRF (a, b) even when a more heavily annotated grammar is used, and the combined ap- proach (g) is substantially better than either indi- vidual model. The contribution of the neural ar- chitecture cannot be replaced by Brown clusters (c), and even word representations learned just on the Penn Treebank are surprisingly effective (f, h).</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_3"><head>F</head><label></label><figDesc></figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_4"><head>Figure 4 :</head><label>4</label><figDesc>Figure 4: Two additional forms of the scoring function. a) Linear version of the dense model, equivalent to a CRF with continuous-valued input features. b) Version of the dense model where outputs are also embedded according to a learned matrix K.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_5"><head>F</head><label></label><figDesc>1 all Single model, PTB only Hall et al. (2014) 89.2 Berkeley 90.1 Carreras et al. (2008) 91.1 Shindo et al. (2012) single 91.1 Single model, PTB + vectors/clusters Zhu et al. (2013) 91.3 This work* 91.1 Extended conditions Charniak and Johnson (2005) 91.5 Socher et al. (2013) 90.4 Vinyals et al. (2014) single 90.5 Vinyals et al. (2014) ensemble 91.6 Shindo et al. (2012) ensemble 92.4</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_2" validated="false"><head>Table 4 reports results on section 23 of the Penn</head><label>4</label><figDesc></figDesc><table>Treebank (PTB). We focus our comparison on sin-
+gle parser systems as opposed to rerankers, ensem-
+bles, or self-trained methods (though these are also 
+mentioned for context). First, we compare against </table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_3" validated="false"><head>Table 3 :</head><label>3</label><figDesc></figDesc><table>Results for the nine treebanks in the SPMRL 2013/2014 Shared Tasks; all values are F-scores 
+for sentences of all lengths using the version of evalb distributed with the shared task. Our parser 
+substantially outperforms the strongest single parser results on this dataset (Hall et al., 2014; Crabbé and 
+Seddah, 2014). Berkeley-Tags is an improved version of the Berkeley parser designed for the shared task 
+(Seddah et al., 2013). 2014 Best is a reranked ensemble of modified Berkeley parsers and constitutes the 
+best published numbers on this dataset (</table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_4" validated="false"><head>Table 4 :</head><label>4</label><figDesc></figDesc><table>Test results on section 23 of the Penn 
+Treebank. We compare to several categories of 
+parsers from the literatures. We outperform strong 
+baselines such as the Berkeley Parser (Petrov and 
+Klein, 2007) and the CVG Stanford parser (Socher 
+et al., 2013) and we match the performance of so-
+phisticated generative (Shindo et al., 2012) and 
+discriminative (Carreras et al., 2008) parsers. 
+
+</table></figure>
+
+			<note place="foot" n="2"> Throughout this work, we will primarily consider two potential functions: linear functions of sparse indicators and nonlinear neural networks over dense, continuous features. Although other modeling choices are possible, these two points in the design space reflect common choices in NLP, and past work has suggested that nonlinear functions of indicators or linear functions of dense features may perform less well (Wang and Manning, 2013). 3 For simplicity of exposition, we ignore unary rules; however, they are easily supported in this framework by simply specifying a null value for the split point.</note>
+
+			<note place="foot" n="5"> Embedding words allows us to use standard pre-trained vectors more easily and tying embeddings across word positions substantially reduces the number of model parameters. However, embedding features rather than words has also been shown to be effective (Chen et al., 2014).</note>
+
+			<note place="foot" n="8"> One reason we did not choose to include the rule identity fo as an input to the network is that it requires computing an even larger number of network activations, since we cannot reuse them across rules over the same span and split point.</note>
+		</body>
+		<back>
+
+			<div type="acknowledgement">
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Acknowledgments</head><p>This work was partially supported by BBN un-der DARPA contract HR0011-12-C-0014, by a Facebook fellowship for the first author, and by a Google Faculty Research Award to the second author. Thanks to David Hall for assistance with the Epic parsing framework and for a preliminary implementation of the neural architecture, to Kush Rastogi for training word vectors on the SPMRL data, to Dan Jurafsky for helpful discussions, and to the anonymous reviewers for their insightful comments.</p></div>
+			</div>
+
+			<div type="references">
+
+				<listBibl>
+
+<biblStruct xml:id="b0">
+	<analytic>
+		<title level="a" type="main">How much do word embeddings encode about syntax?</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jacob</forename><surname>Andreas</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Dan</forename><surname>Klein</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Association for Computational Linguistics</title>
+		<meeting>the Association for Computational Linguistics</meeting>
+		<imprint>
+			<date type="published" when="2014" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b1">
+	<analytic>
+		<title level="a" type="main">Tailoring Continuous Word Representations for Dependency Parsing</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Mohit</forename><surname>Bansal</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kevin</forename><surname>Gimpel</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Karen</forename><surname>Livescu</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Association for Computational Linguistics</title>
+		<meeting>the Association for Computational Linguistics</meeting>
+		<imprint>
+			<date type="published" when="2014" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b2">
+	<analytic>
+		<title level="a" type="main">Exploring Compositional Architectures and Word Vector Representations for Prepositional Phrase Attachment</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yonatan</forename><surname>Belinkov</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Tao</forename><surname>Lei</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Regina</forename><surname>Barzilay</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Amir</forename><surname>Globerson</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Transactions of the Association for Computational Linguistics</title>
+		<imprint>
+			<date type="published" when="2014" />
+			<biblScope unit="volume">2</biblScope>
+			<biblScope unit="page" from="561" to="572" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b3">
+	<monogr>
+		<title level="m" type="main">Training vectors with the SKIPDEP method of Bansal et al. (2014) did not substantially improve performance here</title>
+		<imprint/>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b4">
+	<analytic>
+		<title level="a" type="main">A Neural Probabilistic Language Model</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yoshua</forename><surname>Bengio</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Réjean</forename><surname>Ducharme</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Pascal</forename><surname>Vincent</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Christian</forename><surname>Janvin</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Journal of Machine Learning Research</title>
+		<imprint>
+			<biblScope unit="volume">3</biblScope>
+			<biblScope unit="page" from="1137" to="1155" />
+			<date type="published" when="2003-03" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b5">
+	<analytic>
+		<title level="a" type="main">Re)ranking Meets Morphosyntax: State-of-the-art Results from the SPMRL 2013 Shared Task</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Anders</forename><surname>Björkelund</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ozlem</forename><surname>Cetinoglu</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Richárd</forename><surname>Farkas</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Thomas</forename><surname>Mueller</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Wolfgang</forename><surname>Seeker</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Fourth Workshop on Statistical Parsing of Morphologically-Rich Languages</title>
+		<meeting>the Fourth Workshop on Statistical Parsing of Morphologically-Rich Languages</meeting>
+		<imprint>
+			<date type="published" when="2013" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b6">
+	<monogr>
+		<title/>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Anders</forename><surname>Björkelund</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">C ¸ Etino˘</forename><surname>Ozlem</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Glu</surname></persName>
+		</author>
+		<imprint/>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b7">
+	<analytic>
+		<title level="a" type="main">Introducing the IMS-Wrocław-Szeged-CIS entry at the SPMRL 2014 Shared Task: Reranking and Morpho-syntax meet Unlabeled Data</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Richárd</forename><surname>Fale´nskafale´nska</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Thomas</forename><surname>Farkas</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Wolfgang</forename><surname>Mueller</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Zsolt</forename><surname>Seeker</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Szántó</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the First Joint Workshop on Statistical Parsing of Morphologically Rich Languages and Syntactic Analysis of Non-Canonical Languages</title>
+		<meeting>the First Joint Workshop on Statistical Parsing of Morphologically Rich Languages and Syntactic Analysis of Non-Canonical Languages</meeting>
+		<imprint>
+			<date type="published" when="2014" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b8">
+	<analytic>
+		<title level="a" type="main">TAG, Dynamic Programming, and the Perceptron for Efficient, Feature-rich Parsing</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Xavier</forename><surname>Carreras</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Michael</forename><surname>Collins</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Terry</forename><surname>Koo</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Conference on Computational Natural Language Learning</title>
+		<meeting>the Conference on Computational Natural Language Learning</meeting>
+		<imprint>
+			<date type="published" when="2008" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b9">
+	<analytic>
+		<title level="a" type="main">Coarseto-Fine n-Best Parsing and MaxEnt Discriminative Reranking</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Eugene</forename><surname>Charniak</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Mark</forename><surname>Johnson</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Association for Computational Linguistics</title>
+		<meeting>the Association for Computational Linguistics</meeting>
+		<imprint>
+			<date type="published" when="2005" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b10">
+	<analytic>
+		<title level="a" type="main">A Fast and Accurate Dependency Parser using Neural Networks</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Danqi</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Christopher</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Manning</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of Empirical Methods in Natural Language Processing</title>
+		<meeting>Empirical Methods in Natural Language Processing</meeting>
+		<imprint>
+			<date type="published" when="2014" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b11">
+	<analytic>
+		<title level="a" type="main">Feature Embedding for Dependency Parsing</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Wenliang</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yue</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Min</forename><surname>Zhang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the International Conference on Computational Linguistics</title>
+		<meeting>the International Conference on Computational Linguistics</meeting>
+		<imprint>
+			<date type="published" when="2014" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b12">
+	<analytic>
+		<title level="a" type="main">Natural Language Processing (Almost) from Scratch</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ronan</forename><surname>Collobert</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jason</forename><surname>Weston</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Léon</forename><surname>Bottou</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Michael</forename><surname>Karlen</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Koray</forename><surname>Kavukcuoglu</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Pavel</forename><surname>Kuksa</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Journal of Machine Learning Research</title>
+		<imprint>
+			<biblScope unit="volume">12</biblScope>
+			<biblScope unit="page" from="2493" to="2537" />
+			<date type="published" when="2011" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b13">
+	<analytic>
+		<title level="a" type="main">Multilingual Discriminative Shift-Reduce Phrase Structure Parsing for the SPMRL 2014 Shared Task</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Benoit</forename><surname>Crabbé</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Djamé</forename><surname>Seddah</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the First Joint Workshop on Statistical Parsing of Morphologically Rich Languages and Syntactic Analysis of Non-Canonical Languages</title>
+		<meeting>the First Joint Workshop on Statistical Parsing of Morphologically Rich Languages and Syntactic Analysis of Non-Canonical Languages</meeting>
+		<imprint>
+			<date type="published" when="2014" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b14">
+	<analytic>
+		<title level="a" type="main">Adaptive Subgradient Methods for Online Learning and Stochastic Optimization</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">John</forename><surname>Duchi</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Elad</forename><surname>Hazan</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yoram</forename><surname>Singer</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Journal of Machine Learning Research</title>
+		<imprint>
+			<biblScope unit="volume">12</biblScope>
+			<biblScope unit="page" from="2121" to="2159" />
+			<date type="published" when="2011-07" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b15">
+	<analytic>
+		<title level="a" type="main">Efficient, Feature-based, Conditional Random Field Parsing</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jenny</forename><forename type="middle">Rose</forename><surname>Finkel</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Alex</forename><surname>Kleeman</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Christopher</forename><forename type="middle">D</forename><surname>Manning</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Association for Computational Linguistics</title>
+		<meeting>the Association for Computational Linguistics</meeting>
+		<imprint>
+			<date type="published" when="2008" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b16">
+	<analytic>
+		<title level="a" type="main">Less Grammar, More Features</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">David</forename><surname>Hall</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Greg</forename><surname>Durrett</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Dan</forename><surname>Klein</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Association for Computational Linguistics</title>
+		<meeting>the Association for Computational Linguistics</meeting>
+		<imprint>
+			<date type="published" when="2014" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b17">
+	<analytic>
+		<title level="a" type="main">Inducing History Representations for Broad Coverage Statistical Parsing</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">James</forename><surname>Henderson</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the North American Chapter</title>
+		<meeting>the North American Chapter</meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2003" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b18">
+	<monogr>
+		<title level="m" type="main">Batch Normalization: Accelerating Deep Network Training by Reducing Internal Covariate Shift</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Sergey</forename><surname>Ioffe</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Christian</forename><surname>Szegedy</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1502.03167</idno>
+		<imprint>
+			<date type="published" when="2015" />
+		</imprint>
+	</monogr>
+<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b19">
+	<analytic>
+		<title level="a" type="main">Opinion Mining with Deep Recurrent Neural Networks</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">˙</forename><surname>Ozan</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Claire</forename><surname>Irsoy</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Cardie</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>the Conference on Empirical Methods in Natural Language Processing</meeting>
+		<imprint>
+			<date type="published" when="2014" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b20">
+	<analytic>
+		<title level="a" type="main">A Convolutional Neural Network for Modelling Sentences</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Nal</forename><surname>Kalchbrenner</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Edward</forename><surname>Grefenstette</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Phil</forename><surname>Blunsom</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Association for Computational Linguistics</title>
+		<meeting>the Association for Computational Linguistics</meeting>
+		<imprint>
+			<date type="published" when="2014" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b21">
+	<analytic>
+		<title level="a" type="main">Convolutional Neural Networks for Sentence Classification</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yoon</forename><surname>Kim</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>the Conference on Empirical Methods in Natural Language Processing</meeting>
+		<imprint>
+			<date type="published" when="2014" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b22">
+	<analytic>
+		<title level="a" type="main">Accurate Unlexicalized Parsing</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Dan</forename><surname>Klein</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Christopher</forename><forename type="middle">D</forename><surname>Manning</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Association for Computational Linguistics</title>
+		<meeting>the Association for Computational Linguistics</meeting>
+		<imprint>
+			<date type="published" when="2003" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b23">
+	<analytic>
+		<title level="a" type="main">Simple Semi-supervised Dependency Parsing</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Terry</forename><surname>Koo</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Xavier</forename><surname>Carreras</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Michael</forename><surname>Collins</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Association for Computational Linguistics</title>
+		<meeting>the Association for Computational Linguistics</meeting>
+		<imprint>
+			<date type="published" when="2008" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b24">
+	<analytic>
+		<title level="a" type="main">ImageNet Classification with Deep Convolutional Neural Networks</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Alex</forename><surname>Krizhevsky</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ilya</forename><surname>Sutskever</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Geoffrey</forename><forename type="middle">E</forename></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Advances in Neural Information Processing Systems</title>
+		<imprint>
+			<date type="published" when="2012" />
+		</imprint>
+	</monogr>
+	<note>Hinton</note>
+</biblStruct>
+
+<biblStruct xml:id="b25">
+	<analytic>
+		<title level="a" type="main">The insideoutside recursive neural network model for dependency parsing</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Phong</forename><surname>Le</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Willem</forename><surname>Zuidema</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>the Conference on Empirical Methods in Natural Language Processing</meeting>
+		<imprint>
+			<date type="published" when="2014" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b26">
+	<analytic>
+		<title level="a" type="main">Low-Rank Tensors for Scoring Dependency Structures</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Tao</forename><surname>Lei</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yu</forename><surname>Xin</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yuan</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Regina</forename><surname>Barzilay</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Tommi</forename><surname>Jaakkola</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Association for Computational Linguistics</title>
+		<meeting>the Association for Computational Linguistics</meeting>
+		<imprint>
+			<date type="published" when="2014" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b27">
+	<analytic>
+		<title level="a" type="main">DependencyBased Word Embeddings</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Omer</forename><surname>Levy</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yoav</forename><surname>Goldberg</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Association for Computational Linguistics</title>
+		<meeting>the Association for Computational Linguistics</meeting>
+		<imprint>
+			<date type="published" when="2014" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b28">
+	<analytic>
+		<title level="a" type="main">Building a Large Annotated Corpus of English: The Penn Treebank</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Mitchell</forename><forename type="middle">P</forename><surname>Marcus</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Beatrice</forename><surname>Santorini</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Mary</forename><forename type="middle">Ann</forename><surname>Marcinkiewicz</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Computational Linguistics</title>
+		<imprint>
+			<biblScope unit="volume">19</biblScope>
+			<biblScope unit="issue">2</biblScope>
+			<date type="published" when="1993" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b29">
+	<analytic>
+		<title level="a" type="main">Efficient Estimation of Word Representations in Vector Space</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Tomas</forename><surname>Mikolov</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kai</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Greg</forename><surname>Corrado</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jeffrey</forename><surname>Dean</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the International Conference on Learning Representations</title>
+		<meeting>the International Conference on Learning Representations</meeting>
+		<imprint>
+			<date type="published" when="2013" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b30">
+	<analytic>
+		<title level="a" type="main">Improved Inference for Unlexicalized Parsing</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Slav</forename><surname>Petrov</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Dan</forename><surname>Klein</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the North American Chapter</title>
+		<meeting>the North American Chapter</meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2007" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b31">
+	<analytic>
+		<title level="a" type="main">Sparse Multi-Scale Grammars for Discriminative Latent Variable Parsing</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Slav</forename><surname>Petrov</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Dan</forename><surname>Klein</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>the Conference on Empirical Methods in Natural Language Processing</meeting>
+		<imprint>
+			<date type="published" when="2008" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b32">
+	<analytic>
+		<title level="a" type="main">Products of Random Latent Variable Grammars</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Slav</forename><surname>Petrov</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the North American Chapter</title>
+		<meeting>the North American Chapter</meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2010" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b33">
+	<analytic>
+		<title level="a" type="main">Wolfgang Seeker, Yannick Versley, Veronika Vincze, Marcin Woli´nskiWoli´nski, and Alina Wróblewska. 2013. Overview of the SPMRL 2013 Shared Task: A Cross-Framework Evaluation of Parsing Morphologically Rich Languages</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Djamé</forename><surname>Seddah</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Reut</forename><surname>Tsarfaty</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Sandra</forename><surname>Kübler</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Marie</forename><surname>Candito</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jinho</forename><forename type="middle">D</forename><surname>Choi</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Richárd</forename><surname>Farkas</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jennifer</forename><surname>Foster</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Iakes</forename><surname>Goenaga</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Koldo</forename><forename type="middle">Gojenola</forename><surname>Galletebeitia</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yoav</forename><surname>Goldberg</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Spence</forename><surname>Green</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Nizar</forename><surname>Habash</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Marco</forename><surname>Kuhlmann</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Wolfgang</forename><surname>Maier</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Joakim</forename><surname>Nivre</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Adam</forename><surname>Przepiórkowski</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ryan</forename><surname>Roth</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Fourth Workshop on Statistical Parsing of Morphologically-Rich Languages</title>
+		<meeting>the Fourth Workshop on Statistical Parsing of Morphologically-Rich Languages</meeting>
+		<imprint/>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b34">
+	<analytic>
+		<title level="a" type="main">Introducing the SPMRL 2014 Shared Task on Parsing Morphologically-rich Languages</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Djamé</forename><surname>Seddah</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Sandra</forename><surname>Kübler</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Reut</forename><surname>Tsarfaty</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the First Joint Workshop on Statistical Parsing of Morphologically Rich Languages and Syntactic Analysis of Non-Canonical Languages</title>
+		<meeting>the First Joint Workshop on Statistical Parsing of Morphologically Rich Languages and Syntactic Analysis of Non-Canonical Languages</meeting>
+		<imprint>
+			<date type="published" when="2014" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b35">
+	<analytic>
+		<title level="a" type="main">Bayesian Symbol-refined Tree Substitution Grammars for Syntactic Parsing</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Hiroyuki</forename><surname>Shindo</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yusuke</forename><surname>Miyao</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Akinori</forename><surname>Fujino</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Masaaki</forename><surname>Nagata</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Association for Computational Linguistics</title>
+		<meeting>the Association for Computational Linguistics</meeting>
+		<imprint>
+			<date type="published" when="2012" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b36">
+	<analytic>
+		<title level="a" type="main">Parsing With Compositional Vector Grammars</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Richard</forename><surname>Socher</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">John</forename><surname>Bauer</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Christopher</forename><forename type="middle">D</forename><surname>Manning</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Andrew</forename><forename type="middle">Y</forename><surname>Ng</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Association for Computational Linguistics</title>
+		<meeting>the Association for Computational Linguistics</meeting>
+		<imprint>
+			<date type="published" when="2013" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b37">
+	<analytic>
+		<title level="a" type="main">Learning Distributed Representations for Structured Output Prediction</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Vivek</forename><surname>Srikumar</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Christopher</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Manning</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Advances in Neural Information Processing Systems</title>
+		<imprint>
+			<date type="published" when="2014" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b38">
+	<analytic>
+		<title level="a" type="main">Neural Networks Leverage Corpus-wide Information for Part-of-speech Tagging</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yuta</forename><surname>Tsuboi</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>the Conference on Empirical Methods in Natural Language Processing</meeting>
+		<imprint>
+			<date type="published" when="2014" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b39">
+	<analytic>
+		<title level="a" type="main">Word Representations: A Simple and General Method for Semi-supervised Learning</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Joseph</forename><surname>Turian</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Lev</forename><surname>Ratinov</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yoshua</forename><surname>Bengio</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Association for Computational Linguistics</title>
+		<meeting>the Association for Computational Linguistics</meeting>
+		<imprint>
+			<date type="published" when="2010" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b40">
+	<monogr>
+		<title level="m" type="main">Grammar as a Foreign Language</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Oriol</forename><surname>Vinyals</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Lukasz</forename><surname>Kaiser</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Terry</forename><surname>Koo</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Slav</forename><surname>Petrov</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ilya</forename><surname>Sutskever</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Geoffrey</forename><forename type="middle">E</forename><surname>Hinton</surname></persName>
+		</author>
+		<idno>abs/1412.7449</idno>
+		<imprint>
+			<date type="published" when="2014" />
+			<publisher>CoRR</publisher>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b41">
+	<analytic>
+		<title level="a" type="main">Effect of Non-linear Deep Architecture in Sequence Labeling</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Mengqiu</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Christopher</forename><forename type="middle">D</forename><surname>Manning</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the International Joint Conference on Natural Language Processing</title>
+		<meeting>the International Joint Conference on Natural Language Processing</meeting>
+		<imprint>
+			<date type="published" when="2013" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b42">
+	<monogr>
+		<title level="m" type="main">ADADELTA: An Adaptive Learning Rate Method</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">D</forename><surname>Matthew</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Zeiler</surname></persName>
+		</author>
+		<idno>abs/1212.5701</idno>
+		<imprint>
+			<date type="published" when="2012" />
+			<publisher>CoRR</publisher>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b43">
+	<analytic>
+		<title level="a" type="main">Fast and Accurate ShiftReduce Constituent Parsing</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Muhua</forename><surname>Zhu</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yue</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Wenliang</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Min</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jingbo</forename><surname>Zhu</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Association for Computational Linguistics</title>
+		<meeting>the Association for Computational Linguistics</meeting>
+		<imprint>
+			<date type="published" when="2013" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+				</listBibl>
+			</div>
+		</back>
+	</text>
+</TEI>

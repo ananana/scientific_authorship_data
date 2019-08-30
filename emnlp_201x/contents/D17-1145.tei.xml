@@ -1,0 +1,871 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<TEI xmlns="http://www.tei-c.org/ns/1.0" 
+xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+xsi:schemaLocation="http://www.tei-c.org/ns/1.0 /home/ana/installs/grobid/grobid-0.5.1/grobid-home/schemas/xsd/Grobid.xsd"
+ xmlns:xlink="http://www.w3.org/1999/xlink">
+	<teiHeader xml:lang="en">
+		<encodingDesc>
+			<appInfo>
+				<application version="0.5.1-SNAPSHOT" ident="GROBID" when="2019-04-18T10:37+0000">
+					<ref target="https://github.com/kermitt2/grobid">GROBID - A machine learning software for extracting information from scholarly documents</ref>
+				</application>
+			</appInfo>
+		</encodingDesc>
+		<fileDesc>
+			<titleStmt>
+				<title level="a" type="main">Neural Lattice-to-Sequence Models for Uncertain Inputs</title>
+			</titleStmt>
+			<publicationStmt>
+				<publisher>Association for Computational Linguistics</publisher>
+				<availability status="unknown"><p>Copyright Association for Computational Linguistics</p>
+				</availability>
+				<date>September 7-11, 2017. 2017</date>
+			</publicationStmt>
+			<sourceDesc>
+				<biblStruct>
+					<analytic>
+						<author role="corresp">
+							<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Matthias</forename><surname>Sperber</surname></persName>
+							<email>matthias.sperber@kit.edu</email>
+							<affiliation key="aff0">
+								<orgName type="institution">Karlsruhe Institute of Technology</orgName>
+								<address>
+									<country key="DE">Germany</country>
+								</address>
+							</affiliation>
+						</author>
+						<author>
+							<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Graham</forename><surname>Neubig</surname></persName>
+							<affiliation key="aff1">
+								<orgName type="institution">Carnegie Mellon University</orgName>
+								<address>
+									<country key="US">USA</country>
+								</address>
+							</affiliation>
+						</author>
+						<author>
+							<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jan</forename><surname>Niehues</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="institution">Karlsruhe Institute of Technology</orgName>
+								<address>
+									<country key="DE">Germany</country>
+								</address>
+							</affiliation>
+						</author>
+						<author>
+							<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Alex</forename><surname>Waibel</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="institution">Karlsruhe Institute of Technology</orgName>
+								<address>
+									<country key="DE">Germany</country>
+								</address>
+							</affiliation>
+						</author>
+						<title level="a" type="main">Neural Lattice-to-Sequence Models for Uncertain Inputs</title>
+					</analytic>
+					<monogr>
+						<title level="m">Natural Language Processing</title>
+						<meeting> <address><addrLine>Copenhagen, Denmark</addrLine></address>
+						</meeting>
+						<imprint>
+							<publisher>Association for Computational Linguistics</publisher>
+							<biblScope unit="page" from="1380" to="1389"/>
+							<date type="published">September 7-11, 2017. 2017</date>
+						</imprint>
+					</monogr>
+				</biblStruct>
+			</sourceDesc>
+		</fileDesc>
+		<profileDesc>
+			<abstract>
+				<p>The input to a neural sequence-to-sequence model is often determined by an upstream system, e.g. a word seg-menter, part of speech tagger, or speech recognizer. These upstream models are potentially error-prone. Representing inputs through word lattices allows making this uncertainty explicit by capturing alternative sequences and their posterior probabilities in a compact form. In this work, we extend the TreeLSTM (Tai et al., 2015) into a LatticeLSTM that is able to consume word lattices, and can be used as encoder in an attentional encoder-decoder model. We integrate lattice posterior scores into this architecture by extending the TreeLSTM&apos;s child-sum and forget gates and introducing a bias term into the attention mechanism. We experiment with speech translation lattices and report consistent improvements over baselines that translate either the 1-best hypothesis or the lattice without posterior scores.</p>
+			</abstract>
+		</profileDesc>
+	</teiHeader>
+	<text xml:lang="en">
+		<body>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="1">Introduction</head><p>In many natural language processing tasks, we will require a down-stream system to consume the input of an up-stream system, such as word segmenters, part of speech taggers, or automatic speech recognizers. Among these, one of the most prototypical and widely used examples is speech translation, where a down-stream translation sys- tem must consume the output of an up-stream au- tomatic speech recognition (ASR) system.</p><p>Previous research on traditional phrase-based or tree-based statistical machine translation have used word lattices (e.g. <ref type="figure" target="#fig_0">Figure 1</ref>) as an effective tool to pass on uncertainties from a previous step ( <ref type="bibr" target="#b17">Ney, 1999;</ref><ref type="bibr" target="#b1">Casacuberta et al., 2004)</ref>. Several works have shown quality improvements by trans- lating lattices, compared to translating only the single best upstream output. Examples include translating lattice representations of ASR output <ref type="bibr" target="#b20">(Saleem et al., 2004;</ref><ref type="bibr" target="#b24">Zhang et al., 2005;</ref><ref type="bibr" target="#b13">Matusov et al., 2008)</ref>, multiple word segmentations, and morphological alternatives ( <ref type="bibr" target="#b3">Dyer et al., 2008)</ref>. Recently, neural sequence-to-sequence (seq2seq) models <ref type="bibr" target="#b8">(Kalchbrenner and Blunsom, 2013;</ref><ref type="bibr" target="#b22">Sutskever et al., 2014;</ref><ref type="bibr" target="#b0">Bahdanau et al., 2015</ref>) have often been preferred over the traditional methods for their strong empirical results and appealing end-to-end modeling. These models force us to rethink approaches to handling lattices, because their recurrent design no longer allows for efficient lattice decoding using dynamic programming as was used in the earlier works.</p><p>As a remedy, <ref type="bibr" target="#b21">Su et al. (2017)</ref> proposed replac- ing the sequential encoder by a lattice encoder to obtain a lattice-to-sequence (lat2seq) model. This is achieved by extending the encoder's Gated Re- current Units (GRUs) ( <ref type="bibr" target="#b2">Cho et al., 2014</ref>) to be conditioned on multiple predecessor paths. The authors demonstrate improvements in Chinese- to-English translation by translating lattices that combine the output of multiple word segmenters, rather than a single segmented sequence. However, this model does not address one as- pect of lattices that we argue is critical to obtaining good translation results: their ability to encode the certainty or uncertainty of the paths through the use of posterior scores. Specifically, we postulate that these scores are essential for tasks that require handling lattices with a considerable amount of er- roneous content, such as those produced by ASR systems. In this paper, we propose a lattice-to- sequence model that accounts for this uncertainty. Specifically, our contributions are as follows:</p><p>• We employ the popular child-sum <ref type="bibr">TreeLSTM (Tai et al., 2015)</ref> to derive a lattice encoder that replaces the sequential encoder in an atten- tional encoder-decoder model. We show empir- ically that this approach yields only minor im- provements compared to a baseline fine-tuned on sequential ASR outputs. This finding stands in contrast to the positive results by <ref type="bibr" target="#b21">Su et al. (2017)</ref>, and by <ref type="bibr" target="#b10">Ladhak et al. (2016)</ref> on a lattice classification task, and suggests higher learning complexity of our speech translation task.</p><p>• We hypothesize that lattice scores are crucial in aiding training and inference, and propose several techniques for integrating lattice scores into the model: (1) We compute weighted child- sums, 1 where hidden units in the lattice en- coder are conditioned on their predecessor hid- den units such that predecessors with low prob- ability are less influential on the current hid- den state. (2) We bias the TreeLSTM's forget gates for each incoming connection toward be- ing more forgetful for predecessors with low probability, such that their cell states become relatively less influential. <ref type="formula">(3)</ref> We bias the at- tention mechanism to put more focus on source embeddings belonging to nodes with high lat- tice scores. We demonstrate empirically that the third proposed technique is particularly effec- tive and produces strong gains over the baseline. According to our knowledge, this is the first at- tempt of integrating lattice scores already at the training stage of a machine translation model.</p><p>• We exploit the fact that our lattice encoder is a strict generalization of a sequential encoder by pre-training on sequential data, obtaining faster and better training convergence on large corpora of parallel sequential data.</p><p>We conduct experiments on the Fisher and Call- home Spanish-English Speech Translation Cor- pus ( <ref type="bibr" target="#b18">Post et al., 2013</ref>) and report improvements of 1.4 BLEU points on Fisher and 0.8 BLEU points on Callhome, compared to a strong baseline op- timized for translating 1-best ASR outputs. We find that the proposed integration of lattice scores is crucial for achieving these improvements.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2">Background</head><p>Our work extends the seminal work on attentional encoder-decoder models <ref type="bibr" target="#b8">(Kalchbrenner and Blunsom, 2013;</ref><ref type="bibr" target="#b22">Sutskever et al., 2014;</ref><ref type="bibr" target="#b0">Bahdanau et al., 2015</ref>) which we survey in this section.</p><p>Given an input sequence x = (x 1 , x 2 , . . . , x N ), the goal is to generate an appropriate output se- quence y = (y 1 , y 2 , . . . , y M ). The conditional probability p(y | x) is estimated using parame- ters trained on a parallel corpus, e.g. of sentences in the source and target language in a translation task. This probability is factorized as the prod- uct of conditional probabilities of each token to be generated:</p><formula xml:id="formula_0">p(y | x) = M t=1 p(y t | y &lt;t , x).</formula><p>The training objective is to estimate parameters θ that maximize the log-likelihood of the sentence pairs in a given parallel training set D: J(θ) = (x,y)∈D log p(y | x; θ).</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.1">Encoder</head><p>In our baseline model, the encoder is a bi- directional recurrent neural network (RNN), fol- lowing ( <ref type="bibr" target="#b0">Bahdanau et al., 2015)</ref>. Here, the source sentence is processed in both the forward and backward directions with two separate RNNs. For every input x i , two hidden states are generated as</p><formula xml:id="formula_1">− → h i = LSTM E fwd (x i ), − → h i−1 (1) ← − h i = LSTM E bwd (x i ), ← − h i+1 ,<label>(2)</label></formula><p>where E fwd and E bwd are source embedding lookup tables. We opt for long short-term mem- ory (LSTM) <ref type="bibr" target="#b6">(Hochreiter and Schmidhuber, 1997</ref>) recurrent units because of their high performance and in order to later take advantage of the Tree- LSTM extension <ref type="bibr" target="#b23">(Tai et al., 2015</ref>). We stack mul- tiple LSTM layers and concatenate the final layer into the final source hidden state</p><formula xml:id="formula_2">h i = − → h i | ← − h i</formula><p>, where layer indices are omitted for simplicity.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.2">Attention</head><p>We use an attention mechanism ( <ref type="bibr" target="#b11">Luong et al., 2015)</ref> to summarize the encoder outputs into a fixed-size representation. At each decoding time step j, a context vector c j is computed as a weighted average of the source hidden states:</p><formula xml:id="formula_3">c j = N i=1 α ij h i .</formula><p>The normalized attentional weights α ij measure the relative importance of the source words for the current decoding step and are computed as a softmax with normalization factor Z summing over i:</p><formula xml:id="formula_4">α ij = 1 Z exp s s j−1 , h i (3)</formula><p>s(·) is a feed-forward neural network with a single layer that estimates the importance of source hid- den state h i for producing the next target symbol y j , conditioned on the previous decoder state s j−1 .</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.3">Decoder</head><p>The decoder creates output symbols one by one, conditioned on the encoder states via the atten- tion mechanism. It contains another LSTM, ini- tialized using the final encoder hidden state: s 0 = h N . The decoding at step j assumes a special start-of-sequence symbol y 0 and is computed as</p><formula xml:id="formula_5">s j = LSTM E trg (y j−1 ), s j−1 , and theñ s t = tanh(W hs [s j ; c j ] + b hs )</formula><p>The conditional proba- bility that the j-th target word is generated is:</p><formula xml:id="formula_6">p(y j | y &lt;j , x) = softmax(W sõ s t + b so ).</formula><p>Here, E trg is the target embedding lookup table, W hs and W so are weight matrices, and b hs and b so are bias vectors. During decoding beam search is used to find an output sequence with high conditional probability.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3">Attentional Lattice-to-Sequence Model</head><p>The seq2seq model described above assumes se- quential inputs and is therefore limited to taking a single output of an up-stream model as input. In- stead, we wish to consume lattices to carry over uncertainties from an up-stream model.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.1">Lattices</head><p>Lattices (e.g. <ref type="figure" target="#fig_0">Figure 1</ref>) represent multiple ambigu- ous or competing sequences in a compact form. They are a more efficient alternative to enumerat- ing all hypotheses as an n-best list, as they allow for avoiding redundant computation over subse- quences shared between multiple hypotheses. Lat- tices can either be produced directly, e.g. by an ASR dumping its pruned search space <ref type="bibr" target="#b18">(Post et al., 2013)</ref>, or can be obtained by merging several n- best sequences <ref type="bibr" target="#b3">(Dyer et al., 2008;</ref><ref type="bibr" target="#b21">Su et al., 2017)</ref>.</p><p>A word lattice G = V, E is a directed, con- nected, and acyclic graph with nodes V and edges E. V ⊂N is a node set, and (k, i)∈E denotes an edge connecting node k to node i. C(i) denotes the set of predecessor nodes for node i. We as- sume that all nodes follow a topological ordering, such that k&lt;i ∀ k∈C(i). Each node i is assigned a word label w(i). <ref type="bibr">2</ref> Every lattice contains ex- actly one start-of-sequence node with only outgo- ing edges, and exactly one end-of-sequence node with only incoming edges.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.2">Lattices and the TreeLSTM</head><p>One thing to notice here is that lattice nodes can have multiple predecessor states. In contrast, hid- den states in LSTMs and other sequential RNNs are conditioned on only one predecessor state ( ˜ h j in left column of <ref type="table" target="#tab_0">Table 1</ref>), rendering stan- dard RNNs unsuitable for the modeling of lattices. Luckily <ref type="bibr" target="#b23">Tai et al. (2015)</ref>'s TreeLSTM, which was designed to compose encodings in trees, is also straightforward to apply to lattices; the TreeLSTM composes multiple child states into a parent state, which can also be applied to lattices to compose multiple predecessor states into a successor state. <ref type="table" target="#tab_0">Table 1</ref>, middle column, shows the TreeLSTM in its child-sum variant that supports an arbitrary number of predecessors. Conditioning on multi- ple predecessor hidden states is achieved by sim- ply taking their sum as˜has˜ as˜h i . Cell states from multi- ple predecessor are each passed through their own forget gates f jk and then summed.</p><p>Encoding a lattice results in one hidden state for each lattice node. Our lat2seq framework uses this network as encoder, computing the attention over all lattice nodes. 3 In other words we replace (1) by the following:</p><formula xml:id="formula_7">− → h i = LatticeLSTM x i , { − → h k | k∈C(i)}<label>(4)</label></formula><p>Similarly, we encode the lattice in backward di- rection and replace (2) accordingly. <ref type="figure" target="#fig_1">Figure 2</ref> il- lustrates the result. The computational complex- ity of the encoder is O(|V | + |E|), i.e. linear in the number of nodes plus number of edges in the graph. The complexity of the attention mechanism is O(|V |M ), where M is the output sequence</p><formula xml:id="formula_8">Sequential LSTM TreeLSTM Proposed LatticeLSTM recurrence˜h recurrence˜ recurrence˜h i = h i−1 ˜ h i = k∈C(i) h k ˜ h i = k∈C(i) w S h b/f,k Z h,k h k (5) forget gt. f i = σ W f x i + U f ˜ h i + b f f ik = σ(W f x i + U f h k + b f ) f ik = σ(W f x i + U f h k + ln w b/f,k S f − Z f,k + b f )<label>(6)</label></formula><p>input gt.</p><formula xml:id="formula_9">ii = σ Winxi + Uiñ hi + bin</formula><p>as sequential as sequential output gt.</p><formula xml:id="formula_10">oi = σ Woxi + Uõ hi + bo</formula><p>as sequential as sequential  length. |V | depends on both the expected input sentence length and the lattice density.</p><formula xml:id="formula_11">update ui = tanh Wuxi + Uu˜hiUu˜ Uu˜hi + bu as sequential as sequential cell c i = i i u i + f i c i−1 c i = i i u i + k∈C(i) f ik c k as TreeLSTM hidden h i = o i tanh(c i ) as sequential as sequential attention α ij ∝ exp (s (·)) α ij ∝ exp [s (·) +S a ln w m,i ] (7)</formula></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.3">Node-labeled Lattices</head><p>At this point we take a step back to motivate our choice of assigning word labels to lattice nodes, which is in contrast to the prior work by <ref type="bibr" target="#b10">Ladhak et al. (2016)</ref> and <ref type="bibr" target="#b21">Su et al. (2017)</ref> who assign word labels to edges. Recurrent states in edge-labeled lattice encoders are conditioned not only on mul- tiple predecessor states, but must also aggregate words from multiple incoming edges. This implies that hidden units may represent more than one word in the lattice. Moreover, in the edge-labeled case hidden units that are in the same position in forward and backward encoders represent differ- ent words, but are nevertheless concatenated and attended to jointly. For these reasons we find our approach of encoding word-labeled lattices more intuitively appealing when used as input to an at- tentional decoder, although empirical justification is beyond the scope of this paper. We also note that it is easy to convert an edge-labeled lattice into a node-labeled lattice using the line-graph algorithm <ref type="bibr" target="#b5">(Hemminger and Beineke, 1978)</ref>, which we utilize in this work.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4">Integration of Lattice Scores</head><p>This section describes the key technical contribu- tion of our work: integration of lattice scores en- coding input uncertainty into the lat2seq frame- work. These lattice scores assign different proba- bilities to competing paths, and are often provided by up-stream statistical models. For example, an ASR may attach posterior probabilities that cap- ture acoustic evidence and linguistic plausibility of words in the lattice. In this section, we de- scribe our method, first explaining how we nor- malize scores to a format that is easily usable in our method, then presenting our methods for in- corporating these scores into our encoder calcula- tions.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.1">Lattice Score Normalization</head><p>Lattice scores that are obtained from upstream sys- tems (such as ASR) are typically given in forward- normalized fashion, interpreted as the probability  of a node given its predecessor. Here, outgoing edges sum up to one, as illustrated in <ref type="figure" target="#fig_0">Figure 1</ref>. However, in some of our methods it will be nec- essary that scores be normalized in the backward direction, so that the weights from incoming con- nections sum up to one, or globally normalized, so that the probability of the node is the marginal probability of all the paths containing that node. Let w f ,i , w m,i , w b,i denote forward-normalized, marginal, and backward-normalized scores for node i respectively, illustrated in <ref type="figure" target="#fig_2">Figure 3</ref>. Given w f ,i , we can compute marginal probabilities recur- sively as w m,i = k∈C(i) w m,k ·w f ,i by using the forward algorithm <ref type="bibr" target="#b19">(Rabiner, 1989)</ref>. Then, we can normalize backward using</p><formula xml:id="formula_12">w b,i = w m,i k∈C (i) w m,k ,</formula><p>where C (i) denotes the successors of node i. All 3 forms are employed in the sections below.</p><p>Furthermore, when integrating these scores into the lat2seq framework, it is desirable to main- tain flexibility over how strongly they should im- pact the model. For this purpose, we introduce a peakiness coefficient S. Given a lattice score w b,i in backward direction, we compute w S b,i /Z i .</p><formula xml:id="formula_13">Z i = k∈C(i) w b,k</formula><p>is a re-normalization term to ensure that incoming connections still sum up to one. In the forward direction, we compute w S f,i /Z i and normalize analogously over outgo- ing connections. Setting S=0 amounts to ig- noring the scores by flattening their distribution, while letting S→∞ puts emphasis solely on the strongest nodes. S can be optimized jointly with the other model parameters via back-propagation during model training.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.2">Integration Approaches</head><p>We suggest three methods to integrate these scores into our lat2seq model, with equations shown in the right column of <ref type="table" target="#tab_0">Table 1</ref>. These methods can optionally be combined, and we conduct an abla- tion study to assess the effectivity of each method in isolation ( §5.3).</p><p>The first method consists of computing a weighted child-sum (WCS), using lattice scores as weights when composing the hidden state˜hstate˜ state˜h i . This is based on the intuition that predecessor hid- den states with high lattice weights should have a higher influence on their successor than states with low weights. The precise formulas for WCS are shown in (5). The second method biases the forget gate f ik for each predecessor cell state such that prede- cessors with high lattice score are more likely to pass through the forget gate (BFG). The intuition for this is similar to WCS; the composed cell state is more highly influenced by cell states from pre- decessors with high lattice score. BFG is imple- mented by introducing a bias term inside the sig- moid as in (6).</p><p>In the cases of both WCS and BFG, all hid- den units have their own independent peakiness. Thus S h and S f are vectors, applied element- wise after broadcasting the lattice score. The re- normalization terms Z h,k and Z f,k are also vectors and are applied element-wise. We use backward- normalized scores w b,i for the forward-directed encoder, and forward-normalized scores w f ,i for the backward-directed encoder.</p><p>In the third and final method, we bias the atten- tional weights (BATT) to put more focus on lattice nodes with high lattice scores. This can potentially mitigate the problem of having multiple contra- dicting lattice nodes that may confuse the atten- tional decoder. BATT is computed by introducing a bias term to the attention as in (7). Attentional weights are scalars, so here the peakiness S a is also a scalar. We drop the normalization term, re- lying instead on the softmax normalization. Both BFG and BATT use the logarithm of lattice scores so that values will still be in the probability do- main after the softmax or sigmoid is computed.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.3">Pre-training</head><p>Finally, note that our lattice encoder is a strict generalization of a sequential encoder. To re- duce the computational burden, we exploit this fact and perform a two-step training process where the model is first pre-trained on sequential data, then fine-tuned on lattice data. <ref type="bibr">4</ref> The pre-training, like standard training for neural machine trans- lation (NMT), allows for efficient training using mini-batches, and also allows for training on stan- dard text corpora for which we might not have lat-tices available. The fine-tuning is then performed on parallel data with lattices on the source side. This is much slower 5 than the pre-training because the network structure changes from sentence to sentence, preventing us from using efficient mini- batched calculations. However, fine-tuning for only a small number of iterations is generally suf- ficient, as the model is already relatively accurate in the first place. In practice we found it impor- tant to use minibatches when fine-tuning, accumu- lating gradients over several examples before per- forming parameter updates. This provided negli- gible speedups but greatly improved optimization stability.</p><p>At test time, the model is able to translate both sequential and lattice inputs and can therefore be used even in cases where no lattices are available, at potentially diminished accuracy.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5">Experiments</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.1">Setting</head><p>We conduct experiments on the Fisher and Call- home Spanish-English Speech Translation Cor- pus ( <ref type="bibr" target="#b18">Post et al., 2013</ref>), a corpus of Spanish tele- phone conversations that includes automatic tran- scripts and lattices. The Fisher portion consists of telephone conversations between strangers, while the Callhome portion contains telephone conver- sations between relatives or friends. The training data size is 138,819 sentences (Fisher/Train), and 15,000 sentences (Callhome/Train). Held-out test- ing data is shown in <ref type="table">Table 2</ref>. ASR word error rates (WER) are relatively high, due to the spon- taneous speaking style and challenging acoustics. Lattices contain on average 3.4 (Fisher/Train) or 4.5 (Callhome/Train) times more words than the corresponding reference transcripts.</p><p>For preprocessing, we tokenized and lower- cased source and target sides. We removed punc- tuation from the reference transcripts on the source side for consistency with the automatic transcripts and lattices. All models are pre-trained and fine- tuned on Fisher/Train unless otherwise noted. Our source-side vocabulary contains all words from the automatic transcripts for Fisher/Train, replac- ing singletons by an unknown word token, total- 5 Our implementation processed sequential inputs about 75 times faster than lattice inputs during training, and overall fine-tuning convergence was 15 times faster. Decoding was only 1.2 times slower when using lattice inputs. Note that re- cently proposed approaches for autobatching ( <ref type="bibr" target="#b16">Neubig et al., 2017b</ref>) may considerably speed up lattice training. <ref type="table">Table 2</ref>: Development data statistics. Average sen- tence length is between 11.8 and 13.1.</p><note type="other">1-best WER oracle WER # sent. Fisher/Dev 41.3 19.3 3,979 Fisher/Dev2 40.0 19.4 3,961 Fisher/Test 36.5 16.1 3,641 Callhome/Devtest 64.7 36.4 3,966 Callhome/Evltest 65.3 37.9 1,829</note><p>ing 14,648 words. Similarly, on the target side we used all words from the reference translations of Fisher/Train, replacing singletons by the unknown word, yielding 10,800 words in total.</p><p>Our implementation is based on lamtram (Neu- big, 2015) and the DyNet ( <ref type="bibr">Neubig et al., 2017a</ref>) toolkit. We use the implemented attentional model with default parameters: a layer size of 256 per encoder direction and 512 for the decoder. Word embedding size was also set to 512. We used two encoder layers and two decoder layers for better baseline performance. For the sequential base- lines, the LSTM variant in the left column of Ta- ble 1 was employed. We initialized the forget gate biases to 1 as recommended by <ref type="bibr" target="#b7">Jozefowicz et al. (2015)</ref>.</p><p>We used Adam ( <ref type="bibr" target="#b9">Kingma and Ba, 2014</ref>) for training, with an empirically determined initial learning rate of 0.001 for pre-training and 0.0001 for fine-tuning. We halve the learning rate when the dev perplexity (on Fisher/Dev) gets worse. Pre-training and fine-tuning on 1-best sequences is performed until convergence, and training on lat- tices is performed for 2 epochs to keep experimen- tal effort manageable. On Fisher/Train, this took 3-4 days on a fast CPU. <ref type="bibr">6</ref> Minibatch size was 1000 target words for pre-training, and 20 sentences for lattice training. Unless otherwise noted, we em- ployed all three proposed lattice score integration approaches, and optimized peakiness coefficients jointly during training. We repeat training 3 times with different random seeds for parameter initial- ization and data shuffling, and report averaged re- sults. We set the decoding beam size to 5.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.2">Main Results</head><p>We compare 4 systems: Performing pre-training on the sequential reference transcripts only (R), fine-tuning on 1-best transcripts (R+1), fine-tuning on lattices without scores (R+L), and fine-tuning on lattices including lattice scores (R+L+S). At test time, we try references, lattice oracles, <ref type="bibr">7</ref> 1-best transcripts, and lattices as inputs to all 4 systems. The former 2 experiments give upper bounds on achievable translation accuracy, while the latter 2 correspond to a realistic setting. <ref type="table" target="#tab_3">Table 3</ref> shows the results on Fisher/Dev2 and Fisher/Test.</p><p>Before even considering lattices, we can see that 1-best fine-tuning boosted BLEU scores quite im- pressively (1-best/R vs. 1-best/R+1), with gains of 1.3 and 0.7 BLEU points. This stands in con- trast to <ref type="bibr" target="#b18">Post et al. (2013)</ref> who find the 1-best tran- scripts not to be helpful for training a hierarchical machine translation system. Possible explanations are learning from repeating error patterns, and im- proved robustness to erroneous inputs. On top of these gains, our proposed set-up (lattice/R+L+S) improve BLEU scores by another 1.4. Removing the lattice scores (lattice/R+L) diminishes the re- sults and performs worse than the 1-best baseline (1-best/R+1), indicating that the proposed lattice score integration is crucial for good performance. This demonstrates a clear advantage of our pro- posed method over that of <ref type="bibr" target="#b21">Su et al. (2017)</ref>.</p><p>As can be seen in the table, models fine- tuned on lattices show reasonable performance for both lattice and sequential inputs (1-best/R+L, lat- tice/R+L, 1-best/R+L+S, lattice/R+L+S). This is not surprising, given that the lattice training data includes lattices of varying density, including lat- tices with very few paths or even only one path. On the other hand, without fine-tuning on lattices, using lattices as input performs poorly (lattice/R and lattice/R+1). A closer look revealed that trans- lations were often too long, potentially because implicitly learned mechanisms for length control were not ready to handle lattice inputs. <ref type="table" target="#tab_3">Table 3</ref> reports perplexities for Fisher/Dev2. Unlike the corresponding BLEU scores, the lattice encoder appears stronger than the 1-best baseline in terms of perplexity even without lattice scores (lattice/R+L vs. 1-best/R+1). To understand this better, we computed the average entropy of the decoder softmax, a measure of how much con- fusion there is in the decoder predictions, inde- 7 The path through the lattice with the best WER. pendent of whether it selects the correct answer or not. Over the first 100 sentences, this value was 2.24 for 1-best/R+1, 2.39 for lattice/R+L, and 2.15 for lattice/R+L+S. This indicates that the de- coder is more confused for lattices without scores, while integrating lattice scores removes this prob- lem. These numbers also suggest that it may be possible to obtain further gains using methods that stabilize the decoder.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.3">Ablation Experiments</head><p>Next, we conduct an ablation study to assess the impact of the three proposed extensions for inte- grating lattice scores ( §4.2). We train models with different peakiness coefficients S, either ignoring lattices scores by fixing S=0, using lattice scores as-is by fixing S=1, or optimizing S during train- ing. <ref type="table">Table 4</ref> shows the results. Overall, joint train- ing of S gives similar results as fixing S=1, but both clearly outperform fixing S=0. Removing confidences (setting S=0) in one place at a time reveals that the attention mechanism is clearly the most important point of integration, while gains from the integration into child-sum and forget gate are smaller and not always consistent.</p><p>We also analyzed what peakiness values were actually learned. We found that all 3 models that we trained for the averaging purposes converged to S a =0.62. S h and S f had per-vector means between 0.92 and 1.0, at standard deviations be- tween 0.02 and 0.04. We conclude that while the peakiness coefficients were not particularly help- ful in our experiments, stable convergence behav- ior makes them safe to use, and they might be helpful on other data sets that may contain lattice scores of higher or lower reliability.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.4">Callhome Experiments</head><p>In this experiment, we test a situation in which we have a reasonable amount of sequential data avail- able for pre-training, but only a limited amount of lattice training data for the fine-tuning step. This may be a more realistic situation, because speech translation corpora are scarce. To inves- tigate in this scenario, we again pre-train our mod- els on Fisher/Train, but then fine-tune them on the 9 times smaller Callhome/Train portion of the cor- pus. We fine-tune for 10 epochs, all other settings are as before. We use Callhome/Evltest for testing.   <ref type="table">Table 4</ref>: BLEU scores (4 references) for differ- ently configured peakiness coefficients S a , S h , S f . 0/1 means fixing to that value, * indicates opti- mization during training. Statistically significant improvement over 1-best/R+1 is in bold.</p><p>0.8 BLEU points, which in turn beats the pre- trained system (1-best/R) by 1.5 BLEU points. In- cluding the lattice scores is clearly beneficial, al- though lattices without scores also improve over 1-best inputs in this experiment.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.5">Impact of Lattice Quality</head><p>Next, we analyze the impact of using lattices and lattice scores as the ASR WER changes. We con- catenate all test data from <ref type="table">Table 2</ref> and divide the result into bins according to the 1-best WER. We sample 1000 sentences from each bin, and com- pare BLEU scores between several models. The results are shown in <ref type="figure" target="#fig_3">Figure 4</ref>. For very good WERs, lattices do not improve over 1-best inputs, which is unsurprising. In all other cases, lattices are helpful. Lattice scores are most bene-  <ref type="table" target="#tab_2">Table 5</ref>: BLEU scores on Callhome/Evltest (1 reference). All models are pre-trained on Fisher/Train references (R), and potentially fine- tuned on Callhome/Train. The best result using 1-best or lattice inputs is in bold. Statistically sig- nificant improvement over 1-best/R+1 is in bold.</p><p>ficial for moderate WERs, and not beneficial for very high WERs. We speculate that for high WERs, the lattice scores tend to be less reliable than for lower WERs.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6">Conclusion</head><p>We investigated translating uncertain inputs from an error-prone up-stream component using a neu- ral lattice-to-sequence model. Our proposed model takes word lattices as input and is able to take advantage of lattice scores. In our experi- ments in a speech translation task we find con- sistent improvements over translating 1-best tran- scriptions and that consideration of lattice scores, especially in the attention mechanism, is crucial for obtaining these improvements. Promising avenues for future work are investi- gating consensus networks ( <ref type="bibr" target="#b12">Mangu et al., 2000</ref>) for potential gains in terms of speed or quality as compared to lattice inputs, explicitly dealing with rare or unknown words in the lattice, and facilitat- ing GPU training via autobatching ( <ref type="bibr" target="#b16">Neubig et al., 2017b</ref>).</p></div><figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_0"><head>Figure 1 :</head><label>1</label><figDesc>Figure 1: A lattice with 3 possible paths and posterior scores. Translating the whole lattice potentially allows for recovering from errors in its 1best hypothesis.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_1"><head>Figure 2 :</head><label>2</label><figDesc>Figure 2: Network structure of a bidirectional lattice encoder with one layer.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_2"><head>Figure 3 :</head><label>3</label><figDesc>Figure 3: Lattice with forward-normalized, marginal, and backward-normalized scores.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_3"><head>Figure 4 :</head><label>4</label><figDesc>Figure 4: BLEU score over varying 1-best WERs.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_0" validated="false"><head>Table 1 :</head><label>1</label><figDesc></figDesc><table>Formulas for sequential and TreeLSTM encoders according to Tai et al. (2015), the proposed 
+LatticeLSTM encoder, and conventional vs. proposed integration into the attention mechanism (bottom 
+row). Inputs x j are word embeddings or hidden states of a lower layer. W · and U · denote parameter 
+matrices, b · bias terms, other terms are described in the text. 
+
+&lt;s&gt; 
+ah 
+hay que 
+qué 
+qué bueno bueno 
+&lt;/s&gt; 
+
+Attentional 
+Decoder 
+… 
+
+&lt;s&gt; 
+ah 
+hay que 
+qué 
+qué bueno bueno 
+&lt;/s&gt; 
+
+</table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_2" validated="false"><head>Table 5 shows the results.</head><label>5</label><figDesc></figDesc><table>The trends are consis-
+tent to  §5.2: The proposed model (lattice/R+L+S) 
+outperforms the 1-best baseline (1-best/R+1) by </table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_3" validated="false"><head>Table 3 :</head><label>3</label><figDesc></figDesc><table>BLEU scores (4 references) and perplexities (in brackets). Models are pre-trained only (R), 
+fine-tuned on either 1-best outputs (R+1), lattices without scores (R+L), or lattices with scores (R+L+S). 
+Statistically significant improvement (paired bootstrap resampling, p &lt; 0.05) over 1-best/R+1 is in bold. 
+
+BATT 
+S a 
+WCS 
+S h 
+BFG 
+S f 
+Fisher 
+/Dev2 
+Fisher 
+/Test 
+0 
+0 
+0 
+36.9 
+36.1 
+1 
+1 
+1 
+38.2 
+37.4 
+* 
+* 
+* 
+38.5 
+38.0 
+0 
+1 
+1 
+37.2 
+36.2 
+1 
+0 
+1 
+37.9 
+37.5 
+1 
+1 
+0 
+38.2 
+37.8 
+0 
+* 
+* 
+37.0 
+36.3 
+* 
+0 
+* 
+38.3 
+37.9 
+* 
+* 
+0 
+38.1 
+37.5 
+1-best/R+1 
+37.2 
+36.6 
+
+</table></figure>
+
+			<note place="foot" n="1"> This is reminiscent of the weighted pooling strategy by Ladhak et al. (2016) for spoken utterance classification.</note>
+
+			<note place="foot" n="2"> It is perhaps more common to think of each edge representing a word, but we will motivate why we instead assign word labels to nodes in §3.3. 3 This is similar in spirit to Eriguchi et al. (2016) who used the TreeLSTM in an attentional tree-to-sequence model.</note>
+
+			<note place="foot" n="4"> For the sequential data, we set all confidence scores to 1.</note>
+
+			<note place="foot" n="6"> For comparison, we tried training on lattices from scratch, which took 9 days (6 epochs) to converge at a dev perplexity that was 10% worse than with the pre-training plus fine-tuning strategy. We also confirmed BLEU scores to be much inferior without pretraining.</note>
+		</body>
+		<back>
+
+			<div type="acknowledgement">
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Acknowledgments</head><p>We thank Paul Michel and Austin Matthews for their helpful comments on earlier drafts of this pa-per.</p></div>
+			</div>
+
+			<div type="references">
+
+				<listBibl>
+
+<biblStruct xml:id="b0">
+	<analytic>
+		<title level="a" type="main">Neural Machine Translation by Jointly Learning to Align and Translate</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Dzmitry</forename><surname>Bahdanau</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kyunghyun</forename><surname>Cho</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yoshua</forename><surname>Bengio</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">International Conference on Representation Learning (ICLR)</title>
+		<meeting><address><addrLine>San Diego, USA</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2015" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b1">
+	<analytic>
+		<title level="a" type="main">Some approaches to statistical and finite-state speech-tospeech translation</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">F</forename><surname>Casacuberta</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">H</forename><surname>Ney</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">F</forename><forename type="middle">J</forename><surname>Och</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">E</forename><surname>Vidal</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">J</forename><forename type="middle">M</forename><surname>Vilar</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">S</forename><surname>Barrachina</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">I</forename><surname>Garcia-Varea</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">D</forename><surname>Llorens</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">C</forename><surname>Martinez</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">S</forename><surname>Molau</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">F</forename><surname>Nevado</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">M</forename><surname>Pastor</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">D</forename><surname>Picco</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">A</forename><surname>Sanchis</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">C</forename><surname>Tillmann</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Computer Speech and Language</title>
+		<imprint>
+			<biblScope unit="volume">18</biblScope>
+			<biblScope unit="issue">1</biblScope>
+			<biblScope unit="page" from="25" to="47" />
+			<date type="published" when="2004" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b2">
+	<analytic>
+		<title level="a" type="main">Fethi Bougares, Holger Schwenk, and Yoshua Bengio</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kyunghyun</forename><surname>Cho</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Bart</forename><surname>Van Merriënboer</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Caglar</forename><surname>Gulcehre</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Dzmitry</forename><surname>Bahdanau</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1406.1078</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Learning Phrase Representations Using RNN EncoderDecoder for Statistical Machine Translation</title>
+		<imprint>
+			<date type="published" when="2014" />
+		</imprint>
+	</monogr>
+<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b3">
+	<monogr>
+		<title level="m" type="main">Generalizing Word Lattice Translation</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Christopher</forename><surname>Dyer</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Smaranda</forename><surname>Muresan</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Philip</forename><surname>Resnik</surname></persName>
+		</author>
+		<idno>LAMP-TR-149</idno>
+		<imprint>
+			<date type="published" when="2008" />
+		</imprint>
+		<respStmt>
+			<orgName>University of Maryland, Institute For Advanced Computer Studies</orgName>
+		</respStmt>
+	</monogr>
+<note type="report_type">Technical Report</note>
+</biblStruct>
+
+<biblStruct xml:id="b4">
+	<analytic>
+		<title level="a" type="main">Tree-to-Sequence Attentional Neural Machine Translation</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Akiko</forename><surname>Eriguchi</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kazuma</forename><surname>Hashimoto</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yoshimasa</forename><surname>Tsuruoka</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Association for Computational Linguistic (ACL)</title>
+		<meeting><address><addrLine>Berlin, Germany</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2016" />
+			<biblScope unit="page" from="823" to="833" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b5">
+	<analytic>
+		<title level="a" type="main">Line graphs and line digraphs</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">R</forename><forename type="middle">L</forename><surname>Hemminger</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">L</forename><forename type="middle">W</forename><surname>Beineke</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Selected Topics in Graph Theory</title>
+		<imprint>
+			<publisher>Academic Press Inc</publisher>
+			<date type="published" when="1978" />
+			<biblScope unit="page" from="271" to="305" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b6">
+	<analytic>
+		<title level="a" type="main">Long Short-Term Memory</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Sepp</forename><surname>Hochreiter</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jürgen</forename><surname>Schmidhuber</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Neural computation</title>
+		<imprint>
+			<biblScope unit="volume">9</biblScope>
+			<biblScope unit="issue">8</biblScope>
+			<biblScope unit="page" from="1735" to="1780" />
+			<date type="published" when="1997" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b7">
+	<analytic>
+		<title level="a" type="main">An Empirical Exploration of Recurrent Network Architectures</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Rafal</forename><surname>Jozefowicz</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Wojciech</forename><surname>Zaremba</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ilya</forename><surname>Sutskever</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">International Conference on Machine Learning (ICML)</title>
+		<meeting><address><addrLine>Lille, France</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2015" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b8">
+	<analytic>
+		<title level="a" type="main">Recurrent Continuous Translation Models</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Nal</forename><surname>Kalchbrenner</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Phil</forename><surname>Blunsom</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Empirical Methods in Natural Language Processing (EMNLP)</title>
+		<meeting><address><addrLine>Seattle, Washington, USA</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2013" />
+			<biblScope unit="page" from="1700" to="1709" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b9">
+	<monogr>
+		<title level="m" type="main">Adam: A method for stochastic optimization</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Diederik</forename><surname>Kingma</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jimmy</forename><surname>Ba</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1412.6980</idno>
+		<imprint>
+			<date type="published" when="2014" />
+		</imprint>
+	</monogr>
+<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b10">
+	<analytic>
+		<title level="a" type="main">LatticeRnn: Recurrent Neural Networks over Lattices</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Faisal</forename><surname>Ladhak</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ankur</forename><surname>Gandhe</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Markus</forename><surname>Dreyer</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Lambert</forename><surname>Mathias</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Annual Conference of the International Speech Communication Association (InterSpeech)</title>
+		<meeting><address><addrLine>San Francisco, USA</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2016" />
+			<biblScope unit="page" from="695" to="699" />
+		</imprint>
+	</monogr>
+	<note>Ariya Rastrow, and Björn Hoffmeister</note>
+</biblStruct>
+
+<biblStruct xml:id="b11">
+	<analytic>
+		<title level="a" type="main">Effective Approaches to Attentionbased Neural Machine Translation</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Minh-Thang</forename><surname>Luong</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Hieu</forename><surname>Pham</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Christopher D</forename><surname>Manning</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Empirical Methods in Natural Language Processing (EMNLP)</title>
+		<meeting><address><addrLine>Lisbon, Portugal</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2015" />
+			<biblScope unit="page" from="1412" to="1421" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b12">
+	<analytic>
+		<title level="a" type="main">Finding consensus in speech recognition: word error minimization and other applications of confusion networks</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Lidia</forename><surname>Mangu</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Eric</forename><surname>Brill</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Andreas</forename><surname>Stolcke</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Computer Speech &amp; Language</title>
+		<imprint>
+			<biblScope unit="volume">14</biblScope>
+			<biblScope unit="issue">4</biblScope>
+			<biblScope unit="page" from="373" to="400" />
+			<date type="published" when="2000" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b13">
+	<analytic>
+		<title level="a" type="main">ASR word lattice translation with exhaustive reordering is possible</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Evgeny</forename><surname>Matusov</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Björn</forename><surname>Hoffmeister</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Hermann</forename><surname>Ney</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Annual Conference of the International Speech Communication Association (InterSpeech)</title>
+		<meeting><address><addrLine>Brisbane, Australia</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2008" />
+			<biblScope unit="page" from="2342" to="2345" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b14">
+	<monogr>
+				<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Graham</forename><surname>Neubig</surname></persName>
+		</author>
+		<ptr target="http://www.github.com/neubig/lamtram" />
+		<title level="m">lamtram: A Toolkit for Language and Translation Modeling using Neural Networks</title>
+		<imprint>
+			<date type="published" when="2015" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b15">
+	<monogr>
+				<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Graham</forename><surname>Neubig</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Chris</forename><surname>Dyer</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yoav</forename><surname>Goldberg</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Austin</forename><surname>Matthews</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Waleed</forename><surname>Ammar</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Antonios</forename><surname>Anastasopoulos</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Miguel</forename><surname>Ballesteros</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">David</forename><surname>Chiang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Daniel</forename><surname>Clothiaux</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Trevor</forename><surname>Cohn</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kevin</forename><surname>Duh</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Manaal</forename><surname>Faruqui</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Cynthia</forename><surname>Gan</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Dan</forename><surname>Garrette</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yangfeng</forename><surname>Ji</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Lingpeng</forename><surname>Kong</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Adhiguna</forename><surname>Kuncoro</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Gaurav</forename><surname>Kumar</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Chaitanya</forename><surname>Malaviya</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Paul</forename><surname>Michel</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1701.03980</idno>
+		<title level="m">Swabha Swayamdipta, and Pengcheng Yin. 2017a. DyNet: The Dynamic Neural Network Toolkit</title>
+		<meeting><address><addrLine>Yusuke Oda, Matthew Richardson, Naomi Saphra</addrLine></address></meeting>
+		<imprint/>
+	</monogr>
+<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b16">
+	<monogr>
+		<title level="m" type="main">On-the-fly Operation Batching in Dynamic Computation Graphs</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Graham</forename><surname>Neubig</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yoav</forename><surname>Goldberg</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Chris</forename><surname>Dyer</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1705.07860</idno>
+		<imprint>
+			<date type="published" when="2017" />
+		</imprint>
+	</monogr>
+<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b17">
+	<analytic>
+		<title level="a" type="main">Speech Translation: Coupling of Recognition and Translation</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Hermann</forename><surname>Ney</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">International Conference on Acoustics, Speech, and Signal Processing (ICASSP)</title>
+		<meeting><address><addrLine>Phoenix, USA</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="1999" />
+			<biblScope unit="page" from="517" to="520" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b18">
+	<analytic>
+		<title level="a" type="main">Improved Speech-to-Text Translation with the Fisher and Callhome Spanish-English Speech Translation Corpus</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Matt</forename><surname>Post</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Gaurav</forename><surname>Kumar</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Adam</forename><surname>Lopez</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Damianos</forename><surname>Karakos</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">International Workshop on Spoken Language Translation (IWSLT)</title>
+		<meeting><address><addrLine>Heidelberg, Germany</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2013" />
+		</imprint>
+	</monogr>
+	<note>Chris Callison-Burch, and Sanjeev Khudanpur</note>
+</biblStruct>
+
+<biblStruct xml:id="b19">
+	<analytic>
+		<title level="a" type="main">A tutorial on hidden markov models and selected applications in speech recognition</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Lawrence</forename><forename type="middle">R</forename><surname>Rabiner</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Proceedings of the IEEE</title>
+		<imprint>
+			<date type="published" when="1989" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b20">
+	<analytic>
+		<title level="a" type="main">Using Word Lattice Information for a Tighter Coupling in Speech Translation Systems</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Shirin</forename><surname>Saleem</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">)</forename><surname>Szu-Chen ; Stan</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Stephan</forename><surname>Jou</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Tanja</forename><surname>Vogel</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Schultz</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">International Conference of Spoken Language Processing (ICSLP)</title>
+		<meeting><address><addrLine>Jeju Island, Korea</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2004" />
+			<biblScope unit="page" from="41" to="44" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b21">
+	<analytic>
+		<title level="a" type="main">Lattice-Based Recurrent Neural Network Encoders for Neural Machine Translation</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jinsong</forename><surname>Su</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Zhixing</forename><surname>Tan</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Deyi</forename><surname>Xiong</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Rongrong</forename><surname>Ji</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Xiaodong</forename><surname>Shi</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yang</forename><surname>Liu</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Conference on Artificial Intelligence (AAAI)</title>
+		<imprint>
+			<date type="published" when="2017" />
+			<biblScope unit="page" from="3302" to="3308" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b22">
+	<analytic>
+		<title level="a" type="main">Sequence to Sequence Learning with Neural Networks</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ilya</forename><surname>Sutskever</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Oriol</forename><surname>Vinyals</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">V</forename><surname>Quoc</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Le</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Advances in Neural Information Processing Systems (NIPS)</title>
+		<meeting><address><addrLine>Montréal, Canada</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2014" />
+			<biblScope unit="page" from="3104" to="3112" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b23">
+	<analytic>
+		<title level="a" type="main">Improved Semantic Representations From Tree-Structured Long Short-Term Memory Networks</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kai Sheng</forename><surname>Tai</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Richard</forename><surname>Socher</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Christopher</forename><forename type="middle">D</forename><surname>Manning</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Association for Computational Linguistic (ACL)</title>
+		<meeting><address><addrLine>Beijing, China</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2015" />
+			<biblScope unit="page" from="1556" to="1566" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b24">
+	<analytic>
+		<title level="a" type="main">A Decoding Algorithm for Word Lattice Translation in Speech Translation</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ruiqiang</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Genichiro</forename><surname>Kikui</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Hirofumi</forename><surname>Yamamoto</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Wai-Kit</forename><surname>Lo</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">International Workshop on Spoken Language Translation (IWSLT)</title>
+		<meeting><address><addrLine>Pittsburgh, USA</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2005" />
+			<biblScope unit="page" from="23" to="29" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+				</listBibl>
+			</div>
+		</back>
+	</text>
+</TEI>

@@ -1,0 +1,1027 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<TEI xmlns="http://www.tei-c.org/ns/1.0" 
+xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+xsi:schemaLocation="http://www.tei-c.org/ns/1.0 /home/ana/installs/grobid/grobid-0.5.1/grobid-home/schemas/xsd/Grobid.xsd"
+ xmlns:xlink="http://www.w3.org/1999/xlink">
+	<teiHeader xml:lang="en">
+		<encodingDesc>
+			<appInfo>
+				<application version="0.5.1-SNAPSHOT" ident="GROBID" when="2019-04-18T12:19+0000">
+					<ref target="https://github.com/kermitt2/grobid">GROBID - A machine learning software for extracting information from scholarly documents</ref>
+				</application>
+			</appInfo>
+		</encodingDesc>
+		<fileDesc>
+			<titleStmt>
+				<title level="a" type="main">Decoupling Structure and Lexicon for Zero-Shot Semantic Parsing</title>
+			</titleStmt>
+			<publicationStmt>
+				<publisher>Association for Computational Linguistics</publisher>
+				<availability status="unknown"><p>Copyright Association for Computational Linguistics</p>
+				</availability>
+				<date>October 31-November 4, 2018. 2018</date>
+			</publicationStmt>
+			<sourceDesc>
+				<biblStruct>
+					<analytic>
+						<author role="corresp">
+							<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jonathan</forename><surname>Herzig</surname></persName>
+							<email>jonathan.herzig@cs.tau.ac.il, joberant@cs.tau.ac.il</email>
+							<affiliation key="aff0">
+								<orgName type="institution">Tel-Aviv University</orgName>
+							</affiliation>
+						</author>
+						<author>
+							<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jonathan</forename><surname>Berant</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="institution">Tel-Aviv University</orgName>
+							</affiliation>
+							<affiliation key="aff1">
+								<orgName type="department">Allen Institute for Artificial Intelligence</orgName>
+							</affiliation>
+						</author>
+						<title level="a" type="main">Decoupling Structure and Lexicon for Zero-Shot Semantic Parsing</title>
+					</analytic>
+					<monogr>
+						<title level="m">Proceedings of the 2018 Conference on Empirical Methods in Natural Language Processing</title>
+						<meeting>the 2018 Conference on Empirical Methods in Natural Language Processing <address><addrLine>Brussels, Belgium</addrLine></address>
+						</meeting>
+						<imprint>
+							<publisher>Association for Computational Linguistics</publisher>
+							<biblScope unit="page" from="1619" to="1629"/>
+							<date type="published">October 31-November 4, 2018. 2018</date>
+						</imprint>
+					</monogr>
+					<note>1619</note>
+				</biblStruct>
+			</sourceDesc>
+		</fileDesc>
+		<profileDesc>
+			<abstract>
+				<p>Building a semantic parser quickly in a new domain is a fundamental challenge for conversational interfaces, as current semantic parsers require expensive supervision and lack the ability to generalize to new domains. In this paper, we introduce a zero-shot approach to semantic parsing that can parse utterances in unseen domains while only being trained on examples in other source domains. First, we map an utterance to an abstract, domain-independent, logical form that represents the structure of the logical form, but contains slots instead of KB constants. Then, we replace slots with KB constants via lexical alignment scores and global inference. Our model reaches an average accuracy of 53.4% on 7 domains in the OVERNIGHT dataset, substantially better than other zero-shot baselines, and performs as good as a parser trained on over 30% of the target domain examples.</p>
+			</abstract>
+		</profileDesc>
+	</teiHeader>
+	<text xml:lang="en">
+		<body>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="1">Introduction</head><p>Semantic parsing, the task of mapping natural lan- guage utterances into executable logical forms, is a key paradigm in developing conversational inter- faces ( <ref type="bibr" target="#b33">Zelle and Mooney, 1996;</ref><ref type="bibr" target="#b34">Zettlemoyer and Collins, 2005;</ref><ref type="bibr" target="#b21">Kwiatkowski et al., 2011;</ref>. The recent success of conver- sational interfaces such as Amazon Alexa, Google Assistant, Apple Siri, and Microsoft Cortana has led to soaring interest in developing methodolo- gies for training semantic parsers quickly in any new domain and from little data.</p><p>Prior work focused on alleviating data collec- tion by training from weak supervision ( <ref type="bibr" target="#b7">Clarke et al., 2010;</ref><ref type="bibr" target="#b24">Liang et al., 2011;</ref><ref type="bibr" target="#b20">Kwiatkowski et al., 2013;</ref>, or develop- ing protocols for fast data collection through para- phrasing <ref type="bibr" target="#b4">(Berant and Liang, 2014;</ref><ref type="bibr" target="#b32">Wang et al., 2015)</ref> or a human-in-the-loop ( <ref type="bibr" target="#b17">Iyer et al., 2017</ref> Figure 1: A test utterance is delexicalized (1) and mapped to its abstract logical form (2). Slots ("$" vari- ables) are then aligned to the abstract utterance (3), and are filled with the top assignment in terms of local and global scores (4). Logical forms throughout this paper are in λ-DCS <ref type="bibr" target="#b23">(Liang, 2013</ref>).</p><p>However, all these approaches rely on supervised training data in the target domain and ignore data collected previously for other domains.</p><p>In this paper, we propose an alternative, zero- shot approach to semantic parsing, where no la- beled or unlabeled examples are provided in the target domain, but annotated examples from other domains are available. This is a challenging setup as in semantic parsing each dataset is associated with its own knowledge-base (KB) and thus all target domain KB constants (relations and entities) are unobserved at training time. Moreover, this is a natural use-case as more and more conversational interfaces are developed in multiple domains.</p><p>Our approach is motivated by recent work <ref type="bibr" target="#b15">(Herzig and Berant, 2017;</ref><ref type="bibr" target="#b30">Su and Yan, 2017;</ref><ref type="bibr" target="#b11">Fan et al., 2017;</ref><ref type="bibr" target="#b29">Richardson et al., 2018</ref>) that showed that while the lexicon and KB constants in dif-ferent domains vary, the structure of language composition repeats across domains. Therefore, we propose that by abstracting away the domain- specific lexical items of an utterance, we can learn to map the structure of an abstract utterance to an abstract logical form that does not include any domain-specific KB constants, using data from other domains only. <ref type="figure">Figure 1</ref> illustrates this approach. A test ut- terance in the target domain is delexicalized and mapped to an abstract, domain-independent repre- sentation, where some content words are replaced by abstract tokens (step 1). Then, a structure- mapping model maps this representation into an abstract logical form that contains slots instead of KB constants (step 2). A major technical chal- lenge at this point is to replace slots in the ab- stract logical form with KB constants from the tar- get domain. We show that it is possible to learn a domain-independent lexical alignment model that aligns each slot to a word in the original utterance (step 3). This alignment, combined with a global inference procedure (step 4) allows one to find the best assignment of KB constants and produce a fi- nal logical form. Importantly, both of our models are trained from data in other domains only.</p><p>We show that our zero-shot framework parses 7 different unseen domains from the OVERNIGHT dataset with an average denotation accuracy of 53.4%. This result dramatically outperforms several natural baselines, and achieves the same result as training a parser on over 30% of the fully supervised target domain examples. To our knowledge, this work is the first to train a zero-shot semantic parser that can handle unseen domains. All our code is available at https: //github.com/jonathanherzig/ zero-shot-semantic-parsing.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2">Background</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Neural</head><p>Semantic Parsing Sequence-to- sequence models <ref type="bibr" target="#b31">(Sutskever et al., 2014)</ref> were recently proposed for semantic parsing <ref type="bibr" target="#b18">(Jia and Liang, 2016;</ref><ref type="bibr" target="#b8">Dong and Lapata, 2016)</ref>. In this setting, a sequence of input language tokens x 1 , . . . , x m is mapped to a sequence of output logical tokens z 1 , . . . , z n . We briefly review the model by <ref type="bibr" target="#b18">Jia and Liang (2016)</ref>, which we use as part of our framework, and also as a baseline.</p><p>The encoder is a BiLSTM <ref type="bibr" target="#b16">(Hochreiter and Schmidhuber, 1997</ref>) that converts x 1 , . . . , x m into a sequence of context sensitive states. The attention-based decoder ( <ref type="bibr" target="#b2">Bahdanau et al., 2015;</ref><ref type="bibr" target="#b25">Luong et al., 2015)</ref> is an LSTM language model additionally conditioned on the encoder states. Formally, the decoder is defined by:</p><formula xml:id="formula_0">p(z j = w | x, z 1:j−1 ) ∝ exp(U [s j , c j ]), s j+1 = LST M ([φ (out) (z j ), c j ], s j ),</formula><p>where s j are decoder states, U and the embed- ding function φ (out) are the decoder parameters, and the context vector, c j , is the result of global attention ( <ref type="bibr" target="#b25">Luong et al., 2015</ref>). We also employ attention-based copying (Jia and Liang, 2016), but omit details for brevity.</p><p>Semantic Parsing over Multiple KBs Re- cently, <ref type="bibr" target="#b15">Herzig and Berant (2017)</ref>, <ref type="bibr" target="#b30">Su and Yan (2017)</ref> and <ref type="bibr" target="#b11">Fan et al. (2017)</ref> proposed to exploit structural regularities in language across differ- ent domains. These works pooled together ex- amples from multiple datasets in different do- mains, each corresponding to a separate KB, and trained a single sequence-to-sequence model over all examples, sharing parameters across domains. They showed that this substantially improves pars- ing accuracy. While these works implicitly cap- ture linguistic regularities across domains, they rely on annotated data in the target domain. We, conversely, explicitly decouple structure mapping from the assignment of KB constants, and thus can tackle the zero-shot setting where no target do- main examples are available. This is the focus of the next section.</p><p>3 Zero-Shot Semantic Parsing</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.1">Overview</head><p>Following the empirical success of sharing struc- tural information between different semantic pars- ing domains, we propose in this paper to take a more radical approach and to explicitly decouple semantic parsing into a structure mapping model and a lexicon mapping model. We now provide an overview of our approach and explain how this decoupling facilitates zero-shot semantic parsing.</p><p>We assume access to D different source do- mains, where for every domain d we receive a KB K d , and a training set of pairs of utterances and logical forms {(</p><formula xml:id="formula_1">x i , z i )} N d i=1</formula><p>. We further as- sume a lexicon L that maps each KB constant in K d to a short phrase that describes it (e.g., L(PubYear)→"publication year"), as in Wang  <ref type="figure">Figure 2</ref> describes the flow of our training procedure: we first employ a simple rule-based method to transform training examples to an ab- stract representation, where content words (in ut- terances) and KB constants (in logical forms) are delexicalized. We then train the following two models that decouple structure from lexicon (a) The structure mapper that maps abstract utterances to abstract logical forms. (b) The aligner that pro- vides an alignment from abstract logical form to- kens to abstract utterance tokens. Training the aligner is challenging because no gold alignments between the abstract utterance and abstract logi- cal form are available. To overcome this chal- lenge we propose a distillation strategy: we obtain noisy supervision by training a state-of-the-art un- supervised alignment model on the D source do- mains. Then, we train a second supervised align- ment model that receives abstract utterances, ab- stract logical forms, and target noisy alignments as input and learns to predict the noisy alignments.</p><p>Once the two models are trained, we can tackle a new domain without training examples <ref type="figure">(Fig- ure 1)</ref>. Given an utterance from the target domain, we first abstract it using the delexicalizer, and then predict its abstract structure using the structure Lexical representation "What meetings have no more than 3 attendees?" Type.Meeting R[λx.count(Attendee.x)].≤.3 "Which recipe needs no more than two ingredients?" mapper. We treat delexicalized logical form to- kens as slots to be filled with KB constants. Candi- date assignments are then scored locally according to the semantic similarity of a KB constant (repre- sented by its entry value in the lexicon L) to words the slot aligns to according to the aligner. For this we use the pre-trained embedding function φ(·) as the only cross-domain information. Finally, we choose a final assignment of KB constants by ex- actly maximizing a global scoring function, which takes into account both local alignment scores as well as global constraints.</p><formula xml:id="formula_2">Type.Recipe R[λx.count(IngredientOf.x)].≤.2</formula><p>We next describe in detail the four compo- nents of our framework: the delexicalizer, struc- ture mapper, aligner, and inference procedure.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.2">Delexicalizer</head><p>The goal of the delexicalizer is to strip utterances and logical forms from their domain-specific com- ponents and preserve domain-independent parts. We note that it is possible that some words contain both domain-specific and domain-general aspects ("cheapest"). However, we conjecture that it is possible to decompose examples in a manner that enables zero-shot semantic parsing.</p><p>The output of the delexicalizer is an abstract representation that should manifest structural lin- guistic regularities across domains ( <ref type="figure">Figure 3</ref>). For example, a comparative structure will correspond to the same abstract logical form in different do- mains. In this representation, used as input to our models, content words and KB constants are trans- formed to an abstract type. This rule-based pre- processing step is applied to all D source domain training examples (utterances and logical forms), and to target domain utterances at test time. We now describe the process of delexicalization.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Source</head><p>Category Abstract Type Examples Utterance Noun NOUN "cuisines", "housing", "time" Verb VERB "published", "born", "posted" Adjective ADJ "high", "cooking", "monthly" Number NUM "4", "three" Date DATE "2018", "january 2nd" Entity ENT "midtown", "alice", "dinner" Logical Form Number  Utterances <ref type="table" target="#tab_3">Table 1</ref> describes the full list of ab- straction rules. We delexicalize several categories of content words and keep function words, which describe the utterance structure, in their lexical- ized form. Specifically, any verb 1 whose lemma is not "be" or "do" is delexicalized. All nouns are delexicalized, except for a small vocabulary of three words ("average", "total", and "num- ber"), which denote a domain-general operation. Adjectives tend to distribute more evenly between domain-specific words and domain-general words, thus discriminating them is harder (e.g., "out- door", "wide" and "cooking" are domain-specific words while "minimum", "same" and "many" are domain-general words). Thus, we take a statistical approach and only delexicalize adjectives that are unique to the domain (i.e., did not appear in the training set of any other source domain). We also delexicalize dates and numbers, and identify enti- ties in the utterance by string matching against the entities in the KB. These are then delexicalized to their corresponding abstract type <ref type="table" target="#tab_3">(Table 1)</ref>.</p><p>Logical Forms We delexicalize all KB con- stants to their abstract type, which is given as part of the KB schema <ref type="table" target="#tab_3">(Table 1)</ref>.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.3">Structure Mapper</head><p>As a first step towards predicting the lexical logi- cal form, we map an abstract utterance, to an ab- stract logical form. The model is the neural se- mantic parser described in Section 2, only here the input and output are the abstract examples in all D domains, which the delexicalizer outputs. The model utilizes a single encoder-decoder pair shared across all domains. As <ref type="figure">Figure 3</ref> suggests, the model should learn, e.g., that a noun modified <ref type="bibr">1</ref> Numbers, dates and part-of-speech tags are extracted us- ing Stanford CoreNLP (   by a wh-question often maps to $ENT TYPE, and that "no more than" maps to the ≤ operator.</p><formula xml:id="formula_3">P "#$%&amp; (( |$ENT_TYPE)</formula></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.4">Aligner</head><p>The output of the structure mapper is an abstract logical form that contains slots instead of KB con- stants. To predict a complete logical form, we must assign a KB constant to each slot.</p><p>We observe that the description of a KB con- stant that appears in the logical form (Article) is often semantically similar to some word in the ut- terance ("paper"). Thus, we can obtain signal for the identity of a KB constant by solving an align- ment problem: each slot can be aligned to words in the utterance that have similar meaning to that of the gold KB constant. Naturally, in some cases a KB constant is not semantically similar to any ut- terance word (e.g., the relation Field in <ref type="figure">Figure 1)</ref>, which we will mediate by using a global inference procedure (Section 3.5).</p><p>Thus, our goal is to learn a model that given an abstract utterance-logical form pair (x abs , z abs ) produces an alignment matrix A, where A ij corre- sponds to the alignment probability p(x abs j | z abs i ). A central challenge is that no gold alignments are provided in any domain. Therefore, we adopt a "distillation approach", where we train a super- vised model over abstract examples to mimic the predictions of an unsupervised model that has ac- cess to the full lexicalized examples.</p><p>Specifically, we use a standard unsupervised word aligner ( <ref type="bibr" target="#b10">Dyer et al., 2013)</ref>, which takes all lexicalized examples {(x i , z i )} N d i=1 in all D do- mains and produces an Alignment matrix A * for every example, where A * ij = 1 iff token i in the logical form is aligned to token j in the utterance. Then, we treat A * as gold alignments and gener-ate examples (x abs , z abs , A * ) to train the aligner. Learning alignments over abstract representations is possible, as a slot in a specific context tends to align to specific types of abstract words (e.g., <ref type="figure">Fig- ure 3</ref> suggests that a relation that is aggregated, of- ten aligns to the NOUN that appears after the NUM in the abstract utterance).</p><p>We now present our alignment model, de- picted in <ref type="figure" target="#fig_1">Figure 4</ref>.</p><note type="other">The model uses two differ- ent BiLSTMs to encode x abs and z abs to their con- text sensitive states b 1 , . . . , b m and s 1 , . . . , s n re- spectively. We model the alignment probability p align (x abs j | z abs i ) with a bi-linear form similar to attention (Luong et al., 2015):</note><formula xml:id="formula_4">e ij = s T i W b j , p align (x abs j | z abs i ) = exp(e ij ) m j =1 exp(e ij )</formula><p>, where the parameters W are learned during train- ing. We train the model to minimize the negative log-likelihood of gold alignments while consider- ing only alignments of slots (since we only align slots at test time). The cross-entropy loss for a training example (x abs , z abs , A * ) is then given by:</p><formula xml:id="formula_5">− n i:i∈Sz m j=1 A * ij log p align (x abs j | z abs i ),</formula><p>where S z are the slot indices in z abs .</p><p>Our model can be viewed as an attention model, dedicated to aligning logical form tokens to utter- ance tokens. Using a separate alignment model rather than the attention weights of the structure mapper has two advantages: First, alignments are generated given the entire generated sequence z abs rather than just a prefix. Second, our model fo- cuses its capacity on the alignment task with- out worrying about generation of z abs . In Sec- tion 4, we will demonstrate that training a dedi- cated aligner substantially improves performance.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.5">Inference</head><p>The aligner provides a distribution over utterance tokens for every slot in the abstract logical form. To compute the final logical form, we must re- place each slot with a KB constant. Formally, let (z abs j 1 , . . . , z abs j l ) be the sequence of slots in z abs and denote them for simplicity as y = (y 1 , . . . , y l ). Our goal is to predict a sequence of KB constants c = (c 1 , . . . , c l ), where each c i is chosen from a candidate set C(y i ) that is determined by the ab- stract token y i according to <ref type="table" target="#tab_3">Table 1</ref> (e.g., if y i is $REL, then C(y i ) is the set of binary relations).</p><p>Our scoring function depends on alignments computed by the aligner. However, because slots are independent in the aligner, we introduce a few global constraints that capture the dependence be- tween different slots. Formally, we wish to find c * that maximizes the following scoring function, which depends on the utterance x, the slot se- quence y, the abstract logical form z abs , the align- ment matrix A and the embedding function φ:</p><formula xml:id="formula_6">arg max c l i=1 s local (c i , y i , x, A, φ) + s global (c, z abs ).</formula><p>We now describe our scoring functions in detail.</p><p>Local Score Because inference is applied only at test time, we have access to the lexicalized ut- terance and not only the abstract one. Thus, the aligner outputs a distribution over words for a slot y (e.g., in <ref type="figure">Figure 1</ref>, $REL DATE aligns with high probability to VERB, which corresponds to the word "published"). Each word, in turn, has dif- ferent semantic similarity to each KB constant in C(y). Intuitively, we would like to assign a KB constant that has high similarity with words the slot is aligned to. Thus, we define s local of a KB constant c i for every slot y i to be its expected se- mantic similarity under the alignment distribution:</p><formula xml:id="formula_7">s local (c i , y i , x, A, φ) = E x∼p align (x abs |y i ) [sim φ (x, c i )] = m j=1 p align (x abs j | y i ) · sim φ (x j , c i ).</formula><p>We define sim φ (x j , c i ) to be the cosine simi- larity between the embedding φ(x j ) and the em- bedding φ(c i ) (scaled to the range <ref type="bibr">[0,</ref><ref type="bibr">1]</ref>), where φ(c i ) is defined to be the average embedding of all words in L(c i ), that is, sim(x j , c i ) =</p><formula xml:id="formula_8">1+cos(φ(x j ),φ(c i )) 2</formula><p>.</p><p>Global Score Utilizing only a local scoring function raises several concerns. First, slots are treated independently and dependencies be- tween slots are ignored, which might result in a final logical form that is globally inconsistent. For example, we could generate the logical form Birthplace.ComputerScience, which is seman- tically dubious. Second, some KB constants do not align to any word in the utterance and appear in the logical form only implicitly. For example, the logical form in <ref type="figure">Figure 1</ref> contains the Field re- lation, however "field" is implicit in the utterance. Therefore, we define exe K (z) to be true iff z exe- cutes against K without errors, and define a global score that prevents assignments c that result in a logical form z such that exe K (z) is false. Moreover, we can use similar constraints to pre- vent logical forms that are highly unlikely accord- ing to our prior knowledge. Specifically, we define once(z) to be true iff each date, named entity, and number in the logical form z appear exactly once. We then define a global score that prevents logical forms in which once(z) is false. Empirically, we find such assignments to be mostly wrong (e.g., <ref type="bibr">Type</ref>.Article (Field.QA Field.QA)).</p><p>Formally, our scoring function is defined as:</p><formula xml:id="formula_9">s global (c, z abs ) = 0 exeK(z abs |c), once(z abs |c) −∞ otherwise,</formula><p>where z abs | c is the result of assigning the KB con- stants c to the slots in z abs .</p><p>Inference Algorithm. While each local scoring function can be efficiently maximized indepen- dently, the global constraints that depend on the entire assignment c make inference more compli- cated. However, because the global scoring func- tion introduces hard constraints, an exact and effi- cient inference algorithm is still possible. Our in- ference algorithm generates solutions one-by-one sorted by the local scoring function only. Then, it checks for each one whether it satisfies the global constraints defined by s global , and stops once a sat- isfying solution is found, which is guaranteed to maximize our scoring function. While in the worst case, this procedure is exponential in the size of c, in practice solutions are found after only a few steps. We also always halt after T steps if a solu- tion has not been found.</p><p>Algorithm 1 describes the details of our in- ference procedure. We define cands to be a data structure that contains l lists of candidate KB constants (a list for each slot), sorted ac- cording to the local scoring function s local in de- scending order. Additionally, getAssign(cands, a) is a function that accesses cands, and retrieves the assignment with indices a. For example, getAssign(cands, {0} l ) retrieves the top scoring local assignment. Last, we define a inc(i) to be the indices a, where a i is incremented by 1.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Algorithm 1 Exact inference algorithm</head><p>Input: cands, T Output: c * -the top scoring assignment 1: horizon ← ∅ Max heap 2: ainit ← {0} l 3: push(horizon, ainit) 4: for t ← 1 to T do 5:</p><p>a ← pop(horizon) 6:</p><p>c ← getAssign(cands, a) 7:</p><p>if sglobal(c, z abs ) = 0 then 8: return c 9:</p><p>for i ← 1 to l do 10:</p><p>push(horizon, a inc(i) ) 11: return N U LL</p><p>The algorithm proceeds as follows. First we initialize a maximum heap horizon into which we will dynamically push candidate assignments. Then, we iteratively pop the best current assign- ment from the heap, and check if it satisfies the global constraints. If it does, we return this assign- ment and stop. Otherwise, we generate the next possible candidates, one from each list (there is no need to add more than one because candidates are sorted). If no satisfying assignment is found af- ter T steps, we return N U LL. It is easy to show that when the algorithm returns an assignment it is guaranteed to be the one that maximizes our global scoring function.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4">Experiments</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.1">Experimental Setup</head><p>Data We evaluated our method on the OVERNIGHT semantic parsing dataset, which contains 13, 682 examples of language utterances paired with logical forms across eight domains, which were chosen to explore diverse types of language phenomena. As described, our approach depends on having linguistic regularities repeat across domains. However two domains contain logical forms that are based on neo-davidsonian semantics for treating events with multiple argu- ments. Since such logical forms are completely absent in six domains, it is not possible for our method to generalize to those in our zero-shot approach. Therefore, we do not evaluate on the BASKETBALL domain, in which 98% of the examples contain such logical forms, and omit all examples (68%) that contain such logical forms in the SOCIAL domain. We evaluated on the same train/test split as <ref type="bibr" target="#b32">Wang et al. (2015)</ref>, using the same accuracy metric, i.e., the proportion of questions for which the denotations of the   predicted and gold logical forms are equal. We additionally used the lexicon L they provided with descriptions for KB constants.</p><p>Evaluated Models We evaluated different mod- els <ref type="table" target="#tab_7">(Table 3)</ref> according to the following two at- tributes. Firstly, whether the model is trained on target domain data (in-domain) or on source do- mains data only (cross-domain). Secondly, we trained the neural semantic parser described in Section 2 over the lexical data representation (lex- ical), or in comparison trained our model over the abstract representation (abstract).</p><p>As CROSSLEX can not generate KB constants unseen during training, we additionally imple- mented CROSSLEXREP. In this model, we added an additional step that modifies the output of CROSSLEX: we replaced a generated KB constant with its most similar KB constant from the target KB that also shares its abstract type.</p><p>Implementation Details In all experiments, for our embedding function φ(·), we used pre-trained GloVe ( <ref type="bibr" target="#b27">Pennington et al., 2014</ref>) vectors with di- mension 300. In a single experiment we consid- ered one domain as the target domain, while other domains were the source domains (and repeated for all domains). For INLEX, CROSSLEX and CROSSLEXREP we used exactly the same exper- imental setup as <ref type="bibr" target="#b18">Jia and Liang (2016)</ref>. For our zero-shot model, we used 20% of the training data as a development set for tuning hyper-parameters. We first tuned parameters for the structure mapper, and used the best setting for tuning the aligner.</p><p>We provide the list of hyper-parameters and their values for our zero-shot framework. Struc- ture mapper: number of epochs (22, using early stopping), hidden unit dimension (300), word vec- tor dimension (100), learning rate (0.1 with SGD optimizer), L2 regularization (0.001). At test time, we used beam search with beam size 5, and then picked the highest-scoring logical form that we could infer an assignment for. Aligner: num- ber of epochs (30, using early stopping), hid- den unit dimension (250), word vector dimen- sion (100), learning rate (0.0002 with Adam op- timizer), dropout rate over hidden states (0.4). For both models, word vectors are updated during training. Inference: we used T = 500 steps, after which we halted.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.2">Results</head><p>We trained all models above and evaluated on the test set for all seven domains. Results show (Ta- ble 2) that ZEROSHOT substantially outperforms other zero-shot baselines. CROSSLEX performs poorly, as it can only generate KB constants seen during training. CROSSLEXREP performs better, as it can generate KB constants from the target domain, however, generating the correct constant usually fails. This highlights the challenge in the zero-shot semantic parsing setting.</p><p>For baselines trained on target domain data, IN- LEX (re-implementation of (Jia and Liang, 2016)) achieved average accuracy of 74.8, which is com- parable to the 74.4 average accuracy they report on our seven domains. Training on the target domain with our method INABSTRACT achieved 58.5% average accuracy, which shows that while the ab- stract representation in our framework loses some valuable information, it is still successful. Impor- tantly, the performance of ZEROSHOT (53.4%) is only slightly lower than INABSTRACT, showing that our model degrades gracefully and generalizes well across domains compared to CROSSLEX.</p><p>Model Ablations We now measure the effect of different components of our framework on deno- tation accuracy. We examined the effect of remov- ing components completely, or replacing them with simpler ones. Thus, the following ablated models can be viewed as additional baselines.  <ref type="table">Table 4</ref>: Development accuracy for all ablations.</p><p>1. -ALIGNER: Replacing the alignment distribu- tion from the aligner with alignment distribu- tion from the decoder of the structure mapper. 2. -INFERENCE: Discarding the global scoring function and maximizing each slot indepen- dently. 3. -ALIGNER,INFERENCE: Discarding both of our main technical contributions. 4. -GLOBALHEUR: Discarding the global infer- ence heuristics (denoted as once(z)). <ref type="table">Table 4</ref> shows that ablating each of the compo- nents hurts performance. Discarding our two main technical contributions results in 31.2% accuracy compared to 54.5% in the full model. Performing inference with global constraints dramatically im- prove performance, showing that using the align- ment model alone results often in incoherent log- ical forms. Our dedicated aligner also improves performance compared to alignments learned by the decoder of the structure mapper. This is pro- nounced without global constraints (a drop from 42.8% to 31.2%), but is less severe when global inference is used (a drop from 54.5% to 48.8%).</p><p>Intrinsic Analysis While we evaluated perfor- mance above via denotation accuracy, we now evaluate our framework's modules with different metrics (on the development set). We evaluated the structure mapper by measuring the exact match of the top candidate in the beam to the gold ab- stract logical form (49.1%). We further evaluated the aligner by measuring alignment accuracy for top candidate alignments, in comparison to the un- supervised aligner output (72.9%).</p><p>Finally, we measured inference performance in the following ways. The fraction of cases where inference succeeded within T steps is 70% (as some predicted abstract logical forms are not valid in terms of their syntax), and the average number of steps in case of success (3.67 steps). In ad- dition, the fraction of correct global assignments given an abstract logical form that exactly matches the gold one is 77.0%. To conclude, results show that the structure mapping problem is harder than slot filling, for which we learned good alignments and performed fast and mostly accurate inference.</p><p>Valuation To estimate the value of our zero- shot framework in terms of target domain exam- ples, we plot a learning curve ( <ref type="figure" target="#fig_2">Figure 5</ref>) that shows development set average accuracy for IN- LEX (trained on target domain data). In compar- ison, ZEROSHOT utilizes no target domain data, thus it is fixed. As <ref type="figure" target="#fig_2">Figure 5</ref> shows, our frame- work's value is equal to 30% of the target do- main training data. In our setting this equals to 400 examples manually-annotated with full log- ical forms. Note that this value is gained every time a semantic parser for a new domain is needed. Moreover, our parser can be used as an initial sys- tem, deployed to begin training from user interac- tion directly.</p><p>Limitations We now outline some of the lim- itations of our approach for zero-shot semantic parsing. We hypothesized that language regular- ities repeat across domains, however as mentioned above, neo-davidsonian semantics occurs mostly in one domain in the OVERNIGHT dataset and thus we were not able to generalize to it. Our parser also obtained low accuracy in BLOCKS. This do- main contains mostly spatial language, different from other domains in OVERNIGHT. Specifically, prepositions, which we did not lexicalize map to relations in the KB (e.g., "below" and "above" map to the relations Below and Above). This shows the challenge involved in decomposing the struc- ture from the lexicon with rules. In addition, since some spatial relations in this domain are seman- tically similar (Length, Width and Height), we found it hard to rank them correctly during infer- ence. This stresses that in our framework, we as- sume KB constants to be sufficiently distinguish- able in the pre-trained embedding space, which is not always the case.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5">Related Work</head><p>While zero-shot executable semantic parsing is still under-explored, some works focused on the open-vocabulary setting which handles unseen re- lations by replacing a formal KB with a probabilis- tic database learned from a text corpus ( <ref type="bibr" target="#b6">Choi et al., 2015;</ref><ref type="bibr" target="#b13">Gardner and Krishnamurthy, 2017)</ref>.</p><p>Our abstract utterance representation is related to other attempts to generate intermediate rep- resentations that improve generalization such as dependency trees <ref type="bibr" target="#b28">(Reddy et al., 2016)</ref>, syntactic CCG parses ( <ref type="bibr" target="#b19">Krishnamurthy and Mitchell, 2015)</ref>, abstract templates ( <ref type="bibr" target="#b0">Abujabal et al., 2017;</ref><ref type="bibr" target="#b14">Goldman et al., 2018)</ref> or masked enitites <ref type="bibr" target="#b8">(Dong and Lapata, 2016)</ref>. Our abstract logical form representation is similar to that <ref type="bibr" target="#b9">Dong and Lapata (2018)</ref> used in to guide the decoding of the full logical form. The main difference with our work is that we focus on a comprehensive abstract representation tailored for zero-shot semantic parsing.</p><p>It is worth mentioning other work that inspected various aspects of zero-shot parsing. <ref type="bibr" target="#b3">Bapna et al. (2017)</ref> focused on frame semantic parsing, and as- sumed that relations appear across different do- mains to learn a better mapping in the target do- main. Also in frame semantic parsing, <ref type="bibr" target="#b12">Ferreira et al. (2015)</ref> utilized word embeddings to map words to unseen KB relations. Finally, Lake and Baroni (2017) inspected whether neural semantic parsers can handle types of compositionality that were unseen during training. The main difference between their work and ours is that we focus on a scenario where a compositional logical form is generated, but the target KB constants do not ap- pear in any of the source domains.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6">Conclusion</head><p>In this paper we address the challenge of zero- shot semantic parsing. We introduce a model that can parse utterances in unseen domains by decou- pling structure mapping from lexicon mapping, and demonstrate its success on 7 domains from the OVERNIGHT dataset.</p><p>In future work, we would like to automatically learn a delexicalizer from data, tackle zero-shot parsing when the structure distribution in the tar- get domain is very different from the source do- mains, and apply our framework to datasets where only denotations are provided.</p></div><figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_0"><head></head><label></label><figDesc>Figure 3: Examples in different domains (CALENDAR and RECIPES) in their original and abstract representations. A similar structural regularity (a comparative structure) maps to an identical abstract logical form.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_1"><head>Figure 4 :</head><label>4</label><figDesc>Figure 4: The aligner model. Alignments are derived by comparing the slot hidden state against all utterance hidden states.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_2"><head>Figure 5 :</head><label>5</label><figDesc>Figure 5: Learning curve for INLEX, compared to ZEROSHOT average performance.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_0" validated="false"><head>). What QA related papers were published during 2018? What ENT ADJ NOUN were VERB during DATE?</head><label></label><figDesc></figDesc><table>$REL.$ENT ⊓ Type.$ENT_TYPE ⊓ $REL_DATE.$DATE 
+
+(1) 
+
+Delex. 
+
+(2) Map structure 
+
+(4) Infer 
+
+(3) Align 
+
+… 
+… 
+
+c 1 
+s local (related,c 1 ) 
+
+Author 
+
+0.57 
+
+Field 
+
+0.5 
+
+Venue 
+
+0.34 
+
+c 3 
+s local (papers,c 3 ) 
+
+Article 
+
+0.88 
+
+Venue 
+
+0.43 
+
+Person 
+
+0.15 
+
+Field.QA ⊓ Type.Article ⊓ PubYear.2018 
+
+</table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_1" validated="false"><head>argmax(Type.Rest,Rating)} {"Housing in London", Type.Housing⊓Location.London} …</head><label></label><figDesc></figDesc><table>Unsupervised aligner 
+Delexicalizer 
+
+Aligner learner 
+
+Training examples from D source domains 
+
+Noisy alignments 
+
+Restaurant with best rating 
+
+argmax(Type.Rest,Rating) 
+
+… 
+
+{NOUN with best NOUN, 
+argmax(Type.$ENT_TYPE,$REL)} 
+
+… 
+
+Abstract examples 
+
+Structure mapper learner 
+
+Aligner 
+Structure mapper 
+
+{"Restaurant with best rating", … 
+
+… 
+… 
+
+Figure 2: Training flow. Examples in source domains 
+are delexicalized. Abstract examples are used to train 
+both the structure mapper learner and aligner learner, 
+where the aligner learner uses noisy alignments as la-
+bels. 
+
+et al. (2015). Finally, we assume a pre-trained, 
+static, embedding function φ(w) ∈ R f for every 
+word w, used to measure cross-domain lexical se-
+mantic similarity. Our goal is to train a seman-
+tic parser that maps a new utterance x to the cor-
+rect logical form z from a new domain d new given 
+K dnew . 
+</table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_3" validated="false"><head>Table 1 :</head><label>1</label><figDesc></figDesc><table>Categories of content words and KB constants, 
+and their corresponding abstract type notation. 
+
+</table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_4" validated="false"><head>) .</head><label>.</label><figDesc></figDesc><table>NUMBER 
+
+what 
+has 
+Type 
+
+$ENT_TYPE 
+
+. 
+
+NOUN 
+
+… 
+… 
+
+… 
+… 
+
+Alignment 
+distribution 
+
+Abstract utterance 
+encoder 
+Abstract logical 
+form encoder 
+
+</table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_6" validated="false"><head>Table 2 :</head><label>2</label><figDesc></figDesc><table>Test accuracy for all models on all domains. 
+
+In-domain 
+Cross-domain 
+Lexical 
+INLEX 
+CROSSLEX 
+Abstract INABSTRACT ZEROSHOT 
+
+</table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_7" validated="false"><head>Table 3 : Evaluated models.</head><label>3</label><figDesc></figDesc><table></table></figure>
+		</body>
+		<back>
+
+			<div type="acknowledgement">
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Acknowledgments</head><p>We thank Kyle Richardson, Vivek Srikumar and the anonymous reviewers for their constructive feedback. This work was completed in partial fulfillment for the PhD degree of the first author. Herzig was supported by a Google PhD fellow-ship. This research was partially supported by The Israel Science Foundation grant 942/16 and The Blavatnik Computer Science Research Fund.</p></div>
+			</div>
+
+			<div type="references">
+
+				<listBibl>
+
+<biblStruct xml:id="b0">
+	<analytic>
+		<title level="a" type="main">Automated template generation for question answering over knowledge graphs</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Abdalghani</forename><surname>Abujabal</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Mohamed</forename><surname>Yahya</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Mirek</forename><surname>Riedewald</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Gerhard</forename><surname>Weikum</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 26th international conference on world wide web</title>
+		<meeting>the 26th international conference on world wide web</meeting>
+		<imprint>
+			<date type="published" when="2017" />
+			<biblScope unit="page" from="1191" to="1200" />
+		</imprint>
+	</monogr>
+	<note>International World Wide Web Conferences Steering Committee</note>
+</biblStruct>
+
+<biblStruct xml:id="b1">
+	<analytic>
+		<title level="a" type="main">Weakly supervised learning of semantic parsers for mapping instructions to actions</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Y</forename><surname>Artzi</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">L</forename><surname>Zettlemoyer</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Transactions of the Association for Computational Linguistics (TACL)</title>
+		<imprint>
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="49" to="62" />
+			<date type="published" when="2013" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b2">
+	<analytic>
+		<title level="a" type="main">Neural machine translation by jointly learning to align and translate</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">D</forename><surname>Bahdanau</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">K</forename><surname>Cho</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Y</forename><surname>Bengio</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">International Conference on Learning Representations (ICLR)</title>
+		<imprint>
+			<date type="published" when="2015" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b3">
+	<monogr>
+		<title level="m" type="main">Towards zero shot frame semantic parsing for domain scaling</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ankur</forename><surname>Bapna</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Gokhan</forename><surname>Tur</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Dilek</forename><surname>Hakkani-Tur</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Larry</forename><surname>Heck</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2017" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b4">
+	<analytic>
+		<title level="a" type="main">Semantic parsing via paraphrasing</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">J</forename><surname>Berant</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">P</forename><surname>Liang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Association for Computational Linguistics (ACL)</title>
+		<imprint>
+			<date type="published" when="2014" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b5">
+	<analytic>
+		<title level="a" type="main">Imitation learning of agenda-based semantic parsers</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">J</forename><surname>Berant</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">P</forename><surname>Liang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Transactions of the Association for Computational Linguistics (TACL)</title>
+		<imprint>
+			<biblScope unit="volume">3</biblScope>
+			<biblScope unit="page" from="545" to="558" />
+			<date type="published" when="2015" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b6">
+	<analytic>
+		<title level="a" type="main">Scalable semantic parsing with partial ontologies</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Eunsol</forename><surname>Choi</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Tom</forename><surname>Kwiatkowski</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Luke</forename><surname>Zettlemoyer</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 53rd Annual Meeting of the Association for Computational Linguistics and the 7th International Joint Conference on Natural Language Processing</title>
+		<meeting>the 53rd Annual Meeting of the Association for Computational Linguistics and the 7th International Joint Conference on Natural Language Processing</meeting>
+		<imprint>
+			<date type="published" when="2015" />
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="1311" to="1320" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b7">
+	<analytic>
+		<title level="a" type="main">Driving semantic parsing from the world&apos;s response</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">J</forename><surname>Clarke</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">D</forename><surname>Goldwasser</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">M</forename><surname>Chang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">D</forename><surname>Roth</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Computational Natural Language Learning (CoNLL)</title>
+		<imprint>
+			<date type="published" when="2010" />
+			<biblScope unit="page" from="18" to="27" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b8">
+	<analytic>
+		<title level="a" type="main">Language to logical form with neural attention</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">L</forename><surname>Dong</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">M</forename><surname>Lapata</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Association for Computational Linguistics (ACL)</title>
+		<imprint>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b9">
+	<analytic>
+		<title level="a" type="main">Coarse-to-fine decoding for neural semantic parsing</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Li</forename><surname>Dong</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Mirella</forename><surname>Lapata</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 56th Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 56th Annual Meeting of the Association for Computational Linguistics</meeting>
+		<imprint>
+			<publisher>Long Papers</publisher>
+			<date type="published" when="2018" />
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="731" to="742" />
+		</imprint>
+	</monogr>
+	<note>Association for Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b10">
+	<analytic>
+		<title level="a" type="main">A simple, fast, and effective reparameterization of ibm model 2</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Chris</forename><surname>Dyer</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Victor</forename><surname>Chahuneau</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Noah</forename><forename type="middle">A</forename><surname>Smith</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2013 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies</title>
+		<meeting>the 2013 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies<address><addrLine>Atlanta, Georgia</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2013" />
+			<biblScope unit="page" from="644" to="648" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b11">
+	<analytic>
+		<title level="a" type="main">Transfer learning for neural semantic parsing</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Xing</forename><surname>Fan</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Emilio</forename><surname>Monti</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Lambert</forename><surname>Mathias</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Markus</forename><surname>Dreyer</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2nd Workshop on Representation Learning for NLP</title>
+		<meeting>the 2nd Workshop on Representation Learning for NLP<address><addrLine>Vancouver, Canada</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2017" />
+			<biblScope unit="page" from="48" to="56" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b12">
+	<analytic>
+		<title level="a" type="main">Zero-shot semantic parser for spoken language understanding</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Emmanuel</forename><surname>Ferreira</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Bassam</forename><surname>Jabaian</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Fabrice</forename><surname>Lefèvre</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Sixteenth Annual Conference of the International Speech Communication Association</title>
+		<imprint>
+			<date type="published" when="2015" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b13">
+	<analytic>
+		<title level="a" type="main">Openvocabulary semantic parsing with both distributional statistics and formal knowledge</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Matt</forename><surname>Gardner</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jayant</forename><surname>Krishnamurthy</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">AAAI</title>
+		<imprint>
+			<date type="published" when="2017" />
+			<biblScope unit="page" from="3195" to="3201" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b14">
+	<analytic>
+		<title level="a" type="main">Weakly supervised semantic parsing with abstract examples</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Omer</forename><surname>Goldman</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Veronica</forename><surname>Latcinnik</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ehud</forename><surname>Nave</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Amir</forename><surname>Globerson</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jonathan</forename><surname>Berant</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 56th Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 56th Annual Meeting of the Association for Computational Linguistics</meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2018" />
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="1809" to="1819" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b15">
+	<analytic>
+		<title level="a" type="main">Neural semantic parsing over multiple knowledge-bases</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jonathan</forename><surname>Herzig</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jonathan</forename><surname>Berant</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 55th Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 55th Annual Meeting of the Association for Computational Linguistics</meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2017" />
+			<biblScope unit="volume">2</biblScope>
+			<biblScope unit="page" from="623" to="628" />
+		</imprint>
+	</monogr>
+	<note>Short Papers)</note>
+</biblStruct>
+
+<biblStruct xml:id="b16">
+	<analytic>
+		<title level="a" type="main">Long shortterm memory</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">S</forename><surname>Hochreiter</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">J</forename><surname>Schmidhuber</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Neural Computation</title>
+		<imprint>
+			<biblScope unit="volume">9</biblScope>
+			<biblScope unit="issue">8</biblScope>
+			<biblScope unit="page" from="1735" to="1780" />
+			<date type="published" when="1997" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b17">
+	<analytic>
+		<title level="a" type="main">Learning a neural semantic parser from user feedback</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Srinivasan</forename><surname>Iyer</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ioannis</forename><surname>Konstas</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Alvin</forename><surname>Cheung</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jayant</forename><surname>Krishnamurthy</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Luke</forename><surname>Zettlemoyer</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 55th Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 55th Annual Meeting of the Association for Computational Linguistics<address><addrLine>Vancouver, Canada</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2017" />
+			<biblScope unit="page" from="963" to="973" />
+		</imprint>
+	</monogr>
+	<note>Long Papers)</note>
+</biblStruct>
+
+<biblStruct xml:id="b18">
+	<analytic>
+		<title level="a" type="main">Data recombination for neural semantic parsing</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">R</forename><surname>Jia</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">P</forename><surname>Liang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Association for Computational Linguistics (ACL)</title>
+		<imprint>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b19">
+	<analytic>
+		<title level="a" type="main">Learning a compositional semantics for freebase with an open predicate vocabulary</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jayant</forename><surname>Krishnamurthy</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Tom</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Mitchell</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Transactions of the Association for Computational Linguistics</title>
+		<imprint>
+			<biblScope unit="volume">3</biblScope>
+			<biblScope unit="page" from="257" to="270" />
+			<date type="published" when="2015" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b20">
+	<analytic>
+		<title level="a" type="main">Scaling semantic parsers with on-the-fly ontology matching</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">T</forename><surname>Kwiatkowski</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">E</forename><surname>Choi</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Y</forename><surname>Artzi</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">L</forename><surname>Zettlemoyer</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Empirical Methods in Natural Language Processing (EMNLP)</title>
+		<imprint>
+			<date type="published" when="2013" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b21">
+	<analytic>
+		<title level="a" type="main">Lexical generalization in CCG grammar induction for semantic parsing</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">T</forename><surname>Kwiatkowski</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">L</forename><surname>Zettlemoyer</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">S</forename><surname>Goldwater</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">M</forename><surname>Steedman</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Empirical Methods in Natural Language Processing (EMNLP)</title>
+		<imprint>
+			<date type="published" when="2011" />
+			<biblScope unit="page" from="1512" to="1523" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b22">
+	<monogr>
+		<title level="m" type="main">Still not systematic after all these years: On the compositional skills of sequence-to-sequence recurrent networks</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">M</forename><surname>Brenden</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Marco</forename><surname>Lake</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Baroni</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1711.00350</idno>
+		<imprint>
+			<date type="published" when="2017" />
+		</imprint>
+	</monogr>
+<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b23">
+	<monogr>
+				<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">P</forename><surname>Liang</surname></persName>
+		</author>
+		<title level="m">Lambda dependency-based compositional semantics. arXiv</title>
+		<imprint>
+			<date type="published" when="2013" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b24">
+	<analytic>
+		<title level="a" type="main">Learning dependency-based compositional semantics</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">P</forename><surname>Liang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">M</forename><forename type="middle">I</forename><surname>Jordan</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">D</forename><surname>Klein</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Association for Computational Linguistics (ACL)</title>
+		<imprint>
+			<date type="published" when="2011" />
+			<biblScope unit="page" from="590" to="599" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b25">
+	<analytic>
+		<title level="a" type="main">Effective approaches to attention-based neural machine translation</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">M</forename><surname>Luong</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">H</forename><surname>Pham</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">C</forename><forename type="middle">D</forename><surname>Manning</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Empirical Methods in Natural Language Processing (EMNLP)</title>
+		<imprint>
+			<date type="published" when="2015" />
+			<biblScope unit="page" from="1412" to="1421" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b26">
+	<analytic>
+		<title level="a" type="main">The stanford coreNLP natural language processing toolkit</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">C</forename><forename type="middle">D</forename><surname>Manning</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">M</forename><surname>Surdeanu</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">J</forename><surname>Bauer</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">J</forename><surname>Finkel</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">S</forename><forename type="middle">J</forename><surname>Bethard</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">D</forename><surname>Mcclosky</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">ACL system demonstrations</title>
+		<imprint>
+			<date type="published" when="2014" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b27">
+	<analytic>
+		<title level="a" type="main">Glove: Global vectors for word representation</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">J</forename><surname>Pennington</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">R</forename><surname>Socher</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">C</forename><forename type="middle">D</forename><surname>Manning</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Empirical Methods in Natural Language Processing (EMNLP)</title>
+		<imprint>
+			<date type="published" when="2014" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b28">
+	<analytic>
+		<title level="a" type="main">Transforming dependency structures to logical forms for semantic parsing</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Siva</forename><surname>Reddy</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Oscar</forename><surname>Täckström</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Michael</forename><surname>Collins</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Tom</forename><surname>Kwiatkowski</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Dipanjan</forename><surname>Das</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Mark</forename><surname>Steedman</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Mirella</forename><surname>Lapata</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Transactions of the Association for Computational Linguistics</title>
+		<imprint>
+			<biblScope unit="volume">4</biblScope>
+			<biblScope unit="page" from="127" to="140" />
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b29">
+	<analytic>
+		<title level="a" type="main">Polyglot semantic parsing in apis</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kyle</forename><surname>Richardson</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jonathan</forename><surname>Berant</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jonas</forename><surname>Kuhn</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2018 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies</title>
+		<meeting>the 2018 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies</meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2018" />
+			<biblScope unit="page" from="720" to="730" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b30">
+	<analytic>
+		<title level="a" type="main">Cross-domain semantic parsing via paraphrasing</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yu</forename><surname>Su</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Xifeng</forename><surname>Yan</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2017 Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>the 2017 Conference on Empirical Methods in Natural Language Processing<address><addrLine>Copenhagen, Denmark</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2017" />
+			<biblScope unit="page" from="1235" to="1246" />
+		</imprint>
+	</monogr>
+	<note>Association for Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b31">
+	<analytic>
+		<title level="a" type="main">Sequence to sequence learning with neural networks</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">I</forename><surname>Sutskever</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">O</forename><surname>Vinyals</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Q</forename><forename type="middle">V</forename><surname>Le</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Advances in Neural Information Processing Systems (NIPS)</title>
+		<imprint>
+			<date type="published" when="2014" />
+			<biblScope unit="page" from="3104" to="3112" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b32">
+	<analytic>
+		<title level="a" type="main">Building a semantic parser overnight</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Y</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">J</forename><surname>Berant</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">P</forename><surname>Liang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Association for Computational Linguistics (ACL)</title>
+		<imprint>
+			<date type="published" when="2015" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b33">
+	<analytic>
+		<title level="a" type="main">Learning to parse database queries using inductive logic programming</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">M</forename><surname>Zelle</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">R</forename><forename type="middle">J</forename><surname>Mooney</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Association for the Advancement of Artificial Intelligence (AAAI)</title>
+		<imprint>
+			<date type="published" when="1996" />
+			<biblScope unit="page" from="1050" to="1055" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b34">
+	<analytic>
+		<title level="a" type="main">Learning to map sentences to logical form: Structured classification with probabilistic categorial grammars</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">L</forename><forename type="middle">S</forename><surname>Zettlemoyer</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">M</forename><surname>Collins</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Uncertainty in Artificial Intelligence (UAI)</title>
+		<imprint>
+			<date type="published" when="2005" />
+			<biblScope unit="page" from="658" to="666" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+				</listBibl>
+			</div>
+		</back>
+	</text>
+</TEI>

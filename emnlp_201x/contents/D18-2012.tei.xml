@@ -1,0 +1,364 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<TEI xmlns="http://www.tei-c.org/ns/1.0" 
+xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+xsi:schemaLocation="http://www.tei-c.org/ns/1.0 /home/ana/installs/grobid/grobid-0.5.1/grobid-home/schemas/xsd/Grobid.xsd"
+ xmlns:xlink="http://www.w3.org/1999/xlink">
+	<teiHeader xml:lang="en">
+		<encodingDesc>
+			<appInfo>
+				<application version="0.5.1-SNAPSHOT" ident="GROBID" when="2019-04-18T13:01+0000">
+					<ref target="https://github.com/kermitt2/grobid">GROBID - A machine learning software for extracting information from scholarly documents</ref>
+				</application>
+			</appInfo>
+		</encodingDesc>
+		<fileDesc>
+			<titleStmt>
+				<title level="a" type="main">SentencePiece: A simple and language independent subword tokenizer and detokenizer for Neural Text Processing</title>
+			</titleStmt>
+			<publicationStmt>
+				<publisher/>
+				<availability status="unknown"><licence/></availability>
+				<date>October 31-November 4, 2018</date>
+			</publicationStmt>
+			<sourceDesc>
+				<biblStruct>
+					<analytic>
+						<author>
+							<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Taku</forename><surname>Kudo</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="institution">Google, Inc</orgName>
+							</affiliation>
+						</author>
+						<author>
+							<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">John</forename><surname>Richardson</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="institution">Google, Inc</orgName>
+							</affiliation>
+						</author>
+						<title level="a" type="main">SentencePiece: A simple and language independent subword tokenizer and detokenizer for Neural Text Processing</title>
+					</analytic>
+					<monogr>
+						<title level="m">Proceedings of the 2018 Conference on Empirical Methods in Natural Language Processing (System Demonstrations)</title>
+						<meeting>the 2018 Conference on Empirical Methods in Natural Language Processing (System Demonstrations) <address><addrLine>Brussels; Belgium</addrLine></address>
+						</meeting>
+						<imprint>
+							<biblScope unit="page" from="66" to="71"/>
+							<date type="published">October 31-November 4, 2018</date>
+						</imprint>
+					</monogr>
+					<note>66</note>
+				</biblStruct>
+			</sourceDesc>
+		</fileDesc>
+		<profileDesc>
+			<abstract>
+				<p>This paper describes SentencePiece, a language-independent subword tokenizer and detokenizer designed for Neural-based text processing, including Neural Machine Translation. It provides open-source C++ and Python implementations for subword units. While existing subword segmentation tools assume that the input is pre-tokenized into word sequences, SentencePiece can train subword models directly from raw sentences, which allows us to make a purely end-to-end and language independent system. We perform a validation experiment of NMT on English-Japanese machine translation, and find that it is possible to achieve comparable accuracy to direct subword training from raw sentences. We also compare the performance of subword training and segmentation with various configurations. SentencePiece is available under the Apache 2 license at https://github.com/google/sentencepiece.</p>
+			</abstract>
+		</profileDesc>
+	</teiHeader>
+	<text xml:lang="en">
+		<body>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="1">Introduction</head><p>Deep neural networks are demonstrating a large impact on Natural Language Processing. Neural machine translation (NMT) ( <ref type="bibr">Bahdanau et al., 2014;</ref><ref type="bibr">Luong et al., 2015;</ref><ref type="bibr" target="#b6">Wu et al., 2016;</ref><ref type="bibr" target="#b4">Vaswani et al., 2017</ref>) has especially gained in- creasing popularity, as it can leverage neural networks to directly perform translations with a simple end-to-end architecture. NMT has shown remarkable results in several shared tasks <ref type="bibr">(Denkowski and Neubig, 2017;</ref><ref type="bibr">Nakazawa et al., 2017)</ref>, and its effective approach has had a strong influence on other related NLP tasks such as dialog generation <ref type="bibr" target="#b5">(Vinyals and Le, 2015)</ref> and automatic summarization <ref type="bibr" target="#b2">(Rush et al., 2015)</ref>.</p><p>Although NMT can potentially perform end-to- end translation, many NMT systems are still re- lying on language-dependent pre-and postproces- sors, which have been used in traditional statisti- cal machine translation (SMT) systems. Moses 1 , a de-facto standard toolkit for SMT, implements a reasonably useful pre-and postprocessor. How- ever, it is built upon hand-crafted and language de- pendent rules whose effectiveness for NMT has not been proven. In addition, these tools are mainly designed for European languages where words are segmented with whitespaces. To train NMT systems for non-segmented languages such as Chinese, Korean and Japanese, we need to run word segmenters independently. Such language- dependent processing also makes it hard to train multilingual NMT models <ref type="bibr">(Johnson et al., 2016)</ref>, as we have to carefully manage the configurations of pre-and postprocessors per language, while the internal deep neural architectures are language- independent.</p><p>As NMT approaches are standardized and mov- ing forward to more language-agnostic architec- tures, it is becoming more important for the NLP community to develop a simple, efficient, repro- ducible and language independent pre-and post- processor that can easily be integrated into Neural Network-based NLP systems, including NMT.</p><p>In this demo paper, we describe SentencePiece, a simple and language independent text tokenizer and detokenizer mainly for Neural Network- based text generation systems where the size of vocabulary is predetermined prior to the Neu- ral model training. SentencePiece implements two subword segmentation algorithms, byte-pair- encoding (BPE) ( <ref type="bibr" target="#b3">Sennrich et al., 2016</ref>) and uni- gram language model <ref type="bibr">(Kudo, 2018)</ref>, with the ex- tension of direct training from raw sentences. Sen- tencePiece enables building a purely end-to-end system that does not depend on any language- specific processing.  </p><formula xml:id="formula_0">% spm_train −−input=data/input.txt −−model_prefix=spm −−vocab_size=1000 % echo "Hello world." | spm_encode −−model=spm.model</formula></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2">System Overview</head><p>SentencePiece comprises four main components: Normalizer, Trainer, Encoder, and Decoder. Normalizer is a module to normalize semantically- equivalent Unicode characters into canonical forms. Trainer trains the subword segmentation model from the normalized corpus. We specify a type of subword model as the parameter of Trainer. Encoder internally executes Normalizer to nor- malize the input text and tokenizes it into a sub- word sequence with the subword model trained by Trainer. Decoder converts the subword sequence into the normalized text.</p><p>The roles of Encoder and Decoder correspond to preprocessing (tokenization) and postprocess- ing (detokenization) respectively. However, we call them encoding and decoding as SentencePiece manages the vocabulary to id mapping and can di- rectly convert the text into an id sequence and vice versa. Direct encoding and decoding to/from id sequences are useful for most of NMT systems as their input and output are id sequences. <ref type="figure" target="#fig_1">Figure 1</ref> presents end-to-end example of SentencePiece training (spm_train), encoding (spm_encode), and decoding (spm_decode). We can see that the input text is reversibly converted through spm_encode and spm_decode.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3">Library Design</head><p>This section describes the design and implementa- tion details of SentencePiece with command line and code snippets.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.1">Lossless Tokenization</head><p>The following raw and tokenized sentences are an example of language-dependent preprocessing.</p><p>• Raw text: Hello world.</p><p>• Tokenized: <ref type="bibr">[Hello]</ref> [world] <ref type="bibr">[.]</ref> One observation is that the raw text and tokenized sequence are not reversibly convertible. The in- formation that no space exists between "world" and "." is not kept in the tokenized sequence. Detokenization, a process to restore the original raw input from the tokenized sequence, has to be language-dependent due to these irreversible oper- ations. For example, while the detokenizer usually puts whitespaces between the primitive tokens in most European languages, no spaces are required in Japanese and Chinese.</p><p>• Raw text: (Hello world.)</p><formula xml:id="formula_1">• Tokenized: [] [] []</formula><p>Such language specific processing has usually been implemented in manually crafted rules, which are expensive to write and maintain.</p><p>SentencePiece implements the Decoder as an inverse operation of Encoder, i.e.,</p><formula xml:id="formula_2">Decode(Encode(Normalize(text))) = Normalize(text).</formula><p>We call this design lossless tokenization, in which all the information to reproduce the normalized text is preserved in the encoder's output. The ba- sic idea of lossless tokenization is to treat the in- put text just as a sequence of Unicode characters. Even whitespace is handled as a normal symbol. For the sake of clarity, SentencePiece first escapes the whitespace with a meta symbol _ (U+2581), and tokenizes the input into an arbitrary subword sequence, for example:</p><formula xml:id="formula_3">• Raw text: Hello_world. • Tokenized: [Hello] [_wor] [ld] [.]</formula><p>As the whitespace is preserved in the tokenized text, we can detokenize the tokens without any am- biguities with the following Python code. It should be noted that subword-nmt 2 adopts a different representation for subword units. It fo- cuses on how the word is segmented into subwords and uses @@ as an intra-word boundary marker.</p><formula xml:id="formula_4">• Tokenized: [Hello] [wor] [@@ld] [@@.]</formula><p>This representation can not always perform loss- less tokenization, as an ambiguity remains in the treatment of whitespaces. More specifically, it is not possible to encode consecutive whitespaces with this representation.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.2">Efficient subword training and segmentation</head><p>Existing subword segmentation tools train sub- word models from pre-tokenized sentences. Such pre-tokenization was introduced for an efficient subword training ( <ref type="bibr" target="#b3">Sennrich et al., 2016</ref>). However, we can not always assume that pre-tokenization is available, especially for non-segmented languages.</p><p>In addition, pre- tokenization makes it difficult to perform lossless tokenization.</p><p>SentencePiece employs several speed-up tech- niques both for training and segmentation to make lossless tokenization with a large amount of raw data. For example, given an input sentence (or word) of length N , BPE segmentation requires O(N 2 ) computational cost when we naively scan the pair of symbols in every iteration. Sentence- Piece adopts an O(N log(N )) algorithm in which the merged symbols are managed by a binary heap (priority queue). In addition, the training and seg- mentation complexities of unigram language mod- els are linear to the size of input data.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.3">Vocabulary id management</head><p>SentencePiece manages the vocabulary to id map- ping to directly convert the input text into an id sequence and vice versa. The size of vocabulary is specified with the --vocab_size=&lt;size&gt; flag of spm_train. While subword-nmt spec- ifies the number of merge operations, Sentence- Piece specifies the final size of vocabulary, as the number of merge operations is a BPE specific pa- rameter and can not be applicable to other segmen- tation algorithms, e.g., unigram language model <ref type="bibr">(Kudo, 2018)</ref>.</p><p>SentencePiece reserves vocabulary ids for special meta symbols, e.g., unknown symbol (&lt;unk&gt;), BOS (&lt;s&gt;), EOS (&lt;/s&gt;) and padding (&lt;pad&gt;). Their actual ids are configured with command line flags. We can also define custom meta symbols to encode contextual information as virtual tokens. Examples include the language- indicators, &lt;2ja&gt; and &lt;2de&gt;, for multilingual U+41 U+302 U+300 &lt;tab&gt; U+1EA6 U+41 U+302 U+301 &lt;tab&gt; U+1EA4 ... </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.4">Customizable character normalization</head><p>Character normalization is an important prepro- cessing step for handling real world text, which consists of semantically-equivalent Unicode char- acters. For example, Japanese fullwidth Latin characters can be normalized into ASCII Latin characters. Lowercasing is also an effective nor- malization, depending on the application. Character normalization has usually been im- plemented as hand-crafted rules. Recently, Uni- code standard Normalization Forms, e.g., NFC and NFKC, have been widely used in many NLP applications because of their better reproducibility and strong support as Unicode standard.</p><p>By default, SentencePiece normalizes the in- put text with the Unicode NFKC normalization. The normalization rules are specified with the --normalization_rule_name=nfkc flag of spm_train. The normalization in Senten- cepiece is implemented with string-to-string map- ping and leftmost longest matching. The normal- ization rules are compiled into a finite state trans- ducer (Aho-Corasick automaton) to perform an ef- ficient normalization <ref type="bibr">3</ref> .</p><p>SentencePiece supports custom normalization rules defined as a TSV file. <ref type="figure" target="#fig_3">Figure 2</ref> shows an example TSV file. In this example, the Unicode sequence [U+41 U+302 U+300] is converted into U+1EA6 4 . When there are ambiguities in the conversion, the longest rule is applied. User defined TSV files are specified with the --normalization_rule_tsv=&lt;file&gt; flag of spm_train. Task-specific rules can be defined by extending the default NFKC rules provided as a TSV file in SentencePiece package.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.5">Self-contained models</head><p>Recently, many researchers have provided pre- trained NMT models for better reproduciblity of their experimental results. However, it is not al- ways stated how the data was preprocessed. <ref type="bibr" target="#b1">(Post, 2018)</ref> reported that subtle differences in prepro- cessing schemes can widely change BLEU scores. Even using the Moses toolkit, it is not guaran- teed to reproduce the same settings unless the con- figurations of Moses (e.g., version and command line flags) are clearly specified. Strictly speaking, NFKC normalization may yield different results depending on the Unicode version.</p><p>Ideally, all the rules and parameters for prepro- cessing must be embedded into the model file in a self-contained manner so that we can reproduce the same experimental setting as long as we are using the same model file.</p><p>The SentencePiece model is designed to be purely self-contained. The model file includes not only the vocabulary and segmentation parameters, but also the pre-compiled finite state transducer for character normalization. The behavior of Senten- cePiece is determined only by the model file and has no external dependencies. This design guaran- tees a perfect reproducibility as well as allowing to distribute the SentencePiece model file as part of an NMT model. In addition, the developers of SentencePiece can refine the (default) normaliza- tion rules without having to worry about breaking existing preprocessing behaviors.</p><p>The SentencePiece model is stored as a binary wire format Protocol buffer 5 , a platform neutral and extensible mechanism for serializing struc- tured data. Protocol buffers help to safely serialize structured data while keeping backward compati- bility as well as extensibility.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.6">Library API for on-the-fly processing</head><p>Text preprocessing is usually considered as offline processing. Prior to the main NMT training, raw input is preprocessed and converted into an id se- quence with a standalone preprocessor.</p><p>Such off-line preprocessing has two problems. First, standalone tools are not directly integrated into the user-facing NMT applications which need to preprocess user input on-the-fly. Second, off- line preprocessing makes it hard to employ sub- sentence level data augmentation and noise in- jection, which aim at improving the accuracy and robustness of the NMT models. There are several studies to inject noise to input sen-#include &lt;sentencepiece_processor.h&gt; #include &lt;sentencepiece_trainer.h&gt; SentencePieceTrainer::Train( "--input=input.txt " "--model_prefix=spm " "--vocab_size=1000"); tences by randomly changing the internal repre- sentation of sentences. <ref type="bibr">(Kudo, 2018)</ref> proposes a subword regularization that randomly changes the subword segmentation during NMT training. ( <ref type="bibr">Lample et al., 2017;</ref><ref type="bibr">Artetxe et al., 2017)</ref> inde- pendently proposed a denoising autoencoder in the context of sequence-to-sequence learning, where they randomly alter the word order of the input sentence and the model is trained to reconstruct the original sentence. It is hard to emulate this dy- namic sampling and noise injection only with the off-line processing.</p><p>SentencePiece not only provides a standalone command line tool for off-line preprocessing but supports a C++, Python and Tensorflow library API for on-the-fly processing, which can easily be integrated into existing NMT frameworks. <ref type="figure">Fig- ures 3, 4</ref> and 5 show example usages of the C++, Python and TensorFlow API 6 . <ref type="figure" target="#fig_6">Figure 6</ref> presents example Python code for subword regularization where one subword sequence is sampled accord- ing to the unigram language model. We can find that the text "New York" is tokenized differently import tensorflow as tf import tf_sentencepiece as tfs model = tf.gfile.GFile <ref type="bibr">('spm.model', 'rb')</ref>.read() input_text = tf.placeholder(tf.string, <ref type="bibr">[None]</ref> &gt;&gt;&gt; sp.Load('spm.model') &gt;&gt;&gt; for n in range <ref type="formula">(5)</ref>: </p><formula xml:id="formula_5">... sp.SampleEncodeAsPieces('New York', −1, 0.1) ['_', 'N', 'e', 'w', '_York'] ['_', 'New', '_York'] ['_', 'New', '_Y', 'o', 'r', 'k'] ['_', 'New', '_York'] ['_', 'New', '_York']</formula></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4">Experiments</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.1">Comparison of different preprocessing</head><p>We validated the performance of the different preprocessing on English-Japanese translation of Wikipedia articles, as specified by the Kyoto Free Translation Task (KFTT) <ref type="bibr">7</ref> . The training, develop- ment and test data of KFTT consist of 440k, 1166 and 1160 sentences respectively. We used GNMT ( <ref type="bibr" target="#b6">Wu et al., 2016)</ref> as the imple- mentation of the NMT system in our experiments. We generally followed the settings and training procedure described in <ref type="figure" target="#fig_1">(Wu et al., 2016)</ref>, however, we changed the node and layer size of LSTM to be 512 and 6 respectively.</p><p>A word model is used as a baseline system. We compared to SentencePiece (unigram lan- guage model) with and without pre-tokenization. SentencePiece with pre-tokenization is essentially the same as the common NMT configuration with subword-nmt. SentencePiece without pre- tokenization directly trains the subword model from raw sentences and does not use any exter- nal resources. We used the Moses tokenizer <ref type="bibr">8</ref>  KyTea 9 for English and Japanese pre-tokenization respectively. The same tokenizers are applied to the word model. We used the case-sensitive BLEU score ( <ref type="bibr" target="#b0">Papineni et al., 2002</ref>) as an evaluation metric. As the output sentences are not segmented in Japanese, we segmented them with KyTea for be- fore calculating BLEU scores. <ref type="table">Table 1</ref> shows the experimental results. First, as can be seen in the table, subword segmen- tations with SentencePiece consitently improve the BLEU scores compared to the word model. This result is consistent with previous work <ref type="bibr" target="#b3">(Sennrich et al., 2016)</ref>. Second, it can be seen that the pre-tokenization is not always necessary to boost the BLEU scores. In Japanese to English, the improvement is marginal and has no signifi- cant difference. In English to Japanese, the BLEU score is degraded with pre-tokenization.</p><p>We can find larger improvements in BLEU when 1) SentencePiece is applied to Japanese, and 2) the target sentence is Japanese. As Japanese is a non-segmented language, pre-tokenization acts as a strong constraint to determine the final vo- cabulary. It can be considered that the positive ef- fects of unsupervised segmentation from raw input worked effectively to find the domain-specific vo- cabulary in Japanese.  larger performance improvements when applying it to raw Japanese data (w/o pre-tok). The seg- mentation speed of SentencePiece is about 380 times faster than that of subword-nmt in this set- ting. This result strongly supports our claim that SentencePiece is fast enough to be applied to raw data and the pre-tokenization is not always neces- sary. Consequently, SentencePiece helps to build a purely data-driven and language-independent sys- tem. The segmentation speed of SentencePiece is around 21k and 74k sentences/sec. in English and Japanese respectively, which is fast enough to be executed on-the-fly.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.2">Segmentation performance</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5">Conclusions</head><p>In this paper, we introduced SentencePiece, an open-source subword tokenizer and detokenizer designed for Neural-based text processing. Sen- tencePiece not only performs subword tokeniza- tion, but directly converts the text into an id se- quence, which helps to develop a purely end-to- end system without replying on language specific resources. The model file of SentencePiece is de- signed to be self-contained to guarantee perfect reproducibility of the normalization and subword segmentation. We hope that SentencePiece will provide a stable and reproducible text processing tool for production use and help the research com- munity to move to more language-agnostic and multilingual architectures.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>References</head><p>Mikel Overview of the 4th workshop on asian translation. In Proceedings of the 4th Workshop on Asian Trans- lation (WAT2017).</p></div><figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_0"><head></head><label></label><figDesc>_He ll o _world . % echo "Hello world." | spm_encode −−model=spm.model −−output_format=id 151 88 21 887 6 % echo "_He ll o _world ." | spm_decode −−model=spm.model Hello world. % echo "151 88 21 887 6" | spm_decode −−model=spm.model −−input_format=id Hello world.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_1"><head>Figure 1 :</head><label>1</label><figDesc>Figure 1: Commandline usage of SentencePiece</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_3"><head>Figure 2 :</head><label>2</label><figDesc>Figure 2: Custom normalization rule in TSV models (Johnson et al., 2016).</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_4"><head>Figure 3 :Figure 4 :</head><label>34</label><figDesc>Figure 3: C++ API usage (The same as Figure 1.)</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_5"><head>Figure 5 :</head><label>5</label><figDesc>Figure 5: TensorFlow API usage The SentencePiece model (model proto) is an attribute of the TensorFlow operation and embedded into the TensorFlow graph so the model and graph become purely self-contained.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_6"><head>Figure 6 :</head><label>6</label><figDesc>Figure 6: Subword sampling with Python API</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_0" validated="false"><head>and BLEU ja→en Word model (baseline) 80k/80k 28.24 SentencePiece 8k (shared) 29.55 SentencePiece w/ pre-tok. 8k (shared) 29.85</head><label></label><figDesc></figDesc><table>Word/SentencePiece 
+
+80k/8k 
+27.24 
+
+SentencePiece/Word 
+
+8k/80k 
+29.14 
+
+en→ja Word model (baseline) 
+
+80k/80k 20.06 
+
+SentencePiece 
+
+8k (shared) 21.62 
+SentencePiece w/ pre-tok. 8k (shared) 20.86 
+
+Word/SentencePiece 
+
+80k/8k 
+21.41 
+
+SentencePiece/Word 
+
+8k/80k 
+19.94 
+
+Table 1: Translation Results (BLEU(%)) 
+
+</table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_1" validated="false"><head>Table 2 summarizes</head><label>2</label><figDesc>the training and segmentation performance of various configurations. We can see that the training and segmentation speed of both SentencePiece and subword-nmt is almost comparable on English data set regardless of the choice of pre-tokenization. This is expected, as English is a segmented language and the search space for the vocabulary extraction is largely re- stricted. On the other hand, SentencePiece shows time (sec.)</figDesc><table>Task 
+Tool 
+Pre-tok. Japanese English 
+Train 
+subword-nmt 
+yes 
+
+56.9 
+54.1 
+
+SentencePiece 
+yes 
+
+10.1 
+16.8 
+
+subword-nmt 
+no 
+
+528.0 
+94.7 
+
+SentencePiece 
+no 
+
+217.3 
+21.8 
+
+Seg. 
+subword-nmt 
+yes 
+
+23.7 
+28.6 
+
+SentencePiece 
+yes 
+
+8.2 
+20.3 
+
+subword-nmt 
+no 
+
+216.2 
+36.1 
+
+SentencePiece 
+no 
+
+5.9 
+20.3 
+
+Pre-tokenizaion KyTea(ja)/Moses(en) 
+
+24.6 
+15.8 
+
+</table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_2" validated="false"><head>Table 2 :</head><label>2</label><figDesc></figDesc><table>Segmentation performance. KFTT corpus (440k 
+
+sentences) is used for evaluation. Experiments are executed 
+on Linux with Xeon 3.5Ghz processors. The size of vocabu-
+lary is 16k. Moses and KyTea tokenizers are used for English 
+and Japanese respectively. Note that we have to take the time 
+of pre-tokenization into account to make a fair comparison 
+with and without pre-tokenization. Because subword-nmt is 
+based on BPE, we used the BPE model in SentencePiece. We 
+found that BPE and unigram language models show almost 
+comparable performance. 
+
+</table></figure>
+
+			<note place="foot" n="1"> http://www.statmt.org/moses/</note>
+
+			<note place="foot" n="2"> https://github.com/rsennrich/subword-nmt</note>
+
+			<note place="foot" n="3"> The original NFKC normalization requires CCC (Canonical Combining Class) reordering, which is hard to model in a finite state transducer. SentencePiece does not handle the full CCC reordering and only implements a subset of NFKC normalization. 4 Note that tabs are used as the delimiter for source and target sequence and spaces are used as the delimiter for individual characters.</note>
+
+			<note place="foot" n="5"> https://developers.google.com/ protocol-buffers/</note>
+
+			<note place="foot" n="6"> As the Python and TensorFlow wrappers call the native C++ API, there is no performance drop in their interfaces.</note>
+
+			<note place="foot" n="7"> http://www.phontron.com/kftt 8 http://www.statmt.org/moses/ Lang pair setting (source/target) # vocab.</note>
+
+			<note place="foot" n="9"> http://www.phontron.com/kytea</note>
+		</body>
+		<back>
+			<div type="references">
+
+				<listBibl>
+
+<biblStruct xml:id="b0">
+	<analytic>
+		<title level="a" type="main">Bleu: a method for automatic evaluation of machine translation</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kishore</forename><surname>Papineni</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Salim</forename><surname>Roukos</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Todd</forename><surname>Ward</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Weijing</forename><surname>Zhu</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. of ACL</title>
+		<meeting>of ACL</meeting>
+		<imprint>
+			<date type="published" when="2002" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b1">
+	<monogr>
+				<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Matt</forename><surname>Post</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1804.08771</idno>
+		<title level="m">A call for clarity in reporting bleu scores</title>
+		<imprint>
+			<date type="published" when="2018" />
+		</imprint>
+	</monogr>
+<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b2">
+	<analytic>
+		<title level="a" type="main">A neural attention model for abstractive sentence summarization</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Sumit</forename><surname>Alexander M Rush</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jason</forename><surname>Chopra</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Weston</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. of EMNLP</title>
+		<meeting>of EMNLP</meeting>
+		<imprint>
+			<date type="published" when="2015" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b3">
+	<analytic>
+		<title level="a" type="main">Neural machine translation of rare words with subword units</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Rico</forename><surname>Sennrich</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Barry</forename><surname>Haddow</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Alexandra</forename><surname>Birch</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. of ACL</title>
+		<meeting>of ACL</meeting>
+		<imprint>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b4">
+	<monogr>
+		<title level="m" type="main">Attention is all you need</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ashish</forename><surname>Vaswani</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Noam</forename><surname>Shazeer</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Niki</forename><surname>Parmar</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jakob</forename><surname>Uszkoreit</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Llion</forename><surname>Jones</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Aidan</forename><forename type="middle">N</forename><surname>Gomez</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Lukasz</forename><surname>Kaiser</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Illia</forename><surname>Polosukhin</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1706.03762</idno>
+		<imprint>
+			<date type="published" when="2017" />
+		</imprint>
+	</monogr>
+<note type="report_type">arXive preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b5">
+	<analytic>
+		<title level="a" type="main">A neural conversational model</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Oriol</forename><surname>Vinyals</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">V</forename><surname>Quoc</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Le</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">ICML Deep Learning Workshop</title>
+		<imprint>
+			<date type="published" when="2015" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b6">
+	<monogr>
+		<title level="m" type="main">Google&apos;s neural machine translation system: Bridging the gap between human and machine translation</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yonghui</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Mike</forename><surname>Schuster</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1609.08144</idno>
+		<imprint>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+				</listBibl>
+			</div>
+		</back>
+	</text>
+</TEI>

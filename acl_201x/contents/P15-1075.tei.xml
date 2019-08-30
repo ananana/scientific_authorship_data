@@ -1,0 +1,580 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<TEI xmlns="http://www.tei-c.org/ns/1.0" 
+xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+xsi:schemaLocation="http://www.tei-c.org/ns/1.0 /home/ana/installs/grobid/grobid-0.5.1/grobid-home/schemas/xsd/Grobid.xsd"
+ xmlns:xlink="http://www.w3.org/1999/xlink">
+	<teiHeader xml:lang="en">
+		<encodingDesc>
+			<appInfo>
+				<application version="0.5.1-SNAPSHOT" ident="GROBID" when="2019-04-18T12:57+0000">
+					<ref target="https://github.com/kermitt2/grobid">GROBID - A machine learning software for extracting information from scholarly documents</ref>
+				</application>
+			</appInfo>
+		</encodingDesc>
+		<fileDesc>
+			<titleStmt>
+				<title level="a" type="main">Efficient Methods for Inferring Large Sparse Topic Hierarchies</title>
+			</titleStmt>
+			<publicationStmt>
+				<publisher>Association for Computational Linguistics</publisher>
+				<availability status="unknown"><p>Copyright Association for Computational Linguistics</p>
+				</availability>
+				<date>July 26-31, 2015. 2015</date>
+			</publicationStmt>
+			<sourceDesc>
+				<biblStruct>
+					<analytic>
+						<author role="corresp">
+							<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Doug</forename><surname>Downey</surname></persName>
+							<email>ddowney@eecs.northwestern.edu,</email>
+							<affiliation key="aff0">
+								<orgName type="department">Electrical Engineering and Computer Science</orgName>
+								<orgName type="institution">Northwestern University</orgName>
+							</affiliation>
+						</author>
+						<author>
+							<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Chandra</forename><forename type="middle">Sekhar</forename><surname>Bhagavatula</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="department">Electrical Engineering and Computer Science</orgName>
+								<orgName type="institution">Northwestern University</orgName>
+							</affiliation>
+						</author>
+						<author>
+							<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yi</forename><surname>Yang</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="department">Electrical Engineering and Computer Science</orgName>
+								<orgName type="institution">Northwestern University</orgName>
+							</affiliation>
+						</author>
+						<title level="a" type="main">Efficient Methods for Inferring Large Sparse Topic Hierarchies</title>
+					</analytic>
+					<monogr>
+						<title level="m">Proceedings of the 53rd Annual Meeting of the Association for Computational Linguistics and the 7th International Joint Conference on Natural Language Processing</title>
+						<meeting>the 53rd Annual Meeting of the Association for Computational Linguistics and the 7th International Joint Conference on Natural Language Processing <address><addrLine>Beijing, China</addrLine></address>
+						</meeting>
+						<imprint>
+							<publisher>Association for Computational Linguistics</publisher>
+							<biblScope unit="page" from="774" to="784"/>
+							<date type="published">July 26-31, 2015. 2015</date>
+						</imprint>
+					</monogr>
+				</biblStruct>
+			</sourceDesc>
+		</fileDesc>
+		<profileDesc>
+			<abstract>
+				<p>Latent variable topic models such as Latent Dirichlet Allocation (LDA) can discover topics from text in an unsupervised fashion. However, scaling the models up to the many distinct topics exhibited in modern corpora is challenging. &quot;Flat&quot; topic models like LDA have difficulty modeling sparsely expressed topics, and richer hierarchical models become compu-tationally intractable as the number of topics increases. In this paper, we introduce efficient methods for inferring large topic hierarchies. Our approach is built upon the Sparse Backoff Tree (SBT), a new prior for latent topic distributions that organizes the latent topics as leaves in a tree. We show how a document model based on SBTs can effectively infer accurate topic spaces of over a million topics. We introduce a collapsed sampler for the model that exploits sparsity and the tree structure in order to make inference efficient. In experiments with multiple data sets, we show that scaling to large topic spaces results in much more accurate models, and that SBT document models make use of large topic spaces more effectively than flat LDA.</p>
+			</abstract>
+		</profileDesc>
+	</teiHeader>
+	<text xml:lang="en">
+		<body>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="1">Introduction</head><p>Latent variable topic models, such as Latent Dirichlet Allocation ( <ref type="bibr" target="#b1">Blei et al., 2003)</ref>, are popu- lar approaches for automatically discovering top- ics in document collections. However, learning models that capture the large numbers of distinct topics expressed in today's corpora is challenging. While efficient methods for learning large topic models have been developed ( <ref type="bibr" target="#b11">Li et al., 2014;</ref><ref type="bibr" target="#b22">Yao et al., 2009;</ref><ref type="bibr" target="#b17">Porteous et al., 2008)</ref>, these methods have focused on "flat" topic models such as LDA. Flat topic models over large topic spaces are prone to overfitting: even in a Web-scale corpus, some words are expressed rarely, and many documents are brief. Inferring a large topic distribution for each word and document given such sparse data is challenging. As a result, LDA models in prac- tice tend to consider a few thousand topics at most, even when training on billions of words ( <ref type="bibr" target="#b15">Mimno et al., 2012)</ref>.</p><p>A promising alternative to flat topic models is found in recent hierarchical topic models <ref type="bibr" target="#b15">(Paisley et al., 2015;</ref><ref type="bibr" target="#b2">Blei et al., 2010;</ref><ref type="bibr" target="#b10">Li and McCallum, 2006</ref>; <ref type="bibr" target="#b21">Wang et al., 2013;</ref><ref type="bibr" target="#b8">Kim et al., 2013;</ref><ref type="bibr" target="#b0">Ahmed et al., 2013</ref>). Topics of words and documents can be naturally arranged into hierarchies. For exam- ple, an article on the topic of the Chicago Bulls is also relevant to the more general topics of NBA, Basketball, and Sports. Hierarchies can combat data sparsity: if data is too sparse to place the term "Pau Gasol" within the Chicago Bulls topic, perhaps it can be appropriately modeled at some- what less precision within the Basketball topic. A hierarchical model can make fine-grained distinc- tions where data is plentiful, and back-off to more coarse-grained distinctions where data is sparse. However, current hierarchical models are hindered by computational complexity. The existing infer- ence methods for the models have runtimes that increase at least linearly with the number of top- ics, making them intractable on large corpora with large numbers of topics.</p><p>In this paper, we present a hierarchical topic model that can scale to large numbers of dis- tinct topics. Our approach is built upon a new prior for latent topic distributions called a Sparse Backoff Tree (SBT). SBTs organize the latent top- ics as leaves in a tree, and smooth the distribu- tions for each topic with those of similar top- ics nearby in the tree. SBT priors use absolute discounting and learned backoff distributions for smoothing sparse observation counts, rather than the fixed additive discounting utilized in Dirichlet and Chinese Restaurant Process models. We show how the SBT's characteristics enable a novel col- lapsed sampler that exploits the tree structure for efficiency, allowing SBT-based document models (SBTDMs) that scale to hierarchies of over a mil- lion topics.</p><p>We perform experiments in text modeling and hyperlink prediction, and find that SBTDM is more accurate compared to LDA and the re- cent nested Hierarchical Dirichlet Process (nHDP) ( <ref type="bibr" target="#b15">Paisley et al., 2015)</ref>. For example, SBTDMs with a hundred thousand topics achieve perplex- ities 28-52% lower when compared with a stan- dard LDA configuration using 1,000 topics. We verify that the empirical time complexity of in- ference in SBTDM increases sub-linearly in the number of topics, and show that for large topic spaces SBTDM is more than an order of magni- tude more efficient than the hierarchical Pachinko Allocation Model ( <ref type="bibr" target="#b13">Mimno et al., 2007)</ref> and nHDP. Lastly, we release an implementation of SBTDM as open-source software. <ref type="bibr">1</ref> </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2">Previous Work</head><p>The intuition in SBTDM that topics are naturally arranged in hierarchies also underlies several other models from previous work. <ref type="bibr" target="#b15">Paisley et al. (2015)</ref> introduce the nested Hierarchical Dirichlet Pro- cess (nHDP), which is a tree-structured generative model of text that generalizes the nested Chinese Restaurant Process (nCRP) ( <ref type="bibr" target="#b2">Blei et al., 2010)</ref>. Both the nCRP and nHDP model the tree struc- ture as a random variable, defined over a flexi- ble (potentially infinite in number) topic space. However, in practice the infinite models are trun- cated to a maximal size. We show in our experi- ments that SBTDM can scale to larger topic spaces and achieve greater accuracy than nHDP. To our knowledge, our work is the first to demonstrate a hierarchical topic model that scales to more than one million topics, and to show that the larger models are often much more accurate than smaller models. Similarly, compared to other recent hi- erarchical models of text and other data <ref type="bibr">(Petinot et al., 2011;</ref><ref type="bibr" target="#b21">Wang et al., 2013;</ref><ref type="bibr" target="#b8">Kim et al., 2013;</ref><ref type="bibr" target="#b0">Ahmed et al., 2013;</ref><ref type="bibr" target="#b4">Ho et al., 2010)</ref>, our focus is on scaling to larger data sets and topic spaces.</p><p>The Pachinko Allocation Model (PAM) intro- duced by <ref type="bibr" target="#b10">Li &amp; McCallum (Li and McCallum, 2006</ref>) is a general approach for modeling corre- lations among topic variables in latent variable models. Hierarchical organizations of topics, as in SBT, can be considered as a special case of a PAM, in which inference is particularly efficient. We show that our model is much more efficient than an existing PAM topic modeling implemen- tation in Section 5.</p><p>Hu and Boyd-Graber (2012) present a method for augmenting a topic model with known hier- archical correlations between words (taken from e.g. WordNet synsets). By contrast, our focus is on automatically learning a hierarchical orga- nization of topics from data, and we demonstrate that this technique improves accuracy over LDA. Lastly, SparseLDA ( <ref type="bibr" target="#b22">Yao et al., 2009</ref>) is a method that improves the efficiency of inference in LDA by only generating portions of the sampling distri- bution when necessary. Our collapsed sampler for SBTDM utilizes a related intuition at each level of the tree in order to enable fast inference.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3">Sparse Backoff Trees</head><p>In this section, we introduce the Sparse Backoff Tree, which is a prior for a multinomial distribu- tion over a latent variable. We begin with an ex- ample showing how an SBT transforms a set of observation counts into a probability distribution. Consider a latent variable topic model of text doc- uments, similar to LDA ( <ref type="bibr" target="#b1">Blei et al., 2003</ref>) or pLSI <ref type="bibr" target="#b5">(Hofmann, 1999</ref>). In the model, each token in a document is generated by first sampling a discrete latent topic variable Z from a document-specific topic distribution, and then sampling the token's word type from a multinomial conditioned on Z.</p><p>We will focus on the document's distribution over topics, ignoring the details of the word types for illustration. We consider a model with 12 latent topics, denoted as integers from the set {1, . . . , 12}. Assume we have assigned latent topic values to five tokens in the document, specif- ically the topics {1, 4, 4, 5, 12}. We indicate the number of times topic value z has been selected as n z <ref type="figure" target="#fig_0">(Figure 1)</ref>.</p><p>Given the five observations, the key question faced by the model is: what is the topic distribu- tion over a sixth topic variable from the same doc- ument? In the case of the Dirichlet prior utilized for the topic distribution in LDA, the probability that the sixth topic variable has value z is propor- tional to n z + α, where α is a hyperparameter of the model.</p><p>SBT differs from LDA in that it organizes the topics into a tree structure in which the topics are leaves (see <ref type="figure" target="#fig_0">Figure 1)</ref>. In this paper, we assume the tree structure, like the number of latent top- ics, is manually selected in advance. With an SBT prior, the estimate of the probability of a topic z is increased when nearby topics in the tree have positive counts. Each interior node a of the SBT has a discount δ a associated with it. The SBT transforms the observation counts n z into pseudo- counts (shown in the last row in the <ref type="figure">figure)</ref> by subtracting δ a from each non-zero descendent of each interior node a, and re-distributing the sub- tracted value uniformly among the descendants of a. For example, the first state has a total of 0.90 subtracted from its initial count n 1 = 1, and then receives 0.30/3 from its parent, 1.08/6 from its grandparent, and 0.96/12 from the root node for a total pseudo-count of 0.46. The document's dis- tribution over a sixth topic variable is then propor- tional to these pseudo-counts.</p><p>When each document tends to discuss a set of related topics, the SBT prior will assign a higher likelihood to the data when related topics are lo- cated nearby in the tree. Thus, by inferring latent variable values to maximize likelihood, nearby leaves in the tree will come to represent related topics. SBT, unlike LDA, encodes the intuition that a topic becomes more likely in a document that also discusses other, related topics. In the example, the pseudo-count the SBT produces for topic six (which is related to other topics that oc- cur in the document) is almost three times larger than that of topic eight, even though the observa- tion counts are zero in each case. In LDA, top- ics six and eight would have equal pseudo-counts (proportional to α).</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.1">Definitions</head><p>Let Z be a discrete random variable that takes inte- ger values in the set {1, . . . , L}. Z is drawn from a multinomial parameterized by a vector θ of length L.</p><formula xml:id="formula_0">Definition 1 A Sparse Backoff Tree SBT (T , δ θ , Q(z))</formula><p>for the discrete random variable Z consists of a rooted tree T containing L leaves, one for each value of Z; a coefficient δ a &gt; 0 for each interior node a of T ; and a backoff distribution Q(z). <ref type="figure" target="#fig_0">Figure 1</ref> shows an example SBT. The example includes simplifications we also utilize in our ex- periments, namely that all nodes at a given depth in the tree have the same number of children and the same δ value. However, the inference tech- niques we present in Section 4 are applicable to any tree T and set of coefficients {δ a }.</p><p>For a given SBT S, let ∆ S (z) indicate the sum of all δ a values for all ancestors a of leaf node z (i.e., all interior nodes on the path from the root to z). For example, in the figure, ∆ S (z) = 0.90 for all z. This amount is the total absolute discount that the SBT applies to the random variable value z.</p><p>We define the SBT prior implicitly in terms of the posterior distribution it induces on a random variable Z drawn from a multinomial θ with an SBT prior, after θ is integrated out. Let the vector n = [n 1 , . . . , n L ] denote the sufficient statistics for any given observations drawn from θ, where n z is the number of times value z has been observed. Then, the distribution over a subsequent draw of Z given SBT prior S and observations n is defined as:</p><formula xml:id="formula_1">P (Z = z|S, n) ≡ (1) max(n z − ∆ S (z), 0) + B(S, z, n)Q(z) K(S, i n i ) where K(S, i n i )</formula><p>is a normalizing constant that ensures the distribution sums to one for any fixed number of observations i n i , and B(S, z, n) and Q(z) are defined as below.</p><p>The quantity B(S, z, n) expresses how much of the discounts from all other leaves z contribute to the probability of z. For an interior node a, let desc(a) indicate the number of leaves that are de- scendants of a, and let desc + (a) indicate the num- ber of leaf descendants z of a that have non-zero values n z . Then the contribution of the discount δ a of node a to each of its descendent leaves is b(a, n) = δ a desc + (a)/desc(a). We then define B(S, z, n) to be the sum of b(a, n) over all inte- rior nodes a on the path from the root to z.</p><p>The function Q(z) is a backoff distribution. It allows the portion of the discount probability mass that is allocated to z to vary with a proposed dis- tribution Q(z). This is useful because in practice the SBT is used as a prior for a conditional distri- bution, for example the distribution P (Z|w) over topic Z given a word w in a topic model of text. In that case, an estimate of P (Z|w) for a rare word w may be improved by "mixing in" the marginal topic distribution Q(z) = P (Z = z), analogous to backoff techniques in language modeling. Our document model described in the following sec- tion utilizes two different Q functions, one uni- form (Q(z) = 1/T ) and another related to the marginal topic distribution P (z).</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4">The SBT Document Model</head><p>We now present the SBT document model, a prob- abilistic latent variable model of text documents that utilizes SBT priors. We then provide a col- lapsed sampler for the model that exploits the tree structure to make inference more efficient.</p><p>Our document model follows the Latent Dirich- let Allocation (LDA) Model ( <ref type="bibr" target="#b1">Blei et al., 2003)</ref>, il- lustrated graphically in <ref type="figure" target="#fig_2">Figure 2</ref> (left). In LDA, a corpus of documents is generated by sampling a topic distribution θ d for each document d, and also a distribution over words φ z for each topic. Then, in document d each token w is generated by first sampling a topic z from the multinomial P (Z|θ d ), and then sampling w from the multino- mial P (W |Z, φ z ).</p><p>The SBTDM is the same as LDA, with one significant difference. In LDA, the parameters θ and φ are sampled from two Dirichlet priors, with separate hyperparameters α and β. In SBTDM, the parameters are instead sampled from particu- lar SBT priors. Specifically, the generative model is:</p><formula xml:id="formula_2">θ ∼ SBT (T , δ θ , Q θ (z) = 1/T ) φ ∼ SBT (T , δ φ , Q φ (z) = P * (z)) λ ∼ Dirichlet(α ) Z|θ ∼ Discrete(θ) W |z, φ , λ ∼ Discrete(λφ .,z /P (z|φ ))</formula><p>The variable φ represents the distribution of topics given words, P (Z|W ). The SBTDM sam- ples a distribution φ w over topics for each word type w in the vocabulary (of size V ). In SBTDM, the random variable φ w has dimension L, rather than V for φ z as in LDA. We also draw a prior word frequency distribution, λ = {λ w } for each word w. <ref type="bibr">2</ref> We then apply Bayes Rule to obtain the conditional distributions P (W |Z, φ ) required for inference. The expression λφ</p><p>.,z /P (z|φ ) de- notes the normalized element-wise product of two vectors of length V : the prior distribution λ over words, and the vector of probabilities P (z|w) = φ w,z over words w for the given topic z.</p><p>The SBT priors for φ and θ share the same tree structure T , which is fixed in advance. The SBTs have different discount factors, denoted by the hy- perparameters δ θ and δ φ . Finally, the backoff dis- tribution for θ is uniform, whereas φ's backoff dis- tribution P * is defined below.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.1">Backoff distribution P * (z)</head><p>SBTDM requires choosing a backoff distribution P * (z) for φ . As we now show, it is possible to select a natural backoff distribution P * (z) that en- ables scalable inference.</p><p>Given a set of observations n, we will set P * (z) proportional to P (z|S φ , n). This is a recursive definition, because P (z|S φ , n) depends on P * (z). Thus, we define:</p><formula xml:id="formula_3">P * (z) ≡ w max(n w z − ∆ S (z), 0) C − w B w (S φ , z, n)<label>(2)</label></formula><p>í µí¼ í µí±  where C &gt; w B w (S φ , z, n) is a hyperparame- ter, n w z is the number of observations of topic z for word w in n, and B w indicates the function B(S φ , z, n) defined in Section 3.1, for the partic- ular word w. That is, w B w (S φ , z, n) is the total quantity of smoothing distributed to topic z across all words, before the backoff distribution P * (z) is applied.</p><p>The form of P * (z) has two key advantages. The first is that setting P * (z) proportional to the marginal topic probability allows SBTDM to back-off toward marginal estimates, a success- ful technique in language modeling <ref type="bibr" target="#b7">(Katz, 1987)</ref> (where it has been utilized for word probabilities, rather than topic probabilities). Secondly, setting the backoff distribution in this way allows us to simplify inference, as described below.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.2">Inference with Collapsed Sampling</head><p>Given a corpus of documents D, we infer the val- ues of the hidden variables Z using the collapsed Gibbs sampler popular in Latent Dirichlet Alloca- tion models ( <ref type="bibr" target="#b3">Griffiths and Steyvers, 2004)</ref>. Each variable Z i is sampled given the settings of all other variables (denoted as n −i ):</p><formula xml:id="formula_4">P (Z i = z|n −i , D) ∝ P (z|n −i , T , δ θ )· P (w i |z, n −i , T , δ φ ) (3)</formula><p>The first term on the right-hand side is given by Equation 1. The second can be rewritten as:</p><formula xml:id="formula_5">P (w i |z, n −i , T , δ φ ) = P (z, w i |n −i , T , δ φ ) P (z|n −i , T , δ φ )<label>(4)</label></formula></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.3">Efficient Inference Implementation</head><p>The primary computational cost when scaling to large topic spaces involves constructing the sam- pling distribution. Both LDA with collapsed sam- pling and SBTDM share an advantage in space </p><formula xml:id="formula_6">τ (i) ← τ (ar)τ (a l ) return i end if i.r ← ar r(i) ← b(a l ) * τ (ar) i.l ← a l ; b(i.l) ← 0 l(i) ← b(ar) * τ (a l ) − b(ar)b(a l )desc(ar) τ (i)+ = r(i) + l(i) for all child c non-zero for ar and a l do ic ← INTERSECT(ar.c, a l .c) i.children += ic τ (i) += τ (ic) end for return i end function</formula><p>complexity: the model parameters are specified by a sparse set of non-zero counts denoting how of- ten tokens of each word or document are assigned to each topic. However, in general the sampling distribution for SBTDM has non-uniform proba- bilities for each of L different latent variable val- ues. Thus, even if many parameters are zero, a naive approach that computes the complete sam- pling distribution will still take time linear in L.</p><p>However, in SBTs the sampling distribution can be constructed efficiently using a simple recursive algorithm that exploits the structure of the tree. The result is an inference algorithm that often re- quires far less than linear time in L, as we verify in our experiments.</p><p>First, we note that P (z, w i |n −i , T , δ φ ) is pro- portional to the sum of two quantities: the dis- counted count max(n z − ∆ S , 0) and the smooth- ing probability mass B(S, z, n)Q(z). By choos- ing Q(z) = P * (z), we can be ensured that P * (z) normalizes this sum. Thus, the backoff distri-bution cancels through the normalization. This means we can normalize the SBT for φ in ad- vance by scaling the non-zero counts by a factor of 1/P * (z), and then at inference time we need only multiply pointwise two multinomials with SBT priors and uniform backoff distributions.</p><p>The intersection of two multinomials drawn from SBT priors with uniform backoff distribu- tions can be performed efficiently for sparse trees. The algorithm relies on two quantities defined for each node of each tree. The first, b(a, n), was de- fined in Section 3. It denotes the smoothing that the interior node a distributes (uniformly) to each of its descendent leaves. We denote b(a, n) as b(a) in this section for brevity. The second quantity, τ (a), expresses the total count mass of all leaf de- scendants of a, excluding the smoothing from an- cestors of a.</p><p>With the quantities b(a) and τ (a) for all a, we can efficiently compute the sampling distribution of the product of two SBT-governed multinomi- als (which we refer to as an SBTI). The method is shown in Algorithm 1. It takes two SBT nodes as arguments; these are corresponding nodes from two SBT priors that share the same tree structure T . It returns an SBTI, a data structure representing the sampling distribution.</p><p>The efficiency of Algorithm 1 is reflected in the fact that the algorithm only recurses for child nodes c with non-zero τ (c) for both of the SBT node arguments. Because such cases will be rare for sparse trees, often Algorithm 1 only needs to traverse a small portion of the original SBTs in or- der to compute the sampling distribution exactly. Our experiments illustrate the efficiency of this al- gorithm in practice.</p><p>Finally, we can efficiently sample from either an SBTI or a single SBT-governed multinomial. The sampling methods are straightforward recur- sive methods, supplied in Algorithms 2 and 3.</p><formula xml:id="formula_7">Algorithm 2 Sample(SBT Node a) procedure SAMPLE(SBT Node a) if a is a leaf then return a end if Sample from {b(a)desc(a), τ (a) − b(a)desc(a)}. if back-off distribution b(a)desc(a) selected then return Uniform[a's descendents] else Sample a's child c ∼ τ (c) return SAMPLE(c) end if end procedure Algorithm 3 Sampling from an SBTI function SAMPLE(SBTI Node i) if i is a leaf then return i end if Sample from {r(i), l(i), τ (i) − r(i) − l(i)} if right distribution r(i) selected then return SAMPLE(i.r) else if left distribution l(i) selected then return SAMPLE(i.l) else Sample i's child c ∼ τ (c) return SAMPLE(c) end if end if end function</formula></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.4">Expansion</head><p>Much of the computational expense encountered in inference with SBTDM occurs shortly after ini- tialization. After a slow first several sampling passes, the conditional distributions over topics for each word and document become concentrated on a sparse set of paths through the SBT. From that point forward, sampling is faster and requires much less memory.</p><p>We utilize the hierarchical organization of the topic space in SBTs to side-step this computa- tional complexity by adding new leaves to the SBTs of a trained SBTDM. This is a "coarse- to-fine" (Petrov and Charniak, 2011) training ap- proach that we refer to as expansion. Using ex- pansion, the initial sampling passes of the larger model can be much more time and space efficient, because they leverage the already-sparse structure of the smaller trained SBTDM.</p><p>Our expansion method takes as input an inferred sampling distribution n for a given tree T . The algorithm adds k new branches to each leaf of T to obtain a larger tree T . We then transform the sampling state by replacing each n i ∈ n with one of its children in T . For example, in <ref type="figure" target="#fig_0">Figure 1</ref>, expanding with k = 3 would result in a new tree containing 36 topics, and the single observation of topic 4 in T would be re-assigned randomly to one of the topics {10, 11, 12} in T .</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5">Experiments</head><p>We now evaluate the efficiency and accuracy of SBTDM. We evaluate SBTs on two data sets, the RCV1 Reuters corpus of newswire text ( <ref type="bibr" target="#b9">Lewis et al., 2004</ref>), and a distinct data set of Wikipedia links, WPL. We consider two disjoint subsets of RCV1, a small training set (RCV1s) and a larger training set (RCV1).</p><p>We compare the accuracy and efficiency of SBTDM against flat LDA and two existing hier- archical models, the Pachinko Allocation Model (PAM) and nested Hierarchical Dirichlet Process (nHDP).</p><p>To explore how the SBT structure impacts mod- eling performance, we experiment with two dif- ferent SBTDM configurations. SBTDM-wide is a shallow tree in which the branching factor in- creases from the root downward in the sequence 3, 6, 6, 9, 9, 12, 12. Thus, the largest model we consider has 3 · 6 · 6 · 9 · 9 · 12 · 12 = 1,259,712 dis- tinct latent topics. SBTDM-tall has lower branch- ing factors of either 2 or 3 (so in our evaluation its depth ranges from 3 to 15). As in SBTDM-wide, in SBTDM-tall the lower branching factors occur toward the root of the tree. We vary the number of topics by considering balanced subtrees of each model. For nHDP, we use the same tree structures as in SBT-wide. In preliminary experiments, using the tall structure in nHDP yielded similar accuracy but was somewhat slower.</p><p>Similar to our LDA implementation, SBTDM optimizes hyperparameter settings as sampling proceeds. We use local beam search to choose new hyperparameters that maximize leave-one- out likelihood for the distributions P (Z|d) and P (Z|w) on the training data, evaluating the pa- rameters against the current state of the sampler.</p><p>We trained all models by performing 100 sam- pling passes through the full training corpus (i.e., approximately 10 billion samples for RCV1, and 8 billion samples for WPL). We evaluate perfor- mance on held-out test sets of 998 documents for RCV1 (122,646 tokens), and 200 documents for WPL (84,610 tokens). We use the left-to-right al- gorithm ( <ref type="bibr" target="#b19">Wallach et al., 2009</ref>) over a randomized word order with 20 particles to compute perplex- ity. We re-optimize the LDA hyperparameters at regular intervals during sampling.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.1">Small Corpus Experiments</head><p>We begin with experiments over a small corpus to highlight the efficiency advantages of SBTDM.  <ref type="table">Table 1</ref>: Statistics of the three training corpora.</p><p>As argued above, existing hierarchical models re- quire inference that becomes expensive as the topic space increases in size. We illustrate this by comparing our model with PAM and nHDP. We also compare against a fast "flat" LDA implemen- tation, SparseLDA, from the MALLET software package <ref type="bibr" target="#b12">(McCallum, 2002</ref>).</p><p>For SBTDM we utilize a parallel inference ap- proach, sampling all variables using a fixed esti- mate of the counts n, and then updating the counts after each full sampling pass (as in ( <ref type="bibr" target="#b20">Wang et al., 2009)</ref>). The SparseLDA and nHDP implementa- tions are also parallel. All parallel methods use 15 threads. The PAM implementation provided in MALLET is single-threaded.</p><p>Our efficiency measurements are shown in <ref type="figure" target="#fig_4">Fig- ure 3</ref>. We plot the mean wall-clock time to per- form 100 sampling passes over the RCV1s corpus, starting from randomly initialized models (i.e. without expansion in SBTDM). For the largest plotted topic sizes for PAM and nHDP, we esti- mate total runtime using a small number of iter- ations. The results show that SBTDM's time to sample increases well below linear in the number of topics. Both SBTDM methods have runtimes that increase at a rate substantially below that of the square root of the number of topics (plotted as a blue line in the figure for reference). For the largest numbers of topics in the plot, when we in- crease the number of topics by a factor of 12, the time to sample increases by less than a factor of 1.7 for both SBT configurations.</p><p>We also evaluate the accuracy of the mod- els on the small corpus. We do not compare against PAM, as the MALLET implementation lacks a method for computing perplexity for a PAM model. The results are shown in <ref type="table">Table 3</ref>. The SBT models tend to achieve lower perplexity than LDA, and SBTDM-tall performs slightly bet- ter than SBTDM-wide for most topic sizes. The best model, SBT-wide with 8,748 topics, achieves perplexity 14% lower than the best LDA model and 2% lower than the best SBTDM-tall model. The LDA model overfits for the largest topic con- figuration, whereas at that size both SBT models remain at least as accurate as any of the LDA mod- els in <ref type="table">Table 3</ref>.</p><p>We also evaluated using the topic coherence measure from , which re- flects how well the learned topics reflect word co- occurrence statistics in the training data. Follow- ing recent experiments with the measure ( <ref type="bibr" target="#b18">Stevens et al., 2012</ref>), we use = 10 −12 pseudo-co- occurrences of each word pair and we evaluate the average coherence using the top 10 words for each topic.  <ref type="table" target="#tab_1">Table 2</ref>: Average topic coherence on the small RCV1s corpus.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.1.1">Evaluating Expansion</head><p>The results discussed above do not utilize ex- pansion in SBTDM. To evaluate expansion, we performed separate experiments in which we ex- panded a 972-topic model trained on RCV1s to initialize a 8,748-topic model. Compared to ran- dom initialization, expansion improved efficiency and accuracy. Inference in the expanded model executed approximately 30% faster and used 70% less memory, and the final 8,748-topic models had approximately 10% lower perplexity.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.2">Large Corpus Results</head><p>Our large corpus experiments are reported in <ref type="table">Ta- ble 4</ref>. Here, we compare the test set perplexity of a single model for each topic size and model type. We focus on SBTDM-tall for the large corpora. We utilize expansion (see Section 4.4) for SBTDM-tall models with more than a thou- sand topics on each data set. The results show that on both data sets, SBTDM-tall utilizes larger numbers of topics more effectively. On RCV1, LDA improves only marginally between 972 and 8,748 topics, whereas SBTDM-tall improves dra- matically. For 8,748 topics, SBTDM-tall achieves a perplexity score 17% lower than LDA model on RCV1, and 29% lower on WPL. SBT im- proves even further in larger topic configurations. Training and testing LDA with our implementa- tion using over a hundred thousand topics was not tractable on our data sets due to space complexity (the MALLET implementation exceeded our max- imum 250G of heap space). As discussed above, expansion enables SBTDM to dramatically reduce space complexity for large topic spaces.</p><p>The results highlight the accuracy improve- ments found from utilizing larger numbers of top- ics than are typically used in practice. For exam- ple, an SBTDM with 104,976 topics achieves per- plexity 28-52% lower when compared with a stan- dard LDA configuration using only 1,000 topics.  <ref type="table">Table 4</ref>: Model accuracy on large corpora (cor- pus perplexity measure). The SBT model utilizes larger numbers of topics more effectively.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>RCV1</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.3">Exploring the Learned Topics</head><p>Lastly, we qualitatively examine whether the SBTDM's learned topics reflect meaningful hi- erarchical relationships. From an SBTDM of 104,976 topics trained on the Wikipedia links data set, we examined the first 108 leaves (these are contained in a single subtree of depth 5). 760 unique terms (i.e. Wikipedia pages) had positive counts for the topics, and 500 of these terms were related to radio stations. The leaves appear to encode fine-grained sub- categorizations of the terms. In <ref type="figure">Figure 4</ref>, we pro- vide examples from one subtree of six topics (top- ics 13-18). For each topic t, we list the top three  <ref type="table">Table 3</ref>: Small training corpus (RCV1s) performance. Shown is perplexity averaged over three runs for each method and number of topics, with standard deviation in parens. Both SBTDM models achieve lower perplexity than LDA and nHDP for the larger numbers of topics.  <ref type="figure">Figure 4</ref>: An example of topics from a 104,976- topic SBTDM defined over Wikipedia pages.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Radio Stations</head><p>terms w (ranked by symmetric conditional prob- ability, P (w|t)P (t|w)), and a specific categoriza- tion that applies to the three terms. Interestingly, as shown in the figure, the top terms for the six topics we examined were all four-character "call letters" for particular radio stations. Stations with similar content or in nearby locations tend to clus- ter together in the tree. For example, the two topics focused on radio stations in Tennessee (TN) share the same parent, as do the topics focused on North Carolina (NC) AM stations. More generally, all six topics focus on radio stations in the southern US. <ref type="figure" target="#fig_5">Figure 5</ref> shows a different example, from a model trained on the RCV1 corpus. In this ex- ample, we first select only those terms that oc- cur at least 2,000 times in the corpus and have a statistical association with their topic that ex- ceeds a threshold, and we again rank terms by symmetric conditional probability. The 27-topic subtree detailed in the <ref type="figure">figure appears to</ref>   </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6">Conclusion and Future Work</head><p>We introduced the Sparse Backoff Tree (SBT), a prior for latent topic distributions that organizes the latent topics as leaves in a tree. We pre- sented and experimentally analyzed a document model based on the SBT, called an SBTDM. The SBTDM was shown to utilize large topic spaces more effectively than previous techniques.</p><p>There are several directions of future work. One limitation of the current work is that the SBT is defined only implicitly. We plan to investigate explicit representations of the SBT prior or re- lated variants. Other directions include developing methods to learn the SBT structure from data, as well as applying the SBT prior to other tasks, such as sequential language modeling.</p></div><figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_0"><head>Figure 1 :</head><label>1</label><figDesc>Figure 1: An example Sparse Backoff Tree over 12 latent variable values.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_2"><head>Figure 2 :</head><label>2</label><figDesc>Figure 2: The Latent Dirichlet Allocation Model (left) and our SBT Document Model (right).</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_3"><head>Algorithm 1</head><label>1</label><figDesc>Compute the sampling distribution for a product of two multinomials with SBT priors with Q(z) = 1 function INTERSECT(SBT Node ar, SBT Node a l ) if ar, a l are leaves then</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_4"><head>Figure 3 :</head><label>3</label><figDesc>Figure 3: Time (in seconds) to perform a sampling pass over the RCV1s corpus as number of topics varies, plotted on a log-log scale. The SBT models scale sub-linearly in the number of topics.</figDesc><graphic url="image-2.png" coords="8,70.48,64.25,221.05,181.00" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_5"><head>Figure 5 :</head><label>5</label><figDesc>Figure 5: An example of topics from an 8,748topic SBTDM defined over the RCV1 corpus.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_1" validated="true"><head>Table 2 shows</head><label>2</label><figDesc>the results. PAM, LDA, and nHDP have better coherence at smaller topic sizes, but SBT maintains higher coherence as the num- ber of topics increases.</figDesc><table>Topics 
+LDA 
+PAM nHDP SBTDM SBTDM 
+-wide 
+-tall 
+18 
+-420.8 -421.2 -422.9 
+-444.3 
+-440.2 
+108 
+-434.8 -430.9 -554.3 
+-445.4 
+-445.8 
+972 
+-451.2 
+--548.1 
+-443.3 
+-443.8 
+8748 
+-615.3 
+-
+-
+-444.3 
+-444.1 
+
+</table></figure>
+
+			<note place="foot" n="1"> http://websail.cs.northwestern.edu/ projects/sbts/</note>
+
+			<note place="foot" n="2"> The word frequency distribution does not impact the inferred topics (because words are always observed), and in our experiments we simply use maximum likelihood estimates for λw (i.e., setting α to be negligibly small). Exploring other word frequency distributions is an item of future work.</note>
+		</body>
+		<back>
+
+			<div type="acknowledgement">
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Acknowledgments</head><p>This research was supported in part by NSF grants IIS-1065397 and IIS-1351029, DARPA contract D11AP00268, and the Allen Institute for Artificial Intelligence. We thank the anonymous reviews for their helpful comments.</p></div>
+			</div>
+
+			<div type="references">
+
+				<listBibl>
+
+<biblStruct xml:id="b0">
+	<analytic>
+		<title level="a" type="main">Nested chinese restaurant franchise process: Applications to user tracking and document modeling</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Amr</forename><surname>Ahmed</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Liangjie</forename><surname>Hong</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Alexander</forename><surname>Smola</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 30th International Conference on Machine Learning (ICML-13)</title>
+		<meeting>the 30th International Conference on Machine Learning (ICML-13)</meeting>
+		<imprint>
+			<date type="published" when="2013" />
+			<biblScope unit="page" from="1426" to="1434" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b1">
+	<analytic>
+		<title/>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">[</forename><surname>Blei</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Latent dirichlet allocation. the Journal of machine Learning research</title>
+		<imprint>
+			<biblScope unit="volume">3</biblScope>
+			<biblScope unit="page" from="993" to="1022" />
+			<date type="published" when="2003" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b2">
+	<analytic>
+		<title level="a" type="main">The nested chinese restaurant process and bayesian nonparametric inference of topic hierarchies</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">[</forename><surname>Blei</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Journal of the ACM (JACM)</title>
+		<imprint>
+			<biblScope unit="volume">57</biblScope>
+			<biblScope unit="issue">2</biblScope>
+			<biblScope unit="page">7</biblScope>
+			<date type="published" when="2010" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b3">
+	<analytic>
+		<title level="a" type="main">Finding scientific topics</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Steyvers2004]</forename><surname>Griffiths</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">L</forename><surname>Thomas</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Mark</forename><surname>Griffiths</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Steyvers</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the National academy of Sciences of the United States of America</title>
+		<meeting>the National academy of Sciences of the United States of America</meeting>
+		<imprint>
+			<date type="published" when="2004" />
+			<biblScope unit="volume">101</biblScope>
+			<biblScope unit="page" from="5228" to="5235" />
+		</imprint>
+	</monogr>
+	<note>Suppl</note>
+</biblStruct>
+
+<biblStruct xml:id="b4">
+	<monogr>
+		<title level="m" type="main">Infinite hierarchical mmsb model for nested communities/groups in social networks</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">[</forename><surname>Ho</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1010.1868</idno>
+		<imprint>
+			<date type="published" when="2010" />
+		</imprint>
+	</monogr>
+<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b5">
+	<analytic>
+		<title level="a" type="main">Probabilistic latent semantic indexing</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Thomas</forename><surname>Hofmann</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 22nd annual international ACM SIGIR conference on Research and development in information retrieval</title>
+		<meeting>the 22nd annual international ACM SIGIR conference on Research and development in information retrieval</meeting>
+		<imprint>
+			<publisher>ACM</publisher>
+			<date type="published" when="1999" />
+			<biblScope unit="page" from="50" to="57" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b6">
+	<analytic>
+		<title level="a" type="main">Efficient tree-based topic modeling</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Boyd-Graber2012] Yuening</forename><surname>Hu</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jordan</forename><surname>Hu</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Boyd-Graber</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 50th Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 50th Annual Meeting of the Association for Computational Linguistics</meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2012" />
+			<biblScope unit="volume">2</biblScope>
+			<biblScope unit="page" from="275" to="279" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b7">
+	<analytic>
+		<title level="a" type="main">Estimation of probabilities from sparse data for the language model component of a speech recognizer. Acoustics, Speech and Signal Processing</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Slava</forename><surname>Katz</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">IEEE Transactions on</title>
+		<imprint>
+			<biblScope unit="volume">35</biblScope>
+			<biblScope unit="issue">3</biblScope>
+			<biblScope unit="page" from="400" to="401" />
+			<date type="published" when="1987" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b8">
+	<analytic>
+		<title level="a" type="main">A hierarchical aspect-sentiment model for online reviews</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">[</forename><surname>Kim</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of AAAI</title>
+		<meeting>AAAI</meeting>
+		<imprint>
+			<date type="published" when="2013" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b9">
+	<analytic>
+		<title level="a" type="main">Rcv1: A new benchmark collection for text categorization research</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Lewis</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">The Journal of Machine Learning Research</title>
+		<imprint>
+			<biblScope unit="volume">5</biblScope>
+			<biblScope unit="page" from="361" to="397" />
+			<date type="published" when="2004" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b10">
+	<analytic>
+		<title level="a" type="main">Pachinko allocation: Dag-structured mixture models of topic correlations</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">[</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Wei</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Andrew</forename><surname>Mccallum</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 23rd International Conference on Machine Learning, ICML &apos;06</title>
+		<meeting>the 23rd International Conference on Machine Learning, ICML &apos;06<address><addrLine>New York, NY, USA</addrLine></address></meeting>
+		<imprint>
+			<publisher>ACM</publisher>
+			<date type="published" when="2006" />
+			<biblScope unit="page" from="577" to="584" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b11">
+	<analytic>
+		<title level="a" type="main">Reducing the sampling complexity of topic models</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">[</forename><surname>Li</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 20th ACM SIGKDD international conference on Knowledge discovery and data mining</title>
+		<meeting>the 20th ACM SIGKDD international conference on Knowledge discovery and data mining</meeting>
+		<imprint>
+			<publisher>ACM</publisher>
+			<date type="published" when="2014" />
+			<biblScope unit="page" from="891" to="900" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b12">
+	<monogr>
+		<title level="m" type="main">Mallet: A machine learning for language toolkit</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Andrew Kachites</forename><surname>Mccallum</surname></persName>
+		</author>
+		<ptr target="http://mallet.cs.umass.edu" />
+		<imprint>
+			<date type="published" when="2002" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b13">
+	<analytic>
+		<title level="a" type="main">Mixtures of hierarchical topics with pachinko allocation</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">[</forename><surname>Mimno</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 24th international conference on Machine learning</title>
+		<meeting>the 24th international conference on Machine learning</meeting>
+		<imprint>
+			<publisher>ACM</publisher>
+			<date type="published" when="2007" />
+			<biblScope unit="page" from="633" to="640" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b14">
+	<analytic>
+		<title level="a" type="main">Optimizing semantic coherence in topic models</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">[</forename><surname>Mimno</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>the Conference on Empirical Methods in Natural Language Processing</meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2011" />
+			<biblScope unit="page" from="262" to="272" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b15">
+	<analytic>
+		<title level="a" type="main">Nested hierarchical dirichlet processes. Pattern Analysis and Machine Intelligence</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">[</forename><surname>Mimno</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1206.6425</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 49th Annual Meeting of the Association for Computational Linguistics: Human Language Technologies</title>
+		<editor>Yves Petinot, Kathleen McKeown, and Kapil Thadani</editor>
+		<meeting>the 49th Annual Meeting of the Association for Computational Linguistics: Human Language Technologies</meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2011" />
+			<biblScope unit="volume">37</biblScope>
+			<biblScope unit="page" from="670" to="675" />
+		</imprint>
+	</monogr>
+<note type="report_type">arXiv preprint</note>
+	<note>Sparse stochastic inference for latent dirichlet allocation</note>
+</biblStruct>
+
+<biblStruct xml:id="b16">
+	<monogr>
+		<title level="m" type="main">Coarse-to-fine natural language processing</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">[</forename><surname>Petrov</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Eugene</forename><surname>Charniak2011] Slav Petrov</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Charniak</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2011" />
+			<publisher>Springer Science &amp; Business Media</publisher>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b17">
+	<analytic>
+		<title level="a" type="main">Fast collapsed gibbs sampling for latent dirichlet allocation</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Porteous</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 14th ACM SIGKDD International Conference on Knowledge Discovery and Data Mining</title>
+		<meeting>the 14th ACM SIGKDD International Conference on Knowledge Discovery and Data Mining</meeting>
+		<imprint>
+			<date type="published" when="2008" />
+			<biblScope unit="page" from="569" to="577" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b18">
+	<analytic>
+		<title level="a" type="main">Exploring topic coherence over many models and many topics</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Stevens</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2012 Joint Conference on Empirical Methods in Natural Language Processing and Computational Natural Language Learning</title>
+		<meeting>the 2012 Joint Conference on Empirical Methods in Natural Language Processing and Computational Natural Language Learning</meeting>
+		<imprint>
+			<date type="published" when="2012" />
+			<biblScope unit="page" from="952" to="961" />
+		</imprint>
+	</monogr>
+	<note>Association for Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b19">
+	<analytic>
+		<title level="a" type="main">Evaluation methods for topic models</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Iain</forename><surname>Hanna M Wallach</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ruslan</forename><surname>Murray</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">David</forename><surname>Salakhutdinov</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Mimno</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 26th Annual International Conference on Machine Learning</title>
+		<meeting>the 26th Annual International Conference on Machine Learning</meeting>
+		<imprint>
+			<publisher>ACM</publisher>
+			<date type="published" when="2009" />
+			<biblScope unit="page" from="1105" to="1112" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b20">
+	<analytic>
+		<title level="a" type="main">Plda: Parallel latent dirichlet allocation for large-scale applications</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Wang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Algorithmic Aspects in Information and Management</title>
+		<imprint>
+			<publisher>Springer</publisher>
+			<date type="published" when="2009" />
+			<biblScope unit="page" from="301" to="314" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b21">
+	<analytic>
+		<title level="a" type="main">A phrase mining framework for recursive construction of a topical hierarchy</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Wang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 19th ACM SIGKDD International Conference on Knowledge Discovery and Data Mining, KDD &apos;13</title>
+		<meeting>the 19th ACM SIGKDD International Conference on Knowledge Discovery and Data Mining, KDD &apos;13<address><addrLine>New York, NY, USA</addrLine></address></meeting>
+		<imprint>
+			<publisher>ACM</publisher>
+			<date type="published" when="2013" />
+			<biblScope unit="page" from="437" to="445" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b22">
+	<analytic>
+		<title level="a" type="main">Efficient methods for topic model inference on streaming document collections</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">[</forename><surname>Yao</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 15th ACM SIGKDD international conference on Knowledge discovery and data mining</title>
+		<meeting>the 15th ACM SIGKDD international conference on Knowledge discovery and data mining</meeting>
+		<imprint>
+			<publisher>ACM</publisher>
+			<date type="published" when="2009" />
+			<biblScope unit="page" from="937" to="946" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+				</listBibl>
+			</div>
+		</back>
+	</text>
+</TEI>

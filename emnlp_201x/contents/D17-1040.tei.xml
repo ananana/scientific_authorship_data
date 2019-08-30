@@ -1,0 +1,769 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<TEI xmlns="http://www.tei-c.org/ns/1.0" 
+xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+xsi:schemaLocation="http://www.tei-c.org/ns/1.0 /home/ana/installs/grobid/grobid-0.5.1/grobid-home/schemas/xsd/Grobid.xsd"
+ xmlns:xlink="http://www.w3.org/1999/xlink">
+	<teiHeader xml:lang="en">
+		<encodingDesc>
+			<appInfo>
+				<application version="0.5.1-SNAPSHOT" ident="GROBID" when="2019-04-18T12:22+0000">
+					<ref target="https://github.com/kermitt2/grobid">GROBID - A machine learning software for extracting information from scholarly documents</ref>
+				</application>
+			</appInfo>
+		</encodingDesc>
+		<fileDesc>
+			<titleStmt>
+				<title level="a" type="main">Efficient Attention using a Fixed-Size Memory Representation</title>
+			</titleStmt>
+			<publicationStmt>
+				<publisher>Association for Computational Linguistics</publisher>
+				<availability status="unknown"><p>Copyright Association for Computational Linguistics</p>
+				</availability>
+				<date>September 7-11, 2017. 2017</date>
+			</publicationStmt>
+			<sourceDesc>
+				<biblStruct>
+					<analytic>
+						<author>
+							<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Denny</forename><surname>Britz</surname></persName>
+						</author>
+						<author>
+							<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Melody</forename><forename type="middle">Y</forename><surname>Guan</surname></persName>
+						</author>
+						<author>
+							<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Minh-Thang</forename><surname>Luong</surname></persName>
+						</author>
+						<author>
+							<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Google</forename><surname>Brain</surname></persName>
+						</author>
+						<title level="a" type="main">Efficient Attention using a Fixed-Size Memory Representation</title>
+					</analytic>
+					<monogr>
+						<title level="m">Natural Language Processing</title>
+						<meeting> <address><addrLine>Copenhagen, Denmark</addrLine></address>
+						</meeting>
+						<imprint>
+							<publisher>Association for Computational Linguistics</publisher>
+							<biblScope unit="page" from="392" to="400"/>
+							<date type="published">September 7-11, 2017. 2017</date>
+						</imprint>
+					</monogr>
+				</biblStruct>
+			</sourceDesc>
+		</fileDesc>
+		<profileDesc>
+			<abstract>
+				<p>The standard content-based attention mechanism typically used in sequence-to-sequence models is computationally expensive as it requires the comparison of large encoder and decoder states at each time step. In this work, we propose an alternative attention mechanism based on a fixed size memory representation that is more efficient. Our technique predicts a compact set of K attention contexts during encoding and lets the decoder compute an efficient lookup that does not need to consult the memory. We show that our approach performs on-par with the standard attention mechanism while yielding inference speedups of 20% for real-world translation tasks and more for tasks with longer sequences. By visualizing attention scores we demonstrate that our models learn distinct, meaningful alignments.</p>
+			</abstract>
+		</profileDesc>
+	</teiHeader>
+	<text xml:lang="en">
+		<body>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="1">Introduction</head><p>Sequence-to-sequence models <ref type="bibr" target="#b20">(Sutskever et al., 2014;</ref>) have achieved state of the art results across a wide variety of tasks, including Neural Machine Translation (NMT) ( <ref type="bibr" target="#b1">Bahdanau et al., 2014;</ref><ref type="bibr" target="#b23">Wu et al., 2016</ref>), text summarization ( <ref type="bibr" target="#b17">Rush et al., 2015;</ref><ref type="bibr" target="#b15">Nallapati et al., 2016)</ref>, speech recognition ( <ref type="bibr" target="#b4">Chan et al., 2015;</ref><ref type="bibr" target="#b6">Chorowski and Jaitly, 2016)</ref>, image captioning ( <ref type="bibr" target="#b24">Xu et al., 2015)</ref>, and conversational modeling ( <ref type="bibr" target="#b13">Li et al., 2015</ref>).</p><p>The most popular approaches are based on an encoder-decoder architecture consisting of two recurrent neural networks (RNNs) and an attention mechanism that aligns target to source tokens ( <ref type="bibr" target="#b1">Bahdanau et al., 2014;</ref><ref type="bibr" target="#b14">Luong et al., 2015)</ref>. The typical attention mechanism used in these architectures computes a new attention context at each decoding * Equal Contribution. Author order alphabetical. step based on the current state of the decoder. Intuitively, this corresponds to looking at the source sequence after the output of every single target token.</p><p>Inspired by how humans process sentences, we believe it may be unnecessary to look back at the entire original source sequence at each step. <ref type="bibr">1</ref> We thus propose an alternative attention mechanism (section 3) that leads to smaller computational time complexity. Our method predicts K attention context vectors while reading the source, and learns to use a weighted av- erage of these vectors at each step of decoding. Thus, we avoid looking back at the source sequence once it has been encoded. We show (section 4) that this speeds up inference while performing on-par with the standard mechanism on both toy and real-world WMT translation datasets. We also show that our mecha- nism leads to larger speedups as sequences get longer. Finally, by visualizing the attention scores (section 5), we verify that the proposed technique learns mean- ingful alignments, and that different attention context vectors specialize on different parts of the source.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2">Background</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.1">Sequence-to-Sequence Model with Attention</head><p>Our models are based on an encoder-decoder archi- tecture with attention mechanism ( <ref type="bibr" target="#b1">Bahdanau et al., 2014;</ref><ref type="bibr" target="#b14">Luong et al., 2015</ref>). An encoder function takes as input a sequence of source tokens x=(x 1 ,...,x m ) and produces a sequence of states s=(s 1 ,...,s m ) .The decoder is an RNN that predicts the probability of a target sequence y =(y 1 ,...,y T |s). The probability of each target token y i ∈ {1,...,|V |} is predicted based on the recurrent state in the decoder RNN, h i , the pre- vious words, y &lt;i , and a context vector c i . The context vector c i , also referred to as the attention vector, is calculated as a weighted average of the source states.</p><formula xml:id="formula_0">c i = j α ij s j (1) α i =softmax(f att (h i ,s))<label>(2)</label></formula><p>Here, f att (h i , s) is an attention function that calculates an unnormalized alignment score between the encoder state s j and the decoder state h i . Variants of f att used in <ref type="bibr" target="#b1">Bahdanau et al. (2014)</ref> and <ref type="bibr" target="#b14">Luong et al. (2015)</ref> are:</p><formula xml:id="formula_1">f att (h i ,s j )= v T a tanh(W a [h i ,s j ]), Bahdanau h T i W a s j Luong</formula><p>where W a and v a are model parameters learned to predict alignment. Let |S| and |T | denote the lengths of the source and target sequences respectively and D denoate the state size of the encoder and decoder RNN. Such content-based attention mechanisms result in in- ference times of O(D 2 |S||T |) 2 , as each context vector depends on the current decoder state h i and all encoder states, and requires an O(D 2 ) matrix multiplication. The decoder outputs a distribution over a vocabulary of fixed-size |V |:</p><formula xml:id="formula_2">P (y i |y &lt;i ,x)=softmax(W [s i ;c i ]+b)<label>(3)</label></formula><p>The model is trained end-to-end by minimizing the negative log likelihood of the target words using stochastic gradient descent.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3">Memory-Based Attention Model</head><p>Our proposed model is shown in <ref type="figure" target="#fig_0">Figure 1</ref>. During en- coding, we compute an attention matrix C ∈R K×D , where K is the number of attention vectors and a hyperparameter of our method, and D is the dimen- sionality of the top-most encoder state. This matrix is computed by predicting a score vector α t ∈ R K at each encoding time step t. C is then a linear combination of the encoder states, weighted by α t :</p><formula xml:id="formula_3">C k = |S| t=0 α tk s t (4) α t =softmax(W α s t ),<label>(5)</label></formula><p>where W α is a parameter matrix in R K×D . The computational time complexity for this operation is O(KD|S|). One can think of C as compact fixed-length memory that the decoder will perform attention over. In contrast, standard approaches use a variable-length set of encoder states for attention. At each decoding step, we similarly predict K scores β ∈R K . The final attention context c is a linear combination of the rows in C weighted by the scores. Intuitively, each decoder step predicts how important each of the K attention vectors is.</p><formula xml:id="formula_4">c= K i=0 β i C i (6) β =softmax(W β h)<label>(7)</label></formula><p>Here, h is the current state of the decoder, and W β is a learned parameter matrix. Note that we do not access the encoder states at each decoder step. We simply take a linear combination of the attention matrix C pre-computed during encoding -a much cheaper op- eration that is independent of the length of the source sequence. The time complexity of this computation is O(KD|T |) as multiplication with the K attention matrices needs to happen at each decoding step. Summing O(KD|S|) from encoding and O(KD|T |) from decoding, we have a total linear computational complexity of O(KD(|S| + |T |). As D is typically very large, 512 or 1024 units in most applications, we expect our model to be faster than the standard attention mechanism running in O(D 2 |S||T |). For long sequences (as in summariza- tion, where -S-is large), we also expect our model to be faster than the cheaper dot-based attention mech- anism, which needs O(D|S||T |) computation time and requires encoder and decoder states sizes to match.</p><p>We also experimented with using a sigmoid function instead of the softmax to score the encoder and decoder attention scores, resulting in 4 possible combinations. We call this choice the scoring function. A softmax scoring function calculates normalized scores, while the sigmoid scoring function results in unnormalized scores that can be understood as gates.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.1">Model Interpretations</head><p>Our memory-based attention model can be under- stood intuitively in two ways. We can interpret it as "predicting" the set of attention contexts produced by a standard attention mechanism during encoding. To see this, assume we set K ≈ |T |. In this case, we predict all |T | attention contexts during the encoding stage and learn to choose the right one during decoding. This is cheaper than computing contexts one-by-one based on the decoder and encoder content. In fact, we could enforce this objective by first training a regular attention model and adding a regularization term to force the memory matrix C to be close to the T ×D vectors computed by the standard attention. We leave it to future work to explore such an objective.</p><p>Alternatively, we can interpret our mechanism as first predicting a compact K × D memory matrix, a representation of the source sequence, and then performing location-based attention on the memory by picking which row of the matrix to attend to. Standard location-based attention mechanism, by contrast, predicts a location in the source sequence to focus on ( <ref type="bibr" target="#b14">Luong et al., 2015;</ref><ref type="bibr" target="#b24">Xu et al., 2015</ref>).</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.2">Position Encodings (PE)</head><p>In the above formulation, the predictions of attention contexts are symmetric. That is, C i is not forced to be different from C j =i . While we would hope for the model to learn to generate distinct attention contexts, we now present an extension that pushes the model into this direction. We add position encodings to the score matrix that forces the first few context vector C 1 ,C 2 ,... to focus on the beginning of the sequence and the last few vectors ...,C K−1 ,C K to focus on the end (thereby encouraging in-between vectors to focus on the middle).</p><p>Explicitly, we multiply the score vector α with position encodings l s ∈R K :</p><formula xml:id="formula_5">C P E = |S| s=0 α P E h s (8) α P E s =softmax(W α h s •l s )<label>(9)</label></formula><p>To obtain l s we first calculate a constant matrix L where we define each element as</p><formula xml:id="formula_6">L ks =(1−k/K)(1−s/S)+ k K s S ,<label>(10)</label></formula><p>adapting a formula from ( <ref type="bibr" target="#b19">Sukhbaatar et al., 2015)</ref>. Here, k ∈ {1, 2, ..., K} is the context vector index and S is the maximum sequence length across all source sequences. The manifold is shown graphically in <ref type="figure" target="#fig_1">Figure 2</ref>. We can see that earlier encoder states are upweighted in the first context vectors, and later states are upweighted in later vectors. The symmetry of the manifold and its stationary point having value 0.5 both follow from Eq. 10. The elements of the matrix that fall beyond the sequence lengths are then masked out and the remaining elements are renormalized across the timestep dimension. This results in the jagged array of position encodings {l ks }. </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4">Experiments</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.1">Toy Copying Experiment</head><p>Due to the reduction of computational time complex- ity we expect our method to yield performance gains especially for longer sequences and tasks where the source can be compactly represented in a fixed-size memory matrix. To investigate the trade-off between speed and performance, we compare our technique to standard models with and without attention on a Sequence Copy Task of varying length like in <ref type="bibr" target="#b9">Graves et al. (2014)</ref>. We generated 4 training datasets of 100,000 examples and a validation dataset of 1,000 ex- amples. The vocabulary size was 20. For each dataset, the sequences had lengths randomly chosen between 0 to L, for L∈{10,50,100,200} unique to each dataset.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.1.1">Training Setup</head><p>All models are implemented using TensorFlow based on the seq2seq implementation of <ref type="bibr" target="#b2">Britz et al. (2017)</ref>  <ref type="bibr">3</ref> and trained on a single machine with a Nvidia K40m GPU. We use a 2-layer 256-unit, a bidirectional LSTM (Hochreiter and Schmidhuber, 1997) encoder, a 2-layer 256-unit LSTM decoder, and 256-dimensional embeddings. For the attention baseline, we use the standard parametrized attention ( <ref type="bibr" target="#b1">Bahdanau et al., 2014</ref>). Dropout of 0.2 (0.8 keep probability) is applied to the input of each cell and we optimize using Adam ( <ref type="bibr" target="#b12">Kingma and Ba, 2014</ref>) at a learning rate of 0.0001 and batch size 128. We train for at most 200,000 steps (see <ref type="figure" target="#fig_4">Figure 3</ref> for sample learning curves). BLEU scores are calculated on tokenized data using the multi-bleu.perl script in Moses. <ref type="bibr">4</ref> We decode using beam search with a beam  <ref type="table">Table 1</ref>: BLEU scores and computation times with varying K and sequence length compared to baseline models with and without attention.</p><note type="other">Length Model BLEU Time (s) 20 No Att 99.93 2.03 K =1 99.52 2.12 K =4 99.56 2.25 K =16 99.56 2.21 K =32 99.57 2.59 K =64 99.75 2.86 Att 99.98 2.86 50 No Att 97.37 3.90 K =1 98.86 4.33 K =4 99.95 4.48 K =16 99.96 4.58 K =32 99.96 5.35 K =64 99.97 5.84 Att 99.94 6.46 100 No Att 73.99 6.33 K =1 87.42 7.32 K =4 99.81 7.47 K =16 99.97 7.50 K =32 99.99 7.65 K =64 100.00 7.77 Att 100.00 11.00 200 No Att 32.64 9.10 K =1 44.22 9.30 K =4 98.54 9.49 K =16 99.98 9.53 K =32 100.00 9.59 K =64 100.00 9.78 Att 100.00 14.28</note><p>size of 10 (Wiseman and Rush, 2016). <ref type="table">Table 1</ref> shows the BLEU scores of our model on differ- ent sequence lengths while varying K. This is a study of the trade-off between computational time and rep- resentational power. A large K allows us to compute complex source representations, while a K of 1 limits the source representation to a single vector. We can see that performance consistently increases with K up to a point that depends on the data length, with longer sequences requiring more complex representations.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.1.2">Results</head><p>The results with and without position encodings are almost identical on the toy data. Our technique learns to fit the data as well as the standard attention mecha- nism despite having less representational power. Both beat the non-attention baseline by a significant margin.   That we are able to represent the source sequence with a fixed size matrix with fewer than |S| rows suggests that traditional attention mechanisms may be representing the source with redundancies and wasting computational resources. This makes intuitive sense for the toy task, which should require a relatively simple representation.</p><p>The last column shows that our technique signif- icantly speeds up the inference process. The gap in inference speed increases as sequences become longer. We measured inference time on the full validation set of 1,000 examples, not including data loading or model construction times. <ref type="figure" target="#fig_4">Figure 3a</ref> shows the learning curves for sequence length 200. We see that K =1 is unable to fit the data distribution, while K ∈{32,64} fits the data almost as quickly as the attention-based model. <ref type="figure" target="#fig_4">Figure 3b</ref> shows the effect of varying the encoder and decoder scoring functions between softmax and sigmoid. All combina- tions manage to fit the data, but some converge faster than others. In section 5 we show that distinct align- ments are learned by different function combinations.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.2">Machine Translation</head><p>Next, we explore if the memory-based attention mechanism is able to fit complex real-world datasets. For this purpose we use 4 large machine translation datasets of WMT'17 5 on the following language pairs: English-Czech (en-cs, 52M examples), English- German (en-de, 5.9M examples), English-Finish (en-fi, 2.6M examples), and <ref type="bibr">English-Turkish (en-tr, 207,373 examples)</ref>. We used the newly available pre- 5 statmt.org/wmt17/translation-task.html processed datasets for the WMT'17 task. <ref type="bibr">6</ref> Note that our scores may not be directly comparable to other work that performs their own data pre-processing. We learn shared vocabularies of 16,000 subword units using the BPE algorithm ( <ref type="bibr" target="#b18">Sennrich et al., 2016</ref>). We use newstest2015 as a validation set, and report BLEU on newstest2016.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.2.1">Training Setup</head><p>We use a similar setup to the Toy Copy task, but use 512 RNN and embedding units, train using 8 distributed workers with 1 GPU each, and train for at most 1M steps. We save checkpoints every 30 minutes during training, and choose the best based on the validation BLEU score. <ref type="table" target="#tab_2">Table 2</ref> compares our approach with and without position encodings, and with varying values for hyperparameter K, to baseline models with regular attention mechanism. Learning curves are shown in <ref type="figure" target="#fig_6">Figure 4</ref>. We see that our memory attention model with sufficiently high K performs on-par with, or slightly better, than the attention-based baseline model despite its simpler nature. Across the board, models with K = 64 performed better than corresponding models with K = 32, suggesting that using a larger number of attention vectors can capture a richer under- standing of source sequences. Position encodings also seem to consistently improve model performance. <ref type="table" target="#tab_3">Table 3</ref> shows that our model results in faster de- coding time even on a complex dataset with a large  </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.2.2">Results</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Model</head><p>Dataset K en-cs en-de en-fi en-tr Memory Attention   vocabulary of 16k. We measured decoding time over the full validation set, not including time used for model setup and data loading, averaged across 10 runs. The average sequence length for examples in this data was 35, and we expect more significant speedups for tasks with longer sequences, as suggested by our experiments on toy data. Note that in our NMT ex- amples/experiments, K ≈T , but we obtain computa- tional savings from the fact that K D. We may be able to set K T , as in toy copying, and still get very good performance in other tasks. For instance, in sum- marization the source is complex but the representa- tion of the source required to perform the task is "sim- ple" (i.e. all that is needed to generate the abstract). <ref type="figure" target="#fig_7">Figure 5</ref> shows the effect of using sigmoid and softmax function in the encoders and decoders. We found that softmax/softmax consistently performs badly, while all other combinations perform about equally well. We report results for the best combi- nation only (as chosen on the validation set), but we found this choice to only make a minor difference. </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5">Visualizing Attention</head><p>A useful property of the standard attention mechanism is that it produces meaningful alignment between source and target sequences. Often, the attention mechanism learns to progressively focus on the next source token as it decodes the target. These visualizations can be an important tool in debugging and evaluating seq2seq models and are often used for unknown token replacement.</p><p>This raises the question of whether or not our proposed memory attention mechanism also learns to generate meaningful alignments. Due to limiting the number of attention contexts to a number that is generally less than the sequence length, it is not immediately obvious what each context would learn to focus on. Our hope was that the model would learn to focus on multiple alignments at the same time, within the same attention vector. For example, if the source sequence is of length 40 and we have K =10 attention contexts, we would hope that C 1 roughly fo- cuses on tokens 1 to 4, C 2 on tokens 5 to 8, and so on. <ref type="figure">Figures 6 and 7</ref> show that this is indeed the case. To generate this visualization we multiply the attention scores α and β from the encoder and decoder. <ref type="figure">Figure  8</ref> shows a sample translation task visualization. <ref type="figure">Figure 6</ref> suggests that our model learns distinct ways to use its memory depending on the encoder and decoder functions. Interestingly, using softmax nor- malization results in attention maps typical of those de- rived from using standard attention, i.e. a relatively lin- ear mapping between source and target tokens. Mean- while, using sigmoid gating results in what seems to be a distributed representation of the source sequences across encoder time steps, with multiple contiguous at- tention contexts being accessed at each decoding step.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6">Related Work</head><p>Our contributions build on previous work in making seq2seq models more computationally efficient. <ref type="bibr" target="#b14">Luong et al. (2015)</ref> introduce various attention mech- anisms that are computationally simpler and perform as well or better than the original one presented in <ref type="bibr" target="#b1">Bahdanau et al. (2014)</ref>. However, these typically still require O(D 2 ) computation complexity, or lack the flexibility to look at the full source sequence. Efficient location-based attention ( <ref type="bibr" target="#b24">Xu et al., 2015)</ref> has also been explored in the image recognition domain. <ref type="bibr" target="#b23">Wu et al. (2016)</ref> presents several enhancements to the standard seq2seq architecture that allow more effi- cient computation on GPUs, such as only attending on the bottom layer. <ref type="bibr" target="#b11">Kalchbrenner et al. (2016)</ref> propose a linear time architecture based on stacked convolu- tional neural networks. <ref type="bibr" target="#b8">Gehring et al. (2016)</ref> also propose the use of convolutional encoders to speed up NMT. <ref type="bibr" target="#b7">de Brébisson and Vincent (2016)</ref> propose a lin- ear attention mechanism based on covariance matrices applied to information retrieval. <ref type="bibr" target="#b16">Raffel et al. (2017)</ref> enable online linear time attention calculation by en- forcing that the alignment between input and output sequence elements be monotonic. Previously, mono- tonic attention was proposed for morphological inflec- tion generation by <ref type="bibr" target="#b0">Aharoni and Goldberg (2016)</ref>.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="7">Conclusion</head><p>In this work, we propose a novel memory-based attention mechanism that results in a linear compu- tational time of O(KD(|S|+|T |)) during decoding in seq2seq models. Through a series of experiments, we demonstrate that our technique leads to consistent inference speedups as sequences get longer, and can fit complex data distributions such as those found in Neural Machine Translation. We show that our attention mechanism learns meaningful alignments despite being constrained to a fixed representation after encoding. We encourage future work that explores the optimal values of K for various language tasks and examines whether or not it is possible to predict K based on the task at hand. We also encourage evaluating our models on other tasks that must deal with long sequences but have compact representations, such as summarization and question-answering, and further exploration of their effect on memory and training speed.   <ref type="figure">Figure 8</ref>: Attention scores at each step of decoding for en-de WMT translation task using model with sigmoid scoring functions and K = 32. The left subfigure displays each individual attention vector separately while the right subfigure displays the full combined attention. (y-axis: source; x-axis: target)</p></div><figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_0"><head>Figure 1 :</head><label>1</label><figDesc>Figure 1: Memory Attention model architecture. K attention vectors are predicted during encoding, and a linear combination is chosen during decoding. In our example, K =3.</figDesc><graphic url="image-1.png" coords="3,128.69,62.81,340.17,289.77" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_1"><head>Figure 2 :</head><label>2</label><figDesc>Figure 2: Surface for the position encodings.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_2"><head>3</head><label></label><figDesc>http://github.com/google/seq2seq 4 http://github.com/moses-smt/mosesdecoder</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_4"><head>Figure 3 :</head><label>3</label><figDesc>Figure 3: Training Curves for the Toy Copy task</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_6"><head>Figure 4 :</head><label>4</label><figDesc>Figure 4: Comparing training curves for en-fi and en-tr with sigmoid encoder scoring and softmax decoder scoring and position encoding. Note that en-tr curves converged very quickly.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_7"><head>Figure 5 :</head><label>5</label><figDesc>Figure 5: Comparing training curves for en-fi for different encoder/decoder scoring functions for our models at K =64.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_8"><head>Figure 6 :Figure 7 :</head><label>67</label><figDesc>Figure 6: Attention scores at each step of decoding for on a sample from the sequence length 100 toy copy dataset. Individual attention vectors are highlighted in blue. (y-axis: source tokens; x-axis: target tokens) K K K K</figDesc><graphic url="image-5.png" coords="8,72.00,61.99,453.50,453.50" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_0" validated="false"><head></head><label></label><figDesc>(b) Comparison of sigmoid and softmax functions for choosing the encoder and decoder attention scores on evaluation data, showing that choice of gating/normalization matters.</figDesc><table>5 
+
+2.0 
+
+2.5 
+
+3.0 
+
+3.5 
+
+log perplexity 
+
+K=1 
+K=4 
+K=16 
+K=32 
+K=64 
+attention 
+no attention 
+
+(a) Comparison of varying K for copying sequences of length 
+200 on evaluation data, showing that large K leads to faster 
+convergence and small K performs similarly to the non-attentional 
+baseline. 
+
+0 
+50 
+100 
+150 
+200 
+steps (k) 
+
+0.0 
+
+0.5 
+
+1.0 
+
+1.5 
+
+2.0 
+
+2.5 
+
+3.0 
+
+3.5 
+
+log perplexity 
+
+sigmoid/sigmoid 
+sigmoid/softmax 
+softmax/sigmoid 
+softmax/softmax 
+
+</table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_2" validated="false"><head>Table 2 :</head><label>2</label><figDesc></figDesc><table>BLEU scores on WMT'17 translation datasets from the memory attention models and regular attention 
+baselines. We picked the best out of the four scoring function combinations on the validation set. Note that 
+en-tr does not have an official test set. Best test scores on each dataset are highlighted. 
+
+Model 
+Decoding Time (s) 
+K =32 
+26.85 
+K =64 
+27.13 
+Attention 
+33.28 
+
+</table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_3" validated="false"><head>Table 3 :</head><label>3</label><figDesc></figDesc><table>Decoding time, averaged across 10 runs, for 
+the en-de validation set (2169 examples) with average 
+sequence length of 35. Results are similar for both 
+PE and non-PE models. 
+
+</table></figure>
+
+			<note place="foot" n="1"> Eye-tracking and keystroke logging data from human translators show that translators generally do not reread previously translated source text words when producing target text (Carl et al., 2011).</note>
+
+			<note place="foot" n="2"> An exception is the dot-attention from Luong et al. (2015), which is O(D|S||T |), which we discuss further in Section 3.</note>
+
+			<note place="foot" n="6"> http://data.statmt.org/wmt17/translation-task/preprocessed</note>
+		</body>
+		<back>
+			<div type="references">
+
+				<listBibl>
+
+<biblStruct xml:id="b0">
+	<monogr>
+		<title level="m" type="main">Morphological inflection generation with hard monotonic attention</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Roee</forename><surname>Aharoni</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yoav</forename><surname>Goldberg</surname></persName>
+		</author>
+		<idno>CoRR abs/1611.01487</idno>
+		<imprint>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b1">
+	<monogr>
+		<title level="m" type="main">Neural machine translation by jointly learning to align and translate</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Dzmitry</forename><surname>Bahdanau</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kyunghyun</forename><surname>Cho</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yoshua</forename><surname>Bengio</surname></persName>
+		</author>
+		<idno>CoRR abs/1409.0473</idno>
+		<ptr target="http://arxiv.org/abs/1409.0473" />
+		<imprint>
+			<date type="published" when="2014" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b2">
+	<monogr>
+		<title level="m" type="main">Massive Exploration of Neural Machine Translation Architectures</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Denny</forename><surname>Britz</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Anna</forename><surname>Goldie</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Thang</forename><surname>Luong</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Quoc</forename><surname>Le</surname></persName>
+		</author>
+		<idno>CoRR abs/1703.03906</idno>
+		<ptr target="http://arxiv.org/abs/1703.03906" />
+		<imprint>
+			<date type="published" when="2017" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b3">
+	<analytic>
+		<title level="a" type="main">Barbara Dragsted, and Arnt Lykke Jakobsen</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Michael</forename><surname>Carl</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Translation Journal</title>
+		<imprint>
+			<biblScope unit="volume">16</biblScope>
+			<biblScope unit="issue">2</biblScope>
+			<date type="published" when="2011" />
+		</imprint>
+	</monogr>
+	<note>A taxonomy of human translation styles</note>
+</biblStruct>
+
+<biblStruct xml:id="b4">
+	<monogr>
+		<title/>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">William</forename><surname>Chan</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Navdeep</forename><surname>Jaitly</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Quoc</forename><forename type="middle">V</forename><surname>Le</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Oriol</forename><surname>Vinyals</surname></persName>
+		</author>
+		<idno>abs/1508.01211</idno>
+		<ptr target="http://arxiv.org/abs/1508.01211" />
+		<imprint>
+			<date type="published" when="2015" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b5">
+	<analytic>
+		<title level="a" type="main">Learning phrase representations using RNN encoder-decoder for statistical machine translation</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kyunghyun</forename><surname>Cho</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Bart</forename><surname>Van Merrienboer</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">C</forename><surname>Gülçehre</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Fethi</forename><surname>Bougares</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Holger</forename><surname>Schwenk</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yoshua</forename><surname>Bengio</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">EMNLP</title>
+		<imprint>
+			<date type="published" when="2014" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b6">
+	<monogr>
+		<title level="m" type="main">Towards better decoding and language model integration in sequence to sequence models</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jan</forename><surname>Chorowski</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Navdeep</forename><surname>Jaitly</surname></persName>
+		</author>
+		<idno>CoRR abs/1612.02695</idno>
+		<ptr target="http://arxiv.org/abs/1612.02695" />
+		<imprint>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b7">
+	<monogr>
+		<title level="m" type="main">A cheap linear attention mechanism with fast lookups and fixed-size representations</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Alexandre</forename><surname>De Brébisson</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Pascal</forename><surname>Vincent</surname></persName>
+		</author>
+		<idno>CoRR abs/1609.05866</idno>
+		<ptr target="http://arxiv.org/abs/1609.05866" />
+		<imprint>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b8">
+	<monogr>
+		<title level="m" type="main">A convolutional encoder model for neural machine translation</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jonas</forename><surname>Gehring</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Michael</forename><surname>Auli</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">David</forename><surname>Grangier</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yann</forename><forename type="middle">N</forename><surname>Dauphin</surname></persName>
+		</author>
+		<idno>CoRR abs/1611.02344</idno>
+		<ptr target="http://arxiv.org/abs/1611.02344" />
+		<imprint>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b9">
+	<monogr>
+		<title level="m" type="main">Neural turing machines</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Alex</forename><surname>Graves</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Greg</forename><surname>Wayne</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ivo</forename><surname>Danihelka</surname></persName>
+		</author>
+		<idno>CoRR abs/1410.5401</idno>
+		<imprint>
+			<date type="published" when="2014" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b10">
+	<analytic>
+		<title level="a" type="main">Long short-term memory</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Sepp</forename><surname>Hochreiter</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jürgen</forename><surname>Schmidhuber</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Neural Computation</title>
+		<imprint>
+			<biblScope unit="volume">9</biblScope>
+			<biblScope unit="issue">8</biblScope>
+			<biblScope unit="page" from="1735" to="1780" />
+			<date type="published" when="1997" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b11">
+	<monogr>
+		<title level="m" type="main">Aäron van den Oord, Alex Graves, and Koray Kavukcuoglu</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Nal</forename><surname>Kalchbrenner</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Lasse</forename><surname>Espeholt</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Karen</forename><surname>Simonyan</surname></persName>
+		</author>
+		<idno>CoRR abs/1610.10099</idno>
+		<imprint>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+	<note>Neural machine translation in linear time</note>
+</biblStruct>
+
+<biblStruct xml:id="b12">
+	<monogr>
+		<title level="m" type="main">Adam: A method for stochastic optimization</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">P</forename><surname>Diederik</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jimmy</forename><surname>Kingma</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Ba</surname></persName>
+		</author>
+		<idno>CoRR abs/1412.6980</idno>
+		<ptr target="http://arxiv.org/abs/1412.6980" />
+		<imprint>
+			<date type="published" when="2014" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b13">
+	<monogr>
+		<title level="m" type="main">A diversity-promoting objective function for neural conversation models</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jiwei</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Michel</forename><surname>Galley</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Chris</forename><surname>Brockett</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jianfeng</forename><surname>Gao</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Bill</forename><surname>Dolan</surname></persName>
+		</author>
+		<idno>CoRR abs/1510.03055</idno>
+		<ptr target="http://arxiv.org/abs/1510.03055" />
+		<imprint>
+			<date type="published" when="2015" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b14">
+	<monogr>
+		<title level="m" type="main">Effective approaches to attention-based neural machine translation</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Minh-Thang</forename><surname>Luong</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Hieu</forename><surname>Pham</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Christopher</forename><forename type="middle">D</forename><surname>Manning</surname></persName>
+		</author>
+		<idno>CoRR abs/1508.04025</idno>
+		<ptr target="http://arxiv.org/abs/1508.04025" />
+		<imprint>
+			<date type="published" when="2015" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b15">
+	<monogr>
+		<title level="m" type="main">Sequence-to-sequence rnns for text summarization</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ramesh</forename><surname>Nallapati</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Bing</forename><surname>Xiang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Bowen</forename><surname>Zhou</surname></persName>
+		</author>
+		<idno>CoRR abs/1602.06023</idno>
+		<imprint>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b16">
+	<monogr>
+		<title level="m" type="main">Online and linear-time attention by enforcing monotonic alignments</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Colin</forename><surname>Raffel</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Thang</forename><surname>Luong</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Peter</forename><forename type="middle">J</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ron</forename><forename type="middle">J</forename><surname>Weiss</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Douglas</forename><surname>Eck</surname></persName>
+		</author>
+		<idno>CoRR abs/1704.00784</idno>
+		<ptr target="http://arxiv.org/abs/1704.00784" />
+		<imprint>
+			<date type="published" when="2017" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b17">
+	<monogr>
+		<title level="m" type="main">A neural attention model for abstractive sentence summarization</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Alexander</forename><forename type="middle">M</forename><surname>Rush</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Sumit</forename><surname>Chopra</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jason</forename><surname>Weston</surname></persName>
+		</author>
+		<idno>CoRR abs/1509.00685</idno>
+		<imprint>
+			<date type="published" when="2015" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b18">
+	<analytic>
+		<title level="a" type="main">Neural machine translation of rare words with subword units</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Rico</forename><surname>Sennrich</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Barry</forename><surname>Haddow</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Alexandra</forename><surname>Birch</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">ACL</title>
+		<imprint>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b19">
+	<monogr>
+		<title level="m" type="main">Weakly supervised memory networks</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Sainbayar</forename><surname>Sukhbaatar</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Arthur</forename><surname>Szlam</surname></persName>
+		</author>
+		<idno>CoRR abs/1503.08895</idno>
+		<ptr target="http://arxiv.org/abs/1503.08895" />
+		<imprint>
+			<date type="published" when="2015" />
+		</imprint>
+	</monogr>
+	<note>Jason Weston, and Rob Fergus</note>
+</biblStruct>
+
+<biblStruct xml:id="b20">
+	<monogr>
+		<title level="m" type="main">Sequence to sequence learning with neural networks</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ilya</forename><surname>Sutskever</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Oriol</forename><surname>Vinyals</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">V</forename><surname>Quoc</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Le</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2014" />
+		</imprint>
+	</monogr>
+	<note>In NIPS</note>
+</biblStruct>
+
+<biblStruct xml:id="b21">
+	<monogr>
+		<title level="m" type="main">A neural conversational model</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Oriol</forename><surname>Vinyals</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">V</forename><surname>Quoc</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Le</surname></persName>
+		</author>
+		<idno>CoRR abs/1506.05869</idno>
+		<imprint>
+			<date type="published" when="2015" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b22">
+	<monogr>
+		<title level="m" type="main">Sequence-to-sequence learning as beamsearch optimization</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Sam</forename><surname>Wiseman</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Alexander</forename><forename type="middle">M</forename><surname>Rush</surname></persName>
+		</author>
+		<idno>CoRR abs/1606.02960</idno>
+		<imprint>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b23">
+	<analytic>
+		<title level="a" type="main">Google&apos;s neural machine translation system: Bridging the gap between human and machine translation</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yonghui</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Mike</forename><surname>Schuster</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Zhifeng</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Quoc</forename><forename type="middle">V</forename><surname>Le</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Mohammad</forename><surname>Norouzi</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Wolfgang</forename><surname>Macherey</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Maxim</forename><surname>Krikun</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yuan</forename><surname>Cao</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Qin</forename><surname>Gao</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Klaus</forename><surname>Macherey</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jeff</forename><surname>Klingner</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Apurva</forename><surname>Shah</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Melvin</forename><surname>Johnson</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Xiaobing</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Lukasz</forename><surname>Kaiser</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Stephan</forename><surname>Gouws</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yoshikiyo</forename><surname>Kato</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Taku</forename><surname>Kudo</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Hideto</forename><surname>Kazawa</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Keith</forename><surname>Stevens</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">George</forename><surname>Kurian</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Nishant</forename><surname>Patil</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Wei</forename><surname>Wang</surname></persName>
+		</author>
+		<idno>CoRR abs/1609.08144</idno>
+		<ptr target="http://arxiv.org/abs/1609.08144" />
+	</analytic>
+	<monogr>
+		<title level="j">Oriol Vinyals</title>
+		<editor>Greg Corrado, Macduff Hughes, and Jeffrey Dean</editor>
+		<imprint>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b24">
+	<monogr>
+		<title level="m" type="main">Show, attend and tell: Neural image caption generation with visual attention</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kelvin</forename><surname>Xu</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jimmy</forename><surname>Ba</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ryan</forename><surname>Kiros</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kyunghyun</forename><surname>Cho</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Aaron</forename><forename type="middle">C</forename><surname>Courville</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ruslan</forename><surname>Salakhutdinov</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Richard</forename><forename type="middle">S</forename><surname>Zemel</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yoshua</forename><surname>Bengio</surname></persName>
+		</author>
+		<idno>CoRR abs/1502.03044</idno>
+		<ptr target="http://arxiv.org/abs/1502.03044" />
+		<imprint>
+			<date type="published" when="2015" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+				</listBibl>
+			</div>
+		</back>
+	</text>
+</TEI>

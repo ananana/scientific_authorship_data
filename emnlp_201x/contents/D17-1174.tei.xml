@@ -1,0 +1,940 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<TEI xmlns="http://www.tei-c.org/ns/1.0" 
+xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+xsi:schemaLocation="http://www.tei-c.org/ns/1.0 /home/ana/installs/grobid/grobid-0.5.1/grobid-home/schemas/xsd/Grobid.xsd"
+ xmlns:xlink="http://www.w3.org/1999/xlink">
+	<teiHeader xml:lang="en">
+		<encodingDesc>
+			<appInfo>
+				<application version="0.5.1-SNAPSHOT" ident="GROBID" when="2019-04-18T10:53+0000">
+					<ref target="https://github.com/kermitt2/grobid">GROBID - A machine learning software for extracting information from scholarly documents</ref>
+				</application>
+			</appInfo>
+		</encodingDesc>
+		<fileDesc>
+			<titleStmt>
+				<title level="a" type="main">Neural Discontinuous Constituency Parsing</title>
+			</titleStmt>
+			<publicationStmt>
+				<publisher>Association for Computational Linguistics</publisher>
+				<availability status="unknown"><p>Copyright Association for Computational Linguistics</p>
+				</availability>
+				<date>September 7-11, 2017. 2017</date>
+			</publicationStmt>
+			<sourceDesc>
+				<biblStruct>
+					<analytic>
+						<author>
+							<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Miloš</forename><forename type="middle">Stanojevi´c</forename><surname>Stanojevi´c</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="department">Institute for Logic, Language and Computation (ILLC)</orgName>
+								<orgName type="institution">University of Amsterdam</orgName>
+							</affiliation>
+						</author>
+						<author>
+							<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Raquel</forename><forename type="middle">G</forename><surname>Alhama</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="department">Institute for Logic, Language and Computation (ILLC)</orgName>
+								<orgName type="institution">University of Amsterdam</orgName>
+							</affiliation>
+						</author>
+						<title level="a" type="main">Neural Discontinuous Constituency Parsing</title>
+					</analytic>
+					<monogr>
+						<title level="m">Natural Language Processing</title>
+						<meeting> <address><addrLine>Copenhagen, Denmark</addrLine></address>
+						</meeting>
+						<imprint>
+							<publisher>Association for Computational Linguistics</publisher>
+							<biblScope unit="page" from="1666" to="1676"/>
+							<date type="published">September 7-11, 2017. 2017</date>
+						</imprint>
+					</monogr>
+				</biblStruct>
+			</sourceDesc>
+		</fileDesc>
+		<profileDesc>
+			<abstract>
+				<p>One of the most pressing issues in dis-continuous constituency transition-based parsing is that the relevant information for parsing decisions could be located in any part of the stack or the buffer. In this paper , we propose a solution to this problem by replacing the structured percep-tron model with a recursive neural model that computes a global representation of the configuration, therefore allowing even the most remote parts of the configuration to influence the parsing decisions. We also provide a detailed analysis of how this representation should be built out of sub-representations of its core elements (words, trees and stack). Additionally, we investigate how different types of swap oracles influence the results. Our model is the first neural discontinuous constituency parser, and it outperforms all the previously published models on three out of four datasets while on the fourth it obtains second place by a tiny difference.</p>
+			</abstract>
+		</profileDesc>
+	</teiHeader>
+	<text xml:lang="en">
+		<body>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="1">Introduction</head><p>Research on constituency parsing has been mostly concentrated on projective trees, which can be modeled with Context-Free Grammars (CFGs). One of the main reasons for this is that modeling non-projective trees often requires richer gram- mar formalisms, which in practice implies slower runtime. For instance, the parsing algorithms for binary LCFRS-the most prominent grammar- based approach to parsing non-projective con- stituency trees-have computational complexity O(n 3k ), where k is the fan-out of the grammar. For this reason, researchers turned to faster ap- proximate methods. Approximations can be done in two ways: either on the types of structures that are predicted or on the parsing algorithm.</p><p>The first approach approximates discontinu- ous constituency structures with simpler structures for which more efficient algorithms exist. This method works as a pipeline: it converts the input to a simpler formalism, parses with it, and then con- verts it back. Relevant examples are the parsers by <ref type="bibr" target="#b9">Hall and Nivre (2008)</ref> and <ref type="bibr" target="#b7">Fernández-González and Martins (2015)</ref>, who convert discontinuous constituents to dependencies, and <ref type="bibr" target="#b27">Versley (2016)</ref>, who also applied a conversion but in this case to the projective constituency trees.</p><p>The second approach-approximation on the parsing algorithm-consists of an approximate search for the most probable parse. This is analogous to the search done by transition-based parsers, which greedily search through the space of all possible parses, resulting in very fast mod- els. The first transition-based discontinuous con- stituency parser of this sort was presented in <ref type="bibr" target="#b26">Versley (2014)</ref>, and it consists of a shift-reduce parser that handles discontinuities with swap transitions. This parser was very similar to dependency parsers with swap transitions <ref type="bibr" target="#b20">(Nivre, 2009;</ref>), but unlike its dependency equivalents, it did not exhibit higher accuracy. Later work on discon- tinuous transition-based parsing was largely fo- cused on finding alternative transitioning systems to handle discontinuity. <ref type="bibr" target="#b17">Maier (2015)</ref> and <ref type="bibr" target="#b18">Maier and Lichte (2016)</ref> proposed new types of swap op- erations (CompoundSwap and SkipShift) to make the transition sequences shorter-and therefore easier to learn. <ref type="bibr" target="#b2">Coavoux and Crabbé (2017)</ref> went even further by modifying not only the transitions but the whole configuration structure by introduc- ing an additional stack.</p><p>Over the years the transitioning system has seen some progress, but the learning model has re- mained the same : a sparse linear model trained with structured perceptron and early update strat- egy <ref type="bibr" target="#b3">(Collins, 2002;</ref><ref type="bibr" target="#b4">Collins and Roark, 2004;</ref><ref type="bibr" target="#b11">Huang et al., 2012)</ref>. This model requires heavy feature engineering and has a limited capacity in modeling interaction between the features. <ref type="bibr" target="#b18">Maier and Lichte (2016)</ref> argue that one of the biggest problems of transition based systems is precisely their greedy search, because they can- not recover from the bad decisions made in ear- lier parsing steps. Some researchers try to account for this problem by increasing the beam size, but there is a limit on how much the beam can be in- creased while remaining efficient for practical use <ref type="bibr" target="#b2">(Coavoux and Crabbé, 2017)</ref>.</p><p>The solution we propose is to use a probabilis- tic model that exploits the information from the whole configuration structure when making the decision for the next action. This can be achieved by using recurrent neural models that allow in- formation to flow all the way from the individual characters, up trough the words, POS tags, sub- trees, stack and buffer until the final configura- tion representation. Thanks to using a neural net- work model, which removes the need for feature engineering, we can concentrate on the question of which representations are more relevant for the model at each step of the flow. Thus, we reflect on how alternative representations should impact the task, and we report their relative contribution in an ablation study.</p><p>In our work, we also reduce the number of swap transitions by trying to postpone them as much as possible, in a style similar to the lazy-swap used in  -albeit with an even lower number of swaps. This change influences the model indirectly by introducing a helpful in- ductive bias.</p><p>Our model gets state-of-the-art results on Ne- gra, Negra-30 and TigerSPMRL datasets, and on the TigerHN achieves the second best published result. To the best of our knowledge this is the first work that uses neural networks in the context of discontinuous constituency parsing.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2">Transition System</head><p>We base our transitioning system on the shift- promote-adjoin transitions proposed in <ref type="bibr" target="#b5">Cross and Huang (2016)</ref>, because they remove the need for explicit binarization. Transition-based parsers consist of two components: a configuration that represents a parsing state and a set of transitions between configurations.</p><p>The configuration consists of two data struc- tures: a stack S that contains all the constituents built so far, and a buffer B of words that remain to be processed. The initial configuration consists of a buffer filled with words and an empty stack- presented as the axiom in <ref type="figure" target="#fig_0">Figure 1</ref>. The objec- tive is to find a sequence of transitions that lead to a goal state in which the buffer is empty and the stack contains only one constituent with the ROOT label. The shift transition moves the first element from the buffer to the top of the stack. The pro(X) transition "promotes" the topmost element of the stack: it replaces it with a tree that has non- terminal X and the topmost element of the stack as its only child, which also becomes its head con- stituent. The adj transition adjoins the second topmost element of the stack as a leftmost child of the topmost element of the stack. The adj tran- sition is a mirror transition of the adj.</p><p>The transitions described so far are enough to handle projective constituency structures, and have been used with success for this task in <ref type="bibr" target="#b5">Cross and Huang (2016)</ref>. To make the parser able to process discontinuous constituents we need an ad- ditional transition that allows for constituents that are far apart on the stack to become close, so that they can be adjoined into a new constituent. For this we use the swap transition from <ref type="bibr" target="#b20">Nivre (2009)</ref>. This transition takes the second topmost element from the stack and puts it back to the buffer. To prevent infinite loops of shift-swap transitions, we put a constraint that swap can be applied only to constituents that have not been swapped be- fore. To do this we use the linear ordering of con- stituents &lt; ind based on the position of the leftmost word in their yield <ref type="bibr" target="#b18">(Maier and Lichte, 2016</ref>).</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.1">Oracle</head><p>In the case of non-projective parsing, the extrac- tion of the oracle is not trivial because there can be many possible oracles that would derive the same tree. Therefore it is common practice to use some heuristic to extract only one of the possible ora- cles.</p><p>To construct the oracle, we start with the initial configuration and apply the first transition whose conditions are satisfied. We keep applying transi- tions to the resulting configurations until the goal is reached. The transitions are determined as fol- lows: first, we apply adj, adj or pro(X) if one of those produces a constituent that is found in the tree; in case of failure, we check the condi- tion for applying swap, which varies depending on the type of oracle, as we define next. If all these checks fail then a shift transition is performed.</p><formula xml:id="formula_0">axiom [], [w 1 , w 2 , ..., w n ] shift S, x|B S|x, B pro(X) S|t, B S|X(t), B adj S|t|X(t 1 . . . t k ), B S|X(t, t 1 . . . t k ), B adj S|X(t 1 . . . t k )|t, B S|X(t 1 . . . t k , t), B swap S|t 1 |t 2 , B S|t 2 , t 1 |B t 1 &lt; ind t 2 goal ROOT,</formula></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.1.1">Eager Oracle</head><p>Nivre (2009) introduced swap transitions with a very simple oracle. We can define the swapping condition for the extraction of the Eager oracle transition sequence as:</p><formula xml:id="formula_1">s 1 &lt; G s 0 (1)</formula><p>where s 0 and s 1 are the topmost and second top- most elements of the stack respectively, and &lt; G is the projective ordering of the nodes in the tree. That ordering can be computed by visiting the nodes in the tree in the postorder traversal. This is the technique that has been used in most previous proposals on discontinuous constituency parsing <ref type="bibr" target="#b17">(Maier, 2015;</ref><ref type="bibr" target="#b18">Maier and Lichte, 2016</ref>).</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.1.2">Lazy Oracle</head><p>Eager swapping strategy produces a large number of swap transitions which makes them difficult to predict.  <ref type="bibr">w1</ref> should shift and swap many times to get to word w5 in order to construct constituent C. In contrast, a Lazy oracle would postpone swapping until constituent B is built so that only one swap operation over node B would be enough for word w1 to get to word w5.</p><p>In order to define that condition in the context of discontinuous constituency parsing, we need to define a few other terms. First of all, we call a projective constituent any constituent that yields a continuous span of words (marked with blue color in <ref type="figure" target="#fig_3">Figure 2</ref>). Note that a projective con- stituent might contain non-projective constituents as its descendants. A fully projective constituent is a constituent that is projective and whose de- scendants are all projective (marked with red in <ref type="figure" target="#fig_3">Figure 2</ref>). Finally, a maximal fully projective con- stituent is a fully projective constituent whose par- ent is not a fully projective constituent (marked green in <ref type="figure" target="#fig_3">Figure 2</ref>). Finally, we define a func- tion M P C(x) that returns the closest maximally projective constituent that is ascendant of a con- stituent x if there is one; otherwise, it returns x.</p><p>The condition for the lazy swap can now be ex- pressed as:</p><formula xml:id="formula_2">s 1 &lt; G s 0 ∧ M P C(s 0 ) = M P C(b 0 ) (2)</formula><p>where s 0 and b 0 are the topmost elements of the stack and buffer, respectively. This means that we do not allow swap to penetrate into maximally projective constituents, so swapping can be de- layed until the maximally projective constituent has been built.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.1.3">Lazier Oracle</head><p>The standard Lazy swap strategy helps in cases where MPC constituents exist, like in <ref type="figure" target="#fig_3">Figure 2a</ref>. But in cases like <ref type="figure" target="#fig_3">Figure 2b</ref> there are no MPC con- stituents (except for words), so Lazy would not show any improvement over Eager. Still, even in this case it is visible that swapping w1 should be postponed until B is built. We introduce an oracle strategy called Lazier that implements the heuristic of postponing swapping over projective constituents. <ref type="bibr">1</ref> Let a function CP C(x) return the closest pro- jective constituent ascendant of a constituent x. The condition for swap operation can now be ex- pressed with:  </p><formula xml:id="formula_3">s 1 &lt; G s 0 ∧ CP C(s 0 ) = CP C(s 1 )<label>(3)</label></formula></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3">Model</head><p>As mentioned before, our goal is to have a model that can have a global representation of the parsing state. In order to define this global representation of the configuration, we first need to analyze what are the proper representations of its subparts.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.1">How to Represent Terminal Nodes?</head><p>The representations induced by neural networks are continuous vectors that encode the information that is relevant for the loss function. The initial nodes in the computation graph are often embed- dings that represent the atomic inputs in the model. In our model, the embedding of a terminal node is computed by concatenating the following four em- beddings and then applying the affine transforma- tion to compress the result into a smaller vector:</p><p>• a trained word embedding</p><p>• a trained POS tag embedding</p><p>• a pre-trained word embedding</p><p>• a trained character embedding of the word Trained embeddings (both word and POS tag embedding) are automatically trained by our model to better suit the task that we are solv- ing. The usage of pre-trained embeddings has become standard in neural parsing models: these presentations are helpful because they bring addi- tional contextual information from a bigger non- annotated corpora. The embeddings that we use in this work are the ones distributed with the Polyglot package (Al-Rfou et al., 2013).</p><p>The character embedding representation of a word is computed by composing the representa- tions of each character in the word form. This can be useful to recover some of the morphological features present in the word, such as suffixes or prefixes. We compose character embeddings by running a bi-directional LSTM (Bi-LSTM) over the characters ( .</p><p>The embeddings composed in this way express the properties of a word, but they ignore the con- text in which the word appears in the actual sen-tence. To address this we compute the final rep- resentation of the word by running a separate Bi- LSTM model over the initial vectors of the termi- nals in the same way as done by <ref type="bibr" target="#b13">Kiperwasser and Goldberg (2016)</ref> and <ref type="bibr" target="#b5">Cross and Huang (2016)</ref>.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.2">How to Represent Non-Terminal Nodes?</head><p>During the parsing process we need to produce the representations of the full subtrees that are going to be placed on the stack. In the depen- dency parsing literature, many approaches for rep- resenting dependency subtrees use the represen- tation of the head word. If the representation of the head word is computed using a model that takes context into account, such as Bi-LSTM mod- els, then this simple architecture can give good results <ref type="bibr" target="#b13">(Kiperwasser and Goldberg, 2016;</ref><ref type="bibr" target="#b5">Cross and Huang, 2016)</ref>. However, we believe that this is not the right approach for discontinuous con- stituency parsing. The reason is that, for the parser to know to which constituents it should attach the current constituent, it needs to know which argu- ments have already been attached and which ones are missing. In other words, even if the head of two different constituents is the same, their rep- resentation should be different because they have different requirements.</p><p>To address this we use a "composition function" approach where we recursively compute the rep- resentation of the constituent. Recursive neural networks (RecNN) <ref type="bibr" target="#b8">(Goller and Küchler, 1996)</ref> are one way of accomplishing this.  use RecNN to compute the representation of the subtrees in the dependency structure. We adapt this model to our case in the following way. For bi- nary constituents (i.e. outputs of adj and adj) the composition function takes the representation of the head constituent h head , the representation of the complement h comp and one single bit that represents the directionality of the e in the ad- joining operation (0 for adj and 1 for adj).</p><p>The resulting h new representation is computed as follows:</p><formula xml:id="formula_4">h new = tanh(W adj [h head ; h comp ; e ] + b adj )</formula><p>Here, semi-colon (;) represents vector concatena- tion, and W adj and b adj are the weight matrix and the bias vector that are trained together with the rest of the model, to optimize the desired loss function.</p><p>The transition pro(X) also creates new trees and its composition function can be seen as a function of a Simple RNN model:</p><formula xml:id="formula_5">h new = tanh(W pro [h head ; e nt ] + b pro )</formula><p>Here e nt is the embedding for the non-terminal to which constituent gets promoted. W pro and b pro are again the weight matrix and the bias vector whose values are estimated during training.</p><p>Simple RNN models have been shown to suffer from vanishing gradient problem, and for that rea- son they have been largely replaced with LSTM models <ref type="bibr" target="#b10">(Hochreiter and Schmidhuber, 1997</ref>). The same holds for recursive neural network mod- els. <ref type="bibr" target="#b15">Le and Zuidema (2016)</ref> have shown that, for deep and complex hierarchical structures, the models that have a memory akin to the memory in LSTM are much more robust towards the van- ishing gradient problem. Thus, in our work we use the Tree-LSTM neural architecture from <ref type="bibr" target="#b23">Tai et al. (2015)</ref>, but the alternative recursive version of LSTM by <ref type="bibr" target="#b14">Le and Zuidema (2015)</ref> could be used as well.</p><p>In the Tree-LSTM model each constituent is represented by the hidden state h and the mem- ory cell c. The composition function for the binary constituents with representations h head , c head , h comp and c comp computes the new repre- sentations h new and c new in the following way:</p><formula xml:id="formula_6">f head = σ(W (f ) 11 h head + W (f ) 12 h comp + b (f ) ) f comp = σ(W (f ) 21 h head + W (f ) 22 h comp + b (f ) ) i = σ(W (i) 1 h head + W (i) 2 h comp + b (i) ) o = σ(W (o) 1 h head + W (o) 2 h comp + b (o) ) u = tanh(W (u) 1 h head + W (u) 2 h comp + b (u) ) c new = i u + f head c head + f comp c comp h new = o tanh(c new )</formula><p>All the W matrices and the bias vectors b are trained parameters of the composition function. For each equation above there is an alternative equation that instead of bias b uses bias b . Which equation/bias will be used depends on the directionality of the adjoining operation.</p><p>For the promote transition, since it creates only one unary node, we can use almost the same com-putation as in the standard LSTM:</p><formula xml:id="formula_7">f = σ(W (f ) h head + W (f ) nt e nt + b (f ) ) i = σ(W (i) h head + W (i) nt e nt + b (i) ) o = σ(W (o) h head + W (o) nt e nt + b (o) ) u = tanh(W (u) h head + W (u) nt e nt + b (u) ) c new = i u + f c head h new = o tanh(c new )</formula><p>The main difference from the standard LSTM is that here we additionally use the information from the non-terminal embedding e nt to which the con- stituent is promoted.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.3">How to Represent a Configuration?</head><p>We have covered how to represent syntactic ob- jects (terminal and non-terminal nodes) that are stored in the stack and the buffer, but we still need to decide how to combine these representations to make a final decision about the next transition.</p><p>One possibility is to first find a suitable repre- sentation for the stack and the buffer individually, concatenate these representations and then apply a multi-layer perceptron (MLP) to produce the prob- abilities for the next action.</p><p>The stack and the buffer can be seen as the same type of data structure: the buffer can be interpreted as a stack that is filled by pushing the words in a sentence from the last to the first. Therefore, we can use same approach for modeling stack and buffer.</p><p>The most common approach for representing a stack structure in transition based parsers (both in perceptron and neural models) is to take the rep- resentations of the first few top constituents on the top of the stack. Thus, this approach assumes that only the top of the stack and buffer are rel- evant for deciding the next action. Even though this assumption seems reasonable in the context of continuous constituency parsing, for discon- tinuous parsing it can be very harmful because the constituents that we want to merge might be very far from each other in the stack, as argued in <ref type="bibr" target="#b18">(Maier and Lichte, 2016)</ref>.</p><p>In our work, we explore an alternative model that could address this problem; namely, the Stack-LSTM model proposed in . This model consists of an LSTM that pro- cesses the whole stack as a sequence, to obtain in this way a representation of the stack that includes all of its elements. This approach gave good re- sults on continuous dependency parsing, but its properties should be even more important for dis- continuous parsing, since it allows to keep in the stack a representation of all the constituents.</p><p>Given the stack h stack and buffer h buf f er repre- sentations computed by Stack-LSTMs, we com- pute the configuration representation h conf by concatenating these vectors and then applying an affine transformation followed by a ReLU (·) non- linearity:</p><formula xml:id="formula_8">h conf = ReLU (W conf [h stack ; h buf f er ] + b conf )</formula><p>This vector representation encodes the whole con- figuration: the information flow passes trough ev- ery character, every POS tag, every constituent in the stack and in the buffer. From this vector rep- resentation we can compute the probability of the transition z from the set of possible transitions Z by applying one final softmax layer:</p><formula xml:id="formula_9">p(z|h conf ) = exp(w T z h conf + b z i ) z i ∈Z exp(w T z i h conf + b z i )</formula><p>The probability of the whole sequence of transi- tions is defined as the product of the probabilities of its transitions:</p><formula xml:id="formula_10">p(z|w) = |z| i=1 p(z i |h conf i )</formula><p>The parameters are optimized for maximum like- lihood of the oracle sequence of transitions.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4">Experiments</head><p>We empirically test the performance of our parser on two German constituency treebanks: Negra and Tiger. The preprocessing applied to these tree- banks follows the same methods used in other dis- continuous constituency parsing literature, as de- scribed in Maier (2015) and implemented in the tree-tools software 2 .</p><p>We use two different versions of the Negra tree- bank. The first version is filtered for the sen- tences up to 30 words, in order to remain compa- rable to previous grammar-based models; the sec- ond version includes sentences of all lengths. As for the Tiger treebank, we use two different splits: <ref type="bibr">TigerHN (Hall and Nivre, 2008)</ref> and TigerSPMRL name value trained word embedding dim. 100 pretrained word embedding dim. 64 POS embedding dim. 20 character embedding dim. 100 character <ref type="table" target="#tab_0">Bi-LSTM layers  1  word Bi-LSTM layers  2  (non-)</ref>   <ref type="bibr" target="#b17">Maier, 2015)</ref>. We evaluated the model with the evaluation module of discodop 3 parser. Our model is implemented with DyNet (Neu- big et al., 2017) and the code is available at https://github.com/stanojevic/ BadParser. The concrete hyper-parameters of our model are shown in <ref type="table" target="#tab_0">Table 1</ref>. We optimize the parameters with Adam optimizer on the training set, for 10 iterations with 100 random restarts, and we do model selection on the validation set for the F-score. During test time we use beam search with beam of size 16.</p><note type="other">terminal node repr. dim. 40 configuration repr. dim. 100 stack LSTM dim. 100 stack LSTM layers 2 buffer LSTM dim. 100 buffer LSTM layers 2 optimizer Adam optimizer parameter b1 0.9 optimizer parameter b2 0.999 beam size 16</note><p>We conducted the development of our model on the TigerHN train and development sets. First we will analyze the effect of different model design decisions and then we show the results over the test set. The development set scores on TigerHN are shown in <ref type="table" target="#tab_3">Table 3</ref>.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.1">Which oracle is better?</head><p>The results in <ref type="table" target="#tab_3">Table 3</ref> show that the Eager ora- cle works better than Lazy for discontinuous con- stituents, but for continuous constituents (and over all constituents on average) Lazy works better. This can be explained by Lazy being very conser- vative about swaps: since their number is signifi-   cantly reduced, the transition becomes difficult to predict, and thus the model gives up on predict- ing swaps and concentrates on the statistics for the projective operations. In other words, Lazy predicts swaps only if the statistical evidence for swaps is high. This can be seen by the contrast between high precision but very low recall on dis- continuous constituents. Eager works in the opposite direction: since it has observed many swaps it has a strong bias to predict them, which leads to a high recall but low precision. Lazier strikes a good balance be- tween precision and recall on the discontinuous constituents, and because of that it outperforms both Eager and Lazy on F-score for both all con- stituents and discontinuous constituents.</p><p>The good result of Lazier cannot be subscribed only to the shorter transition sequences being eas- ier to predict, because if it was up to the transition    sequences length alone then Lazy would work bet- ter than Eager on the discontinuous constituents. The more likely explanation is that Lazier intro- duces an inductive bias in the model that is use- ful for generalization, and that allows the model to generalize better than Eager and Lazy.</p><p>We also quantified how many swaps are made by Eager, Lazy and Lazier. <ref type="figure" target="#fig_6">Figure 3</ref> shows the statistics over the TigerHN training set for differ- ent sentence lengths; the aggregated statistics over all sentence lengths can be read in <ref type="table" target="#tab_1">Table 2</ref>. We can observe in <ref type="figure" target="#fig_6">Figure 3(a)</ref> that, in the case of short sentences, all the swapping strategies give simi- lar results, but as sentences get longer the number of swaps in Eager gets much higher and more un- stable than lazier alternatives. We found that for some sentences Lazy and Lazier do with 2 swaps what Eager does with 126 swaps. Compared to Lazy, Lazier is much more stable in terms of the number of swaps, which can be seen by the stan- dard deviation in <ref type="table" target="#tab_1">Table 2</ref>. In <ref type="figure" target="#fig_6">Figure 3(b)</ref> shows a similar trend for the size of the jump of swap tran- sitions. All the swaps of Eager make a jump of size 1, while the jumps of Lazier can go up to 91 words.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.2">What is the best word representation?</head><p>We have tested whether the representation of a word based solely on its embeddings is enough to get good results or, instead, this representation should be refined by the bi-directional LSTM. <ref type="table" target="#tab_3">Ta- ble 3</ref> shows that adding layers to the bi-directional LSTM consistently improves the scores. The dif- ference between not using a bi-directional LSTM and using 2 layers of bi-directional LSTM is 3.63 F-score, which is a big margin. Adding a third layer did not improve scores significantly.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.3">What is the best composition function?</head><p>We have tried three options for composition func- tions: Head (use only the head word embedding instead of a composition function), RecNN and TreeLSTM -all presented in Section 3.2. As we expected, the head representation alone did not perform well, which shows that some type of com- position function is needed. We find that using a recursive model with a memory cell improves re- sults by 1.12 F-score, and thus we settle for the TreeLSTM composition function.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.4">What is the best configuration representation?</head><p>We tested two configuration representations: the first one -top3 -takes the 3 topmost elements from the stack and the buffer as the representa- tives, while the second one -Stack-LSTM -mod- els the whole content of the configuration via re- current neural models. In line with our intuitions, the Stack-LSTM, thanks to considering the whole stack and buffer structure instead of only a few el- ements, outperforms top3 by a margin of 2.65 F- score points.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.5">Comparison with other models</head><p>We took the version of our model that performed the best on the TigerHN development set and com- pared it on the four different datasets (two tree- banks with two different splits) with other parsers. In <ref type="table" target="#tab_4">Table 4</ref> we show the results compared to the other works published on these datasets. Our parser outperforms all the previously published models on all datasets except TigerHN, where it ends up second best after <ref type="bibr" target="#b7">Fernández-González and Martins (2015)</ref>. As shown in our previous anal- ysis, exploring alternative representations of the different components has allowed us to construct a better model. We must also notice that, when com- paring to other models, one influential cause of the good performance may be the capacity of our model, provided by the neural architectures. Neu- ral networks allow modeling relations from input to output that are much more complex than those captured by the approaches we compare to, most of which use linear models based on perceptron or simple PCFG type of generative models.</p><p>We have also tested our model on the predicted POS tags from TigerSPMRL split, as provided in TigerSPRML F1 (spmrl.prm) ≤ 70 All Versley <ref type="bibr">(2014)</ref> 73.90 - This work 77.25 76.96 F&amp;M <ref type="bibr">(2015)</ref> 77.72 <ref type="bibr">77.32 Coavoux&amp;Crabbé (2017</ref><ref type="bibr">) 79.44 79.26 Versley (2016</ref> 79.84 79.50 <ref type="table">Table 5</ref>: Results on SPMRL data with predicted tags.</p><p>the shared task ( <ref type="bibr" target="#b22">Seddah et al., 2013)</ref>. The results are shown in <ref type="table">Table 5</ref>. The biggest strength of our model-its capacity-is in this case its biggest weakness: it causes the model parameters to over- fit the noisy predicted tags during training, be- cause we have not used any form of regularization.</p><p>Model combinations like the one in Versley <ref type="formula">(2016)</ref> do not suffer from this because they implicitly do strong regularization. Our model could probably achieve better results on this dataset with stronger regularization, which we leave for future research.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5">Conclusion</head><p>We have presented the first neural model for discontinuous constituency parsing that achieves state-of-the-art results in three out of four standard datasets for discontinuous parsing with gold POS tags. Our findings suggest that i) bidirectional LSTM should be used for refining the represen- tations of terminals even in the cases when they are going to be combined by a recursive model, ii) the performance of the composition function depends to a big extent on the availability of the memory cells, to prevent the vanishing gradient, iii) it is crucial to use all the elements in the stack and buffer in the decision process instead of just few elements on the top and iv) Lazier oracle gives better and more stable results than Eager and Lazy oracles on both continuous and discontinuous con- stituents.</p></div><figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_0"><head>Figure 1 :</head><label>1</label><figDesc>Figure 1: Transition System</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_1"><head></head><label></label><figDesc>For this reason, Nivre et al. (2009) intro- duced a lazy-swap operation that postpones swap- ping by having an additional condition during the construction of an oracle. This technique was used successfully in Versley (2014) to improve over the eager swapping baseline. As an example, in Fig- ure 2a word</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_3"><head>Figure 2 :</head><label>2</label><figDesc>Figure 2: Example tree structures</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_4"><head>Mean</head><label></label><figDesc>number of swaps Eager Lazy Lazier (a) Mean number of swaps per sentence length.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_5"><head></head><label></label><figDesc>Mean size of the swap jumps per sentence length.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_6"><head>Figure 3 :</head><label>3</label><figDesc>Figure 3: The effect of different swap strategies of sentences with up to 80 words</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_7"><head>All</head><label></label><figDesc></figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_0" validated="false"><head>Table 1 :</head><label>1</label><figDesc></figDesc><table>Hyper-parameters of the model 
+
+#swaps 
+jump size 
+Eager 43.17 ±49.21 
+1.00 ± 0.0 
+Lazy 
+10.96 ± 9.96 
+6.88 ±5.54 
+Lazier 
+5.40 ± 3.05 10.03 ±11.05 
+
+</table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_1" validated="false"><head>Table 2 :</head><label>2</label><figDesc></figDesc><table>Average number of swaps and jump sizes 
+per sentence 
+
+(</table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_3" validated="false"><head>Table 3 :</head><label>3</label><figDesc></figDesc><table>Precision (P), Recall (R), F-score (F) and Exact (E), for our best model and ablated versions. 
+
+Negra 
+Negra-All 
+TigerHN 
+TigerSPMRL 
+All 
+L≤40 
+All 
+L≤40 
+All 
+
+conv2dep 
+
+Hall and Nivre (2008) 
+-
+-
+-
+79.93 
+-
+-
+Fernández-González and 
+Martins (2015) 
+82.56 
+81.08 
+80.52 
+85.53 
+84.22 
+80.62 
+
+LCFRS 
+
+van Cranenburgh (2012) 
+-
+72.33 
+71.08 
+-
+-
+-
+van Cranenburgh and Bod 
+(2013) 
+-
+76.8 
+-
+-
+-
+-
+
+Kallmeyer and Maier 
+(2013) 
+75.75 
+-
+-
+-
+-
+-
+
+Transition-Based 
+
+Versley (2014) 
+-
+-
+-
+74.23 
+-
+-
+Maier (2015) 
+76.95 
+-
+-
+79.52 
+-
+74.71 
+Maier and Lichte (2016) 
+-
+-
+-
+80.02 
+-
+76.46 
+Coavoux and Crabbé 
+(2017) 
+82.46 
+82.76 
+82.16 
+85.11 
+84.01 
+81.60 
+
+This work 
+83.29 
+83.39 
+82.87 
+85.25 
+84.06 
+81.64 
+
+</table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_4" validated="false"><head>Table 4 :</head><label>4</label><figDesc></figDesc><table>Final results on test set, computed with discodop evaluation module. Trained on Negra-All. 
+Evaluated with SPRML scripts. 
+
+</table></figure>
+
+			<note place="foot" n="1"> The same intuition is followed in the Barriers strategy of Versley (2014).</note>
+
+			<note place="foot" n="2"> https://github.com/wmaier/treetools</note>
+
+			<note place="foot" n="3"> https://github.com/andreasvc/ disco-dop</note>
+		</body>
+		<back>
+
+			<div type="acknowledgement">
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Acknowledgments</head><p>We are thankful to Andreas van Cranenburgh and Wolfgang Maier for sharing the data and prepro-cessing scripts, and to the anonymous reviewers for suggestions that improved the paper. We are grateful to the ILLC for providing us with travel-ing funds to attend the conference.</p></div>
+			</div>
+
+			<div type="references">
+
+				<listBibl>
+
+<biblStruct xml:id="b0">
+	<analytic>
+		<title level="a" type="main">Polyglot: Distributed word representations for multilingual nlp</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Rami</forename><surname>Al-Rfou</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Bryan</forename><surname>Perozzi</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Steven</forename><surname>Skiena</surname></persName>
+		</author>
+		<ptr target="http://www.aclweb.org/anthology/W13-3520" />
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Seventeenth Conference on Computational Natural Language Learning. Association for Computational Linguistics</title>
+		<meeting>the Seventeenth Conference on Computational Natural Language Learning. Association for Computational Linguistics<address><addrLine>Sofia, Bulgaria</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2013" />
+			<biblScope unit="page" from="183" to="192" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b1">
+	<analytic>
+		<title level="a" type="main">Improved transition-based parsing by modeling characters instead of words with lstms</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Miguel</forename><surname>Ballesteros</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Chris</forename><surname>Dyer</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Noah</forename><forename type="middle">A</forename><surname>Smith</surname></persName>
+		</author>
+		<ptr target="http://aclweb.org/anthology/D15-1041" />
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2015 Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>the 2015 Conference on Empirical Methods in Natural Language Processing<address><addrLine>Lisbon, Portugal</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2015" />
+			<biblScope unit="page" from="349" to="359" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b2">
+	<analytic>
+		<title level="a" type="main">Incremental discontinuous phrase structure parsing with the gap transition</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Maximin</forename><surname>Coavoux</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Benoit</forename><surname>Crabbé</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 15th Conference of the European Chapter of the Association for Computational Linguistics</title>
+		<meeting>the 15th Conference of the European Chapter of the Association for Computational Linguistics<address><addrLine>Valencia, Spain</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2017" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b3">
+	<analytic>
+		<title level="a" type="main">Discriminative training methods for hidden markov models: Theory and experiments with perceptron algorithms</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Michael</forename><surname>Collins</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the ACL-02 conference on Empirical methods in natural language processing</title>
+		<meeting>the ACL-02 conference on Empirical methods in natural language processing</meeting>
+		<imprint>
+			<date type="published" when="2002" />
+			<biblScope unit="volume">10</biblScope>
+			<biblScope unit="page" from="1" to="8" />
+		</imprint>
+	</monogr>
+	<note>Association for Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b4">
+	<analytic>
+		<title level="a" type="main">Incremental parsing with the perceptron algorithm</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Michael</forename><surname>Collins</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Brian</forename><surname>Roark</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 42nd Annual Meeting on Association for Computational Linguistics. Association for Computational Linguistics</title>
+		<meeting>the 42nd Annual Meeting on Association for Computational Linguistics. Association for Computational Linguistics</meeting>
+		<imprint>
+			<date type="published" when="2004" />
+			<biblScope unit="page">111</biblScope>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b5">
+	<analytic>
+		<title level="a" type="main">Incremental parsing with minimal features using bi-directional lstm</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">James</forename><surname>Cross</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Liang</forename><surname>Huang</surname></persName>
+		</author>
+		<ptr target="http://anthology.aclweb.org/" />
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 54th Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 54th Annual Meeting of the Association for Computational Linguistics<address><addrLine>Berlin, Germany</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2016" />
+			<biblScope unit="page" from="16" to="2006" />
+		</imprint>
+	</monogr>
+	<note>Short Papers). Association for Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b6">
+	<analytic>
+		<title level="a" type="main">Transitionbased dependency parsing with stack long shortterm memory</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Chris</forename><surname>Dyer</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Miguel</forename><surname>Ballesteros</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Wang</forename><surname>Ling</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Austin</forename><surname>Matthews</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Noah</forename><forename type="middle">A</forename><surname>Smith</surname></persName>
+		</author>
+		<ptr target="http://www.aclweb.org/anthology/P15-1033" />
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 53rd Annual Meeting of the Association for Computational Linguistics and the 7th International Joint Conference on Natural Language Processing</title>
+		<meeting>the 53rd Annual Meeting of the Association for Computational Linguistics and the 7th International Joint Conference on Natural Language Processing<address><addrLine>Beijing, China</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2015" />
+			<biblScope unit="page" from="334" to="343" />
+		</imprint>
+	</monogr>
+	<note>Long Papers). Association for Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b7">
+	<analytic>
+		<title level="a" type="main">Parsing as reduction</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Daniel</forename><surname>Fernández</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">-González</forename><surname>André</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">F</forename><forename type="middle">T</forename><surname>Martins</surname></persName>
+		</author>
+		<ptr target="http://www.aclweb.org/anthology/P15-1147" />
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 53rd Annual Meeting of the Association for Computational Linguistics and the 7th International Joint Conference on Natural Language Processing</title>
+		<meeting>the 53rd Annual Meeting of the Association for Computational Linguistics and the 7th International Joint Conference on Natural Language Processing<address><addrLine>Beijing, China</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2015" />
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="1523" to="1533" />
+		</imprint>
+	</monogr>
+	<note>Long Papers). Association for Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b8">
+	<analytic>
+		<title level="a" type="main">Learning task-dependent distributed representations by backpropagation through structure</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Christoph</forename><surname>Goller</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Andreas</forename><surname>Küchler</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the International Conference on Neural Networks. IEEE</title>
+		<meeting>the International Conference on Neural Networks. IEEE</meeting>
+		<imprint>
+			<date type="published" when="1996" />
+			<biblScope unit="page" from="347" to="352" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b9">
+	<analytic>
+		<title level="a" type="main">Parsing discontinuous phrase structure with grammatical functions</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Johan</forename><surname>Hall</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Joakim</forename><surname>Nivre</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 6th International Conference on Natural Language Processing (GoTAL)</title>
+		<meeting>the 6th International Conference on Natural Language Processing (GoTAL)</meeting>
+		<imprint>
+			<date type="published" when="2008" />
+			<biblScope unit="page" from="169" to="180" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b10">
+	<analytic>
+		<title level="a" type="main">Long short-term memory</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Sepp</forename><surname>Hochreiter</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jürgen</forename><surname>Schmidhuber</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Neural computation</title>
+		<imprint>
+			<biblScope unit="volume">9</biblScope>
+			<biblScope unit="issue">8</biblScope>
+			<biblScope unit="page" from="1735" to="1780" />
+			<date type="published" when="1997" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b11">
+	<analytic>
+		<title level="a" type="main">Structured perceptron with inexact search</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Liang</forename><surname>Huang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Suphan</forename><surname>Fayong</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yang</forename><surname>Guo</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2012 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies</title>
+		<meeting>the 2012 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies<address><addrLine>Stroudsburg, PA, USA, NAACL HLT</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2012" />
+			<biblScope unit="volume">12</biblScope>
+			<biblScope unit="page" from="142" to="151" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b12">
+	<analytic>
+		<title level="a" type="main">Datadriven parsing using probabilistic linear contextfree rewriting systems</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Laura</forename><surname>Kallmeyer</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Wolfgang</forename><surname>Maier</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Computational Linguistics</title>
+		<imprint>
+			<biblScope unit="volume">39</biblScope>
+			<biblScope unit="issue">1</biblScope>
+			<biblScope unit="page" from="87" to="119" />
+			<date type="published" when="2013" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b13">
+	<analytic>
+		<title level="a" type="main">Simple and accurate dependency parsing using bidirectional lstm feature representations</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Eliyahu</forename><surname>Kiperwasser</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yoav</forename><surname>Goldberg</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Transactions of the Association for Computational Linguistics</title>
+		<imprint>
+			<biblScope unit="volume">4</biblScope>
+			<biblScope unit="page" from="313" to="327" />
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b14">
+	<analytic>
+		<title level="a" type="main">Compositional distributional semantics with long short term memory</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Phong</forename><surname>Le</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Willem</forename><surname>Zuidema</surname></persName>
+		</author>
+		<ptr target="http://www.aclweb.org/anthology/S15-1002" />
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Fourth Joint Conference on Lexical and Computational Semantics</title>
+		<meeting>the Fourth Joint Conference on Lexical and Computational Semantics<address><addrLine>Denver, Colorado</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2015" />
+			<biblScope unit="page" from="10" to="19" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b15">
+	<analytic>
+		<title level="a" type="main">Quantifying the vanishing gradient and long distance dependency problem in recursive neural networks and recursive LSTMs</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Phong</forename><surname>Le</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Willem</forename><surname>Zuidema</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">ACL Workshop on Representation Learning for NLP</title>
+		<imprint>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b16">
+	<analytic>
+		<title level="a" type="main">Finding function in form: Compositional character models for open vocabulary word representation</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Wang</forename><surname>Ling</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Chris</forename><surname>Dyer</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Alan</forename><forename type="middle">W</forename><surname>Black</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Isabel</forename><surname>Trancoso</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ramon</forename><surname>Fermandez</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Silvio</forename><surname>Amir</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Luis</forename><surname>Marujo</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Tiago</forename><surname>Luis</surname></persName>
+		</author>
+		<ptr target="http://aclweb.org/anthology/D15-1176" />
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2015 Conference on Empirical Methods in Natural Language Processing. Association for Computational Linguistics</title>
+		<meeting>the 2015 Conference on Empirical Methods in Natural Language Processing. Association for Computational Linguistics<address><addrLine>Lisbon, Portugal</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2015" />
+			<biblScope unit="page" from="1520" to="1530" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b17">
+	<analytic>
+		<title level="a" type="main">Discontinuous incremental shift-reduce parsing</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Wolfgang</forename><surname>Maier</surname></persName>
+		</author>
+		<ptr target="http://www.aclweb.org/anthology/P15-1116" />
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 53rd Annual Meeting of the Association for Computational Linguistics and the 7th International Joint Conference on Natural Language Processing</title>
+		<meeting>the 53rd Annual Meeting of the Association for Computational Linguistics and the 7th International Joint Conference on Natural Language Processing<address><addrLine>Beijing, China</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2015" />
+			<biblScope unit="page" from="1202" to="1212" />
+		</imprint>
+	</monogr>
+	<note>Long Papers). Association for Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b18">
+	<analytic>
+		<title level="a" type="main">Discontinuous parsing with continuous trees</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Wolfgang</forename><surname>Maier</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Timm</forename><surname>Lichte</surname></persName>
+		</author>
+		<ptr target="http://www.aclweb.org/anthology/W16-0906" />
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Workshop on Discontinuous Structures in Natural Language Processing. Association for Computational Linguistics</title>
+		<meeting>the Workshop on Discontinuous Structures in Natural Language Processing. Association for Computational Linguistics<address><addrLine>San Diego, California</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2016" />
+			<biblScope unit="page" from="47" to="57" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b19">
+	<monogr>
+				<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Graham</forename><surname>Neubig</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Chris</forename><surname>Dyer</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yoav</forename><surname>Goldberg</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Austin</forename><surname>Matthews</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Waleed</forename><surname>Ammar</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Antonios</forename><surname>Anastasopoulos</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Miguel</forename><surname>Ballesteros</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">David</forename><surname>Chiang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Daniel</forename><surname>Clothiaux</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Trevor</forename><surname>Cohn</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kevin</forename><surname>Duh</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Manaal</forename><surname>Faruqui</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Cynthia</forename><surname>Gan</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Dan</forename><surname>Garrette</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yangfeng</forename><surname>Ji</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Lingpeng</forename><surname>Kong</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Adhiguna</forename><surname>Kuncoro</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Gaurav</forename><surname>Kumar</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Chaitanya</forename><surname>Malaviya</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Paul</forename><surname>Michel</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1701.03980</idno>
+		<title level="m">Swabha Swayamdipta, and Pengcheng Yin. 2017. Dynet: The dynamic neural network toolkit</title>
+		<meeting><address><addrLine>Yusuke Oda, Matthew Richardson, Naomi Saphra</addrLine></address></meeting>
+		<imprint/>
+	</monogr>
+<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b20">
+	<analytic>
+		<title level="a" type="main">Non-projective dependency parsing in expected linear time</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Joakim</forename><surname>Nivre</surname></persName>
+		</author>
+		<ptr target="http://www.aclweb.org/anthology/P/P09/P09-1040.pdf" />
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Joint Conference of the 47th Annual Meeting of the ACL and the 4th International Joint Conference on Natural Language Processing of the AFNLP</title>
+		<meeting>the Joint Conference of the 47th Annual Meeting of the ACL and the 4th International Joint Conference on Natural Language Processing of the AFNLP</meeting>
+		<imprint>
+			<date type="published" when="2009" />
+			<biblScope unit="page" from="351" to="359" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b21">
+	<analytic>
+		<title level="a" type="main">An improved oracle for dependency parsing with online reordering</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Joakim</forename><surname>Nivre</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Marco</forename><surname>Kuhlmann</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Johan</forename><surname>Hall</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 11th International Conference on Parsing Technologies (IWPT)</title>
+		<meeting>the 11th International Conference on Parsing Technologies (IWPT)</meeting>
+		<imprint>
+			<date type="published" when="2009" />
+			<biblScope unit="page" from="73" to="76" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b22">
+	<analytic>
+		<title level="a" type="main">Wolfgang Seeker, Yannick Versley, Veronika Vincze, Marcin Woli´nskiWoli´nski, Alina Wróblewska, and Eric Villemonte de la Clergerie</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Djamé</forename><surname>Seddah</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Reut</forename><surname>Tsarfaty</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Sandra</forename><surname>Kübler</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Marie</forename><surname>Candito</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jinho</forename><forename type="middle">D</forename><surname>Choi</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Richárd</forename><surname>Farkas</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jennifer</forename><surname>Foster</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Iakes</forename><surname>Goenaga</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Koldo</forename><forename type="middle">Gojenola</forename><surname>Galletebeitia</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yoav</forename><surname>Goldberg</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Spence</forename><surname>Green</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Nizar</forename><surname>Habash</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Marco</forename><surname>Kuhlmann</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Wolfgang</forename><surname>Maier</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Joakim</forename><surname>Nivre</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Adam</forename><surname>Przepiórkowski</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ryan</forename><surname>Roth</surname></persName>
+		</author>
+		<ptr target="http://www.aclweb.org/anthology/W13-4917" />
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Fourth Workshop on Statistical Parsing of Morphologically-Rich Languages. Association for Computational Linguistics</title>
+		<meeting>the Fourth Workshop on Statistical Parsing of Morphologically-Rich Languages. Association for Computational Linguistics<address><addrLine>Seattle, Washington, USA</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2013" />
+			<biblScope unit="page" from="146" to="182" />
+		</imprint>
+	</monogr>
+	<note>Overview of the SPMRL 2013 shared task: A cross-framework evaluation of parsing morphologically rich languages</note>
+</biblStruct>
+
+<biblStruct xml:id="b23">
+	<analytic>
+		<title level="a" type="main">Improved semantic representations from tree-structured long short-term memory networks</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kai Sheng</forename><surname>Tai</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Richard</forename><surname>Socher</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Christopher</forename><forename type="middle">D</forename><surname>Manning</surname></persName>
+		</author>
+		<ptr target="http://www.aclweb.org/anthology/P15-1150" />
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 53rd Annual Meeting of the Association for Computational Linguistics and the 7th International Joint Conference on Natural Language Processing</title>
+		<meeting>the 53rd Annual Meeting of the Association for Computational Linguistics and the 7th International Joint Conference on Natural Language Processing<address><addrLine>Beijing, China</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2015" />
+			<biblScope unit="page" from="1556" to="1566" />
+		</imprint>
+	</monogr>
+	<note>Long Papers). Association for Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b24">
+	<analytic>
+		<title level="a" type="main">Efficient parsing with linear context-free rewriting systems</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Andreas</forename><surname>Van Cranenburgh</surname></persName>
+		</author>
+		<ptr target="http://www.aclweb.org/anthology/E12-1047" />
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 13th Conference of the European Chapter of the Association for Computational Linguistics. Association for Computational Linguistics</title>
+		<meeting>the 13th Conference of the European Chapter of the Association for Computational Linguistics. Association for Computational Linguistics<address><addrLine>Avignon, France</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2012" />
+			<biblScope unit="page" from="460" to="470" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b25">
+	<analytic>
+		<title level="a" type="main">Discontinuous parsing with an efficient and accurate DOP model</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Andreas</forename><surname>Van Cranenburgh</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Rens</forename><surname>Bod</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 13th International Conference on Parsing Technologies (IWPT)</title>
+		<meeting>the 13th International Conference on Parsing Technologies (IWPT)</meeting>
+		<imprint>
+			<date type="published" when="2013" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b26">
+	<analytic>
+		<title level="a" type="main">Experiments with easy-first nonprojective constituent parsing</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yannick</forename><surname>Versley</surname></persName>
+		</author>
+		<ptr target="http://www.aclweb.org/anthology/W14-6104" />
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the First Joint Workshop on Statistical Parsing of Morphologically Rich Languages and Syntactic Analysis of Non-Canonical Languages</title>
+		<meeting>the First Joint Workshop on Statistical Parsing of Morphologically Rich Languages and Syntactic Analysis of Non-Canonical Languages<address><addrLine>Dublin, Ireland</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2014" />
+			<biblScope unit="page" from="39" to="53" />
+		</imprint>
+		<respStmt>
+			<orgName>Dublin City University</orgName>
+		</respStmt>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b27">
+	<analytic>
+		<title level="a" type="main">Discontinuity reˆ2-visited: A minimalist approach to pseudoprojective constituent parsing</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yannick</forename><surname>Versley</surname></persName>
+		</author>
+		<ptr target="http://www.aclweb.org/anthology/W16-0907" />
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Workshop on Discontinuous Structures in Natural Language Processing</title>
+		<meeting>the Workshop on Discontinuous Structures in Natural Language Processing<address><addrLine>San Diego, California</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2016" />
+			<biblScope unit="page" from="58" to="69" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+				</listBibl>
+			</div>
+		</back>
+	</text>
+</TEI>

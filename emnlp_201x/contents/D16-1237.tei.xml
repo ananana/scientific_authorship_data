@@ -1,0 +1,548 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<TEI xmlns="http://www.tei-c.org/ns/1.0" 
+xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+xsi:schemaLocation="http://www.tei-c.org/ns/1.0 /home/ana/installs/grobid/grobid-0.5.1/grobid-home/schemas/xsd/Grobid.xsd"
+ xmlns:xlink="http://www.w3.org/1999/xlink">
+	<teiHeader xml:lang="en">
+		<encodingDesc>
+			<appInfo>
+				<application version="0.5.1-SNAPSHOT" ident="GROBID" when="2019-04-18T11:55+0000">
+					<ref target="https://github.com/kermitt2/grobid">GROBID - A machine learning software for extracting information from scholarly documents</ref>
+				</application>
+			</appInfo>
+		</encodingDesc>
+		<fileDesc>
+			<titleStmt>
+				<title level="a" type="main">Exploiting Sentence Similarities for Better Alignments</title>
+			</titleStmt>
+			<publicationStmt>
+				<publisher/>
+				<availability status="unknown"><licence/></availability>
+				<date>November 1-5, 2016</date>
+			</publicationStmt>
+			<sourceDesc>
+				<biblStruct>
+					<analytic>
+						<author>
+							<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Tao</forename><surname>Li</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="institution">University of Utah</orgName>
+							</affiliation>
+						</author>
+						<author>
+							<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Vivek</forename><surname>Srikumar</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="institution">University of Utah</orgName>
+							</affiliation>
+						</author>
+						<title level="a" type="main">Exploiting Sentence Similarities for Better Alignments</title>
+					</analytic>
+					<monogr>
+						<title level="m">Proceedings of the 2016 Conference on Empirical Methods in Natural Language Processing</title>
+						<meeting>the 2016 Conference on Empirical Methods in Natural Language Processing <address><addrLine>Austin, Texas</addrLine></address>
+						</meeting>
+						<imprint>
+							<biblScope unit="page" from="2193" to="2203"/>
+							<date type="published">November 1-5, 2016</date>
+						</imprint>
+					</monogr>
+				</biblStruct>
+			</sourceDesc>
+		</fileDesc>
+		<profileDesc>
+			<abstract>
+				<p>We study the problem of jointly aligning sentence constituents and predicting their similarities. While extensive sentence similarity data exists, manually generating reference alignments and labeling the similarities of the aligned chunks is comparatively onerous. This prompts the natural question of whether we can exploit easy-to-create sentence level data to train better aligners. In this paper, we present a model that learns to jointly align constituents of two sentences and also predict their similarities. By taking advantage of both sentence and constituent level data, we show that our model achieves state-of-the-art performance at predicting alignments and constituent similarities.</p>
+			</abstract>
+		</profileDesc>
+	</teiHeader>
+	<text xml:lang="en">
+		<body>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="1">Introduction</head><p>The problem of discovering semantic relationships between two sentences has given birth to several NLP tasks over the years. Textual entailment <ref type="bibr" target="#b10">(Dagan et al., 2013</ref>, inter alia) asks about the truth of a hypothesis sentence given another sentence (or more generally a paragraph). Paraphrase identifi- cation ( <ref type="bibr" target="#b11">Dolan et al., 2004</ref>, inter alia) asks whether two sentences have the same meaning. Foregoing the binary entailment and paraphrase decisions, the semantic textual similarity (STS) task <ref type="bibr" target="#b0">(Agirre et al., 2012</ref>) asks for a numeric measure of semantic equiv- alence between two sentences. All three tasks have attracted much interest in the form of shared tasks.</p><p>While various approaches have been proposed to predict these sentence relationships, a commonly employed strategy ( <ref type="bibr">Das and Smith, 2009</ref> al., 2010a) is to postulate an alignment between con- stituents of the sentences and use this alignment to make the final prediction (a binary decision or a nu- meric similarity score). The implicit assumption in such approaches is that better constituent alignments can lead to better identification of semantic relation- ships between sentences.</p><p>Constituent alignments serve two purposes. First, they act as an intermediate representation for pre- dicting the final output. Second, the alignments help interpret (and debug) decisions made by the over- all system. For example, the alignment between the sentences in <ref type="figure" target="#fig_0">Figure 1</ref> can not only be useful to deter- mine the equivalence of the two sentences, but also help reason about the predictions.</p><p>The importance of this intermediate representa- tion led to the creation of the interpretable seman- tic textual similarity task ( <ref type="bibr" target="#b1">Agirre et al., 2015a</ref>) that focuses on predicting chunk-level alignments and similarities. However, while extensive resources ex- ist for sentence-level relationships, human annotated chunk-aligned data is comparatively smaller.</p><p>In this paper, we address the following question: can we use sentence-level resources to better pre-dict constituent alignments and similarities? To an- swer this question, we focus on the semantic tex- tual similarity (STS) task and its interpretable vari- ant. We propose a joint model that aligns con- stituents and integrates the information across the aligned edges to predict both constituent and sen- tence level similarity. The key advantage of model- ing these two problems jointly is that, during train- ing, the sentence-level information can provide feed- back to the constituent-level predictions.</p><p>We evaluate our model on the SemEval-2016 task of interpretable STS. We show that even without the sentence information, our joint model that uses con- stituent alignments and similarities forms a strong baseline. Further, our easily extensible joint model can incorporate sentence-level similarity judgments to produce alignments and chunk similarities that are comparable to the best results in the shared task.</p><p>In summary, the contributions of this paper are:</p><p>1. We present the first joint model for predicting constituent alignments and similarities. Our model can naturally take advantage of the much larger sentence-level annotations.</p><p>2. We evaluate our model on the SemEval-2016 task of interpretable semantic similarity and show state-of-the-art results.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2">Problem Definition</head><p>In this section, we will introduce the notation used in the paper using the sentences in <ref type="figure" target="#fig_0">Figure  1</ref> as a running example. The input to the prob- lem is a pair of sentences, denoted by x. We will assume that the sentences are chunked <ref type="bibr" target="#b20">(Tjong Kim Sang and Buchholz, 2000</ref>) into constituents. We denote the chunks using subscripts. Thus, the input x consists of two sequences of chunks s = (s 1 , s 2 , · · · ) and t = (t 1 , t 2 , · · · ) respec- tively. In our running example, we have s = (Gunmen, abduct, seven foreign workers) and t = (Seven foreign workers, kidnapped). The output consists of three components:</p><p>1. Alignment: The alignment between a pair of chunks is a labeled, undirected edge that ex- plains the relation that exists between them. The labels can be one of EQUI (semantically equivalent), OPPO (opposite meaning in con- text), SPE1, SPE2 (the chunk from s is more specific than the one from t and vice versa), SIMI (similar meaning, but none of the pre- vious ones) or REL (related, but none of the above) <ref type="bibr">1</ref> . In <ref type="figure" target="#fig_0">Figure 1</ref>, we see two EQUI edges. A chunk from either sentence can be unaligned, as in the case of the chunk Gunmen.</p><p>We will use y to denote the alignment for an input x. The alignment y consists of a se- quence of triples of the form (s i , t j , l). Here, s i and t j denote a pair of chunks that are aligned with a label l. For brevity, we will include un- aligned chunks into this format using a special null chunk and label to indicate that a chunk is unaligned. Thus, the alignment for our running example contain the triple (Gunmen, ∅, ∅).</p><p>2. Chunk similarity: Every aligned chunk is as- sociated with a relatedness score between zero and five, denoting the range from unrelated to equivalent. Note that even chunks labeled OPPO can be assigned a high score because the polarity is captured by the label rather than the score. We will denote the chunk similarities us- ing z, comprising of numeric z i,j,l for elements of the corresponding alignment y. For an un- aligned chunk, the corresponding similarity z is fixed to zero.</p><p>3. Sentence similarity: The pair of sentences is associated with a scalar score from zero to five, to be interpreted as above. We will use r to denote the sentence similarity for an input x.</p><p>Thus, the prediction problem is the following: Given a pair of chunked sentences x = (s, t), pre- dict the alignment y, the alignment similarities z and the sentence similarity r. Note that this problem def- inition integrates the canonical semantic textual sim- ilarity task (only predicting r) and its interpretable variant (predicting both y and z) into a single task.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3">Predicting Alignments and Similarities</head><p>This section describes our model for predicting alignments, alignment scores, and the sentence sim- ilarity scores for a given pair of sentences. We will assume that learning is complete and we have all the scoring functions we need and defer discussing the parameterization and learning to Section 4.</p><p>We frame the problem of inference as an instance of an integer linear program (ILP). We will first see the scoring functions and the ILP formulation in Section 3.1. Then, in Section 3.2, we will see how we can directly read off the similarity scores at both chunk and sentence level from the alignment.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.1">Alignment via Integer Linear Programs</head><p>We have two kinds of 0-1 inference variables to rep- resent labeled aligned chunks and unaligned chunks.</p><p>We will use the inference variables 1 i,j,l to denote the decision that chunks s i and t j are aligned with a label l. To allow chunks to be unaligned, the vari- ables 1 i,0 and 1 0,j denote the decisions that s i and t j are unaligned respectively.</p><p>Every inference decision is scored by the trained model. Thus, we have score(i, j, l), score(i, 0) and score(0, j) for the three kinds of inference variables respectively. All scores are of the form</p><formula xml:id="formula_0">A w T Φ (·, s, t)</formula><p>, where w is a weight vector that is learned, Φ (·, s, t) is a feature function whose ar- guments include the constituents and labels in ques- tion, and A is a sigmoidal activation function that flattens the scores to the range <ref type="bibr">[0,</ref><ref type="bibr">5]</ref>. In all our ex- periments, we used the function A(x) = 5 1+e −x . The goal of inference is to find the assignment to the inference variables that maximizes total score. That is, we seek to solve arg max</p><formula xml:id="formula_1">1∈C i,j,l score(i, j, l)1 i,j,l + i score(i, 0)1 i,0 + j score(0, j)1 0,j<label>(1)</label></formula><p>Here 1 represents all the inference variables together and C denotes the set of all valid assignments to the variables, defined by the following set of constraints:</p><p>1. A pair of chunks can have at most one label.</p><p>2. Either a chunk can be unaligned or it should participate in a labeled alignment with exactly one chunk of the other sentence.</p><p>We can convert these constraints into linear in- equalities over the inference variables using stan- dard techniques for ILP inference ( <ref type="bibr" target="#b17">Roth and Yih, 2004</ref>) 2 . Note that, by construction, there is a one- to-one mapping from an assignment to the inference variables 1 and the alignment y. In the rest of the paper, we use these two symbols interchangeably, using 1 referring details of inference and y referring to the alignment as a sequence of labeled edges.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.2">From Alignments to Similarities</head><p>To complete the prediction, we need to compute the numeric chunk and sentence similarities given the alignment y. In each case, we make modeling as- sumptions about how the alignments and similarities are related, as described below.</p><p>Chunk similarities To predict the chunk similari- ties, we assume that the label-specific chunk similar- ities of aligned chunks are the best edge-weights for the corresponding inference variables. That is, for a pair of chunks (s i , t j ) that are aligned with a label l, the chunk pair similarity z i,j,l is the coefficient as- sociated with the corresponding inference variable. If the alignment edge indicates an unaligned chunk, then the corresponding score is zero. That is,</p><formula xml:id="formula_2">z i,j,l = A w T Φ (s i , t j , l, s, t) if l = ∅ 0 if l = ∅.<label>(2)</label></formula><p>But can chunk similarities directly be used to find good alignments? To validate this assumption, we performed a pilot experiment on the chunk aligned part of our training dataset. We used the gold stan- dard chunk similarities as scores of the inference variables in the integer program in Eq. 1, with the variables associated with unaligned chunks being scored zero. We found that this experiment gives a near-perfect typed alignment F-score of 0.9875.</p><p>The slight disparity is because the inference only al- lows 1-to-1 matches between chunks (constraint 2), which does not hold in a small number of examples.</p><p>Sentence similarities Given the aligned chunks y, the similarity between the sentences s and t (i.e., in our notation, r) is the weighted average of the chunk similarities (i.e., z i,j,l ). Formally,</p><formula xml:id="formula_3">r = 1 |y| (s i ,t j ,l)∈y α l z i,j,l .<label>(3)</label></formula><p>Note that the weights α l depend only on the labels associated with the alignment edge and are designed to capture the polarity and strength of the label. Eq. 3 bridges sentence similarities and chunk similari- ties. During learning, this provides the feedback from sentence similarities to chunk similarities. The values of the α's can be learned or fixed before learn- ing commences. To simplify our model, we choose the latter approach . Section 5 gives more details.</p><p>Features To complete the description of the model, we now describe the features that define the scoring functions. We use standard features from the STS literature ( <ref type="bibr">Karumuri et al., 2015;</ref><ref type="bibr" target="#b1">Agirre et al., 2015b;</ref><ref type="bibr" target="#b4">Banjade et al., 2015)</ref>. For a pair of chunks, we extract the following similarity features: (1) Absolute cosine similari- ties of GloVe embeddings ( <ref type="bibr" target="#b15">Pennington et al., 2014</ref>) of head words, (2) WordNet based Resnik <ref type="bibr" target="#b16">(Resnik, 1995)</ref>, <ref type="bibr">Leacock (Leacock and Chodorow, 1998)</ref> and Lin (Lin, 1998) similarities of head words, (3) Jac- card similarity of content words and lemmas. In addition, we also add indicators for: (1) the part of speech tags of the pair of head words, (2) the pair of head words being present in the lexical large section of the Paraphrase Database ( <ref type="bibr">Ganitkevitch et al., 2013)</ref>, (3) a chunk being longer than the other while both are not named entity chunks, (4) a chunk having more content words than the other, (5) con- tents of one chunk being a part of the other, (6) hav- ing the same named entity type or numeric words, (7) sharing synonyms or antonyms, (8) sharing con- junctions or prepositions, (9) the existence of uni- gram/bigram/trigram overlap, (10) if only one chunk has a negation, and (11) a chunk having extra con- tent words that are also present in the other sentence.</p><p>For a chunk being unaligned, we conjoin an in- dicator that the chunk is unaligned with the part of speech tag of its head word.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.3">Discussion</head><p>In the model proposed above, by predicting the alignment, we will be able to deterministically cal- culate both chunk and sentence level similarities. This is in contrast to other approaches for the STS task, which first align constituents and then extract features from alignments to predict similarities in a pipelined fashion. The joint prediction of alignment and similarities allows us to address the primary mo- tivation of the paper, namely using the abundant sen- tence level data to train the aligner and scorer.</p><p>The crucial assumption that drives the joint model is that the same set of parameters that can discover a good alignment can also predict similarities. This assumption -similar to the one made by <ref type="bibr" target="#b8">Chang et al. (2010b)</ref> -and the associated model described above, imply that the goal of learning is to find parameters that drive the inference towards good alignments and similarities.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4">Learning the Alignment Model</head><p>Under the proposed model, the alignment directly predicts the chunk and sentence similarities as well. We utilize two datasets to learn the model:</p><p>1. The alignment dataset D A consists of fully annotated aligned chunks and respective chunk similarity scores.</p><p>2. The sentence dataset D S that consists of pairs of sentences where each pair is labeled with a numeric similarity score between zero and five.</p><p>The goal of learning is to use these two datasets to train the model parameters. Note that unlike stan- dard multi-task learning problems, the two tasks in our case are tightly coupled both in terms of their definition and via the model described in Section 3.</p><p>We define three types of loss functions corre- sponding to the three components of the final out- put (i.e., alignment, chunk similarity and sentence similarity). Naturally, for each kind of loss, we as- sume that we have the corresponding ground truth. We will denote ground truth similarity scores and alignments using asterisks. Also, the loss functions defined below depend on the weight vector w, but this is not shown to simplify notation.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="1.">The alignment loss L a is a structured loss</head><p>function that penalizes alignments that are far away from the ground truth. We used the struc- tured hinge loss ( <ref type="bibr">Tsochantaridis et al., 2005</ref>) for this purpose.</p><formula xml:id="formula_4">L a (s, t, y * ) = max y w T Φ (s, t, y) +∆ (y, y * ) − w T Φ (s, t, y * ) .</formula><p>Here, ∆ refers to the Hamming distance be- tween the alignments.</p><p>2. The chunk score loss L c is designed to pe- nalize errors in predicted chunk level similar- ities. To account for cases where chunk bound- aries may be incorrect, we define this loss as the sum of squared errors of token similarities. However, neither our output nor the gold stan- dard similarities are at the granularity of tokens. Thus, to compute the loss, we project the chunk scores z i,j,l for an aligned chunk pair (s i , t j , l) to the tokens that constitute the chunks by equally partitioning the scores among all pos- sible internal alignments. In other words, for a token w i in the chunk s i and token w j in chunk s j , we define token similarity scores as</p><formula xml:id="formula_5">z(w i , w j , l) = z i,j,l N (s i ,t j )</formula><p>Here, the normalizing function N is the prod- uct of the number of tokens in the chunks 3 . Note that this definition of the token similarity scores applies to both predicted and gold stan- dard similarities. Unaligned tokens are associ- ated with a zero score.</p><p>We can now define the loss for a token pair (w i , w j ) ∈ (s, t) and a label l as the squared error of their token similarity scores:</p><formula xml:id="formula_6">l(w i , w j , l) = (z(w i , w j , l) − z * (w i , w j , l)) 2</formula><p>3 Following the official evaluation of the interpretable STS task, we also experimented with the max(|si|, |tj|) for the nor- malizer, but we found via cross validation that the product per- forms better.</p><p>The chunk loss score L c for a sentence pair is the sum of all the losses over all pairs of tokens and labels.</p><formula xml:id="formula_7">L c (s, t, y, y * , z, z * ) = w i ,w j ,l l(w i , w j , l)</formula><p>3. The sentence similarity loss L s provides feed- back to the aligner by penalizing alignments that are far away from the ground truth in their similarity assessments. For a pair of sentences (s, t), given the ground truth sentence simi- larity r * and the predicted sentence similarity r (using Equation <ref type="formula" target="#formula_3">(3)</ref>), the sentence similarity loss is the squared error:</p><formula xml:id="formula_8">L s (s, t, r * ) = (r − r * ) 2 .</formula><p>Our learning objective is the weighted combina- tion of the above three components and a 2 regular- izer on the weight vector. The importance of each type of loss is controlled by a corresponding hyper- parameter: λ a , λ c and λ s respectively.</p><p>Learning algorithm We have two scenarios to consider: with only alignment dataset D A , and with both D A and sentence dataset D S . Note that even if we train only on the alignment dataset D A , our learning objective is not convex because the activa- tion function is sigmoidal (in Section 3.1).</p><p>In both cases, we use stochastic gradient descent with minibatch updates as the optimizer. In the first scenario, we simply perform the optimization using the alignment and the chunk score losses. We found by preliminary experiments on training data that ini- tializing the weights to one performed best.  <ref type="figure" target="#fig_0">(Algorithm 1)</ref>, we first initialize the model on the alignment data only. Using this initial model, we hypothesize align- ments on all examples in D S to get fully labeled ex- amples. Then, we optimize the full objective (all three loss terms) on the combined dataset. Because our goal is to study the impact on the chunk level predictions, in the full model, the sentence loss does not play a part on examples from D A .</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5">Experiments and Results</head><p>The primary research question we seek to answer via experiments is: Can we better predict chunk align- ments and similarities by taking advantage of sen- tence level similarity data?</p><p>Datasets We used the training and test data from the 2016 SemEval shared tasks of predicting seman- tic textual similarity (Agirre et al., 2016a) and inter- pretable STS ( <ref type="bibr" target="#b2">Agirre et al., 2016b)</ref>, that is, tasks 1 and 2 respectively. For our experiments, we used the headlines and images sections of the data. The data for the interpretable STS task, consisting of manu- ally aligned and scored chunks, provides the align- ment datasets for training (D A ). The headlines sec- tion of the training data consists for 756 sentence pairs, while the images section consists for 750 sen- tence pairs. The data for the STS task acts as our sentence level training dataset (D S ). For the head- lines section, we used the 2013 headlines test set consisting of 750 sentence pairs with gold sentence similarity scores. For the images section, we used the 2014 images test set consisting of 750 exam- ples. We evaluated our models on the official Task 2 test set, consisting of 375 sentence pairs for both the headlines and images sections. In all experiments, we used gold standard chunk boundaries if they are available (i.e., for D A ).</p><p>Pre-processing We pre-processed the sentences with parts of speech using the Stanford CoreNLP toolkit ( ). Since our setting as- sumes that we have the chunks as input, we used the Illinois shallow parser ( <ref type="bibr" target="#b9">Clarke et al., 2012</ref>) to extract chunks from D S . We post-processed the predicted chunks to correct for errors using the fol- lowing steps: 1. Split on punctuation; 2. Split on verbs in NP; 3. Split on nouns in VP; 4. Merge PP+NP into PP; 5. Merge VP+PRT into VP if the PRT chunk is not a preposition or a subordinating conjunction; 6. Merge SBAR+NP into SBAR; and 7. Create new contiguous chunks using tokens that are marked as being outside a chunk by the shal- low parser. We found that using the above post- processing rules, improved the F1 of chunk accuracy from 0.7865 to 0.8130. We also found via cross- validation that this post-processing improved overall alignment accuracy. The reader may refer to other STS resources ( <ref type="bibr">Karumuri et al., 2015</ref>) for further improvements along this direction.</p><p>Experimental setup We performed stochastic gradient descent for 200 epochs in our experiments, with a mini-batch size of 20. We determined the three λ's using cross-validation, with different hy- perparameters for examples from D A and D S . <ref type="table">Table  1</ref>  As noted in Section 3.1, the parameter α l com- bines chunk scores into sentence scores. To find these hyper-parameters, we used a set of 426 sen- tences from the from the headlines training data that had both sentence and chunk annotation. We sim- plified the search by assuming that α Equi is always 1.0 and all labels other than OPPO have the same α. Using grid search over <ref type="bibr">[−1, 1]</ref> in increments of 0.1, we selected α's that gave us the highest Pearson cor- relation for sentence level similarities. The best α's (with a Pearson correlation of 0.7635) were:</p><formula xml:id="formula_9">α l =      1, l = EQUI, −1, l = OPPO,</formula></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>0.7, otherwise</head><p>Results Following the official evaluation for the SemEval task, we evaluate both alignments and their  is the more stringent evaluation that measures F1 of the alignment edge labels, but penalizes them if the similarity scores do not match. The untyped ver- sions of alignment and scored alignment evaluations ignore alignment labels. These metrics, based on Melamed (1997), are tailored for the interpretable STS task <ref type="bibr">5</ref> . We refer the reader to the guidelines of the task for further details. We report both scores in <ref type="table" target="#tab_3">Table 2</ref>. We also list the performance of the base- line system (Sultan et al., 2014a) and the top ranked systems from the 2016 shared task for each dataset <ref type="bibr">6</ref> . By comparing the rows labeled D A and D A + D S in <ref type="table" target="#tab_3">Table 2 (a) and Table 2</ref> (b), we see that in both the headlines and the images datasets, adding sentence level information improves the untyped score, lifting the stricter typed score F1. On the headlines dataset, incorporating sentence-level information degrades both the untyped and typed alignment quality be- cause we cross-validated on the typed score metric.</p><p>The typed score metric is the combination of un- typed alignment, untyped score and typed align- ment. From the row D A + D S in Table 2(a), we ob- serve that the typed score F1 is slightly behind that of rank 1 system while all other three metrics are significantly better, indicating that we need to im- prove our modeling of the intersection of the three aspects. However, this does not apply to images dataset where the improvement on the typed score F1 comes from the typed alignment.</p><p>Further, we see that even our base model that only depends on the alignment data offers strong alignment F1 scores. This validates the utility of jointly modeling alignments and chunk similarities. Adding sentence data to this already strong system leads to performance that is comparable to or better than the state-of-the-art systems. Indeed, our final results would have been ranked first on the images task and a close second on the headlines task in the official standings.</p><p>The most significant feedback coming from sentence-level information is with respect to the chunk similarity scores. While we observed slight change in the unscored alignment performance, for both the headlines and the images datasets, we saw improvements in both scored precision and recall when sentence level data was used.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6">Analysis and Discussion</head><p>In this section, first, we report the results of man- ual error analysis. Then, we study the ability of our model to handle data from different domains.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6.1">Error Analysis</head><p>To perform a manual error analysis, we selected 40 examples from the development set of the head- lines section. We classified the errors made by the full model trained on the alignment and sentence datasets. Below, we report the four most significant types of errors:</p><p>1. Contextual implication: Chunks that are meant to be aligned are not synonyms by them-selves but are implied by the context. For in- stance, Israeli forces and security forces might be equivalent in certain contexts. Out of the 16 instances of EQUI being misclassified as SPE, eight were caused by the features' inability to ascertain contextual implications. This also ac- counted for four out of the 15 failures to iden- tify alignments.</p><p>2. Semantic phrase understanding: These are the cases where our lexical resources failed, e. g., ablaze and left burning. This accounted for ten of the 15 chunk alignment failures and nine of the 21 labeling errors. Among these, some errors (four alignment failures and four label- ing errors) were much simpler than others that could be handled with relatively simple fea- tures (e.g. family reunions ↔ family unions).</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.">Preposition semantics:</head><p>The inability to ac- count for preposition semantics accounts for three of the 16 cases where EQUI is mistaken as a SPE. Some examples include at 91 ↔ aged 91 and catch fire ↔ after fire.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.">Underestimated EQUI score: Ten out of 14</head><p>cases of score underestimation happened on EQUI label.</p><p>Our analysis suggests that we need better contex- tual features and phrasal features to make further gains in aligning constituents.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6.2">Does the text domain matter?</head><p>In all the experiments in Section 5, we used sentence datasets belonging to the same domain as the align- ment dataset (either headlines or images). Given that our model can take advantage of two separate datasets, a natural question to ask is how the do- main of the sentence dataset influences overall align- ment performance. Additionally, we can also ask how well the trained classifiers perform on out-of- domain data. We performed a series of experiments to explore these two questions. <ref type="table" target="#tab_5">Table 3</ref> summarizes the results of these experiments.</p><p>The columns labeled Train and Test of the ta- ble show the training and test sets used. Each dataset can be either the headlines section (denoted by hdln), or the images section (img) or not used (∅). The last two columns report performance on the test set. <ref type="table" target="#tab_3">The rows 1 and 5 in the table correspond to  the in-domain settings and match the results of typed  alignment and score in Table 2</ref>  When the headlines data is tested on the images section, we see that there is the usual domain adap- tation problem (row 3 vs row 1) and using target im- ages sentence data does not help (row 4 vs row 3). In contrast, even though there is a domain adaptation problem when we compare the rows 5 and 7, we see that once again, using headlines sentence data im- proves the predicted scores (row 7 vs row 8). This observation can be explained by the fact that the im- ages sentences are relatively simpler and headlines dataset can provide richer features in comparison, thus allowing for stronger feedback from sentences to constituents.</p><p>The next question concerns how the domain of the sentence dataset D S influences alignment and sim- ilarity performance. To answer this, we can com- pare the results in every pair of rows (i.e., 1 vs 2, 3 vs 4, etc.) We see that when the sentence data from the image data is used in conjunction to the headlines chunk data, it invariably makes the clas- sifiers worse. In contrast, the opposite trend is ob- served when the headlines sentence data augments the images chunk data. This can once again be explained by relatively simpler sentence construc- tions in the images set, suggesting that we can lever- age linguistically complex corpora to improve align- ment on simpler ones. Indeed, surprisingly, we ob- tain marginally better performance on the images set when we use images chunk level data in conjunction with the headlines sentence data (row 6 vs the row labeled D A + D S in the Table 2(b)).</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="7">Related Work</head><p>Aligning words and phrases between pairs of sen- tences is widely studied in NLP. Machine translation has a rich research history of using alignments (for e.g., ( <ref type="bibr">Koehn et al., 2003;</ref><ref type="bibr">Och and Ney, 2003)</ref>), go- ing back to the IBM models ( <ref type="bibr" target="#b6">Brown et al., 1993)</ref>. From the learning perspective, the alignments are often treated as latent variables during learning, as in this work where we treated alignments in the sen- tence level training examples as latent variables. Our work is also conceptually related to ( <ref type="bibr" target="#b11">Ganchev et al., 2008)</ref>, which asked whether improved alignment er- ror implied better translation.</p><p>Outside of machine translation, alignments are employed either explicitly or implicitly for recog- nizing textual entailment <ref type="bibr" target="#b5">(Brockett, 2007;</ref><ref type="bibr" target="#b7">Chang et al., 2010a</ref>) and paraphrase recognition <ref type="bibr">(Das and Smith, 2009;</ref><ref type="bibr" target="#b7">Chang et al., 2010a</ref>). Additionally, alignments are explored in multiple ways (tokens, phrases, parse trees and dependency graphs) as a foundation for natural logic inference <ref type="bibr">(Chambers et al., 2007;</ref><ref type="bibr" target="#b13">MacCartney and Manning, 2007;</ref><ref type="bibr" target="#b13">MacCartney et al., 2008)</ref>. Our proposed aligner can be used to aid such applications.</p><p>For predicting sentence similarities, in both vari- ants of the task, word or chunk alignments have ex- tensively been used ( <ref type="bibr" target="#b18">Sultan et al., 2015;</ref><ref type="bibr" target="#b18">Sultan et al., 2014a;</ref><ref type="bibr" target="#b18">Sultan et al., 2014b;</ref><ref type="bibr" target="#b12">Hänig et al., 2015;</ref><ref type="bibr">Karumuri et al., 2015;</ref><ref type="bibr" target="#b1">Agirre et al., 2015b;</ref><ref type="bibr">Banjade et al., 2015, and others)</ref>. In contrast to these sys- tems, we proposed a model that is trained jointly to predict alignments, chunk similarities and sentence similarities. To our knowledge, this is the first ap- proach that combines sentence-level similarity data with fine grained alignments to train a chunk aligner.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="8">Conclusion</head><p>In this paper, we presented the first joint frame- work for aligning sentence constituents and pre- dicting constituent and sentence similarities. We showed that our predictive model can be trained us- ing both aligned constituent data and sentence simi- larity data. Our jointly trained model achieves state- of-the-art performance on the task of predicting in- terpretable sentence similarities.</p></div><figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_0"><head>Figure 1 :</head><label>1</label><figDesc>Figure 1: Example constituent alignment. The solid lines represent aligned constituents (here, both labeled equivalent). The chunk Gunmen is unaligned.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_1" validated="false"><head></head><label></label><figDesc>lists the best hyperparameter values. For perform- ing inference, we used the Gurobi optimizer 4 .</figDesc><table>Setting 
+λ a , λ c , λ s 
+headlines, D A 100, 0.01, N/A 
+headlines, D S 
+0.5, 1, 50 
+images, D A 
+100, 0.01, N/A 
+images, D S 
+5, 2.5, 50 
+
+Table 1: Hyperparameters for the various settings, 
+chosen by cross-validation. The alignment dataset 
+do not have a λ associated with the sentence loss. 
+
+</table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_3" validated="false"><head>Table 2 :</head><label>2</label><figDesc></figDesc><table>F-score for headlines and images datasets. These tables show the result of our systems, baseline 
+and top-ranked systems. D A is our strong baseline trained on interpretable STS dataset; D A + D S is trained 
+on interpretable STS as well as STS dataset. The rank 1 system on headlines is Inspire (Kazmi and Schüller, 
+2016) and UWB (Konopik et al., 2016) on images. Bold are the best scores. 
+
+corresponding similarity scores. The typed align-
+ment evaluation (denoted by typed ali in the results 
+table) measures F1 over the alignment edges where 
+the types need to match, but scores are ignored. The 
+typed similarity evaluation (denoted by typed score) 
+</table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_4" validated="false"><head>.</head><label></label><figDesc></figDesc><table>Id 
+Train 
+Test 
+Typed F1 
+D A 
+D S 
+ali 
+score 
+1. 
+
+hdln 
+∅ 
+hdln 
+0.7350 0.6776 
+2. 
+img 
+0.6826 0.6347 
+3. 
+∅ 
+img 
+0.6547 0.5989 
+4. 
+img 
+0.6161 0.5854 
+5. 
+
+img 
+∅ 
+img 
+0.6933 0.6411 
+6. 
+hdln 
+0.7033 0.6793 
+7. 
+∅ 
+hdln 
+0.6702 0.6274 
+8. 
+hdln 
+0.6672 0.6445 
+
+</table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_5" validated="false"><head>Table 3 :</head><label>3</label><figDesc></figDesc><table>F-score for the domain adaptation experi-
+ments. This table shows the performance of training 
+on different dataset combinations. 
+
+</table></figure>
+
+			<note place="foot" n="1"> We refer the reader to the guidelines of the task (Agirre et al., 2015a) for further details on these labels. Also, for simplicity, in this paper, we ignore the factuality and polarity tags from the interpretable task.</note>
+
+			<note place="foot" n="2"> While it may be possible to find the score maximizing alignment in the presence of these constraints using dynamic programming (say, a variant of the Kuhn-Munkres algorithm), we model inference as an ILP to allow us the flexibility to explore more sophisticated output interactions in the future.</note>
+
+			<note place="foot" n="4"> http://www.gurobi.com/</note>
+
+			<note place="foot" n="5"> In the SemEval 2016 shared task, the typed score is the metric used for system ranking. 6 http://alt.qcri.org/semeval2016/task2/</note>
+		</body>
+		<back>
+
+			<div type="acknowledgement">
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Acknowledgments</head><p>The authors wish to thank the anonymous reviewers and the members of the Utah NLP group for their valuable comments and pointers to references.</p></div>
+			</div>
+
+			<div type="references">
+
+				<listBibl>
+
+<biblStruct xml:id="b0">
+	<analytic>
+		<title level="a" type="main">SemEval-2012 task 6: A pilot on semantic textual similarity</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Agirre</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">*SEM 2012: The First Joint Conference on Lexical and Computational Semantics</title>
+		<imprint>
+			<date type="published" when="2012" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b1">
+	<analytic>
+		<title level="a" type="main">UBC: Cubes for English Semantic Textual Similarity and Supervised Approaches for Interpretable STS</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Agirre</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 9th International Workshop on Semantic Evaluation</title>
+		<editor>Aitor GonzalezAgirre, Inigo Lopez-Gazpio, Montse Maritxalar, German Rigau, and Larraitz Uria</editor>
+		<meeting>the 9th International Workshop on Semantic Evaluation</meeting>
+		<imprint>
+			<date type="published" when="2015" />
+		</imprint>
+	</monogr>
+	<note>Proceedings of the 9th International Workshop on Semantic Evaluation</note>
+</biblStruct>
+
+<biblStruct xml:id="b2">
+	<analytic>
+		<title level="a" type="main">SemEval-2016 Task 1: Semantic Textual Similarity, Monolingual and Cross-lingual Evaluation</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Agirre</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 10th International Workshop on Semantic Evaluation</title>
+		<meeting>the 10th International Workshop on Semantic Evaluation</meeting>
+		<imprint>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+	<note>Montse Maritxalar, German Rigau, and Larraitz Uria</note>
+</biblStruct>
+
+<biblStruct xml:id="b3">
+	<analytic>
+		<title level="a" type="main">Task 2: Interpretable Semantic Textual Similarity</title>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 10th International Workshop on Semantic Evaluation</title>
+		<meeting>the 10th International Workshop on Semantic Evaluation</meeting>
+		<imprint/>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b4">
+	<analytic>
+		<title level="a" type="main">NeRoSim: A System for Measuring and Interpreting Semantic Textual Similarity</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">[</forename><surname>Banjade</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 9th International Workshop on Semantic Evaluation</title>
+		<meeting>the 9th International Workshop on Semantic Evaluation</meeting>
+		<imprint>
+			<date type="published" when="2015" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b5">
+	<monogr>
+		<title level="m" type="main">Aligning the RTE 2006 corpus</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Chris</forename><surname>Brockett</surname></persName>
+		</author>
+		<idno>MSR-TR-2007-77</idno>
+		<imprint>
+			<date type="published" when="2007" />
+		</imprint>
+	</monogr>
+<note type="report_type">Technical Report</note>
+	<note>Microsoft Research</note>
+</biblStruct>
+
+<biblStruct xml:id="b6">
+	<analytic>
+		<title level="a" type="main">The mathematics of statistical machine translation: Parameter estimation. Computational Linguistics</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">[</forename><surname>Brown</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the ACL-PASCAL Workshop on Textual Entailment and Paraphrasing</title>
+		<editor>Eric Yeh, and Christopher D Manning</editor>
+		<meeting>the ACL-PASCAL Workshop on Textual Entailment and Paraphrasing<address><addrLine>Chambers, Daniel Cer, Trond Grenager, David Hall, Chloe Kiddon, Bill MacCartney, Marie-Catherine De Marneffe, Daniel Ramage</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="1993" />
+		</imprint>
+	</monogr>
+	<note>Learning Alignments and Leveraging Natural Logic</note>
+</biblStruct>
+
+<biblStruct xml:id="b7">
+	<analytic>
+		<title level="a" type="main">Discriminative Learning over Constrained Latent Representations</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Chang</forename></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Human Language Technologies: The</title>
+		<imprint>
+			<date type="published" when="2010" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b8">
+	<analytic>
+		<title level="a" type="main">Structured Output Learning with Indirect Supervision</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Chang</forename></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Annual Conference of the North American Chapter of the Association for Computational Linguistics</title>
+		<imprint>
+			<date type="published" when="2010" />
+		</imprint>
+	</monogr>
+	<note>Proceedings of the 27th International Conference on Machine Learning</note>
+</biblStruct>
+
+<biblStruct xml:id="b9">
+	<analytic>
+		<title level="a" type="main">An NLP Curator (or: How I Learned to Stop Worrying and Love NLP Pipelines)</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Clarke</forename></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Eighth International Conference on Language Resources and Evaluation</title>
+		<meeting>the Eighth International Conference on Language Resources and Evaluation</meeting>
+		<imprint>
+			<date type="published" when="2012" />
+			<biblScope unit="page">2012</biblScope>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b10">
+	<analytic>
+		<title level="a" type="main">Recognizing Textual Entailment: Models and Applications. Synthesis Lectures on Human Language Technologies</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Dagan</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Joint Conference of the 47th Annual Meeting of the ACL and the 4th International Joint Conference on Natural Language Processing</title>
+		<meeting>the Joint Conference of the 47th Annual Meeting of the ACL and the 4th International Joint Conference on Natural Language Processing</meeting>
+		<imprint>
+			<date type="published" when="2009" />
+		</imprint>
+	</monogr>
+	<note>Paraphrase identification as probabilistic quasisynchronous recognition</note>
+</biblStruct>
+
+<biblStruct xml:id="b11">
+	<analytic>
+		<title level="a" type="main">Unsupervised Construction of Large Paraphrase Corpora: Exploiting Massively Parallel News Sources</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Dolan</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2013 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies</title>
+		<editor>Juri Ganitkevitch, Benjamin Van Durme, and Chris Callison-Burch</editor>
+		<meeting>the 2013 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies</meeting>
+		<imprint>
+			<date type="published" when="2004" />
+		</imprint>
+	</monogr>
+	<note>COLING 2004: Proceedings of the 20th International Conference on Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b12">
+	<analytic>
+		<title level="a" type="main">Inspire at SemEval-2016 Task 2: Interpretable Semantic Textual Similarity Alignment based on Answer Set Programming</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Hänig</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Leacock and Chodorow1998] Claudia Leacock and Martin Chodorow. 1998. Combining Local Context and WordNet Similarity for Word Sense Identification. WordNet: An Electronic Lexical Database</title>
+		<editor>Konopik et al.2016] Miloslav Konopik, Ondrej Prazak, David Steinberger, and Tomáš Brychcín</editor>
+		<imprint>
+			<date type="published" when="2003" />
+		</imprint>
+	</monogr>
+	<note>ExB Themis: Extensive Feature Extraction from Word Alignments for Semantic Textual Similarity. Proceedings of the 9th International Workshop on Semantic Evaluation</note>
+</biblStruct>
+
+<biblStruct xml:id="b13">
+	<analytic>
+		<title level="a" type="main">A Phrase-Based Alignment Model for Natural Language Inference</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Dekang</forename><surname>Lin</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Bill</forename><surname>Maccartney</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Christopher D Manning ;</forename><surname>Maccartney</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of 52nd Annual Meeting of the Association for Computational Linguistics: System Demonstrations</title>
+		<editor>Manning et al.2014] Christopher D Manning, Mihai Surdeanu, John Bauer, Jenny Rose Finkel, Steven Bethard, and David McClosky</editor>
+		<meeting>52nd Annual Meeting of the Association for Computational Linguistics: System Demonstrations</meeting>
+		<imprint>
+			<date type="published" when="1998" />
+		</imprint>
+	</monogr>
+	<note>Proceedings of the 2008 Conference on Empirical Methods in Natural Language Processing</note>
+</biblStruct>
+
+<biblStruct xml:id="b14">
+	<monogr>
+		<title level="m" type="main">Manual Annotation of Translational Equivalence: The Blinker Project</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Dan</forename><surname>Melamed</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="1997" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b15">
+	<analytic>
+		<title level="a" type="main">A Systematic Comparison of Various Statistical Alignment Models</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jeffrey</forename><surname>Pennington</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Richard</forename><surname>Socher</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Christopher D</forename><surname>Manning</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2014 Conference on Empirical Methods in Natural Language Processing</title>
+		<editor>Philadelphia. [Och and Ney2003] Franz Josef Och and Hermann Ney</editor>
+		<meeting>the 2014 Conference on Empirical Methods in Natural Language Processing</meeting>
+		<imprint>
+			<date type="published" when="2003-03" />
+			<biblScope unit="volume">29</biblScope>
+		</imprint>
+		<respStmt>
+			<orgName>Institute for Research in Cognitive Science</orgName>
+		</respStmt>
+	</monogr>
+<note type="report_type">Technical report</note>
+	<note>Glove: Global Vectors for Word Representation</note>
+</biblStruct>
+
+<biblStruct xml:id="b16">
+	<analytic>
+		<title level="a" type="main">Using Information Content to Evaluate Semantic Similarity in a Taxonomy</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Philip</forename><surname>Resnik</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 14th International Joint Conference on Artificial Intelligence</title>
+		<meeting>the 14th International Joint Conference on Artificial Intelligence</meeting>
+		<imprint>
+			<date type="published" when="1995" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b17">
+	<analytic>
+		<title level="a" type="main">A Linear Programming Formulation for Global Inference in Natural Language Tasks</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yih2004] Dan</forename><surname>Roth</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Wen-Tau</forename><surname>Yih</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">HLT-NAACL 2004 Workshop: Eighth Conference on Computational Natural Language Learning</title>
+		<imprint>
+			<date type="published" when="2004" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b18">
+	<analytic>
+		<title level="a" type="main">Back to Basics for Monolingual Alignment: Exploiting Word Similarity and Contextual Evidence. Transactions of the Association of Computational Linguistics</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Steven</forename><surname>Md Arafat Sultan</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Tamara</forename><surname>Bethard</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Sumner</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 8th International Workshop on Semantic Evaluation</title>
+		<editor>Md Arafat Sultan, Steven Bethard, and Tamara Sumner</editor>
+		<meeting>the 8th International Workshop on Semantic Evaluation</meeting>
+		<imprint>
+			<date type="published" when="2014" />
+		</imprint>
+	</monogr>
+	<note>Proceedings of the 9th International Workshop on Semantic Evaluation</note>
+</biblStruct>
+
+<biblStruct xml:id="b19">
+	<analytic>
+		<title level="a" type="main">Max-Margin Markov Networks</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Taskar</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Advances in Neural Information Processing Systems 16</title>
+		<imprint>
+			<date type="published" when="2004" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b20">
+	<analytic>
+		<title level="a" type="main">Large Margin Methods for Structured and Interdependent Output Variables</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kim</forename><surname>Sang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kim</forename><surname>Buchholz2000] Erik F Tjong</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Sabine</forename><surname>Sang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Buchholz</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Fourth Conference on Computational Natural Language Learning and the Second Learning Language in Logic Workshop. [Tsochantaridis et al.2005] Ioannis Tsochantaridis, Thorsten Joachims, Thomas Hofmann, and Yasemin Altun</title>
+		<imprint>
+			<date type="published" when="2000" />
+			<biblScope unit="volume">6</biblScope>
+		</imprint>
+	</monogr>
+	<note>Introduction to the CoNLL-2000 shared task: Chunking</note>
+</biblStruct>
+
+				</listBibl>
+			</div>
+		</back>
+	</text>
+</TEI>

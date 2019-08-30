@@ -1,0 +1,1285 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<TEI xmlns="http://www.tei-c.org/ns/1.0" 
+xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+xsi:schemaLocation="http://www.tei-c.org/ns/1.0 /home/ana/installs/grobid/grobid-0.5.1/grobid-home/schemas/xsd/Grobid.xsd"
+ xmlns:xlink="http://www.w3.org/1999/xlink">
+	<teiHeader xml:lang="en">
+		<encodingDesc>
+			<appInfo>
+				<application version="0.5.1-SNAPSHOT" ident="GROBID" when="2019-04-18T11:30+0000">
+					<ref target="https://github.com/kermitt2/grobid">GROBID - A machine learning software for extracting information from scholarly documents</ref>
+				</application>
+			</appInfo>
+		</encodingDesc>
+		<fileDesc>
+			<titleStmt>
+				<title level="a" type="main">Situated Mapping of Sequential Instructions to Actions with Single-step Reward Observation</title>
+			</titleStmt>
+			<publicationStmt>
+				<publisher>Association for Computational Linguistics</publisher>
+				<availability status="unknown"><p>Copyright Association for Computational Linguistics</p>
+				</availability>
+				<date>July 15-20, 2018. 2018. 2072</date>
+			</publicationStmt>
+			<sourceDesc>
+				<biblStruct>
+					<analytic>
+						<author>
+							<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Alane</forename><surname>Suhr</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="department">Department of Computer Science</orgName>
+								<orgName type="institution">Cornell Tech Cornell University New York</orgName>
+								<address>
+									<postCode>10044</postCode>
+									<region>NY</region>
+								</address>
+							</affiliation>
+						</author>
+						<author>
+							<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yoav</forename><surname>Artzi</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="department">Department of Computer Science</orgName>
+								<orgName type="institution">Cornell Tech Cornell University New York</orgName>
+								<address>
+									<postCode>10044</postCode>
+									<region>NY</region>
+								</address>
+							</affiliation>
+						</author>
+						<title level="a" type="main">Situated Mapping of Sequential Instructions to Actions with Single-step Reward Observation</title>
+					</analytic>
+					<monogr>
+						<title level="m">Proceedings of the 56th Annual Meeting of the Association for Computational Linguistics (Long Papers)</title>
+						<meeting>the 56th Annual Meeting of the Association for Computational Linguistics (Long Papers) <address><addrLine>Melbourne, Australia</addrLine></address>
+						</meeting>
+						<imprint>
+							<publisher>Association for Computational Linguistics</publisher>
+							<biblScope unit="page" from="2072" to="2082"/>
+							<date type="published">July 15-20, 2018. 2018. 2072</date>
+						</imprint>
+					</monogr>
+				</biblStruct>
+			</sourceDesc>
+		</fileDesc>
+		<profileDesc>
+			<abstract>
+				<p>We propose a learning approach for mapping context-dependent sequential instructions to actions. We address the problem of discourse and state dependencies with an attention-based model that considers both the history of the interaction and the state of the world. To train from start and goal states without access to demonstrations , we propose SESTRA, a learning algorithm that takes advantage of single-step reward observations and immediate expected reward maximization. We evaluate on the SCONE domains, and show absolute accuracy improvements of 9.8%-25.3% across the domains over approaches that use high-level logical representations.</p>
+			</abstract>
+		</profileDesc>
+	</teiHeader>
+	<text xml:lang="en">
+		<body>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="1">Introduction</head><p>An agent executing a sequence of instruc- tions must address multiple challenges, includ- ing grounding the language to its observed en- vironment, reasoning about discourse dependen- cies, and generating actions to complete high-level goals. For example, consider the environment and instructions in <ref type="figure">Figure 1</ref>, in which a user describes moving chemicals between beakers and mixing chemicals together. To execute the second instruc- tion, the agent needs to resolve sixth beaker and last one to objects in the environment. The third instruction requires resolving it to the rightmost beaker mentioned in the second instruction, and reasoning about the set of actions required to mix the colors in the beaker to brown. In this paper, we describe a model and learning approach to map sequences of instructions to actions. Our model considers previous utterances and the world state to select actions, learns to combine simple actions to achieve complex goals, and can be trained using</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Start</head><p>Goal throw out first beaker POP 1, STOP pour sixth beaker into last one POP 6, POP 6, PUSH 7 O, PUSH 7 O, STOP it turns brown POP 7, POP 7, POP 7, PUSH 7 B, PUSH 7 B, PUSH 7 B, STOP pour purple beaker into yellow one POP 3, PUSH 5 P, STOP throw out two units of brown one POP 7, POP 7, STOP</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Start</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Goal</head><p>Figure 1: Example from the SCONE ( <ref type="bibr" target="#b28">Long et al., 2016</ref>) ALCHEMY domain, including a start state (top), sequence of instructions, and a goal state (bottom). Each instruction is annotated with a sequence of ac- tions from the set of actions we define for ALCHEMY.</p><p>goal states without access to demonstrations.</p><p>The majority of work on executing sequences of instructions focuses on mapping instructions to high-level formal representations, which are then evaluated to generate actions (e.g., <ref type="bibr" target="#b15">Chen and Mooney, 2011;</ref><ref type="bibr" target="#b28">Long et al., 2016)</ref>. For example, the third instruction in <ref type="figure">Figure 1</ref> will be mapped to mix(prev_arg1), indicating that the mix action should be applied to first argument of the previ- ous action ( <ref type="bibr" target="#b28">Long et al., 2016;</ref><ref type="bibr" target="#b21">Guu et al., 2017</ref>). In contrast, we focus on directly generating the se- quence of actions. This requires resolving refer- ences without explicitly modeling them, and learn- ing the sequences of actions required to complete high-level actions; for example, that mixing re- quires removing everything in the beaker and re- placing with the same number of brown items.</p><p>A key challenge in executing sequences of in- structions is considering contextual cues from both the history of the interaction and the state of the world. Instructions often refer to previously mentioned objects (e.g., it in <ref type="figure">Figure 1</ref>) or actions (e.g., do it again). The world state provides the set of objects the instruction may refer to, and implic- itly determines the available actions. For example, liquid can not be removed from an empty beaker. Both types of contexts continuously change during an interaction. As new instructions are given, the instruction history expands, and as the agent acts the world state changes. We propose an attention- based model that takes as input the current instruc- tion, previous instructions, the initial world state, and the current state. At each step, the model com- putes attention encodings of the different inputs, and predicts the next action to execute.</p><p>We train the model given instructions paired with start and goal states without access to the correct sequence of actions. During training, the agent learns from rewards received through ex- ploring the environment with the learned policy by mapping instructions to sequences of actions. In practice, the agent learns to execute instruc- tions gradually, slowly correctly predicting pre- fixes of the correct sequences of increasing length as learning progress. A key challenge is learning to correctly select actions that are only required later in execution sequences. Early during learn- ing, these actions receive negative updates, and the agent learns to assign them low probabilities. This results in an exploration problem in later stages, where actions that are only required later are not sampled during exploration. For example, in the ALCHEMY domain shown in <ref type="figure">Figure 1</ref>, the agent behavior early during execution of instructions can be accomplished by only using POP actions. As a result, the agent quickly learns a strong bias against PUSH actions, which in practice prevents the policy from exploring them again. We address this with a learning algorithm that observes the re- ward for all possible actions for each visited state, and maximizes the immediate expected reward.</p><p>We evaluate our approach on SCONE ( <ref type="bibr" target="#b28">Long et al., 2016)</ref>, which includes three domains, and is used to study recovering predicate logic meaning representations for sequential instruc- tions. We study the problem of generating a sequence of low-level actions, and re-define the set of actions for each domain. For example, we treat the beakers in the ALCHEMY domain as stacks and use only POP and PUSH actions. Our approach robustly learns to execute sequential instructions with up to 89.1% task-completion accuracy for single instruction, and 62.7% for complete sequences. Our code is available at https://github.com/clic-lab/scone.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2">Technical Overview</head><p>Task and Notation Let S be the set of all pos- sible world states, X be the set of all natural lan- guage instructions, and A be the set of all actions. An instruction ¯ x ∈ X of length |¯ x| is a sequence of tokens x 1 , ...x |¯ x| . Executing an action modi- fies the world state following a transition function T : S × A → S. For example, the ALCHEMY do- main includes seven beakers that contain colored liquids. The world state defines the content of each beaker. We treat each beaker as a stack. The ac- tions are POP N and PUSH N C, where 1 ≤ N ≤ 7 is the beaker number and C is one of six colors. There are a total of 50 actions, including the STOP action. Section 6 describes the domains in detail.</p><p>Given a start state s 1 and a sequence of in- structions ¯ x 1 , . . . , ¯ x n , our goal is to generate the sequence of actions specified by the instructions starting from s 1 . We treat the execution of a se- quence of instructions as executing each instruc- tion in turn. The execution ¯ e of an instruction ¯ x i starting at a state s 1 and given the history of the instruction sequence ¯ x 1 , . . . , ¯ x i−1 is a sequence of state-action pairs ¯ e = (s 1 , a 1 ), ..., (s m , a m ), where a k ∈ A, s k+1 = T (s k , a k ). The final action a m is the special action STOP, which indi- cates the execution has terminated. The final state is then s m , as T (s k , STOP) = s k . Executing a sequence of instructions in order generates a se- quence ¯ e 1 , ..., ¯ e n , where ¯ e i is the execution of instruction ¯ x i . When referring to states and ac- tions in an indexed execution ¯ e i , the k-th state and action are s i,k and a i,k . We execute instructions one after the other: ¯ e 1 starts at the interaction ini- tial state s 1 and s i+1,1 = s i,|¯ e i | , where s i+1,1 is the start state of ¯ e i+1 and s i,|¯ e i | is the final state of ¯ e i .</p><p>Model We model the agent with a neural net- work policy (Section 4). At step k of execut- ing the i-th instruction, the model input is the current instruction ¯ x i , the previous instructions ¯ x 1 , . . . , ¯ x i−1 , the world state s 1 at the begin- ning of executing ¯ x i , and the current state s k . The model predicts the next action a k to exe- cute. If a k = STOP, we switch to the next in- struction, or if at the end of the instruction se- quence, terminate. Otherwise, we update the state to s k+1 = T (s k , a k ). The model uses attention to process the different inputs and a recurrent neural network (RNN) decoder to generate actions ( <ref type="bibr" target="#b6">Bahdanau et al., 2015)</ref>.</p><p>Learning We assume access to a set of N in- struction sequences, where each instruction in each sequence is paired with its start and goal states. During training, we create an exam- ple for each instruction. Formally, the training set is {(¯ x is the goal state, and n (j) is the length of the j-th in- struction sequence. This training data contains no evidence about the actions and intermediate states required to execute each instruction. <ref type="bibr">1</ref> We use a learning method that maximizes the expected im- mediate reward for a given state (Section 5). The reward accounts for task-completion and distance to the goal via potential-based reward shaping. Evaluation We evaluate exact task comple- tion for sequences of instructions on a test set {(s</p><formula xml:id="formula_0">(j) 1 , ¯ x (j) 1 , . . . , ¯ x (j) n j , g (j) )} N j=1</formula><p>, where g (j) is the oracle goal state of executing instructions ¯ x (j) 1 , . . . ,¯ x (j) n j in order starting from s (j)</p><p>1 . We also evaluate single-instruction task completion using per-instruction annotated start and goal states.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3">Related Work</head><p>Executing instructions has been studied using the SAIL corpus ( <ref type="bibr" target="#b30">MacMahon et al., 2006</ref>) with focus on navigation using high-level logical representa- tions ( <ref type="bibr" target="#b15">Chen and Mooney, 2011;</ref><ref type="bibr" target="#b14">Chen, 2012;</ref><ref type="bibr" target="#b2">Artzi et al., 2014</ref>) and low- level actions <ref type="bibr" target="#b31">(Mei et al., 2016)</ref>. While SAIL in- cludes sequences of instructions, the data demon- strates limited discourse phenomena, and instruc- tions are often processed in isolation. Approaches that consider as input the entire sequence focused on segmentation ( <ref type="bibr" target="#b1">Andreas and Klein, 2015)</ref>. Re- cently, other navigation tasks were proposed with focus on single instructions ( <ref type="bibr" target="#b0">Anderson et al., 2018;</ref><ref type="bibr" target="#b24">Janner et al., 2018)</ref>. We focus on sequences of environment manipulation instructions and mod- eling contextual cues from both the changing en- vironment and instruction history. Manipulation using single-sentence instructions has been stud-ied using the Blocks domain <ref type="bibr" target="#b11">(Bisk et al., 2016</ref><ref type="bibr" target="#b10">(Bisk et al., , 2018</ref><ref type="bibr" target="#b33">Misra et al., 2017;</ref><ref type="bibr" target="#b37">Tan and Bansal, 2018)</ref>. Our work is related to the work of <ref type="bibr" target="#b12">Branavan et al. (2009)</ref> and <ref type="bibr" target="#b40">Vogel and Jurafsky (2010)</ref>. While both study executing sequences of instructions, similar to SAIL, the data includes limited discourse de- pendencies. In addition, both learn with rewards computed from surface-form similarity between text in the environment and the instruction. We do not rely on such similarities, but instead use a state distance metric.</p><p>Language understanding in interactive scenar- ios that include multiple turns has been studied with focus on dialogue for querying database sys- tems using the ATIS corpus ( <ref type="bibr" target="#b22">Hemphill et al., 1990;</ref><ref type="bibr" target="#b17">Dahl et al., 1994)</ref>. <ref type="bibr">Tür et al. (2010)</ref> surveys work on ATIS. <ref type="bibr" target="#b32">Miller et al. (1996)</ref>, <ref type="bibr" target="#b41">Collins (2009), and</ref><ref type="bibr" target="#b36">Suhr et al. (2018)</ref> modeled context dependence in ATIS for generating formal representations. In contrast, we focus on environ- ments that change during execution and directly generating environment actions, a scenario that is more related to robotic agents than database query.</p><p>The SCONE corpus ( <ref type="bibr" target="#b28">Long et al., 2016</ref>) was designed to reflect a broad set of discourse context-dependence phenomena. It was stud- ied extensively using logical meaning representa- tions ( <ref type="bibr" target="#b28">Long et al., 2016;</ref><ref type="bibr" target="#b21">Guu et al., 2017;</ref><ref type="bibr" target="#b19">Fried et al., 2018</ref>). In contrast, we are interested in directly generating actions that modify the envi- ronment. This requires generating lower-level ac- tions and learning procedures that are otherwise hardcoded in the logic (e.g., mixing action in <ref type="figure">Fig- ure 1</ref>). Except for <ref type="bibr" target="#b19">Fried et al. (2018)</ref>, previous work on SCONE assumes access only to the ini- tial and final states during training. This form of supervision does not require operating the agent manually to acquire the correct sequence of ac- tions, a difficult task in robotic agents with com- plex control. Goal state supervision has been studied for instructional language (e.g., <ref type="bibr" target="#b12">Branavan et al., 2009;</ref><ref type="bibr" target="#b11">Bisk et al., 2016)</ref>, and more extensively in question an- swering when learning with answer annotations only (e.g., <ref type="bibr" target="#b16">Clarke et al., 2010;</ref><ref type="bibr" target="#b27">Liang et al., 2011;</ref><ref type="bibr" target="#b25">Kwiatkowski et al., 2013;</ref><ref type="bibr" target="#b7">Berant et al., 2013;</ref><ref type="bibr">Liang, 2014, 2015;</ref>).</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4">Model</head><p>We map sequences of instructions ¯ x 1 , . . . , ¯ x n to actions by executing the instructions in or-Utterance initial state s 1</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>&lt; l a t e x i t s h a 1 _ b a s e 6 4 = " p S K e R C 6 K r a b k R j 9 Z F y 6 P 3 V r m k v 4 = " &gt; A A A C U H i c b Z B N b 9 Q w E I a d B U o J X 1 s 4 c r F Y U X F a J R S p 5 V a p F 4 5 F I r T S J l p N J r O t V d u J 7 E n L K k r / B 7 + m V z h z 4 q d w A u 8 H E m w Z y f K r 9 x 1 7 N E / Z a O U 5 S X 5 E g z t 3 7 2 3 d 3 3 4 Q P 3 z 0 + M n T 4 c 6 z T 7 5 u H V K G t a 7 d a Q m e t L K U s W J N p 4 0 j M K W m k / L i a J G f X J L z q r Y f e d 5 Q Y e D M q p l C 4 G B N h 3 u 7 8 v o 6 Z / r M X c Z M D i x S L / N c 7 s q V q 6 x i B V p 6 B i b Z S z 9 N p 8 N R M k 6 W J W + L d C 1 G Y l 3 H 0 5 1 o K 6 9 q b A 1 Z R g 3 e T 9 K k 4 a I D x w o 1 9 X H e e m o A L + C M J k F a M O S L b r l d L 1 8 F p 5 K z 2 o V j W S 7 d v 1 9 0 Y L y f m z J 0 G u B z v 5 k t z P 9 m l V 9 8 u D G d Z w d F W L p p m S y u h s 9 a L b m W C 3 y y U o 6 Q 9 T w I Q B f Q o M R z c I C B n Y / j 3 J G l K 6 y N A V t 1 O f a T t O i 6 3 B k 5 S v s + D u T S T U 6 3 R f Z m / G 6 c f H g 7 O k z W C L f F C / F S v B a p 2 B e H 4 r 0 4 F p l A 8 U X c i K / i W / Q 9 + h n 9 G k S r 1 j + 3 e C 7 + q U H 8 G 3 e a s y o = &lt; / l a t e x i t &gt; &lt; l a t e x i t s h a 1 _ b a s e 6 4 = " p S K e R C 6 K r a b k R j 9 Z F y 6 P 3 V r m k v 4 = " &gt; A A A C U H i c b Z B N b 9 Q w E I a d B U o J X 1 s 4 c r F Y U X F a J R S p 5 V a p F 4 5 F I r T S J l p N J r O t V d u J 7 E n L K k r / B 7 + m V z h z 4 q d w A u 8 H E m w Z y f K r 9 x 1 7 N E / Z a O U 5 S X 5 E g z t 3 7 2 3 d 3 3 4 Q P 3 z 0 + M n T 4 c 6 z T 7 5 u H V K G t a 7 d a Q m e t L K U s W J N p 4 0 j M K W m k / L i a J G f X J L z q r Y f e d 5 Q Y e D M q p l C 4 G B N h 3 u 7 8 v o 6 Z / r M X c Z M D i x S L / N c 7 s q V q 6 x i B V p 6 B i b Z S z 9 N p 8 N R M k 6 W J W + L d C 1 G Y l 3 H 0 5 1 o K 6 9 q b A 1 Z R g 3 e T 9 K k 4 a I D x w o 1 9 X H e e m o A L + C M J k F a M O S L b r l d L 1 8 F p 5 K z 2 o V j W S 7 d v 1 9 0 Y L y f m z J 0 G u B z v 5 k t z P 9 m l V 9 8 u D G d Z w d F W L p p m S y u h s 9 a L b m W C 3 y y U o 6 Q 9 T w I Q B f Q o M R z c I C B n Y / j 3 J G l K 6 y N A V t 1 O f a T t O i 6 3 B k 5 S v s + D u T S T U 6 3 R f Z m / G 6 c f H g 7 O k z W C L f F C / F S v B a p 2 B e H 4 r 0 4 F p l A 8 U X c i K / i W / Q 9 + h n 9 G k S r 1 j + 3 e C 7 + q U H 8 G 3 e a s y o = &lt; / l a t e x i t &gt; &lt; l a t e x i t s h a 1 _ b a s e 6 4 = " p S K e R C 6 K r a b k R j 9 Z F y 6 P 3 V r m k v 4 = " &gt; A A A C U H i c b Z B N b 9 Q w E I a d B U o J X 1 s 4 c r F Y U X F a J R S p 5 V a p F 4 5 F I r T S J l p N J r O t V d u J 7 E n L K k r / B 7 + m V z h z 4 q d w A u 8 H E m w Z y f K r 9 x 1 7 N E / Z a O U 5 S X 5 E g z t 3 7 2 3 d 3 3 4 Q P 3 z 0 + M n T 4 c 6 z T 7 5 u H V K G t a 7 d a Q m e t L K U s W J N p 4 0 j M K W m k / L i a J G f X J L z q r Y f e d 5 Q Y e D M q p l C 4 G B N h 3 u 7 8 v o 6 Z / r M X c Z M D i x S L / N c 7 s q V q 6 x i B V p 6 B i b Z S z 9 N p 8 N R M k 6 W J W + L d C 1 G Y l 3 H 0 5 1 o K 6 9 q b A 1 Z R g 3 e T 9 K k 4 a I D x w o 1 9 X H e e m o A L + C M J k F a M O S L b r l d L 1 8 F p 5 K z 2 o V j W S 7 d v 1 9 0 Y L y f m z J 0 G u B z v 5 k t z P 9 m l V 9 8 u D G d Z w d F W L p p m S y u h s 9 a L b m W C 3 y y U o 6 Q 9 T w I Q B f Q o M R z c I C B n Y / j 3 J G l K 6 y N A V t 1 O f a T t O i 6 3 B k 5 S v s + D u T S T U 6 3 R f Z m / G 6 c f H g 7 O k z W C L f F C / F S v B a p 2 B e H 4 r 0 4 F p l A 8 U X c i K / i W / Q 9 + h n 9 G k S r 1 j + 3 e C 7 + q U H 8 G 3 e a s y o = &lt; / l a t e x i t &gt;</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Throw out first beaker It turns brown Pour sixth beaker into last one</head><p>Previous Utterances: ¯ x 1 , ¯ x 2 </p><formula xml:id="formula_1">&lt;</formula></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>MLP</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>&lt; l a t e x i t s h a 1 _ b a s e 6 4 = " F G x I W E F c v B E h u I I 9 A H i 8 V O 3 W D c A = " &gt; A A A C J H i c b Z D N S g M x F I U z / t b x r 9 W l m 2 A R X J U Z E d R d w Y 0 L h Q r W K p 2 h Z D K 3 N j T J D E l G K c M 8 h V t d + z S u x I U b n 8 V M 2 4 W 2 H g g c z r 0 3 9 / J F K W f a e N 6 X s 7 C 4 t L y y W l l z 1 z c 2 t 7 a r t Z 1 b n W S K Q p s m P F F 3 E d H A m Y S 2 Y Y b D X a q A i I h D J x q e l / X O I y j N E n l j R i m E g j x I 1 m e U G B v d 5 4 E S + O q y V f S q d a / h j Y X n j T 8 1 d T R V q 1 d z V o I 4 o Z k A a S g n W n d 9 L z V h T p R h l E P h B p m G l N A h e Y C u t Z I I 0 G E + v r j A B z a J c T 9 R 9 k m D x + n v i Z w I r U c i s p 2 C m I G e r Z X h v 7 V Y l x / O b D f 9 0 z B n M s 0 M S D p Z 3 s 8 4 N g k u k e C Y K a C G j 6 w h V D F 7 P 6 Y D o g g 1 F p z r B g o k P N F E C C L j P K B F 1 w / z M b i 6 X x S u J e f P c p o 3 7 a P G W c O 7 P q 4 3 v S n C C t p D + + g Q + e g E N d E F a q E 2 o k i g Z / S C X p 0 3 5 9 3 5 c D 4 n r Q v O d G Y X / Z H z / Q N n 6 K P E &lt; / l a t e x i t &gt; &lt; l a t e x i t s h a 1 _ b a s e 6 4 = " F G x I W E F c v B E h u I I 9 A H i 8 V O 3 W D c A = " &gt; A A A C J H i c b Z D N S g M x F I U z / t b x r 9 W l m 2 A R X J U Z E d R d w Y 0 L h Q r W K p 2 h Z D K 3 N j T J D E l G K c M 8 h V t d + z S u x I U b n 8 V M 2 4 W 2 H g g c z r 0 3 9 / J F K W f a e N 6 X s 7 C 4 t L y y W l l z 1 z c 2 t 7 a r t Z 1 b n W S K Q p s m P F F 3 E d H A m Y S 2 Y Y b D X a q A i I h D J x q e l / X O I y j N E n l j R i m E g j x I 1 m e U G B v d 5 4 E S + O q y V f S q d a / h j Y X n j T 8 1 d T R V q 1 d z V o I 4 o Z k A a S g n W n d 9 L z V h T p R h l E P h B p m G l N A h e Y C u t Z I I 0 G E + v r j A B z a J c T 9 R 9 k m D x + n v i Z w I r U c i s p 2 C m I G e r Z X h v 7 V Y l x / O b D f 9 0 z B n M s 0 M S D p Z 3 s 8 4 N g k u k e C Y K a C G j 6 w h V D F 7 P 6 Y D o g g 1 F p z r B g o k P N F E C C L j P K B F 1 w / z M b i 6 X x S u J e f P c p o 3 7 a P G W c O 7 P q 4 3 v S n C C t p D + + g Q + e g E N d E F a q E 2 o k i g Z / S C X p 0 3 5 9 3 5 c D 4 n r Q v O d G Y X / Z H z / Q N n 6 K P E &lt; / l a t e x i t &gt; &lt; l a t e x i t s h a 1 _ b a s e 6 4 = " F G x I W E F c v B E h u I I 9 A H i 8 V O 3 W D c A = " &gt; A A A C J H i c b Z D N S g M x F I U z / t b x r 9 W l m 2 A R X J U Z E d R d w Y 0 L h Q r W K p 2 h Z D K 3 N j T J D E l G K c M 8 h V t d + z S u x I U b n 8 V M 2 4 W 2 H g g c z r 0 3 9 / J F K W f a e N 6 X s 7 C 4 t L y y W l l z 1 z c 2 t 7 a r t Z 1 b n W S K Q p s m P F F 3 E d H A m Y S 2 Y Y b D X a q A i I h D J x q e l / X O I y j N E n l j R i m E g j x I 1 m e U G B v d 5 4 E S + O q y V f S q d a / h j Y X n j T 8 1 d T R V q 1 d z V o I 4 o Z k A a S g n W n d 9 L z V h T p R h l E P h B p m G l N A h e Y C u t Z I I 0 G E + v r j A B z a J c T 9 R 9 k m D x + n v i Z w I r U c i s p 2 C m I G e r Z X h v 7 V Y l x / O b D f 9 0 z B n M s 0 M S D p Z 3 s 8 4 N g k u k e C Y K a C G j 6 w h V D F 7 P 6 Y D o g g 1 F p z r B g o k P N F E C C L j P K B F 1 w / z M b i 6 X x S u J e f P c p o 3 7 a P G W c O 7 P q 4 3 v S n C C t p D + + g Q + e g E N d E F a q E 2 o k i g Z / S C X p 0 3 5 9 3 5 c D 4 n r Q v O d G Y X / Z H z / Q N n 6 K P E &lt; / l a t e x i t &gt;</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Decoder snippet</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>&lt; l a t e x i t s h a 1 _ b a s e 6 4 = " Z Q x g H w m H H z W 9 g N 4 + W f j Z U N / x C J 0 = " &gt; A A A C Q X i c b V D L T h t B E J w l 4 b U 8 Y o c j l 1 E M i J O 1 i y I B N 0 v h w J F I G C x 5 V 9 b s b B t G z G M 1 0 w t Y q / 0 B v i Z X c s 5 P 8 A u c o l x z Y W y M l N i U 1 F K p q n t 6 u r J C C o d R 9 B Q s f P i 4 u L S 8 s h q u r W 9 s f m o 0 P 1 8 4 U 1 o O X W 6 k s b 2 M O Z B C Q x c F S u g V F p j K J F x m N 9 / G / u U t W C e M P s d R A a l i V 1 o M B W f o p U F j Z 4 8 m C P d Y n Q A 3 O d i a J g l 9 0 5 w W R Q F Y D x q t q B 1 N Q O d J P C U t M s X Z o B k s J b n h p Q K N X D L n + n F U Y F o x i 4 J L q M O k d F A w f s O u o O + p Z g p c W k 3 O q e m u V 3 I 6 N N a X R j p R / 5 2 o m H J u p D L f q R h e u 1 l v L L 7 r 5 W 7 8 4 M x 2 H B 6 l l d B F i a D 5 6 / J h K S k a O s 6 L 5 s I C R z n y h H E r / P 8 p v 2 a W c f S p h m F i Q c M d N 0 o x n V c J r / t x W l W J V b Q V 1 3 X o k 4 t n c 5 o n 3 Y P 2 c T v 6 / r X V i a Y R r p B t 8 o X s k 5 g c k g 4 5 J W e k S z h 5 I D / I I / k Z / A q e g 9 / B n 9 f W h W A 6 s 0 X + Q / D 3 B T D + r z Y = &lt; / l a t e x i t &gt; &lt; l a t e x i t s h a 1 _ b a s e 6 4 = " Z Q x g H w m H H z W 9 g N 4 + W f j Z U N / x C J 0 = " &gt; A A A C Q X i c b V D L T h t B E J w l 4 b U 8 Y o c j l 1 E M i J O 1 i y I B N 0 v h w J F I G C x 5 V 9 b s b B t G z G M 1 0 w t Y q / 0 B v i Z X c s 5 P 8 A u c o l x z Y W y M l N i U 1 F K p q n t 6 u r J C C o d R 9 B Q s f P i 4 u L S 8 s h q u r W 9 s f m o 0 P 1 8 4 U 1 o O X W 6 k s b 2 M O Z B C Q x c F S u g V F p j K J F x m N 9 / G / u U t W C e M P s d R A a l i V 1 o M B W f o p U F j Z 4 8 m C P d Y n Q A 3 O d i a J g l 9 0 5 w W R Q F Y D x q t q B 1 N Q O d J P C U t M s X Z o B k s J b n h p Q K N X D L n + n F U Y F o x i 4 J L q M O k d F A w f s O u o O + p Z g p c W k 3 O q e m u V 3 I 6 N N a X R j p R / 5 2 o m H J u p D L f q R h e u 1 l v L L 7 r 5 W 7 8 4 M x 2 H B 6 l l d B F i a D 5 6 / J h K S k a O s 6 L 5 s I C R z n y h H E r / P 8 p v 2 a W c f S p h m F i Q c M d N 0 o x n V c J r / t x W l W J V b Q V 1 3 X o k 4 t n c 5 o n 3 Y P 2 c T v 6 / r X V i a Y R r p B t 8 o X s k 5 g c k g 4 5 J W e k S z h 5 I D / I I / k Z / A q e g 9 / B n 9 f W h W A 6 s 0 X + Q / D 3 B T D + r z Y = &lt; / l a t e x i t &gt; &lt; l a t e x i t s h a 1 _ b a s e 6 4 = " Z Q x g H w m H H z W 9 g N 4 + W f j Z U N / x C J 0 = " &gt; A A A C Q X i c b V D L T h t B E J w l 4 b U 8 Y o c j l 1 E M i J O 1 i y I B N 0 v h w J F I G C x 5 V 9 b s b B t G z G M 1 0 w t Y q / 0 B v i Z X c s 5 P 8 A u c o l x z Y W y M l N i U 1 F K p q n t 6 u r J C C o d R 9 B Q s f P i 4 u L S 8 s h q u r W 9 s f m o 0 P 1 8 4 U 1 o O X W 6 k s b 2 M O Z B C Q x c F S u g V F p j K J F x m N 9 / G / u U t W C e M P s d R A a l i V 1 o M B W f o p U F j Z 4 8 m C P d Y n Q A 3 O d i a J g l 9 0 5 w W R Q F Y D x q t q B 1 N Q O d J P C U t M s X Z o B k s J b n h p Q K N X D L n + n F U Y F o x i 4 J L q M O k d F A w f s O u o O + p Z g p c W k 3 O q e m u V 3 I 6 N N a X R j p R / 5 2 o m H J u p D L f q R h e u 1 l v L L 7 r 5 W 7 8 4 M x 2 H B 6 l l d B F i a D 5 6 / J h K S k a O s 6 L 5 s I C R z n y h H E r / P 8 p v 2 a W c f S p h m F i Q c M d N 0 o x n V c J r / t x W l W J V b Q V 1 3 X o k 4 t n c 5 o n 3 Y P 2 c T v 6 / r X V i a Y R r p B t 8 o X s k 5 g c k g 4 5 J W e k S z h 5 I D / I I / k Z / A q e g 9 / B n 9 f W h W A 6 s 0 X + Q / D 3 B T D + r z Y = &lt; / l a t e x i t &gt;</head><p>Current state s 3 </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>&lt; l a t e x i t s h a 1 _ b a s e 6 4 = " w P 0 L m f n I O 0 h D C u I K B q T z 5 N 5 6 N d 0 = " &gt; A A A C N n i c b V D L S s N A F J 3 4 N r 5 a X Y m b w S K 4 K o k K 6 q 7 g x m U F q 0 I T y m R y W w d n k j B z o 5 Y Q / B q 3 u v Z T X L k S t 3 6 C 0 8 d C W w 8 M H M 6 5 r z l R J o V B z 3 t 3 Z m b n 5 h c W l 5 b d l d W 1 9 Y 1 K d f P K p L n m 0 O K p T P V N x A x I k U A L B U q 4 y T Q w F U m 4 j u 7 O B v 7 1 P W g j 0 u Q S + x m E i v U S 0 R W c o Z U 6 l e 0 A 4 R G L s 1 x r S J A a Z A i 0 p K Z z 2 K n U v L o 3 B J 0 m / p j U y B j N T t V Z C O K U 5 8 o O 4 p I Z 0 / a 9 D M O C a R R c Q u k G u Y G M 8 T v W g 7 a l C V N g w m L 4 h 5 L u W S W m 3 V T b Z w 8 Z q r 8 7 C q a M 6 a v I V i q G t 2 b S G 4 j / e r E Z D J z Y j t 2 T s B B J l i M k f L S 8 m 0 u K K R 2 E R G O h g a P s W 8 K 4 F v Z + y m + Z Z h x t l K 4 b 2 K z g g a d K s S Q u A l 6 2 / b A o A q 1 o z S 9 L 1 y b n T + Y 0 T V o H 9 d O 6 d 3 F U a 3 j j C J f I D t k l + 8 Q n x 6 R B z k m T t A g n T + S Z v J B X 5 8 3 5 c D 6 d r 1 H p j D P u 2 S J / 4 H z / A G + O q t s = &lt; / l a t e x i t &gt; &lt; l a t e x i t s h a 1 _ b a s e 6 4 = " w P 0 L m f n I O 0 h D C u I K B q T z 5 N 5 6 N d 0 = " &gt; A A A C N n i c b V D L S s N A F J 3 4 N r 5 a X Y m b w S K 4 K o k K 6 q 7 g x m U F q 0 I T y m R y W w d n k j B z o 5 Y Q / B q 3 u v Z T X L k S t 3 6 C 0 8 d C W w 8 M H M 6 5 r z l R J o V B z 3 t 3 Z m b n 5 h c W l 5 b d l d W 1 9 Y 1 K d f P K p L n m 0 O K p T P V N x A x I k U A L B U q 4 y T Q w F U m 4 j u 7 O B v 7 1 P W g j 0 u Q S + x m E i v U S 0 R W c o Z U 6 l e 0 A 4 R G L s 1 x r S J A a Z A i 0 p K Z z 2 K n U v L o 3 B J 0 m / p j U y B j N T t V Z C O K U 5 8 o O 4 p I Z 0 / a 9 D M O C a R R c Q u k G u Y G M 8 T v W g 7 a l C V N g w m L 4 h 5 L u W S W m 3 V T b Z w 8 Z q r 8 7 C q a M 6 a v I V i q G t 2 b S G 4 j / e r E Z D J z Y j t 2 T s B B J l i M k f L S 8 m 0 u K K R 2 E R G O h g a P s W 8 K 4 F v Z + y m + Z Z h x t l K 4 b 2 K z g g a d K s S Q u A l 6 2 / b A o A q 1 o z S 9 L 1 y b n T + Y 0 T V o H 9 d O 6 d 3 F U a 3 j j C J f I D t k l + 8 Q n x 6 R B z k m T t A g n T + S Z v J B X 5 8 3 5 c D 6 d r 1 H p j D P u 2 S J / 4 H z / A G + O q t s = &lt; / l a t e x i t &gt; &lt; l a t e x i t s h a 1 _ b a s e 6 4 = " w P 0 L m f n I O 0 h D C u I K B q T z 5 N 5 6 N d 0 = " &gt; A A A C N n i c b V D L S s N A F J 3 4 N r 5 a X Y m b w S K 4 K o k K 6 q 7 g x m U F q 0 I T y m R y W w d n k j B z o 5 Y Q / B q 3 u v Z T X L k S t 3 6 C 0 8 d C W w 8 M H M 6 5 r z l R J o V B z 3 t 3 Z m b n 5 h c W l 5 b d l d W 1 9 Y 1 K d f P K p L n m 0 O K p T P V N x A x I k U A L B U q 4 y T Q w F U m 4 j u 7 O B v 7 1 P W g j 0 u Q S + x m E i v U S 0 R W c o Z U 6 l e 0 A 4 R G L s 1 x r S J A a Z A i 0 p K Z z 2 K n U v L o 3 B J 0 m / p j U y B j N T t V Z C O K U 5 8 o O 4 p I Z 0 / a 9 D M O C a R R c Q u k G u Y G M 8 T v W g 7 a l C V N g w m L 4 h 5 L u W S W m 3 V T b Z w 8 Z q r 8 7 C q a M 6 a v I V i q G t 2 b S G 4 j / e r E Z D J z Y j t 2 T s B B J l i M k f L S 8 m 0 u K K R 2 E R G O h g a P s W 8 K 4 F v Z + y m + Z Z h x t l K 4 b 2 K z g g a d K s S Q u A l 6 2 / b A o A q 1 o z S 9 L 1 y b n T + Y 0 T V o H 9 d O 6 d 3 F U a 3 j j C J f I D t k l + 8 Q n x 6 R B z k m T t A g n T + S Z v J B X 5 8 3 5 c D 6 d r 1 H p j D P u 2 S J / 4 H z / A G + O q t s = &lt; / l a t e x i t &gt;</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>a2</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>&lt; l a t e x i t s h a 1 _ b a s e 6 4 = " S U b k Z W m j 3 P o R h h s H Q X 1 z V F H C x 3 E = " &gt; A A A C H n i c b V D L S s N A F J 3 4 q D W + W l 2 6 G S y C q 5 I U Q d 0 V 3 L i s a G 2 h C W U y u W 2 H z k z C z E Q p I Z / g V t d + j S t x q 3 / j 9 L H Q 1 g M X D u f c F y d K O d P G 8 7 6 d t f W N z d J W e d v d 2 d 3 b P 6 h U D x 9 0 k i k K b Z r w R H U j o o E z C W 3 D D I d u q o C I i E M n G l 9 P / c 4 j K M 0 S e W 8 m K Y S C D C U b M E q M l e 5 I v 9 G v 1 L y 6 N w N e J f 6 C 1 N A C r X 7 V K Q V x Q j M B 0 l B O t O 7 5 X m r C n C j D K I f C D T I N K a F j M o S e p Z I I 0 G E + + 7 X A p 1 a J 8 S B R t q T B M / X 3 R E 6 E 1 h M R 2 U 5 B z E g v e 1 P x X y / W 0 4 V L 1 8 3 g M s y Z T D M D k s 6 P D z K O T Y K n Y e C Y K a C G T y w h V D H 7 P 6 Y j o g g 1 N j L X D R R I e K K J E E T G e U C L n h / m e a A E r v l F 4 d r k / O W c V k m 7 U b + q e 7 f n t a a 3 i L C M j t E J O k M + u k B N d I N a q I 0 o G q J n 9 I J e n T f n 3 f l w P u e t a 8 5 i 5 g j 9 g f P 1 A 4 1 Q o T 4 = &lt; / l a t e x i t &gt; &lt; l a t e x i t s h a 1 _ b a s e 6 4 = " S U b k Z W m j 3 P o R h h s H Q X 1 z V F H C x 3 E = " &gt; A A A C H n i c b V D L S s N A F J 3 4 q D W + W l 2 6 G S y C q 5 I U Q d 0 V 3 L i s a G 2 h C W U y u W 2 H z k z C z E Q p I Z / g V t d + j S t x q 3 / j 9 L H Q 1 g M X D u f c F y d K O d P G 8 7 6 d t f W N z d J W e d v d 2 d 3 b P 6 h U D x 9 0 k i k K b Z r w R H U j o o E z C W 3 D D I d u q o C I i E M n G l 9 P / c 4 j K M 0 S e W 8 m K Y S C D C U b M E q M l e 5 I v 9 G v 1 L y 6 N w N e J f 6 C 1 N A C r X 7 V K Q V x Q j M B 0 l B O t O 7 5 X m r C n C j D K I f C D T I N K a F j M o S e p Z I I 0 G E + + 7 X A p 1 a J 8 S B R t q T B M / X 3 R E 6 E 1 h M R 2 U 5 B z E g v e 1 P x X y / W 0 4 V L 1 8 3 g M s y Z T D M D k s 6 P D z K O T Y K n Y e C Y K a C G T y w h V D H 7 P 6 Y j o g g 1 N j L X D R R I e K K J E E T G e U C L n h / m e a A E r v l F 4 d r k / O W c V k m 7 U b + q e 7 f n t a a 3 i L C M j t E J O k M + u k B N d I N a q I 0 o G q J n 9 I J e n T f n 3 f l w P u e t a 8 5 i 5 g j 9 g f P 1 A 4 1 Q o T 4 = &lt; / l a t e x i t &gt; &lt; l a t e x i t s h a 1 _ b a s e 6 4 = " S U b k Z W m j 3 P o R h h s H Q X 1 z V F H C x 3 E = " &gt; A A A C H n i c b V D L S s N A F J 3 4 q D W + W l 2 6 G S y C q 5 I U Q d 0 V 3 L i s a G 2 h C W U y u W 2 H z k z C z E Q p I Z / g V t d + j S t x q 3 / j 9 L H Q 1 g M X D u f c F y d K O d P G 8 7 6 d t f W N z d J W e d v d 2 d 3 b P 6 h U D x 9 0 k i k K b Z r w R H U j o o E z C W 3 D D I d u q o C I i E M n G l 9 P / c 4 j K M 0 S e W 8 m K Y S C D C U b M E q M l e 5 I v 9 G v 1 L y 6 N w N e J f 6 C 1 N A C r X 7 V K Q V x Q j M B 0 l B O t O 7 5 X m r C n C j D K I f C D T I N K a F j M o S e p Z I I 0 G E + + 7 X A p 1 a J 8 S B R t q T B M / X 3 R E 6 E 1 h M R 2 U 5 B z E g v e 1 P x X y / W 0 4 V L 1 8 3 g M s y Z T D M D k s 6 P D z K O T Y K n Y e C Y K a C G T y w h V D H 7 P 6 Y j o g g 1 N j L X D R R I e K K J E E T G e U C L n h / m e a A E r v l F 4 d r k / O W c V k m 7 U b + q e 7 f n t a a 3 i L C M j t E J O k M + u k B N d I N a q I 0 o G q J n 9 I J e n T f n 3 f l w P u e t a 8 5 i 5 g j 9 g f P 1 A 4 1 Q o T 4 = &lt; / l a t e x i t &gt;</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>a3</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>&lt; l a t e x i t s h a 1 _ b a s e 6 4 = " G b H L 2 s z 6 9 7 m Z W B z I Q u p V b i L k 9 5 o = " &gt; A A A C H n i c b V D L S s N A F J 3 U V 4 2 v V p d u B o v g q i Q q q L u C G 5 c V r S 0 0 o U w m t + 3 Q m U m Y m S g l 5 B P c 6 t q v c S V u 9 W + c P h b a e u D C 4 Z z 7 4 k Q p Z 9 p 4 3 r d T W l l d W 9 8 o b 7 p b 2 z u 7 e 5 X q / o N O M k W h R R O e q E 5 E N H A m o W W Y 4 d B J F R A R c W h H o + u J 3 3 4 E p V k i 7 8 0 4 h V C Q g W R 9 R o m x 0 h 3 p n f U q N a / u T Y G X i T 8 n N T R H s 1 d 1 1 o M 4 o Z k A a S g n W n d 9 L z V h T p R h l E P h B p m G l N A R G U D X U k k E 6 D C f / l r g Y 6 v E u J 8 o W 9 L g q f p 7 I i d C 6 7 G I b K c g Z q g X v Y n 4 r x f r y c K F 6 6 Z / G e Z M p p k B S W f H + x n H J s G T M H D M F F D D x 5 Y Q q p j 9 H 9 M h U Y Q a G 5 n r B g o k P N F E C C L j P K B F 1 w / z P F A C 1 / y i c G 1 y / m J O y 6 R 1 W r + q e 7 f n t Y Y 3 j 7 C M D t E R O k E + u k A N d I O a q I U o G q B n 9 I J e n T f n 3 f l w P m e t J W c + c 4 D + w P n 6 A Y 8 I o T 8 = &lt; / l a t e x i t &gt; &lt; l a t e x i t s h a 1 _ b a s e 6 4 = " G b H L 2 s z 6 9 7 m Z W B z I Q u p V b i L k 9 5 o = " &gt; A A A C H n i c b V D L S s N A F J 3 U V 4 2 v V p d u B o v g q i Q q q L u C G 5 c V r S 0 0 o U w m t + 3 Q m U m Y m S g l 5 B P c 6 t q v c S V u 9 W + c P h b a e u D C 4 Z z 7 4 k Q p Z 9 p 4 3 r d T W l l d W 9 8 o b 7 p b 2 z u 7 e 5 X q / o N O M k W h R R O e q E 5 E N H A m o W W Y 4 d B J F R A R c W h H o + u J 3 3 4 E p V k i 7 8 0 4 h V C Q g W R 9 R o m x 0 h 3 p n f U q N a / u T Y G X i T 8 n N T R H s 1 d 1 1 o M 4 o Z k A a S g n W n d 9 L z V h T p R h l E P h B p m G l N A R G U D X U k k E 6 D C f / l r g Y 6 v E u J 8 o W 9 L g q f p 7 I i d C 6 7 G I b K c g Z q g X v Y n 4 r x f r y c K F 6 6 Z / G e Z M p p k B S W f H + x n H J s G T M H D M F F D D x 5 Y Q q p j 9 H 9 M h U Y Q a G 5 n r B g o k P N F E C C L j P K B F 1 w / z P F A C 1 / y i c G 1 y / m J O y 6 R 1 W r + q e 7 f n t Y Y 3 j 7 C M D t E R O k E + u k A N d I O a q I U o G q B n 9 I J e n T f n 3 f l w P m e t J W c + c 4 D + w P n 6 A Y 8 I o T 8 = &lt; / l a t e x i t &gt; &lt; l a t e x i t s h a 1 _ b a s e 6 4 = " G b H L 2 s z 6 9 7 m Z W B z I Q u p V b i L k 9 5 o = " &gt; A A A C H n i c b V D L S s N A F J 3 U V 4 2 v V p d u B o v g q i Q q q L u C G 5 c V r S 0 0 o U w m t + 3 Q m U m Y m S g l 5 B P c 6 t q v c S V u 9 W + c P h b a e u D C 4 Z z 7 4 k Q p Z 9 p 4 3 r d T W l l d W 9 8 o b 7 p b 2 z u 7 e 5 X q / o N O M k W h R R O e q E 5 E N H A m o W W Y 4 d B J F R A R c W h H o + u J 3 3 4 E p V k i 7 8 0 4 h V C Q g W R 9 R o m x 0 h 3 p n f U q N a / u T Y G X i T 8 n N T R H s 1 d 1 1 o M 4 o Z k A a S g n W n d 9 L z V h T p R h l E P h B p m G l N A R G U D X U k k E 6 D C f / l r g Y 6 v E u J 8 o W 9 L g q f p 7 I i d C 6 7 G I b K c g Z q g X v Y n 4 r x f r y c K F 6 6 Z / G e Z M p p k B S W f H + x n H J s G T M H D M F F D D x 5 Y Q q p j 9 H 9 M h U Y Q a G 5 n r B g o k P N F E C C L j P K B F 1 w / z P F A C 1 / y i c G 1 y / m J O y 6 R 1 W r + q e 7 f n t Y Y 3 j 7 C M D t E R O k E + u k A N d I O a q I U o G q B n 9 I J e n T f n 3 f l w P m e t J W c + c 4 D + w P n 6 A Y 8 I o T 8 = &lt; / l a t e x i t</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>q s X P X n 6 b G W 1 / z x e e 7 G + 8 X K w u f X Z m c Z y G H M j j b 0 o m A M p N I x R o I S L 2 g J T h Y T z 4 v p D 5 5 / f g H X C 6 D O c 1 Z A r d q l F J T j D I E 0 H 7 1 / T D O E r + k / I L F K H D K G l W U Y f d G 5 0 d 9 M g K o Z X R e X v 2 i 9 u 6 t O 3 + + 1 0 M E x G y R z 0 M U k X Z E g W O J l u 9 l a y 0 v B G g U Y u m X O T N K k x 9 2 G 0 4 B L a O G s c 1 I x f s 0 u Y B K q Z A p f 7 + T d b u h u U k l b G h q O R z t W / O z x T z s 1 U E S q 7 V d 2 y 1 4 n / 9 U r X P b g 0 H a v D 3 A t d N w i a 3 w + v G k n R 0 C 5 H W g o L H O U s E M a t C P t T f s U s 4 x j S j u P M g o Z b b p R i u v Q Z b y d p 7 n 1 m F R 2 m b R u H 5 N L l n B 6 T 8 d 7 o a J S c v h s e J 4 s I + 2 S H v C J v S E o O y D H 5 S E 7 I m H D y j X w n P 8 j P 3 u 8 o i v p R f F 8 a 9 R Y 9 2 + Q f R N t / A C L 5 t P 0 = &lt; / l a t e x i t &gt; &lt; l a t e x i t s h a 1 _ b a s e 6 4 = " W W U G Q F p q t V 8 I i A s h 8 x O r Q D g J r Z k = " &gt; A A A C W X i c b V B N T x R B E O 0 d F d Z B c I E j l 4 4 b j A e z m Q E T I P F A 4 s U j R F Z I d s Z N T 0 8 N d O i P S X c N u H T m z / h r v O r N x B 9 j z 7 I k u v i S T r + 8 V 9 V V / Y p a C o d J 8 q s X P X n 6 b G W 1 / z x e e 7 G + 8 X K w u f X Z m c Z y G H M j j b 0 o m A M p N I x R o I S L 2 g J T h Y T z 4 v p D 5 5 / f g H X C 6 D O c 1 Z A r d q l F J T j D I E 0 H 7 1 / T D O E r + k / I L F K H D K G l W U Y f d G 5 0 d 9 M g K o Z X R e X v 2 i 9 u 6 t O 3 + + 1 0 M E x G y R z 0 M U k X Z E g W O J l u 9 l a y 0 v B G g U Y u m X O T N K k x 9 2 G 0 4 B L a O G s c 1 I x f s 0 u Y B K q Z A p f 7 + T d b u h u U k l b G h q O R z t W / O z x T z s 1 U E S q 7 V d 2 y 1 4 n / 9 U r X P b g 0 H a v D 3 A t d N w i a 3 w + v G k n R 0 C 5 H W g o L H O U s E M a t C P t T f s U s 4 x j S j u P M g o Z b b p R i u v Q Z b y d p 7 n 1 m F R 2 m b R u H 5 N L l n B 6 T 8 d 7 o a J S c v h s e J 4 s I + 2 S H v C J v S E o O y D H 5 S E 7 I m H D y j X w n P 8 j P 3 u 8 o i v p R f F 8 a 9 R Y 9 2 + Q f R N t / A C L 5 t P 0 = &lt; / l a t e x i t &gt; &lt; l a t e x i t s h a 1 _ b a s e 6 4 = " W W U G Q F p q t V 8 I i A s h 8 x O r Q D g J r Z k = " &gt; A A A C W X i c b V B N T x R B E O 0 d F d Z B c I E j l 4 4 b j A e z m Q E T I P F A 4 s U j R F Z I d s Z N T 0 8 N d O i P S X c N u H T m z / h r v O r N x B 9 j z 7 I k u v i S T r + 8 V 9 V V / Y p a C o d J 8 q s X P X n 6 b G W 1 / z x e e 7 G + 8 X K w u f X Z m c Z y G H M j j b 0 o m A M p N I x R o I S L 2 g J T h Y T z 4 v p D 5 5 / f g H X C 6 D O c 1 Z A r d q l F J T j D I E 0 H 7 1 / T D O E r + k / I L F K H D K G l W U Y f d G 5 0 d 9 M g K o Z X R e X v 2 i 9 u 6 t O 3 + + 1 0 M E x G y R z 0 M U k X Z E g W O J l u 9 l a y 0 v B G g U Y u m X O T N K k x 9 2 G 0 4 B L a O G s c 1 I x f s 0 u Y B K q Z A p f 7 + T d b u h u U k l b G h q O R z t W / O z x T z s 1 U E S q 7 V d 2 y 1 4 n / 9 U r X P b g 0 H a v D 3 A t d N w i a 3 w + v G k n R 0 C 5 H W g o L H O U s E M a t C P t T f s U s 4 x j S j u P M g o Z b b p R i u v Q Z b y d p 7 n 1 m F R 2 m b R u H 5 N L l n B 6 T 8 d 7 o a J S c v h s e J 4 s I + 2 S H v C J v S E o O y D H 5 S E 7 I m H D y j X w n P 8 j P 3 u 8 o i v p R f F 8 a 9 R Y 9 2 + Q f R N t / A C L 5 t P 0 = &lt; / l a t e x i t &gt;</head><p>Current state context z s 3,3</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>&lt; l a t e x i t s h a 1 _ b a s e 6 4 = " I H R I B c X w d m I + l h f u p t 3 6 Q b 2 A i e o = " &gt; A A A C X X i c b V B N b 9 Q w E P U G W E o o Z U s P H L h Y r K g 4 o F X S I l F u K / X S Y 5 H Y t t I m r B x n 0 l r 1 R 2 R P o I s V f g 6 / p t c i c e O n 4 G x z o F t G s v z 0 3 o z n + R W 1 F A 6 T 5 P c g e v D w 0 f D x x p P 4 6 e a z r e e j 7 R c n z j S W w 4 w b a e x Z w R x I o W G G A i W c 1 R a Y K i S c F p e H n X 7 6 F a w T R n / G Z Q 2 5 Y u d a V I I z D N R i N N 2 l G c I V + s P G W t B I H T K E l m Y Z 3 a U / e o 0 b 3 d 0 0 0 I r h R V H 5 7 + 0 X t / D 7 7 / b b x W i c T J J V 0 f s g 7 c G Y 9 H W 8 2 B 4 M s 9 L w R o V t X D L n 5 m l S Y + 6 Z R c E l t H H W O K g Z v 2 T n M A 9 Q M w U u 9 6 u v t v R N Y E p a G R t O c L t i / 5 3 w T D m 3 V E X o 7 K y 6 d a 0 j / 6 u V r n t w b T t W B 7 k X u m 4 Q N L 9 d X j W S o q F d l r Q U F j j K Z Q C M W x H 8 U 3 7 B L O M Y E o / j L A Q K 3 7 h R i u n S Z 7 y d p 7 n 3 m V V 0 n L Z t H J J L 1 3 O 6 D 2 Z 7 k 4 + T 5 N P 7 8 T T p I 9 w g r 8 h r 8 p a k 5 A O Z k i N y T G a E k 5 / k m t y Q X 4 M / 0 T D a j L Z u W 6 N B P 7 N D 7 l T 0 8 i + V N L a a &lt; / l a t e x i t &gt; &lt; l a t e x i t s h a 1 _ b a s e 6 4 = " I H R I B c X w d m I + l h f u p t 3 6 Q b 2 A i e o = " &gt; A A A C X X i c b V B N b 9 Q w E P U G W E o o Z U s P H L h Y r K g 4 o F X S I l F u K / X S Y 5 H Y t t I m r B x n 0 l r 1 R 2 R P o I s V f g 6 / p t c i c e O n 4 G x z o F t G s v z 0 3 o z n + R W 1 F A 6 T 5 P c g e v D w 0 f D x x p P 4 6 e a z r e e j 7 R c n z j S W w 4 w b a e x Z w R x I o W G G A i W c 1 R a Y K i S c F p e H n X 7 6 F a w T R n / G Z Q 2 5 Y u d a V I I z D N R i N N 2 l G c I V + s P G W t B I H T K E l m Y Z 3 a U / e o 0 b 3 d 0 0 0 I r h R V H 5 7 + 0 X t / D 7 7 / b b x W i c T J J V 0 f s g 7 c G Y 9 H W 8 2 B 4 M s 9 L w R o V t X D L n 5 m l S Y + 6 Z R c E l t H H W O K g Z v 2 T n M A 9 Q M w U u 9 6 u v t v R N Y E p a G R t O c L t i / 5 3 w T D m 3 V E X o 7 K y 6 d a 0 j / 6 u V r n t w b T t W B 7 k X u m 4 Q N L 9 d X j W S o q F d l r Q U F j j K Z Q C M W x H 8 U 3 7 B L O M Y E o / j L A Q K 3 7 h R i u n S Z 7 y d p 7 n 3 m V V 0 n L Z t H J J L 1 3 O 6 D 2 Z 7 k 4 + T 5 N P 7 8 T T p I 9 w g r 8 h r 8 p a k 5 A O Z k i N y T G a E k 5 / k m t y Q X 4 M / 0 T D a j L Z u W 6 N B P 7 N D 7 l T 0 8 i + V N L a a &lt; / l a t e x i t &gt; &lt; l a t e x i t s h a 1 _ b a s e 6 4 = " I H R I B c X w d m I + l h f u p t 3 6 Q b 2 A i e o = " &gt; A A A C X X i c b V B N b 9 Q w E P U G W E o o Z U s P H L h Y r K g 4 o F X S I l F u K / X S Y 5 H Y t t I m r B x n 0 l r 1 R 2 R P o I s V f g 6 / p t c i c e O n 4 G x z o F t G s v z 0 3 o z n + R W 1 F A 6 T 5 P c g e v D w 0 f D x x p P 4 6 e a z r e e j 7 R c n z j S W w 4 w b a e x Z w R x I o W G G A i W c 1 R a Y K i S c F p e H n X 7 6 F a w T R n / G Z Q 2 5 Y u d a V I I z D N R i N N 2 l G c I V + s P G W t B I H T K E l m Y Z 3 a U / e o 0 b 3 d 0 0 0 I r h R V H 5 7 + 0 X t / D 7 7 / b b x W i c T J J V 0 f s g 7 c G Y 9 H W 8 2 B 4 M s 9 L w R o V t X D L n 5 m l S Y + 6 Z R c E l t H H W O K g Z v 2 T n M A 9 Q M w U u 9 6 u v t v R N Y E p a G R t O c L t i / 5 3 w T D m 3 V E X o 7 K y 6 d a 0 j / 6 u V r n t w b T t W B 7 k X u m 4 Q N L 9 d X j W S o q F d l r Q U F j j K Z Q C M W x H 8 U 3 7 B L O M Y E o / j L A Q K 3 7 h R i u n S Z 7 y d p 7 n 3 m V V 0 n L Z t H J J L 1 3 O 6 D 2 Z 7 k 4 + T 5 N P 7 8 T T p I 9 w g r 8 h r 8 p a k 5 A O Z k i N y T G a E k 5 / k m t y Q X 4 M / 0 T D a j L Z u W 6 N B P 7 N D 7 l T 0 8 i + V N L a a &lt; / l a t e x i t &gt;</head><p>Instruction history context z p  <ref type="figure">Figure 2</ref>: Illustration of the model architecture while generating the third action a 3 in the third utterance ¯ x 3 from <ref type="figure">Figure 1</ref>. Context vectors computed using attention are highlighted in blue. The model takes as input vector encodings from the current and previous instructions ¯ x 1 , ¯ x 2 , and ¯ x 3 , the initial state s 1 , the current state s 3 , and the previous action a 2 . Instruction encodings are computed with a bidirectional RNN. We attend over the previous and current instructions and the initial and current states. We use an MLP to select the next action. der. The model generates an execution ¯ e = (s 1 , a 1 ), . . . , (s m i , a m i ) for each instruction ¯ x i . The agent context, the information available to the agent at step k, is˜sis˜ is˜s k = (¯ x i , ¯ x 1 , . . . ,</p><formula xml:id="formula_2">¯ x i−1 , s k , ¯ e[: k]), where ¯ e[: k]</formula><p>is the execution up until but not including step k. In contrast to the world state, the agent context also includes instruc- tions and the execution so far. The agent policy π θ (˜ s k , a) is modeled as a probabilistic neural net- work parametrized by θ, where˜swhere˜ where˜s k is the agent con- text at step k and a is an action. To generate exe- cutions, we generate one action at a time, execute the action, and observe the new world state. In step k of executing the i-th instruction, the net- work inputs are the current utterance ¯ x i , the previ- ous instructions ¯ x 1 , . . . , ¯ x i−1 , the initial state s 1 at beginning of executing ¯ x i , and the current state s k . When executing a sequence of instructions, the initial state s 1 is either the state at the begin- ning of executing the sequence or the final state of the execution of the previous instruction. <ref type="figure">Figure 2</ref> illustrates our architecture.</p><p>We generate continuous vector representations for all inputs. Each input is represented as a set of vectors that are then processed with an atten- tion function to generate a single vector represen- tation ( <ref type="bibr" target="#b29">Luong et al., 2015)</ref>. We assume access to a domain-specific encoding function ENC(s) that, given a state s, generates a set of vectors S repre- senting the objects in the state. For example, in the ALCHEMY domain, a vector is generated for each beaker using an RNN. Section 6 describes the dif- ferent domains and their encoding functions.</p><p>We use a single bidirectional RNN with a long short-term memory (LSTM; Hochreiter and Schmidhuber, 1997) recurrence to encode the in- structions. All instructions ¯ x 1 ,. . . ,¯ x i are encoded with a single RNN by concatenating them to ¯ x . We use two delimiter tokens: one separates previ- ous instructions, and the other separates the previ- ous instructions from the current one. The forward LSTM RNN hidden states are computed as: 2</p><formula xml:id="formula_3">−−→ hj+1 = − −−−− → LSTM E φ I (x j+1 ); − → hj ,</formula><p>where φ I is a learned word embedding func- tion and</p><formula xml:id="formula_4">− −−−− → LSTM E is the forward LSTM recur- rence function.</formula><p>We use a similar computation to compute the backward hidden states</p><formula xml:id="formula_5">← − h j . For each token x j in ¯ x , a vector representation h j = − → h j ;</formula><p>← − h j is computed. We then create two sets of vectors, one for all the vectors of the current in- struction and one for the previous instructions:</p><formula xml:id="formula_6">X c = {h j } J+|¯ x i | j=J X p = {h j } j&lt;J j=0</formula><p>where J is the index in ¯ x where the current in- struction ¯ x i begins. Separating the vectors to two sets will allows computing separate attention on the current instruction and previous ones.</p><p>To compute each input representation dur- ing decoding, we use a bi-linear attention func- tion ( <ref type="bibr" target="#b29">Luong et al., 2015)</ref>. Given a set of vectors H, a query vector h q , and a weight matrix W, the attention function ATTEND(H, h q , W) computes a context vector z:</p><formula xml:id="formula_7">αi ∝ exp(h i Wh q ) : i = 0, . . . , |H| z = |H| i=1 αihi .</formula><p>We use a decoder to generate actions. At each time step k, we compute an input representation using the attention function, update the decoder state, and compute the next action to execute. At- tention is first computed over the vectors of the current instruction, which is then used to attend over the other inputs. We compute the context vectors z c k and z p k for the current instruction and previous instructions:</p><formula xml:id="formula_8">z c k = ATTEND(X c , h d k−1 , W c ) z p k = ATTEND(X p , [h d k−1 , z c k ], W p ) ,</formula><p>where h d k−1 is the decoder hidden state for step k − 1, and X c and X p are the sets of vector repre- sentations for the current instruction and previous instructions. Two attention heads are used over both the initial and current states. This allows the model to attend to more than one location in a state at once, for example when transferring items from one beaker to another in ALCHEMY. The cur- rent state is computed by the transition function s k = T (s k−1 , a k−1 ), where s k−1 and a k−1 are the state and action at step k − 1. The context vectors for the initial state s 1 and the current state s k are:</p><formula xml:id="formula_9">z s 1,k = [ATTEND(ENC(s1), [h d k−1 , z c k ], W s b ,1 ); ATTEND(ENC(s1), [h d k−1 , z c k ], W s b ,2 )] z s k,k = [ATTEND(ENC(s k ), [h d k−1 , z c k ], W sc,1 ); ATTEND(ENC(s k ), [h d k−1 , z c k ], W sc,2 )] ,</formula><p>where all W * , * are learned weight matrices.</p><p>We concatenate all computed context vectors with an embedding of the previous action a k−1 to create the input for the decoder:</p><formula xml:id="formula_10">h k = tanh([z c k ; z p k ; z s 1,k ; z s k,k ; φ O (a k−1 )]W d + b d ) h d k = LSTM D h k ; h d k−1 ,</formula><p>where φ O is a learned action embedding function and LSTM D is the LSTM decoder recurrence.</p><p>Given the decoder state h d k , the next action a k is predicted with a multi-layer perceptron (MLP). The actions in our domains decompose to an ac- tion type and at most two arguments. <ref type="bibr">3</ref> For exam- ple, the action PUSH 1 B in ALCHEMY has the type PUSH and two arguments: a beaker number and a color. Section 6 describes the actions of each do- main. The probability of an action is: <ref type="bibr">3</ref> We use a NULL argument for unused arguments.</p><formula xml:id="formula_11">h a k = tanh(h d k W a ) s k,a T = h a k ba T s k,a 1 = h a k ba 1 s k,a 2 = h a k ba 2 p(a k = aT (a1, a2) | ˜ s k ; θ) ∝ exp(s k,a T + s k,a 1 + s k,a 2 ) ,</formula><p>where a T , a 1 , and a 2 are an action type, first ar- gument, and second argument. If the predicted action is STOP, the execution is complete. Other- wise, we execute the action a k to generate the next state s k+1 , and update the agent context˜scontext˜ context˜s k tõ s k+1 by appending the pair (s k , a k ) to the execution ¯ e and replacing the current state with s k+1 .</p><p>The model parameters θ include: the embed- ding functions φ I and φ O ; the recurrence param- eters for </p><formula xml:id="formula_12">− −−−− → LSTM E , ← −−−− − LSTM E , and LSTM D ; W C , W P , W s b ,1 , W s b ,2 , W sc,1 , W sc,2 , W d , W a ,</formula></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5">Learning</head><p>We estimate the policy parameters θ using an exploration-based learning algorithm that maxi- mizes the immediate expected reward. Broadly speaking, during learning, we observe the agent behavior given the current policy, and for each visited state compute the expected immediate re- ward by observing rewards for all actions. We assume access to a set of training examples</p><formula xml:id="formula_13">{(¯ x (j) i , s (j) i,1 , ¯ x (j) 1 , . . . , ¯ x (j) i−1 , g (j) i )} N,n (j) j=1,i=1 , where each instruction ¯ x (j) i</formula><p>is paired with a start state s i .</p><p>Reward The reward R</p><p>i : S × S × A → R is defined for each example j and instruction i:</p><formula xml:id="formula_15">R (j) i (s, a, s ) = P (j) i (s, a, s ) + φ (j) i (s ) − φ (j) i (s) ,</formula><p>where s is a source state, a is an action, and s is a target state. 4 P  i and negative for stopping in an incorrect Algorithm 1 SESTRA: Single-step Reward Observation.</p><formula xml:id="formula_16">Input: Training data {(¯ x (j) i , s (j) i,1 , ¯ x (j) 1 , . . . , ¯ x (j) i−1 , g (j) i )} N,n (j) j=1,i=1</formula><p>, learning rate µ, entropy regularization coefficient λ, episode limit horizon M . Definitions: π θ is a policy parameterized by θ, BEG is a spe- cial action to use for the first decoder step, and STOP indicates end of an execution. T (s, a) is the state transi- tion function, H is an entropy function, R</p><p>i (s, a, s ) is the reward function for example j and instruction i, and RMSPROP divides each weight by a running average of its squared gradient <ref type="bibr" target="#b38">(Tieleman and Hinton, 2012)</ref>. Output: Parameters θ defining a learned policy π θ .</p><p>1: for t = 1, . . . , T, j = 1, . . . , N do 2:</p><formula xml:id="formula_18">for i = 1, . . . , n (j) do 3: ¯ e ← , k ← 0, a0 ← BEG 4:</formula><p>» Rollout up to STOP or episode limit. 5:</p><formula xml:id="formula_19">while a k = STOP ∧ k &lt; M do 6: k ← k + 1 7: ˜ s k ← (¯ xi, ¯ x1, . . . , ¯ xi−1, s k , ¯ e[: k]) 8:</formula><p>» Sample an action from policy. 9:</p><formula xml:id="formula_20">a k ∼ π θ (˜ s k , ·) 10: s k+1 ← T (s k , a k ) 11: ¯ e ← [¯ e; (s k , a k )] 12:</formula><p>∆ ← ¯ 0 13:</p><formula xml:id="formula_21">for k = 1, . . . , k do 14:</formula><p>» Compute the entropy of π θ (˜ s k , ·). 15:</p><formula xml:id="formula_22">∆ ← ∆ + λ θ H(π θ (˜ s k , ·)) 16:</formula><p>for a ∈ A do 17:</p><formula xml:id="formula_23">s ← T (s k , a) 18:</formula><p>» Compute gradient for action a. 19:</p><formula xml:id="formula_24">∆ ← ∆ + R (j) i (s k , a, s ) θ π θ (˜ s k , a) 20: θ ← θ + µRMSPROP ∆ k 21: return θ</formula><p>state or taking an invalid action:</p><formula xml:id="formula_25">P (j) i (s, a, s ) =          1.0 a = STOP ∧ s = g (j) i −1.0 a = STOP ∧ s = g (j) i −1.0 − δ s = s −δ otherwise ,</formula><p>where δ is a verbosity penalty. The case s = s indicates that a was invalid in state s, as in this domain, all valid actions except STOP mod- ify the state. We use a potential-based shaping term φ i || computes the edit distance between the state s and the goal, measured over the objects in each state. The shaping term densi- fies the reward, providing a meaningful signal for learning in nonterminal states.</p><p>Objective We maximize the immediate ex- pected reward over all actions and use entropy reg- ularization. The gradient is approximated by sam- pling an execution ¯ e = (s 1 , a 1 ), . . . , (s k , a k ) us- ing our current policy:</p><formula xml:id="formula_26">θ J = 1 k k k =1 a∈A R (s k , a, T (s k , a)) θ π(˜ s k , a) +λ θ H(π(˜ s k , ·)) ,</formula><p>where H(π(˜ s k , ·) is the entropy term.</p><p>Algorithm Algorithm 1 shows the Single-step Reward Observation (SESTRA) learning algo- rithm. We iterate over the training data T times (line 1). For each example j and turn i, we first perform a rollout by sampling an execution ¯ e from π θ with at most M actions (lines 5-11). If the roll- out reaches the horizon without predicting STOP, we set the problem reward P (j) i to −1.0 for the last step. Given the sampled states visited, we com- pute the entropy (line 15) and observe the imme- diate reward for all actions (line 19) for each step. Entropy and rewards are used to accumulate the gradient, which is applied to the parameters using RMSPROP ( <ref type="bibr" target="#b18">Dauphin et al., 2015</ref>) (line 20).</p><p>Discussion Observing the rewards for all actions for each visited state addresses an on-policy learn- ing exploration problem. Actions that consistently receive negative reward early during learning will be visited with very low probability later on, and in practice, often not explored at all. Because the net- work is randomly initialized, these early negative rewards are translated into strong general biases that are not grounded well in the observed con- text. Our algorithm exposes the agent to such ac- tions later on when they receive positive rewards even though the agent does not explore them dur- ing rollout. For example, in ALCHEMY, POP ac- tions are sufficient to complete the first steps of good executions. As a result, early during learn- ing, the agent learns a strong bias against PUSH actions. In practice, the agent then will not ex- plore PUSH actions again. In our algorithm, as the agent learns to roll out the correct POP prefix, it is then exposed to the reward for the first PUSH even though it likely sampled another POP. It then un- learns its bias towards predicting POP.</p><p>Our learning algorithm can be viewed as a cost- sensitive variant of the oracle in DAGGER <ref type="bibr" target="#b35">(Ross et al., 2011)</ref>, where it provides the rewards for all actions instead of an oracle action. It is also related to Locally Optimal Learning to Search (LOLS; <ref type="bibr" target="#b13">Chang et al., 2015</ref>) with two key distinctions: (a) instead of using different roll-in and roll-out poli- cies, we use the model policy; and (b) we branch at each step, instead of once, but do not rollout <ref type="figure">Figure 3</ref>: Illustration of LOLS (left; <ref type="bibr" target="#b13">Chang et al., 2015)</ref> and our learning algorithm (SESTRA, right). LOLS branches a single time, and samples complete rollout for each branch to obtain the trajectory loss. SESTRA uses a complete on-policy rollout and single- step branching for all actions in each sample state.   from branched actions since we only optimize the immediate reward. <ref type="figure">Figure 3</ref> illustrates the compar- ison. Our summation over immediate rewards for all actions is related the summation of estimated Q-values for all actions in the Mean Actor-Critic algorithm ( <ref type="bibr">Asadi et al., 2017)</ref>. Finally, our ap- proach is related to <ref type="bibr" target="#b33">Misra et al. (2017)</ref>, who also maximize the immediate reward, but do not ob- serve rewards for all actions for each state.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Rollin</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>&lt; l a t e x i t s h a 1 _ b a s e 6 4 = " D t V m v v y g C M S q u f 1 k O A E H 6 s V 0 e d c = " &gt; A A A C K H i c b V D L S s N A F J 3 4 r P G t S z e D R X B V E h H U n e D G p Y p V o Q k y m d z q 4 D z i z I 1 a Q r 7 D r a 7 9 G l f S r V / i t H a h 1 Q M D h 3 P u m X s 5 W S G F w y j q B x O T U 9 M z s 4 2 5 c H 5 h c W l 5 Z X X t w p n S c m h z I 4 2 9 y p g D K T S 0 U a C E q 8 I C U 5 m E y + z u a O B f P o B 1 w u h z 7 B W Q K n a j R V d w h l 5 K E 4 Q n r M 6 M 9 P n 6 e q U Z t a I h 6 F 8 S j 0 i T j H B y v R r M J L n h p Q K N X D L n O n F U Y F o x i 4 J L q M O k d F A w f s d u o O O p Z g p c W g 2 v r u m W V 3 L a N d Y / j X S o / k x U T D n X U 5 m f V A x v 3 b g 3 E P / 1 c j f 4 c G w 7 d v f T S u i i R N D 8 e 3 m 3 l B Q N H d R C c 2 G B o + x 5 w r g V / n 7 K b 5 l l H H 1 5 Y Z h Y 0 P D I j V J M 5 1 X C 6 0 6 c V l V i F W 3 G d R 3 6 5 u L x n v 6 S 9 k 7 r o B W d 7 j Y P o 1 G F D b J B N s k 2 i c k e O S T H 5 I S 0 C S f 3 5 J m 8 k N f g L X g P P o L + 9 + h E M M q s k 1 8 I P r 8 A B H 2 m O Q = = &lt; / l a t e x i t &gt; &lt; l a t e x i t s h a 1 _ b a s e 6 4 = " D t V m v v y g C M S q u f 1 k O A E H 6 s V 0 e d c = " &gt; A A A C K H i c b V D L S s N A F J 3 4 r P G t S z e D R X B V E h H U n e D G p Y p V o Q k y m d z q 4 D z i z I 1 a Q r 7 D r a 7 9 G l f S r V / i t H a h 1 Q M D h 3 P u m X s 5 W S G F w y j q B x O T U 9 M z s 4 2 5 c H 5 h c W l 5 Z X X t w p n S c m h z I 4 2 9 y p g D K T S 0 U a C E q 8 I C U 5 m E y + z u a O B f P o B 1 w u h z 7 B W Q K n a j R V d w h l 5 K E 4 Q n r M 6 M 9 P n 6 e q U Z t a I h 6 F 8 S j 0 i T j H B y v R r M J L n h p Q K N X D L n O n F U Y F o x i 4 J L q M O k d F A w f s d u o O O p Z g p c W g 2 v r u m W V 3 L a N d Y / j X S o / k x U T D n X U 5 m f V A x v 3 b g 3 E P / 1 c j f 4 c G w 7 d v f T S u i i R N D 8 e 3 m 3 l B Q N H d R C c 2 G B o + x 5 w r g V / n 7 K b 5 l l H H 1 5 Y Z h Y 0 P D I j V J M 5 1 X C 6 0 6 c V l V i F W 3 G d R 3 6 5 u L x n v 6 S 9 k 7 r o B W d 7 j Y P o 1 G F D b J B N s k 2 i c k e O S T H 5 I S 0 C S f 3 5 J m 8 k N f g L X g P P o L + 9 + h E M M q s k 1 8 I P r 8 A B H 2 m O Q = = &lt; / l a t e x i t &gt; &lt; l a t e x i t s h a 1 _ b a s e 6 4 = " D t V m v v y g C M S q u f 1 k O A E H 6 s V 0 e d c = " &gt; A A A C K H i c b V D L S s N A F J 3 4 r P G t S z e D R X B V E h H U n e D G p Y p V o Q k y m d z q 4 D z i z I 1 a Q r 7 D r a 7 9 G l f S r V / i t H a h 1 Q M D h 3 P u m X s 5 W S G F w y j q B x O T U 9 M z s 4 2 5 c H 5 h c W l 5 Z X X t w p n S c m h z I 4 2 9 y p g D K T S 0 U a C E q 8 I C U 5 m E y + z u a O B f P o B 1 w u h z 7 B W Q K n a j R V d w h l 5 K E 4 Q n r M 6 M 9 P n 6 e q U Z t a I h 6 F 8 S j 0 i T j H B y v R r M J L n h p Q K N X D L n O n F U Y F o x i 4 J L q M O k d F A w f s d u o O O p Z g p c W g 2 v r u m W V 3 L a N d Y / j X S o / k x U T D n X U 5 m f V A x v 3 b g 3 E P / 1 c j f 4 c G w 7 d v f T S u i i R N D 8 e 3 m 3 l B Q N H d R C c 2 G B o + x 5 w r g V / n 7 K b 5 l l H H 1 5 Y Z h Y 0 P D I j V J M 5 1 X C 6 0 6 c V l V i F W 3 G d R 3 6 5 u L x n v 6 S 9 k 7 r o B W d 7 j Y P o 1 G F D b J B N s k 2 i c k e O S T H 5 I S 0 C S f 3 5 J m 8 k N f g L X g P P o L + 9 + h E M M q s k 1 8 I P r 8 A B H 2 m O Q = = &lt; / l a t e x i t &gt;</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Rollout</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>&lt; l a t e x i t s h a 1 _ b a s e 6 4 = " I t e n Z L B G N 1 + 9 h A c i W Y V G c j 3 L X K g = " &gt; A A A C K X i c b V D L L g R B F K 3 2 1 l 6 D p U 3 F R G I 1 6 R Y J d h I b S 8 Q g m W 5 S X X 2 H i n p 0 q m 5 j 0 u n / s G X t a 6 y w 9 S N q x i w Y T n K T k 3 P u K y c r p H A Y R e / B 2 P j E 5 N T 0 z G w 4 N 7 + w u N R Y X j l z p r Q c 2 t x I Y y 8 y 5 k A K D W 0 U K O G i s M B U J u E 8 u z 3 o + + d 3 Y J 0 w + h R 7 B a S K X W v R F Z y h l y 4 T h A e s T o y U p s T 6 q t G M W t E A 9 C + J h 6 R J h j i 6 W g 6 m k t z w U o F G L p l z n T g q M K 2 Y R c E l 1 G F S O i g Y v 2 X X 0 P F U M w U u r Q Z v 1 3 T D K z n t G u t L I x 2 o P y c q p p z r q c x 3 K o Y 3 b t T r i / 9 6 u e s v H L m O 3 d 2 0 E r o o E T T / P t 4 t J U V D + 7 n Q X F j g K H u e M G 6 F / 5 / y G 2 Y Z R 5 9 e G C Y W N N x z o x T T e Z X w u h O n V Z V Y R Z t x X Y c + u X g 0 p 7 + k v d X a a 0 X H 2 8 3 9 a B j h D F k j 6 2 S T x G S H 7 J N D c k T a h B N L H s k T e Q 5 e g t f g L f j 4 b h 0 L h j O r 5 B e C z y 8 N F K b E &lt; / l a t e x i t &gt; &lt; l a t e x i t s h a 1 _ b a s e 6 4 = " I t e n Z L B G N 1 + 9 h A c i W Y V G c j 3 L X K g = " &gt; A A A C K X i c b V D L L g R B F K 3 2 1 l 6 D p U 3 F R G I 1 6 R Y J d h I b S 8 Q g m W 5 S X X 2 H i n p 0 q m 5 j 0 u n / s G X t a 6 y w 9 S N q x i w Y T n K T k 3 P u K y c r p H A Y R e / B 2 P j E 5 N T 0 z G w 4 N 7 + w u N R Y X j l z p r Q c 2 t x I Y y 8 y 5 k A K D W 0 U K O G i s M B U J u E 8 u z 3 o + + d 3 Y J 0 w + h R 7 B a S K X W v R F Z y h l y 4 T h A e s T o y U p s T 6 q t G M W t E A 9 C + J h 6 R J h j i 6 W g 6 m k t z w U o F G L p l z n T g q M K 2 Y R c E l 1 G F S O i g Y v 2 X X 0 P F U M w U u r Q Z v 1 3 T D K z n t G u t L I x 2 o P y c q p p z r q c x 3 K o Y 3 b t T r i / 9 6 u e s v H L m O 3 d 2 0 E r o o E T T / P t 4 t J U V D + 7 n Q X F j g K H u e M G 6 F / 5 / y G 2 Y Z R 5 9 e G C Y W N N x z o x T T e Z X w u h O n V Z V Y R Z t x X Y c + u X g 0 p 7 + k v d X a a 0 X H 2 8 3 9 a B j h D F k j 6 2 S T x G S H 7 J N D c k T a h B N L H s k T e Q 5 e g t f g L f j 4 b h 0 L h j O r 5 B e C z y 8 N F K b E &lt; / l a t e x i t &gt; &lt; l a t e x i t s h a 1 _ b a s e 6 4 = " I t e n Z L B G N 1 + 9 h A c i W Y V G c j 3 L X K g = " &gt; A A A C K X i c b V D L L g R B F K 3 2 1 l 6 D p U 3 F R G I 1 6 R Y J d h I b S 8 Q g m W 5 S X X 2 H i n p 0 q m 5 j 0 u n / s G X t a 6 y w 9 S N q x i w Y T n K T k 3 P u K y c r p H A Y R e / B 2 P j E 5 N T 0 z G w 4 N 7 + w u N R Y X j l z p r Q c 2 t x I Y y 8 y 5 k A K D W 0 U K O G i s M B U J u E 8 u z 3 o + + d 3 Y J 0 w + h R 7 B a S K X W v R F Z y h l y 4 T h A e s T o y U p s T 6 q t G M W t E A 9 C + J h 6 R J h j i 6 W g 6 m k t z w U o F G L p l z n T g q M K 2 Y R c E l 1 G F S O i g Y v 2 X X 0 P F U M w U u r Q Z v 1 3 T D K z n t G u t L I x 2 o P y c q p p z r q c x 3 K o Y 3 b t T r i / 9 6 u e s v H L m O 3 d 2 0 E r o o E T T / P t 4 t J U V D + 7 n Q X F j g K H u e M G 6 F / 5 / y G 2 Y Z R 5 9 e G C Y W N N x z o x T T e Z X w u h O n V Z V Y R Z t x X Y c + u X g 0 p 7 + k v d X a a 0 X H 2 8 3 9 a B j h D F k j 6 2 S T x G S H 7 J N D c k T a h B N L H s k T e Q 5 e g t f g L f j 4 b h 0 L h j O r 5 B e C z y 8 N F K b E &lt; / l a t e x i t &gt;</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Branch</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>&lt; l a t e x i t s h a 1 _ b a s e 6 4 = " B 5 f V u a D l e a 4 q V x F u H c E r L A i J N x Q = " &gt; A A A C K H i c b V D L S s N A F J 3 4 N r 5 a X b o Z L I K r k o i g 7 o p u X C p Y L T S h T C a 3 d n B m E m d u 1 B L y H W 5 1 7 d e 4 E r d + i d P a h V Y P X D i c c 1 + c J J f C Y h B 8 e D O z c / M L i 0 v L / s r q 2 v p G r b 5 5 Z b P C c G j z T G a m k z A L U m h o o 0 A J n d w A U 4 m E 6 + T 2 d O R f 3 4 O x I t O X O M w h V u x G i 7 7 g D J 0 U R w i P W J 4 Y p v m g 6 t U a Q T M Y g / 4 l 4 Y Q 0 y A T n v b q 3 E K U Z L x R o 5 J J Z 2 w 2 D H O O S G R R c Q u V H h Y W c 8 V t 2 A 1 1 H N V N g 4 3 L 8 d U V 3 n Z L S f m Z c a a R j 9 e d E y Z S 1 Q 5 W 4 T s V w Y K e 9 k f i v l 9 r R w q n r 2 D + K S 6 H z A k H z 7 + P 9 Q l L M 6 C g W m g o D H O X Q E c a N c P 9 T P m C G c X T h + X 5 k Q M M D z 5 R i O i 0 j X n X D u C w j o 2 g j r C r f J R d O 5 / S X t P e b x 8 3 g 4 q D R C i Y R L p F t s k P 2 S E g O S Y u c k X P S J p z c k S f y T F 6 8 V + / N e / c + v l t n v M n M F v k F 7 / M L y X W m F w = = &lt; / l a t e x i t &gt; &lt; l a t e x i t s h a 1 _ b a s e 6 4 = " B 5 f V u a D l e a 4 q V x F u H c E r L A i J N x Q = " &gt; A A A C K H i c b V D L S s N A F J 3 4 N r 5 a X b o Z L I K r k o i g 7 o p u X C p Y L T S h T C a 3 d n B m E m d u 1 B L y H W 5 1 7 d e 4 E r d + i d P a h V Y P X D i c c 1 + c J J f C Y h B 8 e D O z c / M L i 0 v L / s r q 2 v p G r b 5 5 Z b P C c G j z T G a m k z A L U m h o o 0 A J n d w A U 4 m E 6 + T 2 d O R f 3 4 O x I t O X O M w h V u x G i 7 7 g D J 0 U R w i P W J 4 Y p v m g 6 t U a Q T M Y g / 4 l 4 Y Q 0 y A T n v b q 3 E K U Z L x R o 5 J J Z 2 w 2 D H O O S G R R c Q u V H h Y W c 8 V t 2 A 1 1 H N V N g 4 3 L 8 d U V 3 n Z L S f m Z c a a R j 9 e d E y Z S 1 Q 5 W 4 T s V w Y K e 9 k f i v l 9 r R w q n r 2 D + K S 6 H z A k H z 7 + P 9 Q l L M 6 C g W m g o D H O X Q E c a N c P 9 T P m C G c X T h + X 5 k Q M M D z 5 R i O i 0 j X n X D u C w j o 2 g j r C r f J R d O 5 / S X t P e b x 8 3 g 4 q D R C i Y R L p F t s k P 2 S E g O S Y u c k X P S J p z c k S f y T F 6 8 V + / N e / c + v l t n v M n M F v k F 7 / M L y X W m F w = = &lt; / l a t e x i t &gt; &lt; l a t e x i t s h a 1 _ b a s e 6 4 = " B 5 f V u a D l e a 4 q V x F u H c E r L A i J N x Q = " &gt; A A A C K H i c b V D L S s N A F J 3 4 N r 5 a X b o Z L I K r k o i g 7 o p u X C p Y L T S h T C a 3 d n B m E m d u 1 B L y H W 5 1 7 d e 4 E r d + i d P a h V Y P X D i c c 1 + c J J f C Y h B 8 e D O z c / M L i 0 v L / s r q 2 v p G r b 5 5 Z b P C c G j z T G a m k z A L U m h o o 0 A J n d w A U 4 m E 6 + T 2 d O R f 3 4 O x I t O X O M w h V u x G i 7 7 g D J 0 U R w i P W J 4 Y p v m g 6 t U a Q T M Y g / 4 l 4 Y Q 0 y A T n v b q 3 E K U Z L x R o 5 J J Z 2 w 2 D H O O S G R R c Q u V H h Y W c 8 V t 2 A 1 1 H N V N g 4 3 L 8 d U V 3 n Z L S f m Z c a a R j 9 e d E y Z S 1 Q 5 W 4 T s V w Y K e 9 k f i v l 9 r R w q n r 2 D + K S 6 H z A k H z 7 + P 9 Q l L M 6 C g W m g o D H O X Q E c a N c P 9 T P m C G c X T h + X 5 k Q M M D z 5 R i O i 0 j X n X D u C w j o 2 g j r C r f J R d O 5 / S X t P e b x 8 3 g 4 q D R C i Y R L p F t s k P 2 S E g O S Y u c k X P S J p z c k S f y T F 6 8 V + / N e / c + v l t n v M n M F v k F 7 / M L y X W m F w = = &lt; / l a t e x i t &gt;</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Rollout</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>&lt; l a t e x i t s h a 1 _ b a s e 6 4 = " I t e n Z L B G N 1 + 9 h A c i W Y V G c j 3 L X K g = " &gt; A A A C K X i c b V D L L g R B F K 3 2 1 l 6 D p U 3 F R G I 1 6 R Y J d h I b S 8 Q g m W 5 S X X 2 H i n p 0 q m 5 j 0 u n / s G X t a 6 y w 9 S N q x i w Y T n K T k 3 P u K y c r p H A Y R e / B 2 P j E 5 N T 0 z G w 4 N 7 + w u N R Y X j l z p r Q c 2 t x I Y y 8 y 5 k A K D W 0 U K O G i s M B U J u E 8 u z 3 o + + d 3 Y J 0 w + h R 7 B a S K X W v R F Z y h l y 4 T h A e s T o y U p s T 6 q t G M W t E A 9 C + J h 6 R J h j i 6 W g 6 m k t z w U o F G L p l z n T g q M K 2 Y R c E l 1 G F S O i g Y v 2 X X 0 P F U M w U u r Q Z v 1 3 T D K z n t G u t L I x 2 o P y c q p p z r q c x 3 K o Y 3 b t T r i / 9 6 u e s v H L m O 3 d 2 0 E r o o E T T / P t 4 t J U V D + 7 n Q X F j g K H u e M G 6 F / 5 / y G 2 Y Z R 5 9 e G C Y W N N x z o x T T e Z X w u h O n V Z V Y R Z t x X Y c + u X g 0 p 7 + k v d X a a 0 X H 2 8 3 9 a B j h D F k j 6 2 S T x G S H 7 J N D c k T a h B N L H s k T e Q 5 e g t f g L f j 4 b h 0 L h j O r 5 B e C z y 8 N F K b E &lt; / l a t e x i t &gt; &lt; l a t e x i t s h a 1 _ b a s e 6 4 = " I t e n Z L B G N 1 + 9 h A c i W Y V G c j 3 L X K g = " &gt; A A A C K X i c b V D L L g R B F K 3 2 1 l 6 D p U 3 F R G I 1 6 R Y J d h I b S 8 Q g m W 5 S X X 2 H i n p 0 q m 5 j 0 u n / s G X t a 6 y w 9 S N q x i w Y T n K T k 3 P u K y c r p H A Y R e / B 2 P j E 5 N T 0 z G w 4 N 7 + w u N R Y X j l z p r Q c 2 t x I Y y 8 y 5 k A K D W 0 U K O G i s M B U J u E 8 u z 3 o + + d 3 Y J 0 w + h R 7 B a S K X W v R F Z y h l y 4 T h A e s T o y U p s T 6 q t G M W t E A 9 C + J h 6 R J h j i 6 W g 6 m k t z w U o F G L p l z n T g q M K 2 Y R c E l 1 G F S O i g Y v 2 X X 0 P F U M w U u r Q Z v 1 3 T D K z n t G u t L I x 2 o P y c q p p z r q c x 3 K o Y 3 b t T r i / 9 6 u e s v H L m O 3 d 2 0 E r o o E T T / P t 4 t J U V D + 7 n Q X F j g K H u e M G 6 F / 5 / y G 2 Y Z R 5 9 e G C Y W N N x z o x T T e Z X w u h O n V Z V Y R Z t x X Y c + u X g 0 p 7 + k v d X a a 0 X H 2 8 3 9 a B j h D F k j 6 2 S T x G S H 7 J N D c k T a h B N L H s k T e Q 5 e g t f g L f j 4 b h 0 L h j O r 5 B e C z y 8 N F K b E &lt; / l a t e x i t &gt; &lt; l a t e x i t s h a 1 _ b a s e 6 4 = " I t e n Z L B G N 1 + 9 h A c i W Y V G c j 3 L X K g = " &gt; A A A C K X i c b V D L L g R B F K 3 2 1 l 6 D p U 3 F R G I 1 6 R Y J d h I b S 8 Q g m W 5 S X X 2 H i n p 0 q m 5 j 0 u n / s G X t a 6 y w 9 S N q x i w Y T n K T k 3 P u K y c r p H A Y R e / B 2 P j E 5 N T 0 z G w 4 N 7 + w u N R Y X j l z p r Q c 2 t x I Y y 8 y 5 k A K D W 0 U K O G i s M B U J u E 8 u z 3 o + + d 3 Y J 0 w + h R 7 B a S K X W v R F Z y h l y 4 T h A e s T o y U p s T 6 q t G M W t E A 9 C + J h 6 R J h j i 6 W g 6 m k t z w U o F G L p l z n T g q M K 2 Y R c E l 1 G F S O i g Y v 2 X X 0 P F U M w U u r Q Z v 1 3 T D K z n t G u t L I x 2 o P y c q p p z r q c x 3 K o Y 3 b t T r i / 9 6 u e s v H L m O 3 d 2 0 E r o o E T T / P t 4 t J U V D + 7 n Q X F j g K H u e M G 6 F / 5 / y G 2 Y Z R 5 9 e G C Y W N N x z o x T T e Z X w u h O n V Z V Y R Z t x X Y c + u X g 0 p 7 + k v d X a a 0 X H 2 8 3 9 a B j h D F k j 6 2 S T x G S H 7 J N D c k T a h B N L H s k T e Q 5 e g t f g L f j 4 b h 0 L h j O r 5 B e C z y 8 N F K b E &lt; / l a t e x i t &gt;</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Single-step Reward Observations</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>&lt; l a t e x i t s h a 1 _ b a s e 6 4 = " G / + r q g E Q q u + q L 8 l 7 r e S b 6 H s U u t 4 = " &gt; A A A C h X i c b V F N b x M x E H U W a M P y 0 Z Q e u V i N q L g 0 2 q 0 K h R O V e u H W l h J a K V 5 F X u 8 k s W p 7 V / Z s S 2 T t X + T O / + A K q p N u V U g Z y d L z e 2 9 m r O e 8 U t J h k v z s R I 8 e P 1 l b 7 z 6 N n z 1 / 8 X K j t / n q m y t r K 2 A o S l X a i 5 w 7 U N L A E C U q u K g s c J 0 r O M 8 v j x b 6 + R V Y J 0 v z F e c V Z J p P j Z x I w T F Q 4 9 5 s h 7 K Z q 7 g A / 6 7 C h j K E 7 + j P p J k q 2 H U I V c P Y a H e v w o z S e 2 u a 3 n u / w D W 3 R b j d + X Z o q x z n D u z V c p F r x r 1 + M k i W R R + C t A V 9 0 t b J e L O z x o p S 1 B o M C s W d G 6 V J G O + 5 R S k U N D G r H Y T X X P I p j A I 0 X I P L / D K S h r 4 J T E E n p Q 3 H I F 2 y f 3 d 4 r p 2 b 6 z w 4 N c e Z W 9 U W 5 H + 1 w i 0 G r m z H y Y f M S 1 P V C E b c L p / U i m J J F 5 n T Q l o Q q O Y B c G F l e D 8 V M 2 6 5 w P A z c c w s G L g W p d b c F J 6 J Z p R m 3 j O r a T 9 t m j g k l 6 7 m 9 B A M 9 w Y f B 8 n p f v 8 w a S P s k t d k m 7 w l K T k g h + Q z O S F D I s g P 8 o v 8 J n + i b j S I 9 q P 3 t 9 a o 0 / Z s k X 8 q + n Q D m C j F d Q = = &lt; / l a t e x i t &gt; &lt; l a t e x i t s h a 1 _ b a s e 6 4 = " G / + r q g E Q q u + q L 8 l 7 r e S b 6 H s U u t 4 = " &gt; A A A C h X i c b V F N b x M x E H U W a M P y 0 Z Q e u V i N q L g 0 2 q 0 K h R O V e u H W l h J a K V 5 F X u 8 k s W p 7 V / Z s S 2 T t X + T O / + A K q p N u V U g Z y d L z e 2 9 m r O e 8 U t J h k v z s R I 8 e P 1 l b 7 z 6 N n z 1 / 8 X K j t / n q m y t r K 2 A o S l X a i 5 w 7 U N L A E C U q u K g s c J 0 r O M 8 v j x b 6 + R V Y J 0 v z F e c V Z J p P j Z x I w T F Q 4 9 5 s h 7 K Z q 7 g A / 6 7 C h j K E 7 + j P p J k q 2 H U I V c P Y a H e v w o z S e 2 u a 3 n u / w D W 3 R b j d + X Z o q x z n D u z V c p F r x r 1 + M k i W R R + C t A V 9 0 t b J e L O z x o p S 1 B o M C s W d G 6 V J G O + 5 R S k U N D G r H Y T X X P I p j A I 0 X I P L / D K S h r 4 J T E E n p Q 3 H I F 2 y f 3 d 4 r p 2 b 6 z w 4 N c e Z W 9 U W 5 H + 1 w i 0 G r m z H y Y f M S 1 P V C E b c L p / U i m J J F 5 n T Q l o Q q O Y B c G F l e D 8 V M 2 6 5 w P A z c c w s G L g W p d b c F J 6 J Z p R m 3 j O r a T 9 t m j g k l 6 7 m 9 B A M 9 w Y f B 8 n p f v 8 w a S P s k t d k m 7 w l K T k g h + Q z O S F D I s g P 8 o v 8 J n + i b j S I 9 q P 3 t 9 a o 0 / Z s k X 8 q + n Q D m C j F d Q = = &lt; / l a t e x i t &gt; &lt; l a t e x i t s h a 1 _ b a s e 6 4 = " G / + r q g E Q q u + q L 8 l 7 r e S b 6 H s U u t 4 = " &gt; A A A C h X i c b V F N b x M x E H U W a M P y 0 Z Q e u V i N q L g 0 2 q 0 K h R O V e u H W l h J a K V 5 F X u 8 k s W p 7 V / Z s S 2 T t X + T O / + A K q p N u V U g Z y d L z e 2 9 m r O e 8 U t J h k v z s R I 8 e P 1 l b 7 z 6 N n z 1 / 8 X K j t / n q m y t r K 2 A o S l X a i 5 w 7 U N L A E C U q u K g s c J 0 r O M 8 v j x b 6 + R V Y J 0 v z F e c V Z J p P j Z x I w T F Q 4 9 5 s h 7 K Z q 7 g A / 6 7 C h j K E 7 + j P p J k q 2 H U I V c P Y a H e v w o z S e 2 u a 3 n u / w D W 3 R b j d + X Z o q x z n D u z V c p F r x r 1 + M k i W R R + C t A V 9 0 t b J e L O z x o p S 1 B o M C s W d G 6 V J G O + 5 R S k U N D G r H Y T X X P I p j A I 0 X I P L / D K S h r 4 J T E E n p Q 3 H I F 2 y f 3 d 4 r p 2 b 6 z w 4 N c e Z W 9 U W 5 H + 1 w i 0 G r m z H y Y f M S 1 P V C E b c L p / U i m J J F 5 n T Q l o Q q O Y B c G F l e D 8 V M 2 6 5 w P A z c c w s G L g W p d b c F J 6 J Z p R m 3 j O r a T 9 t m j g k l 6 7 m 9 B A M 9 w Y f B 8 n p f v 8 w a S P s k t d k m 7 w l K T k g h + Q z O S F D I s g P 8 o v 8 J n + i b j S I 9 q P 3 t 9 a o 0 / Z s k X 8 q + n Q D m C j F d Q = = &lt; / l a t e x i t &gt;</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6">SCONE Domains and Data</head><p>SCONE has three domains: ALCHEMY, SCENE, and TANGRAMS. Each interaction contains five instructions. <ref type="table" target="#tab_1">Table 1</ref> shows data statistics. <ref type="table" target="#tab_2">Table 2</ref> shows discourse reference analysis. State encod- ings are detailed in the Supplementary Material.</p><p>ALCHEMY Each environment in ALCHEMY contains seven numbered beakers, each contain- ing up to four colored chemicals in order. <ref type="figure">Figure 1</ref> shows an example. Instructions describe pouring chemicals between and out of beakers, and mix- ing beakers. We treat all beakers as stacks. There are two action types: PUSH and POP. POP takes a beaker index, and removes the top color. PUSH takes a beaker index and a color, and adds the color at the top of the beaker. To encode a state, we en- code each beaker with an RNN, and concatenate the last output with the beaker index embedding. The set of vectors is the state embedding. TANGRAMS Each environment in TANGRAMS is a list containing at most five unique objects. In- structions describe removing or inserting an object into a position in the list, or swapping the positions of two items. There are two action types: INSERT and REMOVE. INSERT takes the position to insert an object, and the object identifier. REMOVE takes an object position. We embed each object by con- catenating embeddings for its type and position. The resulting set is the state embedding.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="7">Experimental Setup</head><p>Evaluation Following <ref type="bibr" target="#b28">Long et al. (2016)</ref>, we evaluate task completion accuracy using exact match between the final state and the annotated goal state. We report accuracy for complete in- teractions (5utts), the first three utterances of each interaction (3utts), and single instructions (Inst). For single instructions, execution starts from the annotated start state of the instruction.</p><p>Systems We report performance of ablations and two baseline systems: POLICYGRADIENT: policy gradient with cumulative episodic reward without a baseline, and CONTEXTUALBANDIT: the contextual bandit approach of <ref type="bibr" target="#b33">Misra et al. (2017)</ref>. Both systems use the reward with the shaping term and our model. We also report super- vised learning results (SUPERVISED) by heuristi- cally generating correct executions and comput- ing maximum-likelihood estimate using context- action demonstration pairs. Only the supervised approach uses the heuristically generated labels. Although the results are not comparable, we also report the performance of previous approaches to SCONE. All three approaches generate logical representations based on lambda calculus. In con- trast to our approach, this requires an ontology of hand built symbols and rules to evaluate the logical forms. <ref type="bibr" target="#b19">Fried et al. (2018)</ref> uses supervised learning with annotated logical forms.</p><p>Training Details For test results, we run each experiment five times and report results for the model with best validation interaction accuracy. For ablations, we do the same with three experi- ments. We use a batch size of 20. We stop train- ing using a validation set sampled from the train- ing data. We hold the validation set constant for each domain for all experiments. We use patience over the average reward, and select the best model using interaction-level (5utts) validation accuracy. We tune λ, δ, and M on the development set. The selected values and other implementation details are described in the Supplementary Material. <ref type="table" target="#tab_4">Table 3</ref> shows test results. Our approach signifi- cantly outperforms POLICYGRADIENT and CON- TEXTUALBANDIT, both of which suffer due to bi- ases learned early during learning, hindering later exploration. This problem does not appear in TANGRAMS, where no action type is dominant at the beginning of executions, and all methods per- form well. POLICYGRADIENT completely fails to learn ALCHEMY and SCENE due to observing only negative total rewards early during learning.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="8">Results</head><p>Using a baseline, for example with an actor-critic method, will potentially close the gap to CONTEX- TUALBANDIT. However, it is unlikely to address the on-policy exploration problem. <ref type="table" target="#tab_5">Table 4</ref> shows development results, including model ablation studies. Removing previous in- structions (-previous instructions) or both states (-current and initial state) reduces performance across all domains. Removing only the initial state (-initial state) or the current state (-current state) shows mixed results across the domains. Provid- ing access to both initial and current states in- creases performance for ALCHEMY, but reduces performance on the other domains. We hypoth- esize that this is due to the increase in the num- ber of parameters outweighing what is relatively marginal information for these domains. In our development and test results we use a single ar- chitecture across the three domains, the full ap- proach, which has the highest interactive-level ac- curacy when averaged across the three domains (62.7 5utts). We also report mean and standard deviation for our approach over five trials. We ob- serve exceptionally high variance in performance on SCENE, where some experiments fail to learn and training performance remains exceptionally low <ref type="figure" target="#fig_10">(Figure 4)</ref>. This highlights the sensitivity of the model to the random effects of initialization, dropout, and ordering of training examples.</p><p>We analyze the instruction-level errors made by our best models when the agent is provided the correct initial state for the instruction. We study fifty examples in each domain to identify the type of failures. <ref type="table" target="#tab_6">Table 5</ref> shows the counts of major error categories. We consider multiple reference resolu- tion errors. State reference errors indicate a failure to resolve a reference to the world state. For exam- ple, in ALCHEMY, the phrase leftmost red beaker specifies a beaker in the environment. If the model picked the correct action, but the wrong beaker, we count it as a state reference. We distinguish between multi-turn reference errors that should be feasible, and these that that are impossible to solve without access to states before executing previous utterances, which are not provided to our model. For example, in TANGRAMS, the instruction put it back in the same place refers to a previously- removed item. Because the agent only has access to the world state after following this instruction, it does not observe what kind of item was previously removed, and cannot identify the item to add. We    also find a significant number of errors due to am- biguous or incorrect instructions. For example, the SCENE instruction person in green appears on the right end is ambiguous. In the annotated goal, it is interpreted as referring to a person already in the environment, who moves to the 10th position. However, it can also be interpreted as a new person in green appearing in the 10th position. We also study performance with respect to multi-turn coreference by observing whether the model was able to identify the correct referent for each occurrence included in the analysis in <ref type="table" target="#tab_2">Table 2</ref>. The models were able to correctly re- solve 92.3%, 88.7%, and 76.0% of references in ALCHEMY, SCENE, and TANGRAMS respectively.</p><p>Finally, we include attention visualization for examples from the three domains in the Supple- mentary Material.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="9">Discussion</head><p>We propose a model to reason about context- dependent instructional language that display strong dependencies both on the history of the interaction and the state of the world. Future modeling work may include using intermediate world states from previous turns in the interaction, which is required for some of the most complex references in the data. We propose to train our model using SESTRA, a learning algorithm that takes advantage of single-step reward observations to overcome learned biases in on-policy learning. Our learning approach requires additional reward observations in comparison to conventional rein- forcement learning. However, it is particularly suitable to recovering from biases acquired early during learning, for example due to biased action spaces, which is likely to lead to incorrect blame assignment in neural network policies. When the domain and model are less susceptible to such bi- ases, the benefit of the additional reward observa- tions is less pronounced. One possible direction for future work is to use an estimator to predict re- wards for all actions, rather than observing them.</p></div><figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_4"><head></head><label></label><figDesc>and b d ; and the domain dependent parameters, in- cluding the parameters of the encoding function ENC and the action type, first argument, and sec- ond argument weights b a T , b a 1 , and b a 2 .</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_6"><head>i</head><label></label><figDesc>(s, a, s ) is a problem reward and φ</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_7"><head>i</head><label></label><figDesc>(s) is a shaping term. The problem reward P (j) i (s, a, s ) is positive for stopping at the goal g (j)</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_9"><head>SCENE</head><label></label><figDesc>Each environment in SCENE contains ten positions, each containing at most one person defined by a shirt color and an optional hat color. Instructions describe adding or removing people, moving a person to another position, and moving a person's hat to another person. There are four action types: ADD_PERSON, ADD_HAT, REMOVE_PERSON, and REMOVE_HAT. ADD_PERSON and ADD_HAT take a posi- tion to place the person or hat and the color of the person's shirt or hat. REMOVE_PERSON and REMOVE_HAT take the position to remove a person or hat from. To encode a state, we use a bidirectional RNN over the ordered positions. The input for each position is a concatenation of the color embeddings for the person and hat. The set of RNN hidden states is the state embedding.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_10"><head>Figure 4 :</head><label>4</label><figDesc>Figure 4: Instruction-level training accuracy per epoch when training five models on SCENE, demonstrating the effect of randomization in the learning method. Three of five experiments fail to learn effective models. The red and blue learning trajectories are overlapping.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_1" validated="false"><head>Table 1 :</head><label>1</label><figDesc></figDesc><table>Data statistics for ALCHEMY (ALC), SCENE 
+(SCE), and TANGRAMS (TAN). 
+
+Refs/Ex 
+1 
+2 
+3 4 
+
+ALCHEMY 
+1.4 
+Coref. 
+28 
+7 
+2 0 
+Ellipsis 
+0 
+0 
+3 1 
+
+SCENE 
+2.4 
+Coref. 
+49 16 5 3 
+Ellipsis 
+0 
+0 
+0 0 
+
+TANGRAMS 
+1.7 
+Coref. 
+25 14 2 1 
+Ellipsis 
+4 
+0 
+0 0 
+
+</table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_2" validated="false"><head>Table 2 :</head><label>2</label><figDesc></figDesc><table>Counts of discourse phenomena in SCONE 
+from 30 randomly selected development interactions 
+for each domain. We count occurrences of coreference 
+between instructions (e.g., he leaves in SCENE) and el-
+lipsis (e.g., then, drain 2 units in ALCHEMY), when the 
+last explicit mention of the referent was 1, 2, 3, or 4 
+turns in the past. We also report the average number of 
+multi-turn references per interaction (Refs/Ex). 
+
+</table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_4" validated="false"><head>Table 3 :</head><label>3</label><figDesc></figDesc><table>Test accuracies for single instructions (Inst), first-three instructions (3utts), and full interactions (5utts). 
+
+ALCHEMY 
+SCENE 
+TANGRAMS 
+System 
+Inst 
+3utts 
+5utts 
+Inst 
+3utts 
+5utts 
+Inst 
+3utts 
+5utts 
+SUPERVISED 
+92.0 
+83.3 
+71.4 
+85.3 
+72.7 
+60.6 
+86.1 
+81.9 
+58.3 
+POLICYGRADIENT 
+0.0 
+0.0 
+0.0 
+0.9 
+1.0 
+0.5 
+85.2 
+74.9 
+52.3 
+CONTEXTUALBANDIT 
+58.8 
+6.9 
+5.7 
+12.0 
+0.5 
+1.5 
+85.6 
+78.4 
+52.6 
+Our approach 
+92.1 
+82.9 
+71.8 
+83.9 
+68.7 
+56.1 
+88.5 
+82.4 
+60.3 
+-previous instructions 
+90.1 
+77.1 
+66.1 
+79.3 
+60.6 
+45.5 
+76.4 
+55.8 
+27.6 
+-current and initial state 
+25.7 
+4.5 
+3.3 
+17.5 
+0.0 
+0.0 
+45.4 
+15.1 
+3.5 
+-current state 
+89.8 
+78.0 
+62.9 
+83.0 
+68.7 
+54.0 
+87.6 
+78.4 
+60.8 
+-initial state 
+81.1 
+68.6 
+42.9 
+82.7 
+67.7 
+57.1 
+88.6 
+82.9 
+63.3 
+Our approach (µ ± σ) 
+91.5 
+
+±1.4 
+
+80.4 
+
+±2.6 
+
+69.5 
+
+±5.0 
+
+62.9 
+
+±17.7 
+
+37.8 
+
+±23.5 
+
+29.0 
+
+±21.1 
+
+88.2 
+
+±0.6 
+
+80.8 
+
+±2.8 
+
+59.2 
+
+±2.3 
+
+</table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_5" validated="false"><head>Table 4 :</head><label>4</label><figDesc></figDesc><table>Development results, including model ablations. We also report mean µ and standard deviation σ for all 
+metrics for our approach across five experiments. We bold the best performing variations of our model. 
+
+Class 
+ALC SCE TAN 
+State reference 
+23 
+13 
+7 
+Multi-turn reference 
+12 
+5 
+13 
+Impossible multi-turn reference 
+2 
+5 
+13 
+Ambiguous or incorrect label 
+2 
+19 
+12 
+
+</table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_6" validated="false"><head>Table 5 : Common error counts in the three domains.</head><label>5</label><figDesc></figDesc><table></table></figure>
+
+			<note place="foot" n="1"> This training set is a subset of the data used in previous work (Section 6, Guu et al., 2015), in which training uses all instruction sequences of length 1 and 2.</note>
+
+			<note place="foot" n="2"> To simplify the notation, we omit the memory cell (often denoted as cj) from all LSTM descriptions. We use only the hidden state hj to compute the intended representations (e.g., for the input text tokens). All LSTMs in this paper use zero vectors as initial hidden state h0 and initial cell memory c0.</note>
+
+			<note place="foot" n="4"> While the reward function is defined for any state-actionstate tuple, in practice, it is used during learning with tuples that follow the system dynamics, s = T (s, a).</note>
+		</body>
+		<back>
+
+			<div type="acknowledgement">
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Acknowledgements</head><p>This research was supported by the NSF (CRII-1656998), Schmidt Sciences, and cloud comput-ing credits from Amazon. We thank John Lang-ford and Dipendra Misra for helpful and insightful discussions with regards to our learning algorithm. We also thank the anonymous reviewers for their helpful comments.</p></div>
+			</div>
+
+			<div type="references">
+
+				<listBibl>
+
+<biblStruct xml:id="b0">
+	<analytic>
+		<title level="a" type="main">Visionand-Language Navigation: Interpreting visuallygrounded navigation instructions in real environments</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Peter</forename><surname>Anderson</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Qi</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Damien</forename><surname>Teney</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jake</forename><surname>Bruce</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Mark</forename><surname>Johnson</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Niko</forename><surname>Sünderhauf</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ian</forename><surname>Reid</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Stephen</forename><surname>Gould</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Anton</forename><surname>Van Den Hengel</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the IEEE Conference on Computer Vision and Pattern Recognition</title>
+		<meeting>the IEEE Conference on Computer Vision and Pattern Recognition</meeting>
+		<imprint>
+			<date type="published" when="2018" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b1">
+	<analytic>
+		<title level="a" type="main">Alignmentbased compositional semantics for instruction following</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jacob</forename><surname>Andreas</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Dan</forename><surname>Klein</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>the Conference on Empirical Methods in Natural Language Processing</meeting>
+		<imprint>
+			<date type="published" when="2015" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b2">
+	<analytic>
+		<title level="a" type="main">Learning compact lexicons for CCG semantic parsing</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yoav</forename><surname>Artzi</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Dipanjan</forename><surname>Das</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Slav</forename><surname>Petrov</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>the Conference on Empirical Methods in Natural Language Processing</meeting>
+		<imprint>
+			<date type="published" when="2014" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b3">
+	<analytic>
+		<title level="a" type="main">Weakly supervised learning of semantic parsers for mapping instructions to actions</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yoav</forename><surname>Artzi</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Luke</forename><forename type="middle">S</forename><surname>Zettlemoyer</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Transactions of the Association of Computational Linguistics</title>
+		<imprint>
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="49" to="62" />
+			<date type="published" when="2013" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b4">
+	<monogr>
+		<title/>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kavosh</forename><surname>Asadi</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Cameron</forename><surname>Allen</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Melrose</forename><surname>Roderick</surname></persName>
+		</author>
+		<imprint>
+			<publisher>Abdel-rahman Mohamed</publisher>
+			<pubPlace>George Konidaris, and</pubPlace>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b5">
+	<monogr>
+		<title level="m" type="main">Mean actor critic. CoRR</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">L</forename><surname>Michael</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Littman</surname></persName>
+		</author>
+		<idno>abs/1709.00503</idno>
+		<imprint>
+			<date type="published" when="2017" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b6">
+	<analytic>
+		<title level="a" type="main">Neural machine translation by jointly learning to align and translate</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Dzmitry</forename><surname>Bahdanau</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kyunghyun</forename><surname>Cho</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yoshua</forename><surname>Bengio</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the International Conference on Learning Representations</title>
+		<meeting>the International Conference on Learning Representations</meeting>
+		<imprint>
+			<date type="published" when="2015" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b7">
+	<analytic>
+		<title level="a" type="main">Semantic parsing on Freebase from question-answer pairs</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jonathan</forename><surname>Berant</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Andrew</forename><surname>Chou</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Roy</forename><surname>Frostig</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Percy</forename><surname>Liang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>the Conference on Empirical Methods in Natural Language Processing</meeting>
+		<imprint>
+			<date type="published" when="2013" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b8">
+	<analytic>
+		<title level="a" type="main">Semantic parsing via paraphrasing</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jonathan</forename><surname>Berant</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Percy</forename><surname>Liang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the Annual Meeting of the Association for Computational Linguistics</meeting>
+		<imprint>
+			<date type="published" when="2014" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b9">
+	<analytic>
+		<title level="a" type="main">Imitation learning of agenda-based semantic parsers. Transactions of the Association for</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jonathan</forename><surname>Berant</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Percy</forename><surname>Liang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Computational Linguistics</title>
+		<imprint>
+			<biblScope unit="volume">3</biblScope>
+			<biblScope unit="page" from="545" to="558" />
+			<date type="published" when="2015" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b10">
+	<analytic>
+		<title level="a" type="main">Learning interpretable spatial operations in a rich 3D blocks world</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yonatan</forename><surname>Bisk</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kevin</forename><surname>Shih</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yejin</forename><surname>Choi</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Daniel</forename><surname>Marcu</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Thirty-Second Conference on Artificial Intelligence</title>
+		<meeting>the Thirty-Second Conference on Artificial Intelligence</meeting>
+		<imprint>
+			<date type="published" when="2018" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b11">
+	<analytic>
+		<title level="a" type="main">Natural language communication with robots</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yonatan</forename><surname>Bisk</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Deniz</forename><surname>Yuret</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Daniel</forename><surname>Marcu</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies</title>
+		<meeting>the Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies</meeting>
+		<imprint>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b12">
+	<analytic>
+		<title level="a" type="main">Reinforcement learning for mapping instructions to actions</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">S</forename><forename type="middle">R K</forename><surname>Branavan</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Harr</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Luke</forename><forename type="middle">S</forename><surname>Zettlemoyer</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Regina</forename><surname>Barzilay</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Joint Conference of the Annual Meeting of the Association for Computational Linguistics and the International Joint Conference on Natural Language Processing of the AFNLP</title>
+		<meeting>the Joint Conference of the Annual Meeting of the Association for Computational Linguistics and the International Joint Conference on Natural Language Processing of the AFNLP</meeting>
+		<imprint>
+			<date type="published" when="2009" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b13">
+	<analytic>
+		<title level="a" type="main">Learning to search better than your teacher</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kai-Wei</forename><surname>Chang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Akshay</forename><surname>Krishnamurthy</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Alekh</forename><surname>Agarwal</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Hal</forename><surname>Daumé</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">John</forename><surname>Langford</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the International Conference on Machine Learning</title>
+		<meeting>the International Conference on Machine Learning</meeting>
+		<imprint>
+			<date type="published" when="2015" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b14">
+	<analytic>
+		<title level="a" type="main">Fast online lexicon learning for grounded language acquisition</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">David</forename><surname>Chen</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the Annual Meeting of the Association for Computational Linguistics</meeting>
+		<imprint>
+			<date type="published" when="2012" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b15">
+	<analytic>
+		<title level="a" type="main">Learning to interpret natural language navigation instructions from observations</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">L</forename><surname>David</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Raymond</forename><forename type="middle">J</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Mooney</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the National Conference on Artificial Intelligence</title>
+		<meeting>the National Conference on Artificial Intelligence</meeting>
+		<imprint>
+			<date type="published" when="2011" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b16">
+	<analytic>
+		<title level="a" type="main">Driving semantic parsing from the world&apos;s response</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">James</forename><surname>Clarke</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Dan</forename><surname>Goldwasser</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ming-Wei</forename><surname>Chang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Dan</forename><forename type="middle">Roth</forename></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Fourteenth Conference on Computational Natural Language Learning</title>
+		<meeting>the Fourteenth Conference on Computational Natural Language Learning</meeting>
+		<imprint>
+			<date type="published" when="2010" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b17">
+	<analytic>
+		<title level="a" type="main">Expanding the scope of the ATIS task: The ATIS-3 corpus</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Deborah</forename><forename type="middle">A</forename><surname>Dahl</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Madeleine</forename><surname>Bates</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Michael</forename><surname>Brown</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">William</forename><surname>Fisher</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kate</forename><surname>Hunicke-Smith</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">David</forename><surname>Pallett</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Christine</forename><surname>Pao</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Alexander</forename><surname>Rudnicky</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Elizabeth</forename><surname>Shriberg</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Workshop on Human Language Technology</title>
+		<meeting>the Workshop on Human Language Technology</meeting>
+		<imprint>
+			<date type="published" when="1994" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b18">
+	<monogr>
+		<title level="m" type="main">Equilibrated adaptive learning rates for nonconvex optimization</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yann</forename><surname>Dauphin</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">,</forename><surname>Harm De Vries</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yoshua</forename><surname>Bengio</surname></persName>
+		</author>
+		<idno>abs/1502.04390</idno>
+		<imprint>
+			<date type="published" when="2015" />
+			<publisher>CoRR</publisher>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b19">
+	<analytic>
+		<title level="a" type="main">Unified pragmatic models for generating and following instructions</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Daniel</forename><surname>Fried</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jacob</forename><surname>Andreas</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Dan</forename><surname>Klein</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies</title>
+		<meeting>the Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies</meeting>
+		<imprint>
+			<date type="published" when="2018" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b20">
+	<analytic>
+		<title level="a" type="main">Traversing knowledge graphs in vector space</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kelvin</forename><surname>Guu</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">John</forename><surname>Miller</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Percy</forename><surname>Liang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>the Conference on Empirical Methods in Natural Language Processing</meeting>
+		<imprint>
+			<date type="published" when="2015" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b21">
+	<analytic>
+		<title level="a" type="main">From language to programs: Bridging reinforcement learning and maximum marginal likelihood</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kelvin</forename><surname>Guu</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Panupong</forename><surname>Pasupat</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Evan</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Percy</forename><surname>Liang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the Annual Meeting of the Association for Computational Linguistics</meeting>
+		<imprint>
+			<date type="published" when="2017" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b22">
+	<analytic>
+		<title level="a" type="main">The ATIS spoken language systems pilot corpus</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Charles</forename><forename type="middle">T</forename><surname>Hemphill</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">John</forename><forename type="middle">J</forename><surname>Godfrey</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">George</forename><forename type="middle">R</forename><surname>Doddington</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the DARPA speech and natural language workshop</title>
+		<meeting>the DARPA speech and natural language workshop</meeting>
+		<imprint>
+			<date type="published" when="1990" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b23">
+	<analytic>
+		<title level="a" type="main">Long short-term memory</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Sepp</forename><surname>Hochreiter</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jürgen</forename><surname>Schmidhuber</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Neural computation</title>
+		<imprint>
+			<biblScope unit="page">9</biblScope>
+			<date type="published" when="1997" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b24">
+	<analytic>
+		<title level="a" type="main">Representation learning for grounded spatial reasoning</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Michael</forename><surname>Janner</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Karthik</forename><surname>Narasimhan</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Regina</forename><surname>Barzilay</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Transactions of the Association for Computational Linguistics</title>
+		<imprint>
+			<biblScope unit="volume">6</biblScope>
+			<biblScope unit="page" from="49" to="61" />
+			<date type="published" when="2018" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b25">
+	<analytic>
+		<title level="a" type="main">Scaling semantic parsers with on-the-fly ontology matching</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Tom</forename><surname>Kwiatkowski</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Eunsol</forename><surname>Choi</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yoav</forename><surname>Artzi</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Luke</forename><surname>Zettlemoyer</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>the Conference on Empirical Methods in Natural Language Processing</meeting>
+		<imprint>
+			<date type="published" when="2013" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b26">
+	<analytic>
+		<title level="a" type="main">Neural symbolic machines: Learning semantic parsers on freebase with weak supervision</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Chen</forename><surname>Liang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jonathan</forename><surname>Berant</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Quoc</forename><surname>Le</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kenneth</forename><forename type="middle">D</forename><surname>Forbus</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ni</forename><surname>Lao</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the Annual Meeting of the Association for Computational Linguistics</meeting>
+		<imprint>
+			<date type="published" when="2017" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b27">
+	<analytic>
+		<title level="a" type="main">Learning dependency-based compositional semantics</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Percy</forename><surname>Liang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Michael</forename><surname>Jordan</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Dan</forename><surname>Klein</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Annual Meeting of the Association for Computational Linguistics: Human Language Technologies</title>
+		<meeting>the Annual Meeting of the Association for Computational Linguistics: Human Language Technologies</meeting>
+		<imprint>
+			<date type="published" when="2011" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b28">
+	<analytic>
+		<title level="a" type="main">Simpler context-dependent logical forms via model projections</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Reginald</forename><surname>Long</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Panupong</forename><surname>Pasupat</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Percy</forename><surname>Liang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the Annual Meeting of the Association for Computational Linguistics</meeting>
+		<imprint>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b29">
+	<analytic>
+		<title level="a" type="main">Effective approaches to attention-based neural machine translation</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Thang</forename><surname>Luong</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Hieu</forename><surname>Pham</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Christopher</forename><forename type="middle">D</forename><surname>Manning</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>the Conference on Empirical Methods in Natural Language Processing</meeting>
+		<imprint>
+			<date type="published" when="2015" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b30">
+	<analytic>
+		<title level="a" type="main">Walk the talk: Connecting language, knowledge, action in route instructions</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Matthew</forename><surname>Macmahon</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Brian</forename><surname>Stankiewics</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Benjamin</forename><surname>Kuipers</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the National Conference on Artificial Intelligence</title>
+		<meeting>the National Conference on Artificial Intelligence</meeting>
+		<imprint>
+			<date type="published" when="2006" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b31">
+	<analytic>
+		<title level="a" type="main">Listen, attend, and walk: Neural mapping of navigational instructions to action sequences</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Hongyuan</forename><surname>Mei</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Mohit</forename><surname>Bansal</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Matthew</forename><forename type="middle">R</forename><surname>Walter</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Association for the Advancement of Artificial Intelligence</title>
+		<imprint>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b32">
+	<analytic>
+		<title level="a" type="main">A fully statistical approach to natural language interfaces</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Scott</forename><surname>Miller</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">David</forename><surname>Stallard</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Robert</forename><surname>Bobrow</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Richard</forename><surname>Schwartz</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the Annual Meeting of the Association for Computational Linguistics</meeting>
+		<imprint>
+			<date type="published" when="1996" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b33">
+	<analytic>
+		<title level="a" type="main">Mapping instructions and visual observations to actions with reinforcement learning</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Dipendra</forename><surname>Misra</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">John</forename><surname>Langford</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yoav</forename><surname>Artzi</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>the Conference on Empirical Methods in Natural Language Processing</meeting>
+		<imprint>
+			<date type="published" when="2017" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b34">
+	<analytic>
+		<title level="a" type="main">Policy invariance under reward transformations: Theory and application to reward shaping</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Andrew</forename><forename type="middle">Y</forename><surname>Ng</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Daishi</forename><surname>Harada</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Stuart</forename><forename type="middle">J</forename><surname>Russell</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the International Conference on Machine Learning</title>
+		<meeting>the International Conference on Machine Learning</meeting>
+		<imprint>
+			<date type="published" when="1999" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b35">
+	<analytic>
+		<title level="a" type="main">A reduction of imitation learning and structured prediction to no-regret online learning</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Stéphane</forename><surname>Ross</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Geoffrey</forename><surname>Gordon</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Drew</forename><surname>Bagnell</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the International Conference on Artificial Intelligence and Statistics</title>
+		<meeting>the International Conference on Artificial Intelligence and Statistics</meeting>
+		<imprint>
+			<date type="published" when="2011" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b36">
+	<analytic>
+		<title level="a" type="main">Learning to map context-dependent sentences to executable formal queries</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Alane</forename><surname>Suhr</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Srinivasan</forename><surname>Iyer</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yoav</forename><surname>Artzi</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Annual Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies</title>
+		<meeting>the Annual Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies</meeting>
+		<imprint>
+			<date type="published" when="2018" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b37">
+	<analytic>
+		<title level="a" type="main">Source-target inference models for spatial instruction understanding</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Hao</forename><surname>Tan</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Mohit</forename><surname>Bansal</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">AAAI Conference on Artificial Intelligence</title>
+		<imprint>
+			<date type="published" when="2018" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b38">
+	<monogr>
+		<title level="m" type="main">Lecture 6.5-RMSProp: Divide the gradient by a running average of its recent magnitude. COURSERA: Neural networks for machine learning</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Tijmen</forename><surname>Tieleman</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Geoffrey</forename><surname>Hinton</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2012" />
+			<biblScope unit="volume">4</biblScope>
+			<biblScope unit="page" from="26" to="31" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b39">
+	<analytic>
+		<title level="a" type="main">What is left to be understood in ATIS?</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Gökhan</forename><surname>Tür</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Dilek</forename><surname>Hakkani-Tür</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Larry</forename><surname>Heck</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Spoken Language Technology Workshop</title>
+		<meeting>the Spoken Language Technology Workshop</meeting>
+		<imprint>
+			<date type="published" when="2010" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b40">
+	<analytic>
+		<title level="a" type="main">Learning to follow navigational directions</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Adam</forename><surname>Vogel</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Daniel</forename><surname>Jurafsky</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the Annual Meeting of the Association for Computational Linguistics</meeting>
+		<imprint>
+			<date type="published" when="2010" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b41">
+	<analytic>
+		<title level="a" type="main">Learning context-dependent mappings from sentences to logical form</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Luke</forename><forename type="middle">S</forename><surname>Zettlemoyer</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Michael</forename><surname>Collins</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Joint Conference of the Annual Meeting of the ACL and the 4th International Joint Conference on Natural Language Processing of the AFNLP</title>
+		<meeting>the Joint Conference of the Annual Meeting of the ACL and the 4th International Joint Conference on Natural Language Processing of the AFNLP</meeting>
+		<imprint>
+			<date type="published" when="2009" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+				</listBibl>
+			</div>
+		</back>
+	</text>
+</TEI>

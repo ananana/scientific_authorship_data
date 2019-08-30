@@ -1,0 +1,543 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<TEI xmlns="http://www.tei-c.org/ns/1.0" 
+xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+xsi:schemaLocation="http://www.tei-c.org/ns/1.0 /home/ana/installs/grobid/grobid-0.5.1/grobid-home/schemas/xsd/Grobid.xsd"
+ xmlns:xlink="http://www.w3.org/1999/xlink">
+	<teiHeader xml:lang="en">
+		<encodingDesc>
+			<appInfo>
+				<application version="0.5.1-SNAPSHOT" ident="GROBID" when="2019-04-18T11:39+0000">
+					<ref target="https://github.com/kermitt2/grobid">GROBID - A machine learning software for extracting information from scholarly documents</ref>
+				</application>
+			</appInfo>
+		</encodingDesc>
+		<fileDesc>
+			<titleStmt>
+				<title level="a" type="main">Named entity recognition with document-specific KB tag gazetteers</title>
+			</titleStmt>
+			<publicationStmt>
+				<publisher>Association for Computational Linguistics</publisher>
+				<availability status="unknown"><p>Copyright Association for Computational Linguistics</p>
+				</availability>
+				<date type="published" when="2015-09">September 2015. 2015</date>
+			</publicationStmt>
+			<sourceDesc>
+				<biblStruct>
+					<analytic>
+						<author>
+							<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Will</forename><surname>Radford</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="institution">Xerox Research Centre Europe 6 chemin de Maupertuis</orgName>
+								<address>
+									<postCode>38240</postCode>
+									<settlement>Meylan</settlement>
+									<country key="FR">France</country>
+								</address>
+							</affiliation>
+						</author>
+						<author>
+							<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Xavier</forename><surname>Carreras</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="institution">Xerox Research Centre Europe 6 chemin de Maupertuis</orgName>
+								<address>
+									<postCode>38240</postCode>
+									<settlement>Meylan</settlement>
+									<country key="FR">France</country>
+								</address>
+							</affiliation>
+						</author>
+						<author>
+							<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">James</forename><surname>Henderson</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="institution">Xerox Research Centre Europe 6 chemin de Maupertuis</orgName>
+								<address>
+									<postCode>38240</postCode>
+									<settlement>Meylan</settlement>
+									<country key="FR">France</country>
+								</address>
+							</affiliation>
+						</author>
+						<title level="a" type="main">Named entity recognition with document-specific KB tag gazetteers</title>
+					</analytic>
+					<monogr>
+						<title level="m">Proceedings of the 2015 Conference on Empirical Methods in Natural Language Processing</title>
+						<meeting>the 2015 Conference on Empirical Methods in Natural Language Processing <address><addrLine>Lisbon, Portugal</addrLine></address>
+						</meeting>
+						<imprint>
+							<publisher>Association for Computational Linguistics</publisher>
+							<biblScope unit="page" from="17" to="21"/>
+							<date type="published" when="2015-09">September 2015. 2015</date>
+						</imprint>
+					</monogr>
+				</biblStruct>
+			</sourceDesc>
+		</fileDesc>
+		<profileDesc>
+			<abstract>
+				<p>We consider a novel setting for Named Entity Recognition (NER) where we have access to document-specific knowledge base tags. These tags consist of a canonical name from a knowledge base (KB) and entity type, but are not aligned to the text. We explore how to use KB tags to create document-specific gazetteers at inference time to improve NER. We find that this kind of supervision helps recognise organisations more than standard wide-coverage gazetteers. Moreover, augmenting document-specific gazetteers with KB information lets users specify fewer tags for the same performance, reducing cost.</p>
+			</abstract>
+		</profileDesc>
+	</teiHeader>
+	<text xml:lang="en">
+		<body>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="1">Introduction</head><p>NER is the task of identifying names in text and assigning them a type (e.g. person, location, or- ganisation, miscellaneous). State-of-the-art super- vised approaches use models that incorporate a name's form, its linguistic context and its com- patibility with known names. These models rely on large manually-annotated corpora, specifying name spans and types. These are vital for training models, but it is laborious and expensive to label every occurrence of a name in a document.</p><p>We consider a non-standard setting where, for each document, we have metadata in the form of document-specific knowledge base tags. A KB tag is a canonical name, that is an identifier in a KB (e.g. a Wikipedia title), and an entity type. While these tags have a correct type assigned for at least one context, they are not aligned to phrases in the text, and may not share the same form as all of their mentions (e.g. we may see the tag United Nations for the mention UN). We also assume that each tag matches at least one mention in the document, but do not specify where in the docu- ment the mention is.</p><p>There are many sources of KB tags, such as manual entity indexing for news stories or data ex- tracted from personalised knowledge stores. For example, the New York Times Annotated Corpus <ref type="bibr" target="#b16">(Sandhaus, 2008)</ref> contains more than 1.5M arti- cles "manually tagged by library scientists with tags drawn from a normalized indexing vocabu- lary of people, organizations, locations and topic descriptors". Names and types are also present in large quantities of financial news stories from Bloomberg ( <ref type="bibr" target="#b0">Bradesko et al., 2015)</ref>, in the form of linked names of companies and people.</p><p>Document-level tags may be quicker for anno- tators to apply than the usual method of marking spans in text, and are thus a cheap form of supervi- sion. It is hard to make strong comparisons to the standard NER task, as KB tags can be considered partial, unaligned gold-standard supervision -so fully supervised models should perform better, the question is by how much and why. This paper explores effective ways to use KB tags for improving NER. We use the CoNLL 2003 English NER dataset <ref type="bibr" target="#b17">(Tjong Kim Sang and De Meulder, 2003)</ref>, annotated with Wikipedia links <ref type="bibr" target="#b2">(Hoffart et al., 2011)</ref>. This allows us to sim- ulate a set of KB tags for each document in the TRAIN, TESTA and TESTB splits of the dataset. We use a document's KB tags to build a document- specific gazetteers which we use in addition to standard features for a conditional random field (CRF) model ( <ref type="bibr" target="#b6">Lafferty et al., 2001</ref>).</p><p>We compare against wide-coverage gazetteers, which score 89.85% F-score on TESTA. Assum- ing access to all possible KB tags, the upper bound for KB tag models is substantially better at 92.85% F-score. KB tags help NER accuracy across all entity types, but provide relatively better supervi- sion for organisation entities than wide-coverage gazetteers. The benefit of KB tags comes from their type information, which is required for good performance. We also examine how performance degrades as we use fewer KB tags, simulating the use-case where a busy knowledge worker spends less time annotating. We find that KB augmenta- tion means we require fewer tags to reach the same performance, which reduces the cost of obtaining KB tags. We show how KB tags can be exploited as a useful complement to traditional NER super- vision.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2">Background</head><p>Gazetteers have long been used to augment statis- tical NER models, adding general evidence of to- kens used in names ( <ref type="bibr" target="#b9">Nadeau and Sekine, 2007)</ref>. These are usually drawn from wide-coverage sources like Wikipedia and census lists <ref type="bibr" target="#b13">(Ratinov and Roth, 2009</ref>) and can be incorporated into se- quence models by designing binary features that indicate whether a token appears in a gazetteer en- try. Features can be refined by specifying which part of an entry a token matches using tag en- coding schemes such as IOB <ref type="bibr" target="#b5">(Kazama and Torisawa, 2007)</ref>. Using multiple gazetteers allows fea- ture weights to capture different name types and sources. Given their purpose to increase coverage beyond names included in training data, gazetteers are usually large, general and static, remaining the same during training and prediction time.</p><p>Beyond their use as sources for gazetteers, the link structure in and around KBs has been used to create training data. A prominent technique is to follow links back from KB articles to documents that mention the subject of the article, heuristically labelling high-precision matches to create training data. This has been used for genetic <ref type="bibr">KBs (Morgan et al., 2003;</ref><ref type="bibr" target="#b18">Vlachos and Gasperin, 2006</ref>), and Wikipedia ( <ref type="bibr" target="#b5">Kazama and Torisawa, 2007;</ref><ref type="bibr" target="#b15">Richman and Schone, 2008;</ref><ref type="bibr" target="#b10">Nothman et al., 2013</ref>). These works do not consider our setting where gold-standard entities are given at inference time as their goal is to generate training data. <ref type="bibr">KBs</ref> have also been used to help other natural language processing tasks such as coreference res- olution (Rahman and Ng, 2011), topic modelling (Kataria et al., 2011) and named entity linking <ref type="bibr" target="#b1">(Cucerzan, 2007;</ref><ref type="bibr" target="#b14">Ratinov et al., 2011</ref>). Finally, it may be that supervised data is only available in some circumstances, for example in the case of personalising NER models. <ref type="bibr" target="#b3">Jung et al. (2015)</ref> query a user's smartphone data services to create user-specific gazetteers of personal information. The background NER model is initially trained without access to the user-specific information and later adapted on the users's smartphone.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3">Document-level KB tags</head><p>We incorporate information from KB tags by building document-specific gazetteers. <ref type="figure" target="#fig_0">Figure 1</ref> shows an example with a document in which the names need to be recognised and typed (in square brackets). We are also given a list of KB tags, each of which is a canonical name and a type. These are linked to a KB which we use to ex- tract aliases, in our case each canonical name is a Wikipedia article, and redirects to that article are considered aliases. Our goal is that knowing that a document mentions the entity West Indies cricket team can help us identify Windies or Calypso Cavaliers.</p><p>To create gazetteers from a document's KB tags, we preprocess the canonical name from each KB tag, tokenising by underscore, lower- casing and removing parenthesised suffixes (e.g. Chris Lewis (cricketer) becomes chris lewis). We use an encoding scheme to incorpo- rate the type information from the KB tag. In- spired by <ref type="bibr" target="#b5">Kazama and Torisawa (2007)</ref>, who ap- plied IOB encoding to gazetteers, we apply the BMEOW (a.k.a. BILOU), a scheme that also distin- guishes between beginning, middle, end, outside and single word positions. 1 For example, this al- lows us to map chris lewis to B-PER E-PER, and we can aggregate gazetteers of tokens for each encoded type, such that the gazetteer for B-PER contains chris.</p><p>Our CRF gazetteer features are calculated from an input token from the text that we wish to label. Having created a document's KB tag gazetteers, we can define binary features that are active if an input token matches (case-insensitively) with a particular gazetteer. This models both the part of the KB tag name that the token matched, and its type. The input token Chris thus activates the fea- ture f B-PER and the token cricket would activate the f I-MISC and f I-ORG, as it matches inside entries of the two types.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4">Methodology</head><p>We define several configurations to investigate KB tags. The first four baselines either do not use KB tags, or do not integrate them into the CRF. The second four configurations use KB tag features in the CRF model.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.1">Baselines</head><p>KB tag matching (MATCH) We find the longest full match from the document gazetteer and apply the known type. This will not match partial or non- canonical names, but should be high-precision. This is similar to the CoNLL 2003 baseline sys- tem <ref type="bibr" target="#b17">(Tjong Kim Sang and De Meulder, 2003</ref>).</p><p>Baseline (CRF) We train a CRF model using CRFsuite <ref type="bibr" target="#b11">(Okazaki, 2007</ref>) with a standard set of features that encode lexical context, token shape, but no external knowledge features such as gazetteers. All following configurations build on the CRF with standard features. KB tag repair (CRF +REPAIR ) We label the text using the baseline CRF, then find the longest full match from the document gazetteer and assign the known type. When a gazetteer match overlaps with a CRF match, we prefer the gazetteer and re- move the latter. Although we do not consider par- tial matches, this may recognise longer names that can be difficult for CRF models.</p><p>Wide-coverage gazetteers (CRF +WIDE ) This uses gazetteers distributed with the Illinois NER system <ref type="bibr" target="#b13">(Ratinov and Roth, 2009</ref>). We encode each <ref type="bibr">1</ref> We omit the O tag as all gazetteer tokens are inside. phrase using the BMEOW scheme described above, and use the filename of each gazetteer as its type. There are 33 gazetteers drawn from many sources with approximately 2 million entries. We fetch and cache KB information using a Wikipedia API client. <ref type="bibr">2</ref> We assume the tag set of person (PER), organisation (ORG), location (LOC) and miscellaneous (MISC), and report precision, recall and F-score from the conlleval evalu- ation script. The median proportion of mentions in a document that are linked to the KB is 81% in TRAIN and TESTB, and 85% in TESTA. Augment- ing the gazetteer with aliases produces, on aver- age, 26 times the number of gazetteer entries than KB tags alone in TESTA, and 23 times in TESTB. <ref type="table">Table 1</ref> shows the performance of different con- figurations -we focus first on TESTA overall F- scores. Matching against KB tag names results in high-precision but low recall with an F-score of 55.35%, far worse than the baseline CRF at 87.68%. Despite its na¨ıvena¨ıve assumptions, repair- ing the CRF tags using longest matches in the document gazetteer performs surprisingly well at 89.76%, just lower than using wide coverage gazetteers, with an F-score of 89.85%.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.2">Using</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5">Results</head><p>The first setting that uses KB tags as CRF fea- tures is CRF +NAME , which includes typeless names  We see similar trends in TESTB, except KB tags and CRF +WIDE are complementary. The experi- ments illustrate that if we are lucky enough to have KB tags, they improve NER. However, the models use all possible KB tags and should be considered an upper bound. To better model busy workers, we restrict the gazetteers to only KB tags from men- tions in the first n sentences. This matches asking an annotator to only bother looking at the first n sentences. <ref type="figure">Figure 2</ref> shows how the KB tag models perform on TESTA as we increase n. To achieve better performance than CRF +WIDE , one should view the first 5 sentences for CRF +NAME+TYPE . Aliases (CRF +NAME+TYPE+AKA ) reduce perfor- mance slightly when only using a few sentences, but with more than 4 sentences, aliases are consis- tently useful. This trend is also apparent in TESTB, showing that augmenting tags with KB informa- tion improves NER, especially when only a few tags are available.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6">Discussion and conclusion</head><p>There are several avenues to explore further. Ask- ing annotators to specify types is not ideal and it would be better to predict them from the KB. We only use the KB to collect aliases, but we could use it to harvest related entities. Another chal- lenge is appropriately modelling the interaction between a sentence-level task and document-level constraints. A KB tag might match a mention in one sentence and this should influence predictions there. However, its evidence should be less im- portant elsewhere since that constraint has already been satisfied. This would improve robustness, however global constraints are hard to model in sentence-unit CRF models.</p><p>This paper presents a novel NER setting whereby we have access to some number of KB tags -canonical names and types -at training and inference time. We explore how best to use this information, finding that CRF models can in- deed take advantage of this non-standard supervi- sion. Moreover, models benefit from integration with the KB, in our case augmenting document gazetteers to maximise the benefit of KB tags.</p></div><figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_0"><head>Figure 1 :</head><label>1</label><figDesc>Figure 1: An entity-tagged document, KB tags with canonical name and type and KB with aliases.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_1"><head>Method</head><label></label><figDesc></figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_0" validated="false"><head></head><label></label><figDesc>KB tags as CRF features KB tag names (CRF +NAME ) We generate document-specific gazetteer features, but use the same type for each entry. KB tag names and types (CRF +NAME+TYPE ) This is equivalent to CRF +NAME , but includes known types. Since type varies with context, this may not be correct, but is hopefully informative. KB tag names, types and KB aliases (CRF +NAME+TYPE+AKA ) This builds on the above, but uses the KB to augment the document-specific gazetteer with known aliases of the KB tags, for example adding UN for United Nations with the known type. KB tag names, types, KB aliases and large gazetteers (CRF +NAME+TYPE+AKA+WIDE ) This combines all KB tag features with the wide- coverage gazetteers.</figDesc><table></table></figure>
+
+			<note place="foot" n="2"> https://github.com/goldsmith/ Wikipedia adapted to allow access to Redirect pages.</note>
+
+			<note place="foot" n="3"> We tried to manually map the 33 gazetteer filenames to the 4 NER types, but this reduced performance on TESTA. coverage gazetteers, including those that also contain people, locations, organisations, songs. A document-specific gazetteer is able to constrain this type ambiguity, producing a cleaner signal for the model. Aliases, on the other hand, allow the model to capture non-canonical variants of a name, but this depends on type information for good NER performance.</note>
+		</body>
+		<back>
+
+			<div type="acknowledgement">
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Acknowledgements</head><p>Thank you to the anonymous reviewers whose comments helped us improve the paper.</p></div>
+			</div>
+
+			<div type="references">
+
+				<listBibl>
+
+<biblStruct xml:id="b0">
+	<monogr>
+				<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Luka</forename><surname>Bradesko</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Janez</forename><surname>Starc</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Stefano</forename><surname>Pacifico</surname></persName>
+		</author>
+		<title level="m">Proceedings of the 24th International Conference on World Wide Web, WWW &apos;15 Companion</title>
+		<meeting>the 24th International Conference on World Wide Web, WWW &apos;15 Companion<address><addrLine>Republic and Canton of Geneva, Switzerland</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2015" />
+			<biblScope unit="page" from="631" to="635" />
+		</imprint>
+	</monogr>
+	<note>Isaac Bloomberg Meets Michael Bloomberg: Better Entity Disambiguation for the News. International World Wide Web Conferences Steering Committee</note>
+</biblStruct>
+
+<biblStruct xml:id="b1">
+	<analytic>
+		<title level="a" type="main">Large-scale named entity disambiguation based on Wikipedia data</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Silviu Cucerzan</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2007 Joint Conference on Empirical Methods in Natural Language Processing and Computational Natural Language Learning (EMNLPCoNLL)</title>
+		<meeting>the 2007 Joint Conference on Empirical Methods in Natural Language Processing and Computational Natural Language Learning (EMNLPCoNLL)<address><addrLine>Prague, Czech Republic</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2007-06" />
+			<biblScope unit="page" from="708" to="716" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b2">
+	<analytic>
+		<title level="a" type="main">Robust disambiguation of named entities in text</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Johannes</forename><surname>Hoffart</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Mohamed</forename><forename type="middle">Amir</forename><surname>Yosef</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ilaria</forename><surname>Bordino</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Hagen</forename><surname>Fürstenau</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Manfred</forename><surname>Pinkal</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Marc</forename><surname>Spaniol</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Bilyana</forename><surname>Taneva</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Stefan</forename><surname>Thater</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Gerhard</forename><surname>Weikum</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2011 Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>the 2011 Conference on Empirical Methods in Natural Language Processing<address><addrLine>Edinburgh, Scotland, UK.</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2011-07" />
+			<biblScope unit="page" from="782" to="792" />
+		</imprint>
+	</monogr>
+	<note>Association for Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b3">
+	<analytic>
+		<title level="a" type="main">LN-Annote: An alternative approach to information extraction from emails using locallycustomized named-entity recognition</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Younghoon</forename><surname>Jung</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Karl</forename><surname>Stratos</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Luca</forename><forename type="middle">P</forename><surname>Carloni</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 24th International Conference on World Wide Web, WWW &apos;15</title>
+		<meeting>the 24th International Conference on World Wide Web, WWW &apos;15<address><addrLine>Republic and Canton of Geneva, Switzerland</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2015" />
+			<biblScope unit="page" from="538" to="548" />
+		</imprint>
+	</monogr>
+	<note>International World Wide Web Conferences Steering Committee</note>
+</biblStruct>
+
+<biblStruct xml:id="b4">
+	<analytic>
+		<title level="a" type="main">Entity disambiguation with hierarchical topic models</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Saurabh S Kataria</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">S</forename><surname>Krishnan</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Rajeev</forename><forename type="middle">R</forename><surname>Kumar</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Prithviraj</forename><surname>Rastogi</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Sen</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">H</forename><surname>Srinivasan</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Sengamedu</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 17th ACM SIGKDD international conference on Knowledge discovery and data mining</title>
+		<meeting>the 17th ACM SIGKDD international conference on Knowledge discovery and data mining</meeting>
+		<imprint>
+			<publisher>ACM</publisher>
+			<date type="published" when="2011" />
+			<biblScope unit="page" from="1037" to="1045" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b5">
+	<analytic>
+		<title level="a" type="main">Exploiting Wikipedia as external knowledge for named entity recognition</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kentaro</forename><surname>Jun&amp;apos;ichi Kazama</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Torisawa</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2007 Joint Conference on Empirical Methods in Natural Language Processing and Computational Natural Language Learning (EMNLP-CoNLL)</title>
+		<meeting>the 2007 Joint Conference on Empirical Methods in Natural Language Processing and Computational Natural Language Learning (EMNLP-CoNLL)<address><addrLine>Prague, Czech Republic</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2007-06" />
+			<biblScope unit="page" from="698" to="707" />
+		</imprint>
+	</monogr>
+	<note>Association for Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b6">
+	<analytic>
+		<title level="a" type="main">Conditional random fields: Probabilistic models for segmenting and labeling sequence data</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">John</forename><forename type="middle">D</forename><surname>Lafferty</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Andrew</forename><surname>Mccallum</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Fernando</forename><forename type="middle">C N</forename><surname>Pereira</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Eighteenth International Conference on Machine Learning, ICML &apos;01</title>
+		<meeting>the Eighteenth International Conference on Machine Learning, ICML &apos;01<address><addrLine>San Francisco, CA, USA</addrLine></address></meeting>
+		<imprint>
+			<publisher>Morgan Kaufmann Publishers Inc</publisher>
+			<date type="published" when="2001" />
+			<biblScope unit="page" from="282" to="289" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b7">
+	<analytic>
+		<title level="a" type="main">Gene name extraction using flybase resources</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Alex</forename><surname>Morgan</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Lynette</forename><surname>Hirschman</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Alexander</forename><surname>Yeh</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Marc</forename><surname>Colosimo</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the ACL 516</title>
+		<meeting>the ACL 516</meeting>
+		<imprint>
+			<date type="published" when="2003" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b8">
+	<analytic>
+		<title level="a" type="main">Association for Computational Linguistics</title>
+	</analytic>
+	<monogr>
+		<title level="m">Workshop on Natural Language Processing in Biomedicine</title>
+		<meeting><address><addrLine>Sapporo, Japan</addrLine></address></meeting>
+		<imprint>
+			<biblScope unit="page" from="1" to="8" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b9">
+	<monogr>
+		<title level="m" type="main">A survey of named entity recognition and classification. Linguisticae Investigationes</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">David</forename><surname>Nadeau</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Satoshi</forename><surname>Sekine</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2007-01" />
+			<publisher>John Benjamins Publishing Company</publisher>
+			<biblScope unit="volume">30</biblScope>
+			<biblScope unit="page" from="3" to="26" />
+		</imprint>
+	</monogr>
+<note type="report_type">Publisher</note>
+</biblStruct>
+
+<biblStruct xml:id="b10">
+	<analytic>
+		<title level="a" type="main">Learning multilingual named entity recognition from Wikipedia</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Joel</forename><surname>Nothman</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Nicky</forename><surname>Ringland</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Will</forename><surname>Radford</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Tara</forename><surname>Murphy</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">James</forename><forename type="middle">R</forename><surname>Curran</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Artificial Intelligence, Wikipedia and Semi-Structured Resources</title>
+		<imprint>
+			<date type="published" when="2013" />
+			<biblScope unit="volume">194</biblScope>
+			<biblScope unit="page" from="151" to="175" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b11">
+	<monogr>
+		<title level="m" type="main">Crfsuite: a fast implementation of conditional random fields (crfs)</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Naoaki</forename><surname>Okazaki</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2007" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b12">
+	<analytic>
+		<title level="a" type="main">Coreference resolution with world knowledge</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Altaf</forename><surname>Rahman</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Vincent</forename><surname>Ng</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 49th Annual Meeting of the Association for Computational Linguistics: Human Language Technologies</title>
+		<meeting>the 49th Annual Meeting of the Association for Computational Linguistics: Human Language Technologies<address><addrLine>Portland, Oregon, USA</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2011-06" />
+			<biblScope unit="page" from="814" to="824" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b13">
+	<analytic>
+		<title level="a" type="main">Design challenges and misconceptions in named entity recognition</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Lev</forename><surname>Ratinov</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Dan</forename><surname>Roth</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Thirteenth Conference on Computational Natural Language Learning (CoNLL-2009)</title>
+		<meeting>the Thirteenth Conference on Computational Natural Language Learning (CoNLL-2009)<address><addrLine>Boulder, Colorado</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2009-06" />
+			<biblScope unit="page" from="147" to="155" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b14">
+	<analytic>
+		<title level="a" type="main">Local and global algorithms for disambiguation to Wikipedia</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Lev</forename><surname>Ratinov</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Dan</forename><surname>Roth</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Doug</forename><surname>Downey</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 49th Annual Meeting of the Association for Computational Linguistics: Human Language Technologies</title>
+		<meeting>the 49th Annual Meeting of the Association for Computational Linguistics: Human Language Technologies<address><addrLine>Portland, Oregon, USA</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2011-06" />
+			<biblScope unit="page" from="1375" to="1384" />
+		</imprint>
+	</monogr>
+	<note>and Mike Anderson</note>
+</biblStruct>
+
+<biblStruct xml:id="b15">
+	<analytic>
+		<title level="a" type="main">Mining wiki resources for multilingual named entity recognition</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Alexander</forename><forename type="middle">E</forename><surname>Richman</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Patrick</forename><surname>Schone</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of ACL-08: HLT</title>
+		<meeting>ACL-08: HLT<address><addrLine>Columbus, Ohio</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2008-06" />
+			<biblScope unit="page" from="1" to="9" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b16">
+	<monogr>
+				<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">E</forename><surname>Sandhaus</surname></persName>
+		</author>
+		<title level="m">The New York Times Annotated Corpus. Linguistic Data Consortium</title>
+		<meeting><address><addrLine>Philadelphia</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2008" />
+			<biblScope unit="page">6</biblScope>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b17">
+	<analytic>
+		<title level="a" type="main">Introduction to the conll-2003 shared task: Language-independent named entity recognition</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Erik</forename><forename type="middle">F</forename><surname>Tjong</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kim</forename><surname>Sang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Fien De</forename><surname>Meulder</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Seventh Conference on Natural Language Learning at HLT-NAACL 2003</title>
+		<editor>Walter Daelemans and Miles Osborne</editor>
+		<meeting>the Seventh Conference on Natural Language Learning at HLT-NAACL 2003</meeting>
+		<imprint>
+			<date type="published" when="2003" />
+			<biblScope unit="page" from="142" to="147" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b18">
+	<analytic>
+		<title level="a" type="main">Bootstrapping and evaluating named entity recognition in the biomedical domain</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Andreas</forename><surname>Vlachos</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Caroline</forename><surname>Gasperin</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the HLTNAACL BioNLP Workshop on Linking Natural Language and Biology</title>
+		<meeting>the HLTNAACL BioNLP Workshop on Linking Natural Language and Biology<address><addrLine>New York, New York</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2006-06" />
+			<biblScope unit="page" from="138" to="145" />
+		</imprint>
+	</monogr>
+	<note>Association for Computational Linguistics</note>
+</biblStruct>
+
+				</listBibl>
+			</div>
+		</back>
+	</text>
+</TEI>

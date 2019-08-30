@@ -1,0 +1,1122 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<TEI xmlns="http://www.tei-c.org/ns/1.0" 
+xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+xsi:schemaLocation="http://www.tei-c.org/ns/1.0 /home/ana/installs/grobid/grobid-0.5.1/grobid-home/schemas/xsd/Grobid.xsd"
+ xmlns:xlink="http://www.w3.org/1999/xlink">
+	<teiHeader xml:lang="en">
+		<encodingDesc>
+			<appInfo>
+				<application version="0.5.1-SNAPSHOT" ident="GROBID" when="2019-04-18T13:01+0000">
+					<ref target="https://github.com/kermitt2/grobid">GROBID - A machine learning software for extracting information from scholarly documents</ref>
+				</application>
+			</appInfo>
+		</encodingDesc>
+		<fileDesc>
+			<titleStmt>
+				<title level="a" type="main">Robust Incremental Neural Semantic Graph Parsing</title>
+			</titleStmt>
+			<publicationStmt>
+				<publisher>Association for Computational Linguistics</publisher>
+				<availability status="unknown"><p>Copyright Association for Computational Linguistics</p>
+				</availability>
+				<date>July 30-August 4, 2017. July 30-August 4, 2017</date>
+			</publicationStmt>
+			<sourceDesc>
+				<biblStruct>
+					<analytic>
+						<author>
+							<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jan</forename><surname>Buys</surname></persName>
+						</author>
+						<author>
+							<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Phil</forename><surname>Blunsom</surname></persName>
+						</author>
+						<title level="a" type="main">Robust Incremental Neural Semantic Graph Parsing</title>
+					</analytic>
+					<monogr>
+						<title level="m">Proceedings of the 55th Annual Meeting of the Association for Computational Linguistics (Volume 1: Long Papers)</title>
+						<meeting>the 55th Annual Meeting of the Association for Computational Linguistics (Volume 1: Long Papers) <address><addrLine>Vancouver, Canada; Vancouver, Canada</addrLine></address>
+						</meeting>
+						<imprint>
+							<publisher>Association for Computational Linguistics</publisher>
+							<biblScope unit="page" from="1215" to="1226"/>
+							<date type="published">July 30-August 4, 2017. July 30-August 4, 2017</date>
+						</imprint>
+					</monogr>
+					<idno type="DOI">10.18653/v1/p17-1112</idno>
+				</biblStruct>
+			</sourceDesc>
+		</fileDesc>
+		<profileDesc>
+			<abstract>
+				<p>Parsing sentences to linguistically-expressive semantic representations is a key goal of Natural Language Processing. Yet statistical parsing has focussed almost exclusively on bilexical dependencies or domain-specific logical forms. We propose a neural encoder-decoder transition-based parser which is the first full-coverage semantic graph parser for Minimal Recursion Semantics (MRS). The model architecture uses stack-based embedding features, predicting graphs jointly with unlexicalized predicates and their token alignments. Our parser is more accurate than attention-based baselines on MRS, and on an additional Abstract Meaning Representation (AMR) benchmark, and GPU batch processing makes it an order of magnitude faster than a high-precision grammar-based parser. Further, the 86.69% Smatch score of our MRS parser is higher than the upper-bound on AMR parsing, making MRS an attractive choice as a semantic representation.</p>
+			</abstract>
+		</profileDesc>
+	</teiHeader>
+	<text xml:lang="en">
+		<body>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="1">Introduction</head><p>An important goal of Natural Language Under- standing (NLU) is to parse sentences to structured, interpretable meaning representations that can be used for query execution, inference and reasoning. Recently end-to-end models have outperformed traditional pipeline approaches, predicting syntac- tic or semantic structure as intermediate steps, on NLU tasks such as sentiment analysis and seman- tic relatedness ( <ref type="bibr" target="#b11">Le and Mikolov, 2014;</ref><ref type="bibr" target="#b9">Kiros et al., 2015)</ref>, question answering (  and textual entailment <ref type="bibr" target="#b27">(Rocktäschel et al., 2015</ref>).</p><p>However the linguistic structure used in applica- tions has predominantly been shallow, restricted to bilexical dependencies or trees.</p><p>In this paper we focus on robust parsing into linguistically deep representations. The main rep- resentation that we use is Minimal Recursion Se- mantics (MRS) ( <ref type="bibr">Copestake et al., 1995</ref><ref type="bibr">Copestake et al., , 2005</ref>, which serves as the semantic representation of the English Resource Grammar (ERG) <ref type="bibr" target="#b0">(Flickinger, 2000)</ref>. Existing parsers for full MRS (as op- posed to bilexical semantic graphs derived from, but simplifying MRS) are grammar-based, per- forming disambiguation with a maximum entropy model ( <ref type="bibr" target="#b30">Toutanova et al., 2005;</ref><ref type="bibr" target="#b38">Zhang et al., 2007)</ref>; this approach has high precision but incomplete coverage.</p><p>Our main contribution is to develop a fast and robust parser for full MRS-based semantic graphs. We exploit the power of global conditioning en- abled by deep learning to predict linguistically deep graphs incrementally. The model does not have access to the underlying ERG or syntac- tic structures from which the MRS analyses were originally derived. We develop parsers for two graph-based conversions of MRS, Elementary De- pendency Structure (EDS) <ref type="bibr" target="#b20">(Oepen and Lønning, 2006</ref>) and Dependency MRS (DMRS) <ref type="bibr">(Copestake, 2009</ref>), of which the latter is inter-convertible with MRS.</p><p>Abstract Meaning Representation (AMR) ( <ref type="bibr">Banarescu et al., 2013</ref>) is a graph-based semantic representation that shares the goals of MRS. Aside from differences in the choice of which linguis- tic phenomena are annotated, MRS is a compo- sitional representation explicitly coupled with the syntactic structure of the sentence, while AMR does not assume compositionality or alignment with the sentence structure. Recently a number of AMR parsers have been developed <ref type="bibr">(Flanigan et al., 2014;</ref><ref type="bibr" target="#b35">Wang et al., 2015b;</ref><ref type="bibr">Artzi et al., 2015;</ref><ref type="bibr">Damonte et al., 2017</ref>), but corpora are still un- der active development and low inter-annotator agreement places on upper bound of 83% F1 on expected parser performance ( <ref type="bibr">Banarescu et al., 2013)</ref>. We apply our model to AMR parsing by introducing structure that is present explicitly in MRS but not in AMR <ref type="bibr">(Buys and Blunsom, 2017)</ref>.</p><p>Parsers based on RNNs have achieved state-of- the-art performance for dependency parsing <ref type="bibr" target="#b12">(Dyer et al., 2015;</ref><ref type="bibr" target="#b8">Kiperwasser and Goldberg, 2016)</ref> and constituency parsing ( <ref type="bibr" target="#b32">Vinyals et al., 2015b;</ref><ref type="bibr">Dyer et al., 2016;</ref><ref type="bibr">Cross and Huang, 2016b)</ref>. One of the main reasons for the prevalence of bilex- ical dependencies and tree-based representations is that they can be parsed with efficient and well- understood algorithms. However, one of the key advantages of deep learning is the ability to make predictions conditioned on unbounded contexts encoded with RNNs; this enables us to predict more complex structures without increasing algo- rithmic complexity. In this paper we show how to perform linguistically deep parsing with RNNs.</p><p>Our parser is based on a transition system for semantic graphs. However, instead of generat- ing arcs over an ordered, fixed set of nodes (the words in the sentence), we generate the nodes and their alignments jointly with the transition actions. We use a graph-based variant of the arc-eager transition-system. The sentence is encoded with a bidirectional RNN. The transition sequence, seen as a graph linearization, can be predicted with any encoder-decoder model, but we show that us- ing hard attention, predicting the alignments with a pointer network and conditioning explicitly on stack-based features improves performance. In or- der to deal with data sparsity candidate lemmas are predicted as a pre-processing step, so that the RNN decoder predicts unlexicalized node labels.</p><p>We evaluate our parser on DMRS, EDS and AMR graphs. We show that our model ar- chitecture improves performance from 79.68% to 84.16% F1 over an attention-based encoder- decoder baseline. Although our parser is less ac- curate that a high-precision grammar-based parser on a test set of sentences parsable by that gram- mar, incremental prediction and GPU batch pro- cessing enables it to parse 529 tokens per sec- ond, against 7 tokens per second for the grammar- based parser. On AMR parsing our model obtains 60.11% Smatch, an improvement of 8% over an existing neural AMR parser. </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2">Meaning Representations</head><p>We define a common framework for semantic graphs in which we can place both MRS- based graph representations (DMRS and EDS) and AMR. Sentence meaning is represented with rooted, labelled, connected, directed graphs ( <ref type="bibr" target="#b10">Kuhlmann and Oepen, 2016)</ref>. An example graph is visualized in <ref type="figure" target="#fig_0">Figure 1</ref>. represen- tations. Node labels are referred to as predicates (concepts in AMR) and edge labels as arguments (AMR relations). In addition constants, a special type of node modifiers, are used to denote the string values of named entities and numbers (including date and time expressions). Every node is aligned to a token or a continuous span of tokens in the sentence the graph corresponds to.</p><p>Minimal Recursion Semantics (MRS) is a framework for computational semantics that can be used for parsing or generation ( <ref type="bibr">Copestake et al., 2005</ref>). Instances and eventualities are represented with logical variables. Predicates take arguments with labels from a small, fixed set of roles. Ar- guments are either logical variables or handles, designated formalism-internal variables. Handle equality constraints support scope underspecifi- cation; multiple scope-resolved logical represen- tations can be derived from one MRS structure. A predicate corresponds to its intrinsic argument and is aligned to a character span of the (unto- kenized) input sentence. Predicates representing named entities or numbers are parameterized by strings. Quantification is expressed through pred- icates that bound instance variables, rather than through logical operators such as ∃ or ∀. MRS was designed to be integrated with feature-based gram- mars such as Head-driven Phrase Structure Gram- mar (HPSG) <ref type="bibr" target="#b25">(Pollard and Sag, 1994)</ref> or Lexical Functional Grammar (LFG) <ref type="bibr" target="#b6">(Kaplan and Bresnan, 1982)</ref>. MRS has been implement the English Resource Grammar (ERG) <ref type="bibr" target="#b0">(Flickinger, 2000</ref>), a broad-coverage high-precision HPSG grammar. <ref type="bibr" target="#b20">Oepen and Lønning (2006)</ref> proposed Elemen- tary Dependency Structure (EDS), a conversion of MRS to variable-free dependency graphs which drops scope underspecification. <ref type="bibr">Copestake (2009)</ref> extended this conversion to avoid information loss, primarily through richer edge labels. The result- ing representation, Dependency MRS (DMRS), can be converted back to the original MRS, or used directly in MRS-based applications <ref type="bibr">(Copestake et al., 2016)</ref>. We are interested in the em- pirical performance of parsers for both of these representations: while EDS is more interpretable as an independent semantic graph representation, DMRS can be related back to underspecified log- ical forms. A bilexical simplification of EDS has previously been used for semantic dependency parsing ( <ref type="bibr" target="#b18">Oepen et al., , 2015</ref>. <ref type="figure" target="#fig_0">Figure 1</ref> illus- trates an EDS graph.</p><p>MRS makes an explicit distinction between sur- face and abstract predicates (by convention surface predicates are prefixed by an underscore). Surface predicates consist of a lemma followed by a coarse part-of-speech tag and an optional sense label. Predicates absent from the ERG lexicon are rep- resented by their surface forms and POS tags. We convert the character-level predicate spans given by MRS to token-level spans for parsing purposes, but the representation does not require gold tok- enization. Surface predicates usually align with the span of the token(s) they represent, while ab- stract predicates can span longer segments. In full MRS every predicate is annotated with a set of morphosyntactic features, encoding for example tense, aspect and number information; we do not currently model these features. AMR ( <ref type="bibr">Banarescu et al., 2013</ref>) graphs can be represented in the same framework, despite a num- ber of linguistic differences with MRS. Some in- :root( &lt;2&gt; _v_1 :ARG1( &lt;1&gt; person :BV-of( &lt;1&gt; every_q ) ) :ARG2 &lt;4&gt; _v_1 :ARG1 * ( &lt;1&gt; person :ARG2( &lt;5&gt; named_CARG :BV-of ( &lt;5&gt; proper_q ) ) )</p><p>Figure 2: A top-down linearization of the EDS graph in <ref type="figure" target="#fig_0">Figure 1</ref>, using unlexicalized predicates.</p><p>formation annotated explicitly in MRS is latent in AMR, including alignments and the distinction between surface (lexical) and abstract concepts. AMR predicates are based on PropBank ( <ref type="bibr" target="#b21">Palmer et al., 2005</ref>), annotated as lemmas plus sense la- bels, but they form only a subset of concepts.</p><p>Other concepts are either English words or spe- cial keywords, corresponding to overt lexemes in some cases but not others.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3">Incremental Graph Parsing</head><p>We parse sentences to their meaning repre- sentations by incrementally predicting semantic graphs together with their alignments. Let e = e 1 , e 2 , . . . , e I be a tokenized English sentence, t = t 1 , t 2 , . . . , t J a sequential representation of its graph derivation and a = a 1 , a 2 , . . . , a J an align- ment sequence consisting of integers in the range 1, . . . , I. We model the conditional distribution p(t, a|e) which decomposes as</p><formula xml:id="formula_0">J j=1 p(a j |(a, t) 1:j−1 , e)p(t j |a 1:j , t 1:j−1 , e).</formula><p>We also predict the end-of-span alignments as a seperate sequence a (e) .</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.1">Top-down linearization</head><p>We now consider how to linearize the semantic graphs, before defining the neural models to pa- rameterize the parser in section 4. The first ap- proach is to linearize a graph as the pre-order traversal of its spanning tree, starting at a desig- nated root node (see <ref type="figure">Figure 2</ref>). Variants of this ap- proach have been proposed for neural constituency parsing ( <ref type="bibr" target="#b32">Vinyals et al., 2015b</ref>), logical form pre- diction ( <ref type="bibr">Dong and Lapata, 2016;</ref><ref type="bibr" target="#b4">Jia and Liang, 2016)</ref> and AMR parsing ( <ref type="bibr">Barzdins and Gosko, 2016;</ref><ref type="bibr" target="#b24">Peng et al., 2017)</ref>.</p><p>In the linearization, labels of edges whose direc- tion are reversed in the spanning tree are marked by adding -of. Edges not included in the span- ning tree, referred to as reentrancies, are rep- resented with special edges whose dependents are dummy nodes pointing back to the original nodes. Our potentially lossy representation repre- sents these edges by repeating the dependent node labels and alignments, which are recovered heuris- tically. The alignment does not influence the lin- earized node ordering. <ref type="figure" target="#fig_0">Figure 1</ref> shows that the semantic graphs we work with can also be interpreted as dependency graphs, as nodes are aligned to sentence tokens. Transition-based parsing <ref type="bibr" target="#b16">(Nivre, 2008)</ref> has been used extensively to predict dependency graphs in- crementally. We apply a variant of the arc-eager transition system that has been proposed for graph (as opposed to tree) parsing <ref type="bibr" target="#b28">(Sagae and Tsujii, 2008;</ref><ref type="bibr" target="#b29">Titov et al., 2009;</ref><ref type="bibr" target="#b2">Gómez-Rodríguez and Nivre, 2010)</ref> to derive a transition-based parser for deep semantic graphs. In dependency parsing the sentence tokens also act as nodes in the graph, but here we need to generate the nodes incrementally as the transition-system proceeds, conditioning the generation on the given sentence. <ref type="bibr">Damonte et al. (2017)</ref> proposed an arc-eager AMR parser, but their transition system is more narrowly restricted to AMR graphs.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.2">Transition-based parsing</head><p>The transition system consists of a stack of graph nodes being processed and a buffer, holding a single node at a time. The main transition ac- tions are shift, reduce, left-arc, right-arc. <ref type="figure">Figure 3</ref> shows an example transition sequence together with the stack and buffer after each step. The shift transition moves the element on the buffer to the top of the stack, and generates a predicate and its alignment as the next node on the buffer. Left-arc and right-arc actions add labeled arcs between the buffer and stack top (for DMRS a transition for undirected arcs is included), but do not change the state of the stack or buffer. Finally, reduce pops the top element from the stack, and predicts its end-of- span alignment (if included in the representation). To predict non-planar arcs, we add another transi- tion, which we call cross-arc, which first predicts the stack index of a node which is not on top of the stack, adding an arc between the head of the buffer and that node. Another special transition designates the buffer node as the root.</p><p>To derive an oracle for this transition system, it is necessary to determine the order in which the nodes are generated. We consider two approaches. The first ordering is obtained by performing an in-order traversal of the spanning tree, where the node order is determined by the alignment. In the resulting linearization the only non-planar arcs are reentrancies. The second approach lets the order- ing be monotone (non-decreasing) with respect to the alignments, while respecting the in-order or- dering for nodes with the same alignment. In an arc-eager oracle arcs are added greedily, while a reduce action can either be performed as soon as the stack top node has been connected to all its de- pendents, or delayed until it has to reduce to allow the correct parse tree to be formed. In our model the oracle delays reduce, where possible, until the end alignment of the stack top node spans the node on the buffer. As the span end alignments often cover phrases that they head (e.g. for quantifiers) this gives a natural interpretation to predicting the span end together with the reduce action.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.3">Delexicalization and lemma prediction</head><p>Each token in MRS annotations is aligned to at most one surface predicate. We decompose sur- face predicate prediction by predicting candidate lemmas for input tokens, and delexicalized predi- cates consisting only of sense labels. The full sur- face predicates are then recovered through the pre- dicted alignments.</p><p>We extract a dictionary mapping words to lem- mas from the ERG lexicon. Candidate lemmas are predicted using this dictionary, and where no dictionary entry is available with a lemmatizer. The same approach is applied to predict constants, along with additional normalizations such as map- ping numbers to digit strings.</p><p>We use the Stanford CoreNLP toolkit ( <ref type="bibr" target="#b13">Manning et al., 2014</ref>) to tokenize and lemmatize sentences, and tag tokens with the Stanford Named Entity Recognizer ( <ref type="bibr">Finkel et al., 2005</ref>). The tokenization is customized to correspond closely to the ERG tokenization; hyphens are removed pre-processing step. For AMR we use automatic alignments and the graph topology to classify concepts as surface or abstract <ref type="bibr">(Buys and Blunsom, 2017)</ref>. The lexi- con is restricted to <ref type="bibr">Propbank (Palmer et al., 2005)</ref> predicates; for other concepts we extract a lexicon from the training data.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Action</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Stack</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Buffer Arc added init(1, person) [ ] (1, 1, person) - sh(1, every q) [(1, 1, person)] (2, 1, every q) - la(BV) [(1, 1, person)] (2, 1, every q) (2, BV, 1) sh(2, v 1) [(1, 1, person), (2, 1, every q)] (2, 1, v 1) - re</head><p>[(1, 1, person)] (3, 2, v 1) - la(ARG1)</p><p>[(1, 1, person)] (3, 2, v 1) (3, ARG1, 1) <ref type="figure">Figure 3</ref>: Start of the transition sequence for parsing the graph in <ref type="figure" target="#fig_0">Figure 1</ref>. The transitions are shift (sh), reduce (re), left arc (la) and right arc (ra). The action taken at each step is given, along with the state of the stack and buffer after the action is applied, and any arcs added. Shift transitions generate the alignments and predicates of the nodes placed on the buffer. Items on the stack and buffer have the form (node index, alignment, predicate label), and arcs are of the form (head index, argument label, dependent index).</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4">Encoder-Decoder Models</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.1">Sentence encoder</head><p>The sentence e is encoded with a bidirectional RNN. We use a standard LSTM architecture without peephole connections ( <ref type="bibr" target="#b5">Jozefowicz et al., 2015</ref>). For every token e we embed its word, POS tag and named entity (NE) tag as vectors x w , x t and x n , respectively. The embeddings are concatenated and passed through a linear transformation</p><formula xml:id="formula_1">g(e) = W (x) [x w ; x t ; x n ] + b x ,</formula><p>such that g(e) has the same dimension as the LSTM. Each input position i is represented by a hidden state h i , which is the concatenation of its forward and backward LSTM state vectors.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.2">Hard attention decoder</head><p>We model the alignment of graph nodes to sen- tence tokens, a, as a random variable. For the arc- eager model, a j corresponds to the alignment of the node of the buffer after action t j is executed. The distribution of t j is over all transitions and predicates (corresponding to shift transitions), pre- dicted with a single softmax.</p><p>The parser output is predicted by an RNN de- coder. Let s j be the decoder hidden state at output position j. We initialize s 0 with the final state of the backward encoder. The alignment is predicted with a pointer network ( <ref type="bibr" target="#b31">Vinyals et al., 2015a</ref>).</p><p>The logits are computed with an MLP scoring the decoder hidden state against each of the en- coder hidden states (for i = 1, . . . , I),</p><formula xml:id="formula_2">u i j = w T tanh(W (1) h i + W (2) s j ).</formula><p>The alignment distribution is then estimated by p(a j = i|a 1:j−1 , t 1:j−1 , e) = softmax(u i j ). To predict the next transition t i , the output vec- tor is conditioned on the encoder state vector h a j , corresponding to the alignment:</p><formula xml:id="formula_3">o j = W (3) s j + W (4) h a j v j = R (d) o j + b (d) ,</formula><p>where R (d) and b (d) are the output representation matrix and bias vector, respectively.</p><p>The transition distribution is then given by p(t j |a 1:j , t 1:j−1 , e) = softmax(v j ).</p><p>Let e(t) be the embedding of decoder symbol t. The RNN state at the next time-step is computed as</p><formula xml:id="formula_4">d j+1 = W (5) e(t j ) + W (6) h a j s j+1 = RN N (d j+1 , s j ).</formula><p>The end-of-span alignment a (e) j for MRS-based graphs is predicted with another pointer network. The end alignment of a token is predicted only when a node is reduced from the stack, therefore this alignment is not observed at each time-step; it is also not fed back into the model. The hard attention approach, based on super- vised alignments, can be contrasted to soft atten- tion, which learns to attend over the input without supervision. The attention is computed as with hard attention, as α i j = softmax(u i j ). However instead of making a hard selection, a weighted average over the encoder vectors is computed as</p><formula xml:id="formula_5">q j = i=I i=1 α i j h i .</formula><p>This vector is used instead of h a j for prediction and feeding to the next time- step.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.3">Stack-based model</head><p>We extend the hard attention model to include fea- tures based on the transition system stack. These features are embeddings from the bidirectional RNN encoder, corresponding to the alignments of the nodes on the buffer and on top of the stack. This approach is similar to the features proposed by <ref type="bibr" target="#b8">Kiperwasser and Goldberg (2016)</ref> and Cross and Huang (2016a) for dependency parsing, al- though they do not use RNN decoders.</p><p>To implement these features the layer that com- putes the output vector is extended to</p><formula xml:id="formula_6">o j = W (3) s j + W (4) h a j + W (7) h st 0 ,</formula><p>where st 0 is the sentence alignment index of the element on top of the stack. The input layer to the next RNN time-step is similarly extended to</p><formula xml:id="formula_7">d j+1 = W (5) e(t j ) + W (6) h buf + W (8) h st 0 ,</formula><p>where buf is the buffer alignment after t j is exe- cuted.</p><p>Our implementation of the stack-based model enables batch processing in static computation graphs, similar to <ref type="bibr">Bowman et al. (2016)</ref>. We main- tain a stack of alignment indexes for each element in the batch, which is updated inside the computa- tion graph after each parsing action. This enables minibatch SGD during training as well as efficient batch decoding.</p><p>We perform greedy decoding. For the stack- based model we ensure that if the stack is empty, the next transition predicted has to be shift. For the other models we ensure that the output is well- formed during post-processing by robustly skip- ping over out-of-place symbols or inserting miss- ing ones.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5">Related Work</head><p>Prior work for MRS parsing predominantly pre- dicts structures in the context of grammar-based parsing, where sentences are parsed to HPSG derivations consistent with the grammar, in this case the ERG <ref type="bibr" target="#b0">(Flickinger, 2000</ref>). The nodes in the derivation trees are feature structures, from which MRS is extracted through unification. This ap- proach fails to parse sentences for which no valid derivation is found. Maximum entropy models are used to score the derivations in order to find the most likely parse ( <ref type="bibr" target="#b30">Toutanova et al., 2005</ref>). This approach is implemented in the PET <ref type="bibr">(Callmeier, 2000</ref>) and ACE 1 parsers.</p><p>There have also been some efforts to develop robust MRS parsers. One proposed approach learns a PCFG grammar to approximate the HPSG derivations ( <ref type="bibr" target="#b37">Zhang and Krieger, 2011;</ref><ref type="bibr" target="#b39">Zhang et al., 2014</ref>). MRS is then extracted with ro- bust unification to compose potentially incompati- ble feature structures, although that still fails for a small proportion of sentences. The model is trained on a large corpus of Wikipedia text parsed with the grammar-based parser. <ref type="bibr" target="#b36">Ytrestøl (2012)</ref> proposed a transition-based approach to HPSG parsing that produces derivations from which both syntactic and semantic (MRS) parses can be ex- tracted. The parser has an option not to be re- stricted by the ERG. However, neither of these ap- proaches have results available that can be com- pared directly to our setup, or generally available implementations.</p><p>Although AMR parsers produce graphs that are similar in structure to MRS-based graphs, most of them make assumptions that are invalid for MRS, and rely on extensive external AMR-specific re- sources. <ref type="bibr">Flanigan et al. (2014)</ref> proposed a two- stage parser that first predicts concepts or sub- graphs corresponding to sentence segments, and then parses these concepts into a graph structure. However MRS has a large proportion of abstract nodes that cannot be predicted from short seg- ments, and interact closely with the graph struc- ture. <ref type="bibr">Wang et al. (2015b,a)</ref> proposed a custom transition-system for AMR parsing that converts dependency trees to AMR graphs, relying on as- sumptions on the relationship between these. <ref type="bibr" target="#b26">Pust et al. (2015)</ref> proposed a parser based on syntax- based machine translation (MT), while AMR has also been integrated into CCG Semantic Pars- ing ( <ref type="bibr">Artzi et al., 2015;</ref><ref type="bibr" target="#b15">Misra and Artzi, 2016)</ref>. Re- cently <ref type="bibr">Damonte et al. (2017)</ref> and <ref type="bibr" target="#b24">Peng et al. (2017)</ref> proposed AMR parsers based on neural networks.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6">Experiments</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6.1">Data</head><p>DeepBank ( <ref type="bibr" target="#b1">Flickinger et al., 2012</ref>) is an HPSG and MRS annotation of the Penn Treebank Wall Street Journal (WSJ) corpus. It was developed fol- lowing an approach known as dynamic treebank- ing ( <ref type="bibr" target="#b17">Oepen et al., 2004</ref>) that couples treebank an- notation with grammar development, in this case of the ERG. This approach has been shown to lead to high inter-annotator agreement: 0.94 against 0.71 for AMR <ref type="bibr">(Bender et al., 2015)</ref>. Parses are only provided for sentences for which the ERG has an analysis acceptable to the annotator -this means that we cannot evaluate parsing accuracy for sentences which the ERG cannot parse (ap- proximately 15% of the original corpus).</p><p>We use Deepbank version 1.1, corresponding to ERG 1214 2 , following the suggested split of sec- tions 0 to 19 as training data data, 20 for develop- ment and 21 for testing. The gold-annotated train- ing data consists of 35,315 sentences. We use the LOGON environment <ref type="bibr">3</ref> and the pyDelphin library <ref type="bibr">4</ref> to extract DMRS and EDS graphs.</p><p>For AMR parsing we use LDC2015E86, the dataset released for the SemEval 2016 AMR pars- ing Shared Task <ref type="bibr" target="#b14">(May, 2016)</ref>. This data includes newswire, weblog and discussion forum text. The training set has 16,144 sentences. We obtain align- ments using the rule-based JAMR aligner <ref type="bibr">(Flanigan et al., 2014</ref>).</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6.2">Evaluation</head><p>Dridan and Oepen (2011) proposed an evaluation metric called Elementary Dependency Matching (EDM) for MRS-based graphs. EDM computes the F1-score of tuples of predicates and arguments. A predicate tuple consists of the label and charac- ter span of a predicate, while an argument tuple consists of the character spans of the head and de- pendent nodes of the relation, together with the ar- gument label. In order to tolerate subtle tokeniza- tion differences with respect to punctuation, we al- low span pairs whose ends differ by one character to be matched.</p><p>The Smatch metric <ref type="bibr">(Cai and Knight, 2013)</ref>, pro- posed for evaluating AMR graphs, also measures graph overlap, but does not rely on sentence align- ments to determine the correspondences between graph nodes. Smatch is instead computed by per- forming inference over graph alignments to esti- mate the maximum F1-score obtainable from a one-to-one matching between the predicted and gold graph nodes.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Model</head><p>EDM EDM P EDM A TD lex 81.44 85.20 76.87 TD unlex 81.72 85.59 77.04 AE lex 81.35 85.79 76.02 AE unlex 82.56 86.76 77.54 <ref type="table">Table 1</ref>: DMRS development set results for attention-based encoder-decoder models with alignments encoded in the linearization, for top- down (TD) and arc-eager (AE) linearizations, and lexicalized and unlexicalized predicate prediction.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6.3">Model setup</head><p>Our parser 5 is implemented in TensorFlow ( <ref type="bibr">Abadi et al., 2015</ref>). For training we use Adam (Kingma and Ba, 2015) with learning rate 0.01 and batch- size 64. Gradients norms are clipped to 5.0 (Pas- canu et al., 2013). We use single-layer LSTMs with dropout of 0.3 (tuned on the development set) on input and output connections. We use encoder and decoder embeddings of size 256, and POS and NE tag embeddings of size 32, For DMRS and EDS graphs the hidden units size is set to 256, for AMR it is 128. This configuration, found using grid search and heuristic search within the range of models that fit into a single GPU, gave the best performance on the development set under mul- tiple graph linearizations. Encoder word embed- dings are initialized (in the first 100 dimensions) with pre-trained order-sensitive embeddings ( <ref type="bibr" target="#b12">Ling et al., 2015)</ref>. Singletons in the encoder input are replaced with an unknown word symbol with probability 0.5 for each iteration.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6.4">MRS parsing results</head><p>We compare different linearizations and model ar- chitectures for parsing DMRS on the development data, showing that our approach is more accurate than baseline neural approaches. We report EDM scores, including scores for predicate (EDM P ) and argument (EDM A ) prediction. First we report results using standard attention- based encoder-decoders, with the alignments en- coded as token strings in the linearization. (Ta- ble 1). We compare the top-down (TD) and arc- eager (AE) linearizations, as well as the effect of delexicalizing the predicates (factorizing lemmas out of the linearization and predicting them sepa-  <ref type="table">Table 2</ref>: DMRS development set results of encoder-decoder models with pointer-based align- ment prediction, delexicalized predicates and hard or soft attention.</p><p>rately.) In both cases constants are predicted with a dictionary lookup based on the predicted spans. A special label is predicted for predicates not in the ERG lexicon -the words and POS tags that make up those predicates are recovered through the alignments during post-processing. The arc-eager unlexicalized representation gives the best performance, even though the model has to learn to model the transition system stack through the recurrent hidden states without any supervision of the transition semantics. The unlexicalized models are more accurate, mostly due to their ability to generalize to sparse or unseen predicates occurring in the lexicon. For the arc-eager representation, the oracle EDM is 99% for the lexicalized representation and 98.06% for the delexicalized representation. The remaining errors are mostly due to discrepancies between the tokenization used by our system and the ERG tokenization. The unlexicalized models are also faster to train, as the decoder's output vocabulary is much smaller, reducing the expense of computing softmaxes over large vocabularies.</p><p>Next we consider models with delexicalized lin- earizations that predict the alignments with pointer networks, contrasting soft and hard attention mod- els <ref type="table">(Table 2</ref>). The results show that the arc-eager models performs better than those based on top- down representation. For the arc-eager model we use hard attention, due to the natural interpreta- tion of the alignment prediction corresponding to the transition system. The stack-based architec- ture gives further improvements.</p><p>When comparing the effect of different predi- cate orderings for the arc-eager model, we find that the monotone ordering performs 0.44 EDM better than the in-order ordering, despite having to parse more non-planar dependencies.</p><p>We also trained models that only predict pred- icates (in monotone order) together with their   <ref type="table" target="#tab_2">Table 3</ref> reports test set results for various eval- uation metrics. Start EDM is calculated by requir- ing only the start of the alignment spans to match, not the ends. We compare the performance of our baseline and stack-based models against ACE, the ERG-based parser.</p><p>Despite the promising performance of the model a gap remains between the accuracy of our parser and ACE. One reason for this is that the test set sentences will arguably be easier for ACE to parse as their choice was restricted by the same grammar that ACE uses. EDM metrics exclud- ing end-span prediction (Start EDM) show that our parser has relatively more difficulty in pars- ing end-span predictions than the grammar-based parser.</p><p>We also evaluate the speed of our model com- pared with ACE. For the unbatched version of our model, the stack-based parser parses 41.63 to- kens per second, while the batched implementa- tion parses 529.42 tokens per second using a batch size of 128. In comparison, the setting of ACE for which we report accuracies parses 7.47 tokens per second. By restricting the memory usage of ACE, which restricts its coverage, we see that ACE can parse 11.07 tokens per second at 87.7% coverage, and 15.11 tokens per second at 77.8% coverage.</p><p>Finally we report results for parsing EDS (Ta- ble 4). The EDS parsing task is slightly simpler than DMRS, due to the absence of rich argument labels and additional graph edges that allow the recovery of full MRS. We see that for ACE the ac- curacies are very similar, while for our model EDS   parsing is more accurate on the EDM metrics. We hypothesize that most of the extra information in DMRS can be obtained through the ERG, to which ACE has access but our model doesn't. An EDS corpus which consists of about 95% of the DeepBank data has also been released <ref type="bibr">6</ref> , with the goal of enabling comparison with other se- mantic graph parsing formalisms, including CCG dependencies and Prague Semantic Dependencies, on the same data set ( <ref type="bibr" target="#b10">Kuhlmann and Oepen, 2016)</ref>. On this corpus our model obtains 85.87 EDM and 85.49 Smatch.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6.5">AMR parsing</head><p>We apply the same approach to AMR parsing. Re- sults on the development set are given in <ref type="table" target="#tab_5">Table 5</ref>. The arc-eager-based models again give better per- formance, mainly due to improved concept pre- diction accuracy. However, concept prediction re- mains the most important weakness of the model; <ref type="bibr">Damonte et al. (2017)</ref> reports that state-of-the-art AMR parsers score 83% on concept prediction.</p><p>We report test set results in <ref type="table">Table 6</ref>. Our best neural model outperforms the baseline JAMR parser ( <ref type="bibr">Flanigan et al., 2014</ref>), but still lags behind the performance of state-of-the-art AMR parsers such as CAMR ( <ref type="bibr" target="#b33">Wang et al., 2016</ref>) and AMR Eager ( <ref type="bibr">Damonte et al., 2017</ref>). These models make extensive use of external resources, includ- ing syntactic parsers and semantic role labellers. Our attention-based encoder-decoder model al- ready outperforms previous sequence-to-sequence 6 http://sdp.delph-in.net/osdp-12.tgz</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Model</head><p>Smatch <ref type="bibr">Flanigan et al. (2014)</ref> 56 <ref type="bibr" target="#b33">Wang et al. (2016)</ref> 66.54 <ref type="bibr">Damonte et al. (2017)</ref> 64 <ref type="bibr" target="#b23">Peng and Gildea (2016)</ref> 55 <ref type="bibr" target="#b24">Peng et al. (2017)</ref> 52 <ref type="bibr">Barzdins and Gosko (2016)</ref> 43.3 TD no pointers 56.56 AE stack delex 60.11 <ref type="table">Table 6</ref>: AMR parsing test set results (Smatch F1 scores). Published results follow the number of decimals which were reported.</p><p>AMR parsers ( <ref type="bibr">Barzdins and Gosko, 2016;</ref><ref type="bibr" target="#b24">Peng et al., 2017)</ref>, and the arc-eager model boosts ac- curacy further. Our model also outperforms a Synchronous Hyperedge Replacement Grammar model <ref type="bibr" target="#b23">(Peng and Gildea, 2016)</ref> which is compa- rable as it does not make extensive use of external resources.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="7">Conclusion</head><p>In this paper we advance the state of parsing by employing deep learning techniques to parse sen- tence to linguistically expressive semantic repre- sentations that have not previously been parsed in an end-to-end fashion. We presented a robust, wide-coverage parser for MRS that is faster than existing parsers and amenable to batch process- ing. We believe that there are many future av- enues to explore to further increase the accuracy of such parsers, including different training ob- jectives, more structured architectures and semi- supervised learning.</p></div><figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_0"><head>Figure 1 :</head><label>1</label><figDesc>Figure 1: Semantic representation of the sentence "Everybody wants to meet John." The graph is based on the Elementary Dependency Structure (EDS) representation of Minimal Recursion Semantics (MRS). The alignments are given together with the corresponding tokens, and lemmas of surface predicates and constants.</figDesc><graphic url="image-1.png" coords="2,310.57,62.81,211.68,188.16" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_2" validated="false"><head>Table 3 :</head><label>3</label><figDesc></figDesc><table>DMRS parsing test set results, compar-
+ing the standard top-down attention-based and arc-
+eager stack-based RNN models to the grammar-
+based ACE parser. 
+
+start spans. The hard attention model obtains 
+91.36% F1 on predicates together with their start 
+spans with the unlexicalized model, compared to 
+88.22% for lexicalized predicates and 91.65% for 
+the full parsing model. 
+</table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_4" validated="true"><head>Table 4 : EDS parsing test set results.</head><label>4</label><figDesc></figDesc><table>Model 
+Concept F1 Smatch 
+TD no pointers 
+70.16 
+57.95 
+TD soft 
+71.25 
+59.39 
+TD soft unlex 
+72.62 
+59.88 
+AE hard unlex 
+76.83 
+59.83 
+AE stack unlex 
+77.93 
+61.21 
+
+</table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_5" validated="false"><head>Table 5 :</head><label>5</label><figDesc></figDesc><table>Development set results for AMR pars-
+ing. All the models except the first predict align-
+ments with pointer networks. 
+
+</table></figure>
+
+			<note place="foot" n="1"> http://sweaglesw.org/linguistics/ace/</note>
+
+			<note place="foot" n="2"> http://svn.delph-in.net/erg/tags/ 1214/ 3 http://moin.delph-in.net/LogonTop 4 https://github.com/delph-in/pydelphin</note>
+
+			<note place="foot" n="5"> Code and data preparation scripts are available at https://github.com/janmbuys/ DeepDeepParser.</note>
+		</body>
+		<back>
+
+			<div type="acknowledgement">
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Acknowledgments</head><p>The first author thanks the financial support of the Clarendon Fund and the Skye Foundation. We thank Stephan Oepen for feedback and help with data preperation, and members of the Oxford NLP group for valuable discussions.</p></div>
+			</div>
+
+			<div type="annex">
+			</div>
+			<div type="references">
+
+				<listBibl>
+
+<biblStruct xml:id="b0">
+	<analytic>
+		<title level="a" type="main">On building a more effcient grammar by exploiting types</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Dan</forename><surname>Flickinger</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Natural Language Engineering</title>
+		<imprint>
+			<biblScope unit="volume">6</biblScope>
+			<biblScope unit="issue">01</biblScope>
+			<biblScope unit="page" from="15" to="28" />
+			<date type="published" when="2000" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b1">
+	<analytic>
+		<title level="a" type="main">Deepbank. a dynamically annotated treebank of the wall street journal</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Dan</forename><surname>Flickinger</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yi</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Valia</forename><surname>Kordoni</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 11th International Workshop on Treebanks and Linguistic Theories</title>
+		<meeting>the 11th International Workshop on Treebanks and Linguistic Theories</meeting>
+		<imprint>
+			<date type="published" when="2012" />
+			<biblScope unit="page" from="85" to="96" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b2">
+	<analytic>
+		<title level="a" type="main">A transition-based parser for 2-planar dependency structures</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Carlos</forename><surname>Gómez</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">-Rodríguez</forename></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Joakim</forename><surname>Nivre</surname></persName>
+		</author>
+		<ptr target="http://www.aclweb.org/anthology/P10-1151" />
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of ACL</title>
+		<meeting>ACL</meeting>
+		<imprint>
+			<date type="published" when="2010" />
+			<biblScope unit="page" from="1492" to="1501" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b3">
+	<analytic>
+		<title level="a" type="main">Teaching machines to read and comprehend</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Karl</forename><surname>Moritz Hermann</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Tomas</forename><surname>Kocisky</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Edward</forename><surname>Grefenstette</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Lasse</forename><surname>Espeholt</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Will</forename><surname>Kay</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Mustafa</forename><surname>Suleyman</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Phil</forename><surname>Blunsom</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Advances in Neural Information Processing Systems</title>
+		<imprint>
+			<date type="published" when="2015" />
+			<biblScope unit="page" from="1693" to="1701" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b4">
+	<analytic>
+		<title level="a" type="main">Data recombination for neural semantic parsing</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Robin</forename><surname>Jia</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Percy</forename><surname>Liang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of ACL</title>
+		<meeting>ACL</meeting>
+		<imprint>
+			<date type="published" when="2016" />
+			<biblScope unit="page" from="12" to="22" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b5">
+	<analytic>
+		<title level="a" type="main">An empirical exploration of recurrent network architectures</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Rafal</forename><surname>Jozefowicz</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Wojciech</forename><surname>Zaremba</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ilya</forename><surname>Sutskever</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of ICML</title>
+		<meeting>ICML</meeting>
+		<imprint>
+			<date type="published" when="2015" />
+			<biblScope unit="page" from="2342" to="2350" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b6">
+	<analytic>
+		<title level="a" type="main">Lexicalfunctional grammar: A formal system for grammatical representation</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">M</forename><surname>Ronald</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Joan</forename><surname>Kaplan</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Bresnan</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Formal Issues in LexicalFunctional Grammar</title>
+		<imprint>
+			<biblScope unit="page" from="29" to="130" />
+			<date type="published" when="1982" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b7">
+	<analytic>
+		<title level="a" type="main">Adam: A method for stochastic optimization</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">P</forename><surname>Diederik</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jimmy</forename><surname>Kingma</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Ba</surname></persName>
+		</author>
+		<ptr target="http://arxiv.org/abs/1412.6980" />
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of ICLR</title>
+		<meeting>ICLR</meeting>
+		<imprint>
+			<date type="published" when="2015" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b8">
+	<analytic>
+		<title level="a" type="main">Simple and accurate dependency parsing using bidirectional lstm feature representations</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Eliyahu</forename><surname>Kiperwasser</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yoav</forename><surname>Goldberg</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Transactions of the Association for Computational Linguistics</title>
+		<imprint>
+			<biblScope unit="volume">4</biblScope>
+			<biblScope unit="page" from="313" to="327" />
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b9">
+	<analytic>
+		<title level="a" type="main">Skip-thought vectors</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ryan</forename><surname>Kiros</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yukun</forename><surname>Zhu</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">R</forename><surname>Ruslan</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Richard</forename><surname>Salakhutdinov</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Raquel</forename><surname>Zemel</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Antonio</forename><surname>Urtasun</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Sanja</forename><surname>Torralba</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Fidler</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Advances in neural information processing systems</title>
+		<imprint>
+			<date type="published" when="2015" />
+			<biblScope unit="page" from="3294" to="3302" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b10">
+	<analytic>
+		<title level="a" type="main">Towards a catalogue of linguistic graph banks</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Marco</forename><surname>Kuhlmann</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Stephan</forename><surname>Oepen</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Computational Linguistics</title>
+		<imprint>
+			<biblScope unit="volume">42</biblScope>
+			<biblScope unit="issue">4</biblScope>
+			<biblScope unit="page" from="819" to="827" />
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b11">
+	<analytic>
+		<title level="a" type="main">Distributed representations of sentences and documents</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">V</forename><surname>Quoc</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Tomas</forename><surname>Le</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Mikolov</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">ICML</title>
+		<imprint>
+			<date type="published" when="2014" />
+			<biblScope unit="volume">14</biblScope>
+			<biblScope unit="page" from="1188" to="1196" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b12">
+	<analytic>
+		<title level="a" type="main">Two/too simple adaptations of word2vec for syntax problems</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Wang</forename><surname>Ling</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Chris</forename><surname>Dyer</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Alan</forename><forename type="middle">W</forename><surname>Black</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Isabel</forename><surname>Trancoso</surname></persName>
+		</author>
+		<ptr target="http://www.aclweb.org/anthology/N15-1142" />
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of NAACL-HLT</title>
+		<meeting>NAACL-HLT</meeting>
+		<imprint>
+			<date type="published" when="2015" />
+			<biblScope unit="page" from="1299" to="1304" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b13">
+	<analytic>
+		<title level="a" type="main">The Stanford CoreNLP natural language processing toolkit</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Christopher</forename><forename type="middle">D</forename><surname>Manning</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Mihai</forename><surname>Surdeanu</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">John</forename><surname>Bauer</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jenny</forename><surname>Finkel</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Steven</forename><forename type="middle">J</forename><surname>Bethard</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">David</forename><surname>Mcclosky</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">ACL System Demonstrations</title>
+		<imprint>
+			<date type="published" when="2014" />
+			<biblScope unit="page" from="55" to="60" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b14">
+	<analytic>
+		<title level="a" type="main">Semeval-2016 task 8: Meaning representation parsing</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jonathan</forename></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of SemEval</title>
+		<meeting>SemEval</meeting>
+		<imprint>
+			<date type="published" when="2016-05" />
+			<biblScope unit="page" from="1063" to="1073" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b15">
+	<analytic>
+		<title level="a" type="main">Neural shift-reduce ccg semantic parsing</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kumar</forename><surname>Dipendra</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yoav</forename><surname>Misra</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Artzi</surname></persName>
+		</author>
+		<ptr target="https://aclweb.org/anthology/D16-1183" />
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of EMNLP</title>
+		<meeting>EMNLP<address><addrLine>Austin, Texas</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2016" />
+			<biblScope unit="page" from="1775" to="1786" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b16">
+	<analytic>
+		<title level="a" type="main">Algorithms for deterministic incremental dependency parsing</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Joakim</forename><surname>Nivre</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Computational Linguistics</title>
+		<imprint>
+			<biblScope unit="volume">34</biblScope>
+			<biblScope unit="issue">4</biblScope>
+			<biblScope unit="page" from="513" to="553" />
+			<date type="published" when="2008" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b17">
+	<analytic>
+		<title level="a" type="main">Lingo redwoods</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Stephan</forename><surname>Oepen</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Dan</forename><surname>Flickinger</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kristina</forename><surname>Toutanova</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Christopher</forename><forename type="middle">D</forename><surname>Manning</surname></persName>
+		</author>
+		<idno type="doi">10.1007/s11168-004-7430-4</idno>
+		<ptr target="https://doi.org/10.1007/s11168-004-7430-4" />
+	</analytic>
+	<monogr>
+		<title level="j">Research on Language and Computation</title>
+		<imprint>
+			<biblScope unit="volume">2</biblScope>
+			<biblScope unit="issue">4</biblScope>
+			<biblScope unit="page" from="575" to="596" />
+			<date type="published" when="2004" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b18">
+	<analytic>
+		<title level="a" type="main">Broad-coverage semantic dependency parsing</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Stephan</forename><surname>Oepen</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Marco</forename><surname>Kuhlmann</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yusuke</forename><surname>Miyao</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Daniel</forename><surname>Zeman</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Silvie</forename><surname>Cinkova</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Dan</forename><surname>Flickinger</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jan</forename><surname>Hajic</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Zdenka</forename><surname>Uresova</surname></persName>
+		</author>
+		<ptr target="http://www.aclweb.org/anthology/S15-2153" />
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of SemEval</title>
+		<meeting>SemEval</meeting>
+		<imprint>
+			<date type="published" when="2015" />
+			<biblScope unit="volume">18</biblScope>
+			<biblScope unit="page" from="915" to="926" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b19">
+	<analytic>
+		<title level="a" type="main">Semeval 2014 task 8: Broad-coverage semantic dependency parsing</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Stephan</forename><surname>Oepen</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Marco</forename><surname>Kuhlmann</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yusuke</forename><surname>Miyao</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Daniel</forename><surname>Zeman</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Dan</forename><surname>Flickinger</surname></persName>
+		</author>
+		<ptr target="http://www.aclweb.org/anthology/S14-2008" />
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of SemEval</title>
+		<meeting>SemEval</meeting>
+		<imprint>
+			<date type="published" when="2014" />
+			<biblScope unit="page" from="63" to="72" />
+		</imprint>
+	</monogr>
+	<note>Angelina Ivanova, and Yi Zhang</note>
+</biblStruct>
+
+<biblStruct xml:id="b20">
+	<analytic>
+		<title level="a" type="main">Discriminant-based MRS banking</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Stephan</forename><surname>Oepen</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jan</forename><forename type="middle">Tore</forename><surname>Lønning</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 5th International Conference on Language Resources and Evaluation</title>
+		<meeting>the 5th International Conference on Language Resources and Evaluation</meeting>
+		<imprint>
+			<date type="published" when="2006" />
+			<biblScope unit="page" from="1250" to="1255" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b21">
+	<analytic>
+		<title level="a" type="main">The proposition bank: An annotated corpus of semantic roles</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Martha</forename><surname>Palmer</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Daniel</forename><surname>Gildea</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Paul</forename><surname>Kingsbury</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Computational linguistics</title>
+		<imprint>
+			<biblScope unit="volume">31</biblScope>
+			<biblScope unit="issue">1</biblScope>
+			<biblScope unit="page" from="71" to="106" />
+			<date type="published" when="2005" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b22">
+	<analytic>
+		<title level="a" type="main">On the difficulty of training recurrent neural networks</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Razvan</forename><surname>Pascanu</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Tomas</forename><surname>Mikolov</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yoshua</forename><surname>Bengio</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">ICML</title>
+		<imprint>
+			<biblScope unit="volume">28</biblScope>
+			<biblScope unit="issue">3</biblScope>
+			<biblScope unit="page" from="1310" to="1318" />
+			<date type="published" when="2013" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b23">
+	<analytic>
+		<title level="a" type="main">Uofr at semeval-2016 task 8: Learning synchronous hyperedge replacement grammar for amr parsing</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Xiaochang</forename><surname>Peng</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Daniel</forename><surname>Gildea</surname></persName>
+		</author>
+		<ptr target="http://www.aclweb.org/anthology/S16-1183" />
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of SemEval-2016</title>
+		<meeting>SemEval-2016</meeting>
+		<imprint>
+			<date type="published" when="2016" />
+			<biblScope unit="page" from="1185" to="1189" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b24">
+	<analytic>
+		<title level="a" type="main">Addressing the data sparsity issue in neural amr parsing</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Xiaochang</forename><surname>Peng</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Chuan</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Daniel</forename><surname>Gildea</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Nianwen</forename><surname>Xue</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of EACL</title>
+		<meeting>EACL</meeting>
+		<imprint>
+			<date type="published" when="2017" />
+		</imprint>
+	</monogr>
+	<note>Preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b25">
+	<monogr>
+		<title level="m" type="main">Head-driven phrase structure grammar</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Carl</forename><surname>Pollard</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Ivan</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Sag</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="1994" />
+			<publisher>University of Chicago Press</publisher>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b26">
+	<analytic>
+		<title level="a" type="main">Parsing English into abstract meaning representation using syntax-based machine translation</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Michael</forename><surname>Pust</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ulf</forename><surname>Hermjakob</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kevin</forename><surname>Knight</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Daniel</forename><surname>Marcu</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jonathan</forename></persName>
+		</author>
+		<ptr target="http://aclweb.org/anthology/D15-1136" />
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of EMNLP</title>
+		<meeting>EMNLP<address><addrLine>Lisbon, Portugal</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2015-05" />
+			<biblScope unit="page" from="1143" to="1154" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b27">
+	<analytic>
+		<title level="a" type="main">Kočisk`y, and Phil Blunsom</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Tim</forename><surname>Rocktäschel</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Edward</forename><surname>Grefenstette</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Karl</forename><forename type="middle">Moritz</forename><surname>Hermann</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Tomáš</forename><surname>Kočisk</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1509.06664</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Reasoning about entailment with neural attention</title>
+		<imprint>
+			<date type="published" when="2015" />
+		</imprint>
+	</monogr>
+<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b28">
+	<analytic>
+		<title level="a" type="main">Shiftreduce dependency DAG parsing</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kenji</forename><surname>Sagae</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jun&amp;apos;ichi</forename><surname>Tsujii</surname></persName>
+		</author>
+		<ptr target="http://www.aclweb.org/anthology/C08-1095" />
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of Coling</title>
+		<meeting>Coling</meeting>
+		<imprint>
+			<date type="published" when="2008" />
+			<biblScope unit="page" from="753" to="760" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b29">
+	<analytic>
+		<title level="a" type="main">Online graph planarisation for synchronous parsing of semantic and syntactic dependencies</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ivan</forename><surname>Titov</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">James</forename><surname>Henderson</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Paola</forename><surname>Merlo</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Gabriele</forename><surname>Musillo</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">IJCAI</title>
+		<imprint>
+			<date type="published" when="2009" />
+			<biblScope unit="page" from="1562" to="1567" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b30">
+	<analytic>
+		<title level="a" type="main">Stochastic HPSG parse disambiguation using the redwoods corpus</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kristina</forename><surname>Toutanova</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Christopher</forename><forename type="middle">D</forename><surname>Manning</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Dan</forename><surname>Flickinger</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Stephan</forename><surname>Oepen</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Research on Language and Computation</title>
+		<imprint>
+			<biblScope unit="volume">3</biblScope>
+			<biblScope unit="issue">1</biblScope>
+			<biblScope unit="page" from="83" to="105" />
+			<date type="published" when="2005" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b31">
+	<analytic>
+		<title level="a" type="main">Pointer networks</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Oriol</forename><surname>Vinyals</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Meire</forename><surname>Fortunato</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Navdeep</forename><surname>Jaitly</surname></persName>
+		</author>
+		<ptr target="http://papers.nips.cc/paper/5866-pointer-networks.pdf" />
+	</analytic>
+	<monogr>
+		<title level="m">Advances in Neural Information Processing Systems 28</title>
+		<imprint>
+			<date type="published" when="2015" />
+			<biblScope unit="page" from="2692" to="2700" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b32">
+	<analytic>
+		<title level="a" type="main">Grammar as a foreign language</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Oriol</forename><surname>Vinyals</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Łukasz</forename><surname>Kaiser</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Terry</forename><surname>Koo</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Slav</forename><surname>Petrov</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ilya</forename><surname>Sutskever</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Geoffrey</forename><surname>Hinton</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Advances in Neural Information Processing Systems</title>
+		<imprint>
+			<date type="published" when="2015" />
+			<biblScope unit="page" from="2755" to="2763" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b33">
+	<analytic>
+		<title level="a" type="main">Camr at semeval2016 task 8: An extended transition-based amr parser</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Chuan</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Sameer</forename><surname>Pradhan</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Xiaoman</forename><surname>Pan</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ji</forename><surname>Heng</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Nianwen</forename><surname>Xue</surname></persName>
+		</author>
+		<ptr target="http://www.aclweb.org/anthology/S16-1181" />
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of SemEval</title>
+		<meeting>SemEval</meeting>
+		<imprint>
+			<date type="published" when="2016" />
+			<biblScope unit="page" from="1173" to="1178" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b34">
+	<analytic>
+		<title level="a" type="main">Boosting transition-based AMR parsing with refined actions and auxiliary analyzers</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Chuan</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Nianwen</forename><surname>Xue</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Sameer</forename><surname>Pradhan</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of ACL</title>
+		<meeting>ACL</meeting>
+		<imprint>
+			<date type="published" when="2015" />
+			<biblScope unit="page" from="857" to="862" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b35">
+	<analytic>
+		<title level="a" type="main">A transition-based algorithm for AMR parsing</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Chuan</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Nianwen</forename><surname>Xue</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Sameer</forename><surname>Pradhan</surname></persName>
+		</author>
+		<ptr target="http://aclweb.org/anthology/N/N15/N15-1040.pdf" />
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of NAACL 2015</title>
+		<meeting>NAACL 2015</meeting>
+		<imprint>
+			<date type="published" when="2015" />
+			<biblScope unit="page" from="366" to="375" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b36">
+	<monogr>
+		<title level="m" type="main">Transition-Based Parsing for Large-Scale Head-Driven Phrase Structure Grammars</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Gisle</forename><surname>Ytrestøl</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2012" />
+		</imprint>
+		<respStmt>
+			<orgName>University of Oslo</orgName>
+		</respStmt>
+	</monogr>
+<note type="report_type">Ph.D. thesis</note>
+</biblStruct>
+
+<biblStruct xml:id="b37">
+	<analytic>
+		<title level="a" type="main">Large-scale corpus-driven PCFG approximation of an HPSG</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yi</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Hans-Ulrich</forename><surname>Krieger</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 12th international conference on parsing technologies. Association for Computational Linguistics</title>
+		<meeting>the 12th international conference on parsing technologies. Association for Computational Linguistics</meeting>
+		<imprint>
+			<date type="published" when="2011" />
+			<biblScope unit="page" from="198" to="208" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b38">
+	<analytic>
+		<title level="a" type="main">Efficiency in unification-based n-best parsing</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yi</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Stephan</forename><surname>Oepen</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">John</forename><surname>Carroll</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of IWPT</title>
+		<meeting>IWPT</meeting>
+		<imprint>
+			<date type="published" when="2007" />
+			<biblScope unit="page" from="48" to="59" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b39">
+	<monogr>
+		<title level="m" type="main">Robust parsing, meaning composition, and evaluation: Integrating grammar approximation, default unification, and elementary semantic dependencies</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yi</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Stephan</forename><surname>Oepen</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Rebecca</forename><surname>Dridan</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Dan</forename><surname>Flickinger</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Hans-Ulrich</forename><surname>Krieger</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2014" />
+		</imprint>
+	</monogr>
+	<note>manuscript</note>
+</biblStruct>
+
+				</listBibl>
+			</div>
+		</back>
+	</text>
+</TEI>

@@ -1,0 +1,900 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<TEI xmlns="http://www.tei-c.org/ns/1.0" 
+xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+xsi:schemaLocation="http://www.tei-c.org/ns/1.0 /home/ana/installs/grobid/grobid-0.5.1/grobid-home/schemas/xsd/Grobid.xsd"
+ xmlns:xlink="http://www.w3.org/1999/xlink">
+	<teiHeader xml:lang="en">
+		<encodingDesc>
+			<appInfo>
+				<application version="0.5.1-SNAPSHOT" ident="GROBID" when="2019-04-18T10:40+0000">
+					<ref target="https://github.com/kermitt2/grobid">GROBID - A machine learning software for extracting information from scholarly documents</ref>
+				</application>
+			</appInfo>
+		</encodingDesc>
+		<fileDesc>
+			<titleStmt>
+				<title level="a" type="main">Multi-Input Attention for Unsupervised OCR Correction</title>
+			</titleStmt>
+			<publicationStmt>
+				<publisher>Association for Computational Linguistics</publisher>
+				<availability status="unknown"><p>Copyright Association for Computational Linguistics</p>
+				</availability>
+				<date>July 15-20, 2018. 2018. 2363</date>
+			</publicationStmt>
+			<sourceDesc>
+				<biblStruct>
+					<analytic>
+						<author>
+							<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Rui</forename><surname>Dong</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="department">College of Computer Information</orgName>
+								<orgName type="institution">Science Northeastern University</orgName>
+							</affiliation>
+						</author>
+						<author>
+							<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">David</forename><forename type="middle">A</forename><surname>Smith</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="department">College of Computer Information</orgName>
+								<orgName type="institution">Science Northeastern University</orgName>
+							</affiliation>
+						</author>
+						<title level="a" type="main">Multi-Input Attention for Unsupervised OCR Correction</title>
+					</analytic>
+					<monogr>
+						<title level="m">Proceedings of the 56th Annual Meeting of the Association for Computational Linguistics (Long Papers)</title>
+						<meeting>the 56th Annual Meeting of the Association for Computational Linguistics (Long Papers) <address><addrLine>Melbourne, Australia</addrLine></address>
+						</meeting>
+						<imprint>
+							<publisher>Association for Computational Linguistics</publisher>
+							<biblScope unit="page" from="2363" to="2372"/>
+							<date type="published">July 15-20, 2018. 2018. 2363</date>
+						</imprint>
+					</monogr>
+				</biblStruct>
+			</sourceDesc>
+		</fileDesc>
+		<profileDesc>
+			<abstract>
+				<p>We propose a novel approach to OCR post-correction that exploits repeated texts in large corpora both as a source of noisy target outputs for unsupervised training and as a source of evidence when decoding. A sequence-to-sequence model with attention is applied for single-input correction , and a new decoder with multi-input attention averaging is developed to search for consensus among multiple sequences. We design two ways of training the correction model without human annotation, either training to match noisily observed textual variants or bootstrapping from a uniform error model. On two corpora of historical newspapers and books, we show that these unsupervised techniques cut the character and word error rates nearly in half on single inputs and, with the addition of multi-input decoding, can rival supervised methods.</p>
+			</abstract>
+		</profileDesc>
+	</teiHeader>
+	<text xml:lang="en">
+		<body>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="1">Introduction</head><p>Optical character recognition (OCR) software has made vast quantities of printed material available for retrieval and analysis, but severe recognition errors in corpora with low quality of printing and scanning or physical deterioration often hamper accessibility ( <ref type="bibr" target="#b4">Chiron et al., 2017</ref>). Many digitiza- tion projects have employed manual proofreading to further correct OCR output <ref type="bibr" target="#b10">(Holley, 2009)</ref>, but this is time consuming and depends on fostering a community of volunteer workers. These prob- lems with OCR are exacerbated in library-scale digitization by commercial (e.g., Google Books, Newspapers.com), government (e.g., Library of Congress, Bibliothèque nationale de France), and nonprofit (e.g., Internet Archive) organizations.</p><p>The scale of these projects not only makes it dif- ficult to adapt OCR models to their diverse lay- outs and typefaces but also makes it impractical to present any OCR output other than a single-best transcript.</p><p>Existing methods for automatic OCR post- correction are mostly supervised methods that cor- rect recognition errors in a single OCR output <ref type="bibr" target="#b13">(Kolak and Resnik, 2002;</ref><ref type="bibr" target="#b12">Kolak et al., 2003;</ref><ref type="bibr" target="#b33">Yamazoe et al., 2011</ref>). Those systems are not scalable since human annotations are expensive to acquire, and they are not capable of utilizing complemen- tary sources of information. Another line of work is ensemble methods ( <ref type="bibr" target="#b17">Lund et al., 2013</ref><ref type="bibr" target="#b19">Lund et al., , 2014</ref> combining OCR results from multiple scans of the same document. Most of these ensemble meth- ods, however, require aligning multiple OCR out- puts <ref type="bibr" target="#b18">(Lund and Ringger, 2009;</ref><ref type="bibr" target="#b20">Lund et al., 2011)</ref>, which is intractable in general and might introduce noise into the later correction stage. Furthermore, voting-based ensemble methods <ref type="bibr" target="#b18">(Lund and Ringger, 2009;</ref><ref type="bibr" target="#b29">Wemhoener et al., 2013;</ref><ref type="bibr" target="#b32">Xu and Smith, 2017)</ref> only work where the correct output exists in one of the inputs, while classification methods ( <ref type="bibr" target="#b2">Boschetti et al., 2009;</ref><ref type="bibr" target="#b20">Lund et al., 2011;</ref><ref type="bibr" target="#b0">Al Azawi et al., 2015</ref>) are also trained on human annotations.</p><p>To address these challenges, we propose an un- supervised OCR post-correction framework both to correct single input text sequences and also to exploit multiple candidate texts by simultaneously aligning, correcting, and voting among input se- quences. Our proposed method is based on the observation that significant number of duplicate and near-duplicate documents exist in many cor- pora ( <ref type="bibr" target="#b32">Xu and Smith, 2017)</ref>, resulting in OCR out- put containing repeated texts with various quality. As shown by the example in <ref type="table" target="#tab_0">Table 1</ref>, different er- rors (characters in red) are introduced when the OCR system scans the same text in multiple edi- tions, each with its own layout, fonts, etc. For ex-ample, in is recognized as m in the first output and a is recognized as u in the third output, while the second output is correctly recognized. Therefore, duplicated texts with diverse errors could serve as complementary information sources for each other.</p><p>OCR eor**y that I have been slam in battle, for 1 Output sorry that I have been slain in battle, for I sorry tha' I have been s uin in battle, f r I Original sorry that I have been slain in battle, for I Text In this paper, we aim to train an unsupervised correction model via utilizing the duplication in OCR output. We propose to map each erroneous OCR'd text unit to either its high-quality dupli- cation or a consensus correction among its du- plications via bootstrapping from an uniform er- ror model. The baseline correction system is a sequence-to-sequence model with attention <ref type="bibr" target="#b1">(Bahdanau et al., 2015)</ref>, which has been shown to be ef- fective in text correction tasks <ref type="bibr" target="#b6">(Chollampatt et al., 2016;</ref><ref type="bibr" target="#b31">Xie et al., 2016)</ref>.</p><p>We also seek to improve the correction perfor- mance for duplicated texts by integrating multi- ple inputs. Previous work on combining mul- tiple inputs in neural translation deal with data from different domains, e.g., multilingual <ref type="bibr" target="#b34">(Zoph and Knight, 2016)</ref> or multimodal (Libovick´yLibovick´y and Helcl, 2017) data. Therefore, their models need to be trained on multiple inputs to learn parame- ters to combine inputs from each domain. Given that the inputs of our task are all from the same domain, our model is trained on a single input and introduces multi-input attention to generate a consensus result merely for decoding. It does not require learning extra parameters for atten- tion combination and thus is more efficient to train. Furthermore, average attention combina- tion, a simple multi-input attention mechanism, is proposed to improve both the effectiveness and ef- ficiency of multi-input combination on the OCR post-correction task.</p><p>We experiment with both supervised and un- supervised training and with single-and multi- input decoding on data from two manually tran- scribed collections in English with diverse type- faces, genres, and time periods: newspaper arti- cles from the Richmond (Virginia) Daily Dispatch (RDD) from 1860-1865 and books from 1500- 1800 from the Text Creation Partnership (TCP). For both collections, which were manually tran- scribed by other researchers and are in the pub- lic domain, we aligned the one-best output of an OCR system to the manual transcripts. We also aligned the OCR in the training and evaluation sets to other public-domain newspaper issues (from the Library of Congress) and books (from the Inter- net Archive) to find multiple duplicates as "wit- nesses", where available, for each line. Experi- mental results on both datasets show that our pro- posed averarge attention combination mechanism is more effective than existing methods in integrat- ing multiple inputs. Moreover, our noisy error cor- rection model achieves comparable performance with the supervised model via multiple-input de- coding on duplicated texts.</p><p>In summary, our contributions are: (1) a scal- able framework needing no supervision from hu- man annotations to train the correction model; (2) a multi-input attention mechanism incorporating aligning, correcting, and voting on multiple se- quences simultaneously for consensus decoding, which is more efficient and effective than exist- ing ensemble methods; and (3) a method that cor- rects text either with or without duplicated ver- sions, while most existing methods can only deal with one of these cases.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2">Data Collection</head><p>We perform experiments on one-best OCR out- put from two sources: two million issues from the Chronicling America collection of historic U.S. newspapers, which is the largest public-domain full-text collection in the Library of Congress; <ref type="bibr">1</ref> and three million public-domain books in the In- ternet Archive. <ref type="bibr">2</ref> For supervised training and for evaluation, we aligned manually transcribed texts to these one- best OCR transcripts: 1384 issues of the Rich- mond (Virginia) Daily Dispatch from 1860-1865 (RDD) <ref type="bibr">3</ref> and 934 books from 1500-1800 from the Text Creation Partnership (TCP). <ref type="bibr">4</ref> Both of these manually transcribed collections, which were pro- duced independently from the current authors, are in the public domain and in English, although both Chronicling America and the Internet Archive also contain much non-English text.</p><p>To get more evidence for the correct reading of an OCR'd line, we aligned each OCR'd RDD is- sue to other issues of the RDD and other newspa- pers from Chronicling America and aligned each OCR'd TCP page to other pre-1800 books in the Internet Archive. To perform these alignments be- tween noisy OCR transcripts efficiently, we used methods from our earlier work on text-reuse anal- ysis ( <ref type="bibr" target="#b25">Smith et al., 2014;</ref><ref type="bibr" target="#b30">Wilkerson et al., 2015</ref>). An inverted index of hashes of word 5-grams was produced, and then all pairs from different pages in the same posting list were extracted. Pairs of pages with more than five shared hashed 5-grams were aligned with the Smith-Waterman algorithm with equal costs for insertion, deletion, and sub- stitution, which returns a maximally aligned sub- sequence in each pair of pages <ref type="bibr" target="#b26">(Smith and Waterman, 1981)</ref>. Aligned passages that were at least five lines long in the target RDD or TCP text were output. For each target OCR line-i.e., each line in the training or test set-there are thus, in addi- tion to the ground-truth manual transcript, zero or more witnesses from similar texts, to use the term from textual criticism.</p><p>In our experiments on OCR correction, each training and test example is a line of text follow- ing the layout of the scanned image documents 5 . The average number of characters per line is 42.4 for the RDD newspapers and 53.2 for the TCP books. <ref type="table" target="#tab_2">Table 2</ref> lists statistics for the number of OCR'd text lines with manual transcriptions and additional witnesses. 43% of the manually tran- scribed lines have witnesses in the RDD newspa- pers, and 64% of them have witnesses in the TCP books. In the full Chronicling America data, 44% of lines align to at least one other witness. Al- though not all OCR collections will have this level of repetition, it is notable that these collections, which are some of the largest public-domain dig- ital libraries, do exhibit this kind of reprinting. Similarly, at least 25% of the pages in Google's web crawls are duplicates <ref type="bibr" target="#b8">(Henzinger, 2006</ref>). Al- though we exploit text reuse, where available, to improve decoding and unsupervised training, we also show <ref type="table" target="#tab_8">(Table 5)</ref>   </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3">Methods</head><p>In this section, we first define our problem in §3.1, followed by model description. In gen- eral, we train an OCR error correction model via an attention-based RNN encoder-decoder, which takes a single erroneous OCR'd line as input and outputs the corrected text ( §3.2). At decoding time, multi-input attention combination strategies are introduced to allow the decoder to integrate in- formation from multiple inputs ( §3.3). Finally, we discuss several unsupervised settings for training the correction model in §3.4.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.1">Problem Definition</head><p>Given a line of OCR'd text x, comprising the se- quence of characters [x 1 , · · · , x T S ], our goal is to map it to an error-free text y = [y 1 , · · · , y T T ] via modeling p(y|x). Given p(y|x), we also seek to model p(y|X) to search for consensus among du- plicated texts X, where</p><formula xml:id="formula_0">X = [x 1 , · · · , x N ] are du- plicated lines of OCR'd text.</formula></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.2">Attention-based Seq2Seq Model</head><p>Similar to previous work ( <ref type="bibr" target="#b1">Bahdanau et al., 2015)</ref>, the encoder is a bidrectional RNN <ref type="bibr" target="#b24">(Schuster and Paliwal, 1997</ref>) that converts source sequence</p><formula xml:id="formula_1">x = [x 1 , · · · , x T S ] into a sequence of RNN states h = [h 1 , · · · , h T S ], where h i = [ − → h i , ← − h i ]</formula><p>is a concate- nation of both forward and backward hidden states at time step i(1 ≤ i ≤ T S ). We have</p><formula xml:id="formula_2">− → h i = f (x i , − → h i−1 ); ← − h i = f (x i , ← − h i+1 ), (1)</formula><p>here f is the dynamic function, e.g., LSTM (Hochreiter and Schmidhuber, 1997) or GRU ( <ref type="bibr" target="#b5">Cho et al., 2014</ref>). The decoder RNN predicts the output sequence y = [y 1 , · · · , y T T ], through the following dynam- ics and prediction model:</p><formula xml:id="formula_3">s t = f (y t−1 , s t−1 , c t );<label>(2)</label></formula><formula xml:id="formula_4">p(y t |y &lt;t , x) = g(y t−1 , s t , c t ),<label>(3)</label></formula><p>where s t is the RNN state and c t is the context vector at time t. y t is the predicted symbol from the target vocabulary at time t via prediction func- tion g(·). The context vector is given as a linear combination of the encoder hidden states:</p><formula xml:id="formula_5">c t = T S i=1 α t,i h i ; α t,i = e η(s t−1 ,h i ) τ e η(s t−1 ,hτ )<label>(4)</label></formula><p>where α t,i is the weight for each hidden state h i and η is the function that computes the strength of each encoder hidden state according to current de- coder hidden state. The loss function is the cross- entropy loss per time step summed over the output sequence y:</p><formula xml:id="formula_6">L(x, y) = − T S t=1 log p(y t |x, y &lt;t )<label>(5)</label></formula></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.3">Multi-input Attention</head><p>Given a trained Seq2Seq model p(y|x), our goal is to combine multiple input sequences X to gen- erate the target sequence y, i.e., to utilize infor- mation from multiple sources at decoding time.</p><formula xml:id="formula_7">Assume that N relevant source sequences X = [x 1 , · · · , x N ]</formula><p>are observed, where each sequence</p><formula xml:id="formula_8">x l = [x l,1 , · · · , x l,T l ] (1 ≤ l ≤ N )</formula><p>and T l is the length of the l th sequence. Then, a sequence of hidden states</p><formula xml:id="formula_9">h l = [h l,1 , · · · , h l,T l ]</formula><p>is generated by the encoder network for each input sequence x l . At each decoding time step t, the decoder searches through encoder hidden states</p><formula xml:id="formula_10">H = [h 1 , · · · , h N ]</formula><p>to compute a global context vector c t . Different strategies to combine attention from multiple en- coders are described as follows.</p><p>Flat Attention Combination. Flat attention com- bination assigns a weight α t,l,i to each encoder hidden state h l,i for each input sequence x l as:</p><formula xml:id="formula_11">α t,l,i = e η(s t−1 ,h l,i ) N l =1 T l τ =1 e η(s t−1 ,h l ,τ ) .<label>(6)</label></formula><p>Therefore, the global context vector is given by</p><formula xml:id="formula_12">c t = N l=1 T l i=1 α t,l,i h l,i .<label>(7)</label></formula><p>Flat attention combination is similar to single- input decoding in that it concatenates all inputs into a long sequence, except that the encoder hid- den states are computed independently for each in- put.</p><p>Hierarchical Attention Combination. The struc- ture of hierarchical attention combination is pre- sented in <ref type="figure" target="#fig_0">Figure 1</ref>. We first compute a context vector for each input as:</p><formula xml:id="formula_13">c t,l = T l i=1 α t,l,i h l,i ; α t,l,i = e η(s t−1 ,h l,i ) T l τ =1 e η(s t−1 ,h l,τ )</formula><p>.</p><p>(8) Then a global context vector c t is computed as a weighted sum of all the context vectors:</p><formula xml:id="formula_14">c t = N i=1 β t,l c t,l ,<label>(9)</label></formula><p>where β t,l is the weight assigned to each context vector c t,l and computed in different ways as fol- lows: (a) Weighted Attention Combination. In weighted attention combination, the weight for each context vector is given by its dot product with the decoder state in the transformed common space:</p><formula xml:id="formula_15">β t,l = e η(s t−1 ,c t,l ) N l =1 e η(s t−1 ,c t,l ) .<label>(10)</label></formula><p>(b) Average Attention Combination. In aver- age attention combination, each input sequence is treated as equally weighted. Thus β t,l = 1 N for each input sequence x l . It is more efficient than the weighted attention combination in that it does not need to compute a weight for each input. These attention-combination methods do not have parameters trained on multiple inputs and are only introduced at decoding time. In contrast, Li- bovick´ybovick´y and Helcl (2017) and <ref type="bibr" target="#b34">Zoph and Knight (2016)</ref> introduce parameters for each type of input and require training and decoding with the same number of inputs.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.4">Training Settings</head><p>In this section, we introduce different settings for training our correction model, a single-input attention-based Seq2Seq model ( §3.</p><note type="other">2), which transforms each OCR'd text line into a corrected version generated via different mechanisms. Supervised Training. In this setting, the correc- tion model is trained to map each OCR'd line into the corresponding manual transcription, i.e., the human annotation. We call the correction model trained in this setting Seq2Seq-Super. Unsupervised Training. In the absence of ground truth transcriptions, we can use different meth- ods to generate a noisy corrected version for each OCR'd line.</note><p>(a) Noisy Training. In this setting, the correc- tion model is trained to transform each OCR'd text line to a selected high-quality witness. The quality of the witnesses is measured by a 5-gram charac- ter language model built on the New York Time Corpus <ref type="bibr" target="#b22">(Sandhaus, 2008)</ref> with KenLM toolkit <ref type="bibr" target="#b7">(Heafield, 2011</ref>). For each OCR'd line with mul- tiple witnesses, a score is assigned to each witness by the language model, divided by the number of characters in it to reduce the effect of the length of a witness. Then a witness with the highest score is chosen as the noisy ground truth for each line. Those lines with low score for all witnesses are removed. We call the correction model trained in this setting Seq2Seq-Noisy.</p><p>(b) Synthetic Training. In this setting, the er- ror correction model is trained to recover a man- ually corrupted out-of-domain corpus. We con- struct the synthetic dataset by injecting uniformly distributed insertion, deletion and substitution er- rors into the New York Times corpus. Firstly, the news articles are split into lines with random length between <ref type="bibr">[1,</ref><ref type="bibr">70]</ref> following a Gaussian distri- bution N (45, 5), which is similar to that of the real world dataset. Then, a certain number of lines are randomly selected and injected with equal num- ber of insertion, deletion and substitution errors. The correction model is then trained to recover the original line from each corrupted line. We call this model Seq2Seq-Syn.</p><p>(c) Synthetic Training with Bootstrapping. In this setting, we propose to further improve the per- formance of synthetic training via bootstrapping. The correction model trained on synthetic dataset does not perform well when correcting a given in- put from real world dataset, due to their difference in error distributions. But it achieves compara- ble performance with the supervised model when decoding lines with multiple witnesses, since the model could further benefit from jointly aligning and voting among multiple inputs. Thus, with the multi-input attention mechanism introduced in §3.3, we first generate a high-quality consen- sus correction for each OCR'd line with witnesses via the correction model trained on synthetic data. Then, the a bootstrapped model is trained to trans- form those lines into their consensus correction re- sults. We call the correction model trained in this setting Seq2Seq-Bootstrap.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4">Experiments</head><p>In this section, we first introduce the details of our experimental setup ( §4.1). Then, the results of preliminary experiments comparing the perfor- mance of different options for the single-input Seq2Seq model and the multi-input attention com- bination strategies are presented in §4.2. The main experimental results for evaluating the correction model trained in different training settings and de- coded with/without multi-input attention are re- ported and explained in §4.3. Further discussions of our model are described in §4.4.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.1">Experimental Setup</head><p>We begin by describing the data split, training de- tails, baseline systems, and evaluation metrics.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.1.1">Training Details</head><p>For both RDD newspapers and TCP books, we randomly split the OCR'd lines into 80% training and 20% test either by the date of the newspaper or by the name of the books. For the RDD newspa- pers, we have 1.7M training lines and 0.44M test lines. For the TCP books, 2.8M lines are randomly sampled from the whole training set for different training settings to conduct a fair comparison with noisy training, and about 1.6M lines are used for testing.</p><p>Both the encoder and decoder of our model has 3 layers with 400 hidden units for each layer, where GRU is applied as the dynamic function. Adam optimizer with a learning rate of 0.0003 and default decay rates is used to train the correction model . We train up to 40 epochs with a mini- batch size of 128 and select the model with the lowest perplexity on the development set. The de- coder implements beam search with a beam width of 100.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.1.2">Baselines and Comparisons</head><p>In preliminary experiments, we first compare the neural translation model ( §3.2) with a commonly used Seq2Seq model, pruned conditional random fields (PCRF) ( <ref type="bibr" target="#b23">Schnober et al., 2016</ref>) on the single-input correction task. CRF models have been shown to be very competitve on tasks such as OCR post-correction, spelling correction, and lemmatization. After that, we compare the differ- ent multi-input attention strategies introduced in §3.3 on multi-input correction task to choose the best strategy for the main experiments.</p><p>In the main experiment, we compare the per- formance of correction models trained in differ- ent training settings and decode with and with- out multiple witnesses. Two ensembles methods, language model ranking (LMR) and majority vote ( <ref type="bibr" target="#b32">Xu and Smith, 2017)</ref>, are also considered as un- supervised baseline methods. LMR chooses a sin- gle high-quality witness for each OCR'd line by a language model as the correction for that line. Majority vote first aligns multiple input sequences using a greedy pairwise algorithm (since multiple sequence alignment is intractable) and then votes on each position in the alignment, with a slight ad- vantage given to the original OCR output in case of ties. We also tried to use an exact unsupervised method for consensus decoding based on dual de- composition ( <ref type="bibr" target="#b21">Paul and Eisner, 2012)</ref>. Their imple- mentation, unfortunately, turned out not to return a certificate of completion on most lines in our data even after thousands of iterations.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.1.3">Evaluation Metrics</head><p>Word error rate (WER) and character error rate (CER) are used to compare the performance of each method. Case is ignored. Lattice word er- ror rate (LWER) and lattice character error rate (LCER) are also computed as the oracle perfor- mance for each method, which could reveal the capability of each model to be applied to down- stream tasks taking lattices as input, e.g., re- ranking or retrieval of the correction hypothe- ses ( <ref type="bibr" target="#b27">Taghva et al., 1996;</ref><ref type="bibr" target="#b14">Lam-Adesina and Jones, 2006</ref>). We compute the macro average for each type of error rate, which allows us to use a paired permutation significance test.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.2">Preliminary Experiments</head><p>In this section, we conduct two preliminary ex- periments to study different options for both the single-input correction models and the multi-input attention combination strategies.  We first compare the attention-based Seq2Seq (Attn-Seq2Seq) model, with a traditional Seq2Seq model, PCRF, on single input correction task. As the PCRF implementation of <ref type="bibr" target="#b23">Schnober et al. (2016)</ref> is highly memory and time consuming for training on long sequences, we compare it with Attn-Seq2Seq model on a smaller dataset with 100K lines randomly sampled from RDD news- papers training set. The trained correction model is then applied to correct the full test set. CER and WER of the correction results from both mod- els are listed in <ref type="table" target="#tab_4">Table 3</ref>. We can find that the Attn-Seq2Seq neural translation model works sig- nificantly better than the PCRF when trained on a dataset of the same size. The performance of the Attn-Seq2seq model could be further improved by including more training data or by multi-input de- coding for duplicated texts, while the PCRF could only be trained on limited data and is not able to work on multiple inputs. Thus, we choose Attn- Seq2Seq as our error correction model.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.2.1">Single Input Correction Model</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.2.2">Multi-input Attention Combination</head><p>We also compare different attention combination strategies on a multi-input decoding task. The re- sults from <ref type="table" target="#tab_6">Table 4</ref> reveal that average attention combination performs best among all the decod- ing strategies on RDD newspapers and TCP books datasets. It reduces the CER of single input de- coding by 41.5% for OCR'd lines in RDD news- papers and 9.76% for TCP books.</p><p>The com- parison between two hierarchical attention com- bination strategies shows that averaging evidence from each input works better than a weighted sum- mation mechanism. Flat attention combination, which merges all the inputs into a long sequence when computing the strength of each encoder hid- den state, obtains the worst performance in terms  of both CER and WER.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.3">Main Results</head><p>We now present results on the full training and test sets for the Richmond Daily Dispatch news- papers and Text Creation Partnership books. All results are on the same test set. The multi-input de- coding experiments have access to additional wit- nesses for each line, where available, but fall back to single-input decoding when no additional wit- nesses are present for a given line. <ref type="table" target="#tab_8">Table 5</ref> presents the results for our model trained in different training settings as well as the baseline language model reranking (LMR) and majority vote methods. Multiple input decoding performs better than single input decoding for ev- ery training setting, and the model trained in su- pervised mode with multi-input decoding achieves the best performance. The majority vote base- line, which works only on more than two in- puts, performs worst on both the TCP books and RDD newspapers. Our proposed unsuper- vised framework Seq2Seq-Noisy and Seq2Seq- Boots achieves performance comparable with the supervised model via multi-input decoding on the RDD newspaper dataset. The performance of Seq2Seq-Noisy is worse on the TCP Books than the RDD newspapers, since those old books con- tain the character long s 6 , which is formerly used where s occurred in the middle or at the begin- ning of a word. These characters are recognized as f in all the witnesses because of similar shape. Thus, the model trained on noisy data are unable to correct them into s. Nonetheless, by removing the factor of long s, i.e., replacing the long s in the ground truth with f, Seq2Seq-Noisy could achieve a CER of 0.062 for single-input decoding and 0.058 for multi-input decoding on the TCP books. Both Seq2Seq-Syn and Seq2Seq-Boots work bet- ter on the RDD newspapers than the TCP books dataset. We conjecture that it is because the syn- thetic dataset is trained on (modern) newspapers, which are more similar to the nineteenth-century RDD newspapers. The long s problem also makes it more difficult for the model trained on synthetic data to work on the TCP books.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.4">Discussion</head><p>In this section, we provide further analysis on dif- ferent aspects of our method. Does Corruption Rate Affect Synthetic Train- ing? We first examine how the corruption rate of the synthetic dataset would affect the performance of the correction model. <ref type="figure" target="#fig_1">Figure 2</ref> presents the results of single-input correction and multi-input correction tasks on the RDD newspapers and TCP books when trained on synthetic data corrupted with different error rate: 0.9, 0.12, 0.15. For both tasks, the character error rate increases a little bit when the correction model is trained to recover the synthetic date with higher corruption rate. How- ever, the performance is more stable on the RDD newspapers than the TCP books when more errors are introduced.    the performance of multiple-input decoding. The test set is divided into subgroups with varying size according to their number of witnesses. <ref type="figure" target="#fig_2">Fig- ure 3</ref> presents the performance of multi-input cor- rection on subgroups with different number of witnesses. We can see that supervised training achieves the best performance on each subgroup for both datasets. On the RDD newspapers, the performance of each training setting is signifi- cantly improved when the number of witnesses in- creases from 0 to 2, then the error rate tends to be flat when more witnesses are observed. For the TCP books, the character error rate for both Seq2Seq-Syn and Seq2Seq-Boots decreases with small fluctuation when the number of witnesses increases. Seq2Seq-Noisy performs the worst al- most on all subgroups on the TCP books since all the witnesses suffers from the long s problem.</p><p>Can More Training Data Benefit Learning? <ref type="figure" target="#fig_3">Figure 4</ref> shows the test results for our correction model trained on datasets of different size. As the size of the training set increases, the CER of our model decreases consistently for both single and multiple input correction on the RDD newspa- pers. However, the performance curve of correc- tion model on TCP books dataset is flatter since it is larger overall than RDD newspapers. </p></div><figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_0"><head>Figure 1 :</head><label>1</label><figDesc>Figure 1: Hierarchical attention combination.</figDesc><graphic url="image-1.png" coords="4,307.28,497.06,208.63,137.01" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_1"><head>Figure 2 :</head><label>2</label><figDesc>Figure 2: Performance of Seq2Seq-Syn trained on synthetic data with different corruption rates.</figDesc><graphic url="image-2.png" coords="7,307.28,536.98,99.77,124.72" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_2"><head>Figure 3 :</head><label>3</label><figDesc>Figure 3: Performance of different models on multiple decoding of lines with different number of witnesses.</figDesc><graphic url="image-4.png" coords="8,72.00,259.12,208.64,156.48" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_3"><head>Figure 4 :</head><label>4</label><figDesc>Figure 4: Performance of the supervised correction model trained on different proportions of the RDD newspapers and TCP books dataset.</figDesc><graphic url="image-6.png" coords="8,307.28,567.63,99.77,124.72" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_0" validated="false"><head>Table 1 : Example duplicate texts in OCR'd digital corpora</head><label>1</label><figDesc></figDesc><table></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_1" validated="false"><head></head><label></label><figDesc>significant improvements to OCR accuracy with only a single transcript.</figDesc><table>Dataset 
+# Lines 
+# Lines 
+w/manual w/manual &amp; witnesses 
+RDD 
+2.2M 
+0.95M (43%) 
+TCP 
+8.6M 
+5.5M (64%) 
+
+</table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_2" validated="false"><head>Table 2 :</head><label>2</label><figDesc></figDesc><table>Statistics for the number of OCR'd lines in million 
+
+(M) from the Richmond Dispatch and TCP Books with man-
+ual transcriptions (Column 1) or with both transcriptions and 
+multiple witnesses (Column 2). 
+
+</table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_4" validated="false"><head>Table 3 :</head><label>3</label><figDesc></figDesc><table>CER and WER on single-input correction for 
+
+PCRF and Attn-Seq2Seq on RDD newspapers. Results from 
+Attn-Seq2Seq that are significantly better than the PCRF are 
+highlighted with *(p &lt; 0.05, paired permutation test). The 
+best result for each column is in bold. 
+
+</table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_6" validated="false"><head>Table 4 :</head><label>4</label><figDesc></figDesc><table>Results of correcting lines in the RDD newspapers and TCP books with multiple witnesses when decoding with 
+
+different strategies using the same supervised model. Attention combination strategies that statistically significantly outperform 
+single-input decoding are highlighted with * (p &lt; 0.05, paired-permutation test). Best result for each column is in bold. 
+
+</table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_8" validated="false"><head>Table 5 :</head><label>5</label><figDesc></figDesc><table>Results from model trained under different settings on single-input decoding and multiple-input decoding for both 
+
+the RDD newspapers and TCP books. All training is unsupervised except for supervised results in italics. Unsupervised 
+training settings with multi-input decoding that are significantly better than other unsupervised counterparts are highlighted 
+with * (p &lt; 0.05, paired-permutation test). Best result among unsupervised training in each column is in bold. 
+
+</table></figure>
+
+			<note place="foot" n="1"> chroniclingamerica.loc.gov: Historical newspapers also constitute the largest digitized text collections in the Australian National Library (Trove) and the Europeana consortium. 2 https://archive.org/details/texts. Google Books and the Hathi Trust consortium also hold many in-copyright books and require licensing agreements to access public-domain materials. 3 dlxs.richmond.edu/d/ddr/: the transcription from the University of Richmond includes all articles but only some advertisements.</note>
+
+			<note place="foot" n="4"> www.textcreationpartnership.org 5 The datasets can be downloaded from http://www. ccs.neu.edu/home/dongrui/ocr.html</note>
+
+			<note place="foot" n="6"> https://en.wikipedia.org/wiki/Long_s</note>
+		</body>
+		<back>
+
+			<div type="acknowledgement">
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Acknowledgements</head><p>This work was supported by NIH grant 2R01DC009834-06A1, the Andrew W. Mel-lon Foundation's Scholarly Communications and Information Technology program, and a Google Faculty Research Award. Any views, findings, conclusions, or recommendations expressed do not necessarily reflect those of the NIH, Mellon, or Google. We would like to thank the anonymous reviewers for their valuable comments.</p></div>
+			</div>
+
+			<div type="annex">
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6">Conclusions</head><p>We have proposed an unsupervised framework for OCR error correction, which can handle both single-input and multi-input correction tasks. An attention-based sequence-to-sequence model is applied for single-input correction, based on which a strategy of multi-input attention combi- nation is designed to correct multiple input se- quences simultaneously. The proposed strategy naturally incorporates aligning, correcting, and voting among multiple sequences, and is thus ef- fective in improving the correction performance for corpora containing duplicated text. We pro- pose two ways of training the correction model without human annotation by exploiting the dupli- cation in the corpus. Experimental results on his- torical books and newspapers show that these un- supervised approaches significantly improve OCR accuracy and, when multiple inputs are avail- able, achieve performance comparable to super- vised methods.</p></div>			</div>
+			<div type="references">
+
+				<listBibl>
+
+<biblStruct xml:id="b0">
+	<analytic>
+		<title level="a" type="main">Combination of multiple aligned recognition outputs using WFST and LSTM</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Al</forename><surname>Mayce</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Marcus</forename><surname>Azawi</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Thomas</forename><forename type="middle">M</forename><surname>Liwicki</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Breuel</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">ICDAR</title>
+		<imprint>
+			<date type="published" when="2015" />
+			<biblScope unit="page" from="31" to="35" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b1">
+	<analytic>
+		<title level="a" type="main">Neural machine translation by jointly learning to align and translate</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Dzmitry</forename><surname>Bahdanau</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kyunghyun</forename><surname>Cho</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yoshua</forename><surname>Bengio</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">ICLR</title>
+		<imprint>
+			<date type="published" when="2015" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b2">
+	<analytic>
+		<title level="a" type="main">Improving OCR accuracy for classical critical editions</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Federico</forename><surname>Boschetti</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Matteo</forename><surname>Romanello</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Alison</forename><surname>Babeu</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">David</forename><surname>Bamman</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Gregory</forename><surname>Crane</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">JCDL</title>
+		<imprint>
+			<date type="published" when="2009" />
+			<biblScope unit="page" from="156" to="167" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b3">
+	<analytic>
+		<title level="a" type="main">Hybrid OCR combination approach complemented by a specialized ICR applied on ancient documents</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Hubert</forename><surname>Cecotti</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Abdel</forename><surname>Bela¨ıdbela¨ıd</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">ICDAR</title>
+		<imprint>
+			<date type="published" when="2005" />
+			<biblScope unit="page" from="1045" to="1049" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b4">
+	<analytic>
+		<title level="a" type="main">Impact of OCR errors on the use of digital libraries: Towards a better access to information</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Guillaume</forename><surname>Chiron</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Antoine</forename><surname>Doucet</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Mickael</forename><surname>Coustaty</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Muriel</forename><surname>Visani</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jean-Philippe</forename><surname>Moreux</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">JCDL</title>
+		<imprint>
+			<date type="published" when="2017" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b5">
+	<analytic>
+		<title level="a" type="main">Learning phrase representations using RNN encoder-decoder for statistical machine translation</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kyunghyun</forename><surname>Cho</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Bart</forename><surname>Van Merriënboer</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Caglar</forename><surname>Gulcehre</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Dzmitry</forename><surname>Bahdanau</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Fethi</forename><surname>Bougares</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Holger</forename><surname>Schwenk</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yoshua</forename><surname>Bengio</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">EMNLP</title>
+		<imprint>
+			<date type="published" when="2014" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b6">
+	<analytic>
+		<title level="a" type="main">Neural network translation models for grammatical error correction</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Shamil</forename><surname>Chollampatt</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kaveh</forename><surname>Taghipour</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Hwee Tou</forename><surname>Ng</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">IJCAI</title>
+		<imprint>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b7">
+	<analytic>
+		<title level="a" type="main">KenLM: Faster and smaller language model queries</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kenneth</forename><surname>Heafield</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. Workshop on Statistical Machine Translation</title>
+		<meeting>Workshop on Statistical Machine Translation</meeting>
+		<imprint>
+			<date type="published" when="2011" />
+			<biblScope unit="page" from="187" to="197" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b8">
+	<analytic>
+		<title level="a" type="main">Finding near-duplicate web pages: A large-scale evaluation of algorithms</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Monika</forename><surname>Henzinger</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">SIGIR</title>
+		<imprint>
+			<date type="published" when="2006" />
+			<biblScope unit="page" from="284" to="291" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b9">
+	<analytic>
+		<title level="a" type="main">Long short-term memory</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Sepp</forename><surname>Hochreiter</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jürgen</forename><surname>Schmidhuber</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Neural Computation</title>
+		<imprint>
+			<biblScope unit="volume">9</biblScope>
+			<biblScope unit="issue">8</biblScope>
+			<biblScope unit="page" from="1735" to="1780" />
+			<date type="published" when="1997" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b10">
+	<monogr>
+		<title level="m" type="main">Many hands make light work: Public collaborative OCR text correction in Australian historic newspapers</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Rose</forename><surname>Holley</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2009" />
+		</imprint>
+		<respStmt>
+			<orgName>National Library of Australia</orgName>
+		</respStmt>
+	</monogr>
+<note type="report_type">Technical report</note>
+</biblStruct>
+
+<biblStruct xml:id="b11">
+	<analytic>
+		<title level="a" type="main">A voting system for automatic OCR correction</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">T</forename><surname>Shmuel</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Miri</forename><surname>Klein</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Kopel</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. SIGIR Workshop on Information Retrieval and OCR</title>
+		<meeting>SIGIR Workshop on Information Retrieval and OCR</meeting>
+		<imprint>
+			<date type="published" when="2002" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b12">
+	<analytic>
+		<title level="a" type="main">A generative probabilistic OCR model for NLP applications</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Okan</forename><surname>Kolak</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">William</forename><surname>Byrne</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Philip</forename><surname>Resnik</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">HLT-NAACL</title>
+		<imprint>
+			<date type="published" when="2003" />
+			<biblScope unit="page" from="55" to="62" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b13">
+	<analytic>
+		<title level="a" type="main">OCR error correction using a noisy channel model</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Okan</forename><surname>Kolak</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Philip</forename><surname>Resnik</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">HLT</title>
+		<imprint>
+			<date type="published" when="2002" />
+			<biblScope unit="page" from="257" to="262" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b14">
+	<analytic>
+		<title level="a" type="main">Examining and improving the effectiveness of relevance feedback for retrieval of scanned text documents</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">M</forename><surname>Adenike</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Lam-Adesina</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">J</forename><forename type="middle">F</forename><surname>Gareth</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Jones</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Information Processing &amp; Management</title>
+		<imprint>
+			<biblScope unit="volume">42</biblScope>
+			<biblScope unit="issue">3</biblScope>
+			<biblScope unit="page" from="633" to="649" />
+			<date type="published" when="2006" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b15">
+	<analytic>
+		<title level="a" type="main">Attention strategies for multi-source sequence-to-sequence learning</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jindřich</forename><surname>Libovick´ylibovick´y</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jindřich</forename><surname>Helcl</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">ACL</title>
+		<imprint>
+			<date type="published" when="2017" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b16">
+	<monogr>
+		<title level="m" type="main">Using consensus sequence voting to correct OCR errors. Computer Vision and Image Understanding</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Daniel</forename><surname>Lopresti</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jiangying</forename><surname>Zhou</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="1997" />
+			<biblScope unit="volume">67</biblScope>
+			<biblScope unit="page" from="39" to="47" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b17">
+	<analytic>
+		<title level="a" type="main">Combining multiple thresholding binarization values to improve OCR output</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">William</forename><forename type="middle">B</forename><surname>Lund</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Douglas</forename><forename type="middle">J</forename><surname>Kennard</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Eric</forename><forename type="middle">K</forename><surname>Ringger</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. Document Recognition and Retrieval (DRR)</title>
+		<meeting>Document Recognition and Retrieval (DRR)</meeting>
+		<imprint>
+			<date type="published" when="2013" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b18">
+	<analytic>
+		<title level="a" type="main">Improving optical character recognition through efficient multiple system alignment</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">B</forename><surname>William</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Eric</forename><forename type="middle">K</forename><surname>Lund</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Ringger</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">JCDL</title>
+		<imprint>
+			<date type="published" when="2009" />
+			<biblScope unit="page" from="231" to="240" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b19">
+	<analytic>
+		<title level="a" type="main">How well does multiple OCR error correction generalize?</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Eric</forename><forename type="middle">K</forename><surname>William B Lund</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Daniel D</forename><surname>Ringger</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Walker</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. Document Recognition and Retrieval (DRR)</title>
+		<meeting>Document Recognition and Retrieval (DRR)</meeting>
+		<imprint>
+			<date type="published" when="2014" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b20">
+	<analytic>
+		<title level="a" type="main">Progressive alignment and discriminative error correction for multiple OCR engines</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">William</forename><forename type="middle">B</forename><surname>Lund</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Daniel</forename><forename type="middle">D</forename><surname>Walker</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Eric</forename><forename type="middle">K</forename><surname>Ringger</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">ICDAR</title>
+		<imprint>
+			<date type="published" when="2011" />
+			<biblScope unit="page" from="764" to="768" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b21">
+	<analytic>
+		<title level="a" type="main">Implicitly intersecting weighted automata using dual decomposition</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">J</forename><surname>Michael</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jason</forename><surname>Paul</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Eisner</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">NAACL</title>
+		<imprint>
+			<date type="published" when="2012" />
+			<biblScope unit="page" from="232" to="242" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b22">
+	<monogr>
+		<title level="m" type="main">The New York Times annotated corpus. Linguistic Data Consortium</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Evan</forename><surname>Sandhaus</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2008" />
+			<biblScope unit="volume">6</biblScope>
+			<biblScope unit="page">26752</biblScope>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b23">
+	<analytic>
+		<title level="a" type="main">Still not there? comparing traditional sequence-to-sequence models to encoderdecoder neural networks on monotone string translation tasks</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Carsten</forename><surname>Schnober</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Steffen</forename><surname>Eger</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">COLING</title>
+		<imprint>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+	<note>Erik-Lân Do Dinh, and Iryna Gurevych</note>
+</biblStruct>
+
+<biblStruct xml:id="b24">
+	<analytic>
+		<title level="a" type="main">Bidirectional recurrent neural networks</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Mike</forename><surname>Schuster</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kuldip</forename><forename type="middle">K</forename><surname>Paliwal</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">IEEE Transactions on Signal Processing</title>
+		<imprint>
+			<biblScope unit="volume">45</biblScope>
+			<biblScope unit="issue">11</biblScope>
+			<biblScope unit="page" from="2673" to="2681" />
+			<date type="published" when="1997" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b25">
+	<analytic>
+		<title level="a" type="main">Detecting and modeling local text reuse</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">David</forename><forename type="middle">A</forename><surname>Smith</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ryan</forename><surname>Cordell</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Elizabeth</forename><forename type="middle">Maddock</forename><surname>Dillon</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Nick</forename><surname>Stramp</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">John</forename><surname>Wilkerson</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">JCDL</title>
+		<imprint>
+			<date type="published" when="2014" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b26">
+	<analytic>
+		<title level="a" type="main">Identification of common molecular subsequences</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">T</forename><forename type="middle">F</forename><surname>Smith</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">M</forename><forename type="middle">S</forename><surname>Waterman</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Journal of Molecular Biology</title>
+		<imprint>
+			<biblScope unit="volume">147</biblScope>
+			<biblScope unit="issue">1</biblScope>
+			<biblScope unit="page" from="195" to="197" />
+			<date type="published" when="1981" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b27">
+	<analytic>
+		<title level="a" type="main">Effects of ocr errors on ranking and feedback using the vector space model</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kazem</forename><surname>Taghva</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Julie</forename><surname>Borsack</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Allen</forename><surname>Condit</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Information Processing &amp; Management</title>
+		<imprint>
+			<biblScope unit="volume">32</biblScope>
+			<biblScope unit="issue">3</biblScope>
+			<biblScope unit="page" from="317" to="327" />
+			<date type="published" when="1996" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b28">
+	<analytic>
+		<title level="a" type="main">Neural network-based abstract generation for opinions and arguments</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Lu</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Wang</forename><surname>Ling</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">NAACL</title>
+		<imprint>
+			<date type="published" when="2016" />
+			<biblScope unit="page" from="47" to="57" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b29">
+	<analytic>
+		<title level="a" type="main">Creating an improved version using noisy OCR from multiple editions</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">David</forename><surname>Wemhoener</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">R</forename><surname>Ismet Zeki Yalniz</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Manmatha</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">ICDAR</title>
+		<imprint>
+			<date type="published" when="2013" />
+			<biblScope unit="page" from="160" to="164" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b30">
+	<analytic>
+		<title level="a" type="main">Tracing the flow of policy ideas on legislatures: A text reuse approach</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">John</forename><surname>Wilkerson</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">David</forename><forename type="middle">A</forename><surname>Smith</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Nick</forename><surname>Stramp</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">American Journal of Political Science</title>
+		<imprint>
+			<date type="published" when="2015" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b31">
+	<monogr>
+				<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ziang</forename><surname>Xie</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Anand</forename><surname>Avati</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Naveen</forename><surname>Arivazhagan</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Dan</forename><surname>Jurafsky</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Andrew Y</forename><surname>Ng</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1603.09727</idno>
+		<title level="m">Neural language correction with character-based attention</title>
+		<imprint>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b32">
+	<analytic>
+		<title level="a" type="main">Retrieving and combining repeated passages to improve OCR</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Shaobin</forename><surname>Xu</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">David</forename><forename type="middle">A</forename><surname>Smith</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">JCDL</title>
+		<imprint>
+			<date type="published" when="2017" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b33">
+	<analytic>
+		<title level="a" type="main">Hypothesis preservation approach to scene text recognition with weighted finite-state transducer</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Takafumi</forename><surname>Yamazoe</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Minoru</forename><surname>Etoh</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Takeshi</forename><surname>Yoshimura</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kousuke</forename><surname>Tsujino</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">ICDAR</title>
+		<imprint>
+			<date type="published" when="2011" />
+			<biblScope unit="page" from="359" to="363" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b34">
+	<monogr>
+		<title level="m" type="main">Multi-source neural translation</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Barret</forename><surname>Zoph</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kevin</forename><surname>Knight</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+	<note>In NAACL</note>
+</biblStruct>
+
+				</listBibl>
+			</div>
+		</back>
+	</text>
+</TEI>

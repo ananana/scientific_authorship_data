@@ -1,0 +1,245 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<TEI xmlns="http://www.tei-c.org/ns/1.0" 
+xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+xsi:schemaLocation="http://www.tei-c.org/ns/1.0 /home/ana/installs/grobid/grobid-0.5.1/grobid-home/schemas/xsd/Grobid.xsd"
+ xmlns:xlink="http://www.w3.org/1999/xlink">
+	<teiHeader xml:lang="en">
+		<encodingDesc>
+			<appInfo>
+				<application version="0.5.1-SNAPSHOT" ident="GROBID" when="2019-04-18T10:59+0000">
+					<ref target="https://github.com/kermitt2/grobid">GROBID - A machine learning software for extracting information from scholarly documents</ref>
+				</application>
+			</appInfo>
+		</encodingDesc>
+		<fileDesc>
+			<titleStmt>
+				<title level="a" type="main">Sharp Models on Dull Hardware: Fast and Accurate Neural Machine Translation Decoding on the CPU</title>
+			</titleStmt>
+			<publicationStmt>
+				<publisher>Association for Computational Linguistics</publisher>
+				<availability status="unknown"><p>Copyright Association for Computational Linguistics</p>
+				</availability>
+				<date>September 7-11, 2017. 2017</date>
+			</publicationStmt>
+			<sourceDesc>
+				<biblStruct>
+					<analytic>
+						<author role="corresp">
+							<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jacob</forename><surname>Devlin</surname></persName>
+							<email>jdevlin@microsoft.com</email>
+							<affiliation key="aff0">
+								<orgName type="institution">Microsoft Research</orgName>
+							</affiliation>
+						</author>
+						<title level="a" type="main">Sharp Models on Dull Hardware: Fast and Accurate Neural Machine Translation Decoding on the CPU</title>
+					</analytic>
+					<monogr>
+						<title level="m">Natural Language Processing</title>
+						<meeting> <address><addrLine>Copenhagen, Denmark</addrLine></address>
+						</meeting>
+						<imprint>
+							<publisher>Association for Computational Linguistics</publisher>
+							<biblScope unit="page" from="2820" to="2825"/>
+							<date type="published">September 7-11, 2017. 2017</date>
+						</imprint>
+					</monogr>
+				</biblStruct>
+			</sourceDesc>
+		</fileDesc>
+		<profileDesc>
+			<abstract>
+				<p>Attentional sequence-to-sequence models have become the new standard for machine translation, but one challenge of such models is a significant increase in training and decoding cost compared to phrase-based systems. Here, we focus on efficient decoding, with a goal of achieving accuracy close the state-of-the-art in neural machine translation (NMT), while achieving CPU decoding speed/through-put close to that of a phrasal decoder. We approach this problem from two angles: First, we describe several techniques for speeding up an NMT beam search de-coder, which obtain a 4.4x speedup over a very efficient baseline decoder without changing the decoder output. Second , we propose a simple but powerful network architecture which uses an RNN (GRU/LSTM) layer at bottom, followed by a series of stacked fully-connected layers applied at every timestep. This architecture achieves similar accuracy to a deep recurrent model, at a small fraction of the training and decoding cost. By combining these techniques, our best system achieves a very competitive accuracy of 38.3 BLEU on WMT English-French NewsTest2014, while decoding at 100 words/sec on single-threaded CPU. We believe this is the best published ac-curacy/speed trade-off of an NMT system.</p>
+			</abstract>
+		</profileDesc>
+	</teiHeader>
+	<text xml:lang="en">
+		<body>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="1">Introduction</head><p>Attentional sequence-to-sequence models have become the new standard for machine transla- tion over the last two years, and with the un- precedented improvements in translation accuracy comes a new set of technical challenges. One of the biggest challenges is the high training and de- coding costs of these neural machine translation (NMT) system, which is often at least an order of magnitude higher than a phrase-based system trained on the same data. For instance, phrasal MT systems were able achieve single-threaded decod- ing speeds of 100-500 words/sec on decade-old CPUs <ref type="bibr">(Quirk and Moore, 2007)</ref>, while <ref type="bibr">Jean et al. (2015)</ref> reported single-threaded decoding speeds of 8-10 words/sec on a shallow NMT system. <ref type="bibr">Wu et al. (2016)</ref> was able to reach CPU decoding speeds of 100 words/sec for a deep model, but used 44 CPU cores to do so. There has been re- cent work in speeding up decoding by reducing the search space <ref type="bibr">(Kim and Rush, 2016)</ref>, but little in computational improvements.</p><p>In this work, we consider a production sce- nario which requires low-latency, high-throughput NMT decoding. We focus on CPU-based de- coders, since GPU/FPGA/ASIC-based decoders require specialized hardware deployment and lo- gistical constraints such as batch processing. Ef- ficient CPU decoders can also be used for on- device mobile translation. We focus on single- threaded decoding and single-sentence processing, since multiple threads can be used to reduce la- tency but not total throughput.</p><p>We approach this problem from two angles: In Section 4, we describe a number of techniques for improving the speed of the decoder, and ob- tain a 4.4x speedup over a highly efficient base- line. These speedups do not affect decoding re- sults, so they can be applied universally. In Sec- tion 5, we describe a simple but powerful network architecture which uses a single RNN (GRU/L- STM) layer at the bottom with a large number of fully-connected (FC) layers on top, and obtains improvements similar to a deep RNN model at a fraction of the training and decoding cost.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2">Data Set</head><p>The data set we evaluate on in this work is WMT English-French NewsTest2014, which has 380M words of parallel training data and a 3003 sen- tence test set. The NewsTest2013 set is used for validation. In order to compare our archi- tecture to past work, we train a word-based sys- tem without any data augmentation techniques. The network architecture is very similar to <ref type="bibr" target="#b0">Bahdanau et al. (2014)</ref>, and specific details of layer size/depth are provided in subsequent sections. We use an 80k source/target vocab and perform standard unk-replacement ( <ref type="bibr">Jean et al., 2015</ref>) on out-of-vocabulary words. Training is performed using an in-house toolkit.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3">Baseline Decoder</head><p>Our baseline decoder is a standard beam search decoder <ref type="bibr">(Sutskever et al., 2014</ref>) with several straightforward performance optimizations:</p><p>• It is written in pure C++, with no heap allo- cation done during the core search.</p><p>• A candidate list is used to reduce the out- put softmax from 80k to ~500. We run word alignment ( <ref type="bibr" target="#b1">Brown et al., 1993</ref>) on the training and keep the top 20 context-free translations for each source word in the test sentence.</p><p>• The Intel MKL library is used for matrix mul- tiplication, as it is the fastest floating point matrix multiplication library for CPUs.</p><p>• Early stopping is performed when the top partial hypothesis has a log-score of δ = 3.0 worse than the best completed hypothesis.</p><p>• Batching of matrix multiplication is applied when possible. Since each sentence is de- coded separately, we can only batch over the hypotheses in the beam as well as the input vectors on the source side.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4">Decoder Speed Improvements</head><p>This section describes a number of speedups that can be made to a CPU-based attentional sequence- to-sequence beam decoder. Crucially, none of these speedups affect the actual mathematical computation of the decoder, so they can be applied to any network architecture with a guarantee that they will not affect the results. 1</p><p>The model used here is similar to the original implementation of <ref type="bibr" target="#b0">Bahdanau et al. (2014)</ref>. The exact target GRU equation is:</p><formula xml:id="formula_0">d ij = tanh(W a h i−1 + V a x i )·tanh(U a s j ) α ij = e dij j e d ij c i = j α ij s j u i = σ(W u h i−1 + V u x i + U u c i + b u ) r i = σ(W r h i−1 + V r x i + U r c i + b r ) ˆ h i = σ(r i (W h h i−1 ) + V h x i + U h c i + b h ) h i = u i h i−1 + (1 − u i ) ˆ h i Where W * , V * , U * , b * are learned parameters, s j</formula><p>is the hidden vector of the j th source word, h i−1 is the previous target recurrent vector, x i is the target input (e.g., embedding of previous word).</p><p>We also denote the various hyperparameters: b for the beam size, r for the recurrent hidden size, e is the embedding size, |S| for the source sentence length, and |T | for the target sentence length, |E| is the vocab size.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.1">16-Bit Matrix Multiplication</head><p>Although CPU-based matrix multiplication li- braries are highly optimized, they typically only operate on 32/64-bit floats, even though DNNs can almost always operate on much lower precision without degredation of accuracy ( <ref type="bibr">Han et al., 2016)</ref>. However, low-precision math (1-bit to 7-bit) is dif- ficult to implement efficiently on the CPU, and even 8-bit math has limited support in terms of vectorized (SIMD) instruction sets. Here, we use 16-bit fixed-point integer math, since it has first- class SIMD support and requires minimal changes to training. Training is still performed with 32-bit floats, but we clip the weights to the range [-1.0, 1.0] the relu activation to [0.0, 10.0] to ensure that all values fit into 16-bits with high precision. A reference implementation of 16-bit multiplica- tion in C++/SSE2 is provided in the supplemen- tary material, with a thorough description of low- level details. <ref type="bibr">2</ref> A comparison between our 16-bit integer imple- mentation and Intel MKL's 32-bit floating point multiplication is given in <ref type="figure" target="#fig_0">Figure 1</ref>. We can see that 16-bit multiplication is 2x-3x faster than 32- bit multiplication for batch sizes between 2 and 8, which is the typical range of the beam size b. We are able to achieve greater than a 2x speedup in certain cases because we pre-process the weight matrix offline to have optimal memory layout, which is a capability BLAS libraries do not have. </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.2">Pre-Compute Embeddings</head><p>In the first hidden layer on the source and target sides, x i corresponds to word embeddings. Since this is a closed set of values that are fixed af- ter training, the vectors V x i can be pre-computed <ref type="bibr" target="#b2">(Devlin et al., 2014</ref>) for each word in the vocabu- lary and stored in a lookup table. This can only be applied to the first hidden layer.</p><p>Pre-computation does increase the memory cost of the model, since we must store r × 3 floats per word instead of e. However, if we only compute the k most frequently words (e.g., k = 8, 000), this reduces the pre-computation memory by 90% but still results in 95%+ token coverage due to the Zipfian distribution of language.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.3">Pre-Compute Attention</head><p>The attention context computation in the GRU can be re-factored as follows:</p><formula xml:id="formula_1">U c i = U ( j α ij s j ) = j α ij (U s j )</formula><p>Crucially, the hidden vector representation s j is only dependent on the source sentence, while a ij is dependent on the target hypothesis. Therefore, the original computation U c i requires total |T | × b multiplications per sentence, but the re-factored version U s j only requires total |S| multiplications. The expectation over α must still be computed at each target timestep, but this is much less expen- sive than the multiplication by U .</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.4">SSE &amp; Lookup Tables</head><p>For the element-wise vector functions use in the GRU, we can use vectorized instructions (SSE/AVX) for the add and multiply func- tions, and lookup tables for sigmoid and tanh.</p><p>Reference implementations in C++ are provided in the supplementary material.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.5">Merge Recurrent States</head><p>In </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.6">Speedup Results</head><p>Cumulative results from each of the preceding speedups are presented in <ref type="table">Table 1</ref>, measured on WMT English-French NewsTest2014. The NMT architecture evaluated here uses 3-layer 512- dimensional bidirectional GRU for the source, and a 1-layer 1024-dimensional attentional GRU for the target. Each sentence is decoded indepen- dently with a beam of 6. Since these speedups are all mathematical identities excluding quantiza- tion noise, all outputs achieve 36.2 BLEU and are 99.9%+ identical.</p><p>The largest improvement is from 16-bit matrix multiplication, but all speedups contribute a sig- nificant amount. Overall, we are able to achieve a 4.4x speedup over a fast baseline decoder. Al- though the absolute speed is impressive, the model only uses one target layer and is several BLEU behind the SOTA, so the next goal is to maxi- mize model accuracy while still achieving speeds greater than some target, such as 100 words/sec.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Words/Sec</head><p>System BLEU <ref type="bibr">(Single-Threaded)</ref> Basic Phrase-Based MT <ref type="bibr">(Schwenk, 2014)</ref> 33.1 - SOTA Phrase-Based MT ( <ref type="bibr" target="#b3">Durrani et al., 2014)</ref> 37.0 - RNN Search, 1-Layer Att. GRU, w/ Large Vocab ( <ref type="bibr">Jean et al., 2015)</ref> 34.6 † Google NMT, 8-Layer Att. LSTM, Word-Based ( <ref type="bibr">Wu et al., 2016)</ref> 37.9 Google NMT, 8-Layer Att. LSTM, WPM-32k ( <ref type="bibr">Wu et al., 2016)</ref> 39.0 ‡ Convolutional Seq-to-Seq ( <ref type="bibr" target="#b5">Gehring et al., 2017)</ref> 40.5 - Transformer Network ( <ref type="bibr">Vaswani et al., 2017)</ref> 41.0 -  </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5">Model Improvements</head><p>In NMT, like in many other deep learning tasks, accuracy can be greatly improved by adding more hidden layers, but training and decoding time in- crease significantly <ref type="bibr">(Luong et al., 2014;</ref><ref type="bibr">Zhou et al., 2016;</ref><ref type="bibr">Wu et al., 2016)</ref>. Several past works have noted that convolutional neural net- works (CNNs) are significantly less expensive than RNNs, and replaced the source and/or tar- get side with a CNN-based architecture <ref type="bibr" target="#b4">(Gehring et al., 2016;</ref><ref type="bibr">Kalchbrenner et al., 2016)</ref>. However, these works have found it is difficult to replace the target side of the model with CNN layers while maintaining high accuracy. The use of a recurrent target is especially important to track attentional coverage and ensure fluency.</p><p>Here, we propose a mixed model which uses an RNN layer at the bottom to both capture full- sentence context and perform attention, followed by a series of fully-connected (FC) layers ap- plied on top at each timestep. The FC layers can be interpreted as a CNN without overlapping stride. Since each FC layer consists of a single ma- trix multiplication, it is 1/6 th the cost of a GRU (or 1/8 th an LSTM). Additionally, several of the speedups from Section 4 can only be applied to the first layer, so there is strong incentive to only use a single target RNN.</p><p>To avoid vanishing gradients, we use ResNet- style skip connections ( <ref type="bibr">He et al., 2016)</ref>. These al- low very deep models to be trained from scratch and do not require any additional matrix multi- plications, unlike highway networks ( <ref type="bibr">Srivastava et al., 2015</ref>). With 5 intermediate FC layers, target timestep i is computed as:</p><formula xml:id="formula_3">h B i = AttGRU(h B i−1 , x i , S) h 1 i = relu(W 1 h B i ) h 2 i = relu(W 2 h 1 i ) h 3 i = relu(W 3 h 2 i + h 1 i ) h 4 i = relu(W 4 h 3 i ) h 5 i = relu(W 5 h 4 i + h 3 i ) h T i = tanh(W T h 5 i ) or GRU(h T i−1 , h 5 i ) y i = softmax(V h T i )</formula><p>Where x i is the target input embedding, S is the set of source hidden vectors used for attention, and V is the target output vocabulary matrix. The su- perscripts h B and h T simply denote the "bottom" and "top" hidden layers, while the numbered lay- ers h n represent the intermediate fully-connected layers.</p><p>We follow <ref type="bibr">He et al. (2016)</ref> and only use skip connections on every other FC layer, but do not use batch normalization. The same pattern can be used for more FC layers, and the FC layers can be a different size than the bottom or top hidden lay- ers. The top hidden layer can be an RNN or an FC layer. It is important to use relu activations (opposed to tanh) for ResNet-style skip connec- tions. The GRUs still use tanh.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.1">Model Results</head><p>Results using the mixed RNN+FC architecture are shown in <ref type="table" target="#tab_1">Table 2</ref>, using all speedups. We have found that the benefit of using RNN+FC layers on the source is minimal, so we only perform ablation on the target. For the source, we use a 3-layer 512- dim bidi GRU in all models (S1)-(S6).</p><p>Model (S1) and (S2) are one and two layer base- lines. Model (S4), which uses 7 intermediate FC layers, has similar decoding cost to (S2) while doubling the improvement over (S1) to 1.2 BLEU. We see minimal benefit from using a GRU on the top layer (S5) or using more FC layers (S6). In (E1) and (E2) we present 2 and 3 model ensembles of (S4), trained from scratch with different random seeds. We can see that the 2-model ensemble im- proves results by 0.9 BLEU, but the 3-model en- semble has little additional improvment. Although not presented here, we have found these improve- ment from decoder speedups and RNN+FC to be consistent across many language pairs. All together, we were able to achieve a BLEU score of 38.3 while decoding at 100 words/sec on a single CPU core. As a point of comparison, <ref type="bibr">Wu et al. (2016)</ref> achieves similar BLEU scores on this test set (37.9 to 38.9) and reports a CPU decoding speed of ~100 words/sec (0.2226 sents/sec), but parallelizes this decoding across 44 CPU cores. System (S7), which is our re-implementation of <ref type="bibr">Wu et al. (2016)</ref>, decodes at 28 words/sec on one CPU core, using all of the speedups described in Section 4. <ref type="bibr">Zhou et al. (2016)</ref> has a similar com- putational cost to (S7), but we were not able to replicate those results in terms of accuracy.</p><p>Although we are comparing an ensemble to a single model, we can see ensemble (E1) is over 3x faster to decode than the single model (S7). Addi- tionally, we have found that model (S4) is roughly 3x faster to train than (S7) using the same GPU re- sources, so (E1) is also 1.5x faster to train than a single model (S7).</p></div><figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_0"><head>Figure 1 :</head><label>1</label><figDesc>Figure 1: Single-threaded matrix multiplication using our 16-bit fixed-point vs. Intel MKL's 32-bit float, averaged over 10,000 multiplications. Both use the AVX2 instruction set.</figDesc><graphic url="image-1.png" coords="3,72.00,127.89,225.01,87.75" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_1" validated="false"><head>Table 2 :</head><label>2</label><figDesc></figDesc><table>Results on WMT English-French NewsTest2014. Models (S1)-(S6) use a 3-layer 512-dim bidirectional GRU for 
+
+the source side. The CPU is an Intel Haswell E5-2660.  † Reported as ~8 words/sec on one CPU core. Reported as ~100 
+
+words/sec, parallelized across 44 CPU cores.  § Reproduction of Google NMT, Word-Based. 
+
+</table></figure>
+
+			<note place="foot" n="1"> Some speedups apply quantization which leads to small random perturbations, but these change the BLEU score by less than 0.02.</note>
+
+			<note place="foot" n="2"> Included as ancillary file in Arxiv submission, on right side of submission page.</note>
+		</body>
+		<back>
+			<div type="references">
+
+				<listBibl>
+
+<biblStruct xml:id="b0">
+	<monogr>
+		<title level="m" type="main">Neural machine translation by jointly learning to align and translate</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Dzmitry</forename><surname>Bahdanau</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kyunghyun</forename><surname>Cho</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yoshua</forename><surname>Bengio</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1409.0473</idno>
+		<imprint>
+			<date type="published" when="2014" />
+		</imprint>
+	</monogr>
+<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b1">
+	<analytic>
+		<title level="a" type="main">The mathematics of statistical machine translation: Parameter estimation</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Vincent J Della</forename><surname>Peter F Brown</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Stephen A Della</forename><surname>Pietra</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Robert L</forename><surname>Pietra</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Mercer</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Computational linguistics</title>
+		<imprint>
+			<biblScope unit="volume">19</biblScope>
+			<biblScope unit="issue">2</biblScope>
+			<biblScope unit="page" from="263" to="311" />
+			<date type="published" when="1993" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b2">
+	<analytic>
+		<title level="a" type="main">Fast and robust neural network joint models for statistical machine translation</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jacob</forename><surname>Devlin</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Rabih</forename><surname>Zbib</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Zhongqiang</forename><surname>Huang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Thomas</forename><surname>Lamar</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Richard</forename><forename type="middle">M</forename><surname>Schwartz</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">John</forename><surname>Makhoul</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">ACL (1)</title>
+		<imprint>
+			<publisher>Citeseer</publisher>
+			<date type="published" when="2014" />
+			<biblScope unit="page" from="1370" to="1380" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b3">
+	<analytic>
+		<title level="a" type="main">Edinburgh&apos;s phrase-based machine translation systems for wmt-14</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Nadir</forename><surname>Durrani</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Barry</forename><surname>Haddow</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Philipp</forename><surname>Koehn</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kenneth</forename><surname>Heafield</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Ninth Workshop on Statistical Machine Translation</title>
+		<meeting>the Ninth Workshop on Statistical Machine Translation</meeting>
+		<imprint>
+			<date type="published" when="2014" />
+			<biblScope unit="page" from="97" to="104" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b4">
+	<monogr>
+		<title level="m" type="main">A convolutional encoder model for neural machine translation</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jonas</forename><surname>Gehring</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Michael</forename><surname>Auli</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">David</forename><surname>Grangier</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yann N</forename><surname>Dauphin</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1611.02344</idno>
+		<imprint>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b5">
+	<monogr>
+		<title level="m" type="main">Convolutional sequence to sequence learning</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jonas</forename><surname>Gehring</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Michael</forename><surname>Auli</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">David</forename><surname>Grangier</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Denis</forename><surname>Yarats</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yann</forename><forename type="middle">N</forename><surname>Dauphin</surname></persName>
+		</author>
+		<idno>abs/1705.03122</idno>
+		<imprint>
+			<date type="published" when="2017" />
+			<publisher>CoRR</publisher>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+				</listBibl>
+			</div>
+		</back>
+	</text>
+</TEI>

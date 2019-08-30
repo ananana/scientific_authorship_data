@@ -1,0 +1,960 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<TEI xmlns="http://www.tei-c.org/ns/1.0" 
+xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+xsi:schemaLocation="http://www.tei-c.org/ns/1.0 /home/ana/installs/grobid/grobid-0.5.1/grobid-home/schemas/xsd/Grobid.xsd"
+ xmlns:xlink="http://www.w3.org/1999/xlink">
+	<teiHeader xml:lang="en">
+		<encodingDesc>
+			<appInfo>
+				<application version="0.5.1-SNAPSHOT" ident="GROBID" when="2019-04-18T12:45+0000">
+					<ref target="https://github.com/kermitt2/grobid">GROBID - A machine learning software for extracting information from scholarly documents</ref>
+				</application>
+			</appInfo>
+		</encodingDesc>
+		<fileDesc>
+			<titleStmt>
+				<title level="a" type="main">Semantic Parsing via Paraphrasing</title>
+			</titleStmt>
+			<publicationStmt>
+				<publisher>Association for Computational Linguistics</publisher>
+				<availability status="unknown"><p>Copyright Association for Computational Linguistics</p>
+				</availability>
+				<date>June 23-25 2014. 2014</date>
+			</publicationStmt>
+			<sourceDesc>
+				<biblStruct>
+					<analytic>
+						<author>
+							<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jonathan</forename><surname>Berant</surname></persName>
+							<email>joberant@stanford.edu</email>
+							<affiliation key="aff0">
+								<orgName type="institution" key="instit1">Stanford University</orgName>
+								<orgName type="institution" key="instit2">Stanford University</orgName>
+							</affiliation>
+						</author>
+						<author>
+							<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Percy</forename><surname>Liang</surname></persName>
+							<email>pliang@cs.stanford.edu</email>
+							<affiliation key="aff0">
+								<orgName type="institution" key="instit1">Stanford University</orgName>
+								<orgName type="institution" key="instit2">Stanford University</orgName>
+							</affiliation>
+						</author>
+						<title level="a" type="main">Semantic Parsing via Paraphrasing</title>
+					</analytic>
+					<monogr>
+						<title level="m">Proceedings of the 52nd Annual Meeting of the Association for Computational Linguistics</title>
+						<meeting>the 52nd Annual Meeting of the Association for Computational Linguistics <address><addrLine>Baltimore, Maryland, USA</addrLine></address>
+						</meeting>
+						<imprint>
+							<publisher>Association for Computational Linguistics</publisher>
+							<biblScope unit="page" from="1415" to="1425"/>
+							<date type="published">June 23-25 2014. 2014</date>
+						</imprint>
+					</monogr>
+				</biblStruct>
+			</sourceDesc>
+		</fileDesc>
+		<profileDesc>
+			<abstract>
+				<p>A central challenge in semantic parsing is handling the myriad ways in which knowledge base predicates can be expressed. Traditionally, semantic parsers are trained primarily from text paired with knowledge base information. Our goal is to exploit the much larger amounts of raw text not tied to any knowledge base. In this paper , we turn semantic parsing on its head. Given an input utterance, we first use a simple method to deterministically generate a set of candidate logical forms with a canonical realization in natural language for each. Then, we use a paraphrase model to choose the realization that best paraphrases the input, and output the corresponding logical form. We present two simple paraphrase models, an association model and a vector space model, and train them jointly from question-answer pairs. Our system PARASEMPRE improves state-of-the-art accuracies on two recently released question-answering datasets.</p>
+			</abstract>
+		</profileDesc>
+	</teiHeader>
+	<text xml:lang="en">
+		<body>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="1">Introduction</head><p>We consider the semantic parsing problem of map- ping natural language utterances into logical forms to be executed on a knowledge base (KB) ( <ref type="bibr" target="#b34">Zelle and Mooney, 1996;</ref><ref type="bibr" target="#b35">Zettlemoyer and Collins, 2005;</ref><ref type="bibr" target="#b33">Wong and Mooney, 2007;</ref><ref type="bibr" target="#b18">Kwiatkowski et al., 2010)</ref>. Scaling semantic parsers to large knowledge bases has attracted substantial atten- tion recently <ref type="bibr" target="#b1">(Cai and Yates, 2013;</ref><ref type="bibr" target="#b0">Berant et al., 2013;</ref><ref type="bibr" target="#b19">Kwiatkowski et al., 2013)</ref>, since it drives applications such as question answering (QA) and information extraction (IE).</p><p>Semantic parsers need to somehow associate natural language phrases with logical predicates, e.g., they must learn that the constructions "What </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Whig Party</head><p>Figure 1: Semantic parsing via paraphrasing: For each candidate logical form (in red), we generate canonical utter- ances (in purple). The model is trained to paraphrase the in- put utterance (in green) into the canonical utterances associ- ated with the correct denotation (in blue).</p><p>does X do for a living?", "What is X's profes- sion?", and "Who is X?", should all map to the logical predicate Profession. To learn these map- pings, traditional semantic parsers use data which pairs natural language with the KB. However, this leaves untapped a vast amount of text not related to the KB. For instance, the utterances "Where is ACL in 2014?" and "What is the location of ACL 2014?" cannot be used in traditional semantic parsing methods, since the KB does not contain an entity ACL2014, but this pair clearly contains valuable linguistic information. As another refer- ence point, out of 500,000 relations extracted by the ReVerb Open IE system <ref type="bibr" target="#b8">(Fader et al., 2011</ref>), only about 10,000 can be aligned to Freebase <ref type="bibr" target="#b0">(Berant et al., 2013)</ref>.</p><p>In this paper, we present a novel approach for semantic parsing based on paraphrasing that can exploit large amounts of text not covered by the KB <ref type="figure">(Figure 1</ref>). Our approach targets factoid ques- tions with a modest amount of compositionality. Given an input utterance, we first use a simple de- terministic procedure to construct a manageable set of candidate logical forms (ideally, we would generate canonical utterances for all possible logi- cal forms, but this is intractable). Next, we heuris-  <ref type="bibr" target="#b19">Kwiatkowski et al. (2013)</ref> map the utter- ance to an underspecified logical form, and perform ontology matching to handle the mismatch. (c) We approach the prob- lem in the other direction, generating canonical utterances for logical forms, and use paraphrase models to handle the mis- match.</p><p>tically generate canonical utterances for each log- ical form based on the text descriptions of predi- cates from the KB. Finally, we choose the canoni- cal utterance that best paraphrases the input utter- ance, and thereby the logical form that generated it. We use two complementary paraphrase mod- els: an association model based on aligned phrase pairs extracted from a monolingual parallel cor- pus, and a vector space model, which represents each utterance as a vector and learns a similarity score between them. The entire system is trained jointly from question-answer pairs only.</p><p>Our work relates to recent lines of research in semantic parsing and question answering. <ref type="bibr" target="#b19">Kwiatkowski et al. (2013)</ref> first maps utterances to a domain-independent intermediate logical form, and then performs ontology matching to produce the final logical form. In some sense, we ap- proach the problem from the opposite end, using an intermediate utterance, which allows us to em- ploy paraphrasing methods <ref type="figure" target="#fig_0">(Figure 2)</ref>. <ref type="bibr" target="#b9">Fader et al. (2013)</ref> presented a QA system that maps ques- tions onto simple queries against Open IE extrac- tions, by learning paraphrases from a large mono- lingual parallel corpus, and performing a single paraphrasing step. We adopt the idea of using paraphrasing for QA, but suggest a more general paraphrase model and work against a formal KB (Freebase).</p><p>We apply our semantic parser on two datasets: WEBQUESTIONS ( <ref type="bibr" target="#b0">Berant et al., 2013)</ref>, which contains 5,810 question-answer pairs with common questions asked by web users; and FREE917 <ref type="bibr" target="#b1">(Cai and Yates, 2013)</ref>, which has 917 questions manually authored by annota- tors. On WEBQUESTIONS, we obtain a relative improvement of 12% in accuracy over the state-of-the-art, and on FREE917 we match the current best performing system. The source code of our system PARASEMPRE is released at http://www-nlp.stanford.edu/ software/sempre/.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2">Setup</head><p>Our task is as follows: Given (i) a knowledge base K, and (ii) a training set of question-answer pairs {(x i , y i )} n i=1 , output a semantic parser that maps new questions x to answers y via latent log- ical forms z. Let E denote a set of entities (e.g., BillGates), and let P denote a set of properties (e.g., PlaceOfBirth). A knowledge base K is a set of assertions (e 1 , p, e 2 ) ∈ E × P × E (e.g., (BillGates, PlaceOfBirth, Seattle)). We use the Freebase KB <ref type="bibr" target="#b12">(Google, 2013)</ref>, which has 41M entities, 19K properties, and 596M assertions.</p><p>To query the KB, we use a logical language called simple λ-DCS. In simple λ-DCS, an entity (e.g., Seattle) is a unary predicate (i.e., a subset of E) denoting a singleton set containing that entity. A property (which is a binary predicate) can be joined with a unary predicate; e.g., Founded.Microsoft denotes the entities that are Microsoft founders. In PlaceOfBirth.Seattle Founded.Microsoft, an intersection operator allows us to denote the set of Seattle-born Microsoft founders. A reverse operator reverses the order of ar- guments:</p><p>R <ref type="bibr">[PlaceOfBirth]</ref>.BillGates denotes Bill Gates's birthplace (in con- trast to PlaceOfBirth.Seattle).</p><p>Lastly, count(Founded.Microsoft) denotes set cardinal- ity, in this case, the number of Microsoft founders. The denotation of a logical form z with respect to a KB K is given by z K . For a formal description of simple λ-DCS, see Liang (2013) and <ref type="bibr" target="#b0">Berant et al. (2013)</ref>.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3">Model overview</head><p>We now present the general framework for seman- tic parsing via paraphrasing, including the model and the learning algorithm. In Sections 4 and 5, we provide the details of our implementation.</p><p>Canonical utterance construction Given an ut- terance x and the KB, we construct a set of candi-date logical forms Z x , and then for each z ∈ Z x generate a small set of canonical natural language utterances C z . Our goal at this point is only to gen- erate a manageable set of logical forms containing the correct one, and then generate an appropriate canonical utterance from it. This strategy is feasi- ble in factoid QA where compositionality is low, and so the size of Z x is limited (Section 4).</p><p>Paraphrasing We score the canonical utter- ances in C z with respect to the input utterance x using a paraphrase model, which offers two ad- vantages. First, the paraphrase model is decoupled from the KB, so we can train it from large text cor- pora. Second, natural language utterances often do not express predicates explicitly, e.g., the question "What is Italy's money?" expresses the binary predicate CurrencyOf with a possessive construc- tion. Paraphrasing methods are well-suited for handling such text-to-text gaps. Our framework accommodates any paraphrasing method, and in this paper we propose an association model that learns to associate natural language phrases that co-occur frequently in a monolingual parallel cor- pus, combined with a vector space model, which learns to score the similarity between vector rep- resentations of natural language utterances (Sec- tion 5).</p><p>Model We define a discriminative log-linear model that places a probability distribution over pairs of logical forms and canonical utterances (c, z), given an utterance x:</p><formula xml:id="formula_0">p θ (c, z | x) = exp{φ(x, c, z) θ} z ∈Zx,c ∈Cz exp{φ(x, c , z ) θ} ,</formula><p>where θ ∈ R b is the vector of parameters to be learned, and φ(x, c, z) is a feature vector extracted from the input utterance x, the canonical utterance c, and the logical form z. Note that the candidate set of logical forms Z x and canonical utterances C x are constructed during the canonical utterance construction phase. The model score decomposes into two terms:</p><formula xml:id="formula_1">φ(x, c, z) θ = φ pr (x, c) θ pr + φ lf (x, z) θ lf ,</formula><p>where the parameters θ pr define the paraphrase model (Section 5), which is based on features ex- tracted from text only (the input and canonical ut- terance). The parameters θ lf correspond to seman- tic parsing features based on the logical form and input utterance, and are briefly described in this section.</p><p>Many existing paraphrase models introduce la- tent variables to describe the derivation of c from x, e.g., with transformations <ref type="bibr" target="#b15">(Heilman and Smith, 2010;</ref><ref type="bibr" target="#b28">Stern and Dagan, 2011</ref>) or alignments ( <ref type="bibr" target="#b13">Haghighi et al., 2005;</ref><ref type="bibr" target="#b5">Das and Smith, 2009;</ref><ref type="bibr" target="#b2">Chang et al., 2010</ref>). However, we opt for a sim- pler paraphrase model without latent variables in the interest of efficiency.</p><p>Logical form features The parameters θ lf corre- spond to the following features adopted from Be- rant et al. <ref type="bibr">(2013)</ref>. For a logical form z, we extract the size of its denotation z K . We also add all bi- nary predicates in z as features. Moreover, we ex- tract a popularity feature for predicates based on the number of instances they have in K. For Free- base entities, we extract a popularity feature based on the entity frequency in an entity linked subset of Reverb ( <ref type="bibr" target="#b21">Lin et al., 2012</ref>). Lastly, Freebase for- mulas have types (see Section 4), and we conjoin the type of z with the first word of x, to capture the correlation between a word (e.g., "where") with the Freebase type (e.g., Location).</p><p>Learning As our training data consists of question-answer pairs (x i , y i ), we maximize the log-likelihood of the correct answer. The proba- bility of an answer y is obtained by marginaliz- ing over canonical utterances c and logical forms z whose denotation is y. Formally, our objective function O(θ) is as follows:</p><formula xml:id="formula_2">O(θ) = n i=1 log p θ (y i | x i ) − λθ 1 , p θ (y | x) = z∈Zx:y=z K c∈Cz p θ (c, z | x).</formula><p>The strength λ of the L 1 regularizer is set based on cross-validation. We optimize the objective by initializing the parameters θ to zero and running AdaGrad ( <ref type="bibr" target="#b7">Duchi et al., 2010)</ref>. We approximate the set of pairs of logical forms and canonical ut- terances with a beam of size 2,000. they consist of factoid questions with a modest amount of compositional structure. We describe these rules below for completeness. Due to its so- porific effect though, we advise the reader to skim it quickly.</p><p>Candidate logical forms We consider logical forms defined by a set of templates, summarized in <ref type="table" target="#tab_3">Table 1</ref>. The basic template is a join of a bi- nary and an entity, where a binary can either be one property p.e (#1 in the table) or two proper- ties p 1 .p 2 .e (#2). To handle cases of events in- volving multiple arguments (e.g., "Who did Brad Pitt play in Troy?"), we introduce the template p.(p 1 .e 1 p 2 .e 2 ) (#3), where the main event is modified by more than one entity. Logical forms can be further modified by a unary "filter", e.g., the answer to "What composers spoke French?" is a set of composers, i.e., a subset of all people (#4). Lastly, we handle aggregation formulas for utterances such as "How many teams are in the NCAA?" (#5).</p><p>To construct candidate logical forms Z x for a given utterance x, our strategy is to find an en- tity in x and grow the logical form from that en- tity. As we show later, this procedure actually pro- duces a set with better coverage than construct- ing logical forms recursively from spans of x, as is done in traditional semantic parsing. Specifi- cally, for every span of x, we take at most 10 en- tities whose Freebase descriptions approximately match the span. Then, we join each entity e with all type-compatible 1 binaries b, and add these log- ical forms to Z x (#1 and #2).</p><p>To construct logical forms with multiple en- tities (#3) we do the following: For any logical form z = p.p 1 .e 1 , where p 1 has type signa- ture (t 1 , * ), we look for other entities e 2 that were matched in x. Then, we add the logical form p.(p 1 .e 1 p 2 .e 2 ), if there exists a binary p 2 with a compatible type signature (t 1 , t 2 ), where t 2 is one of e 2 's types. For example, for the logical form <ref type="bibr">Character</ref> We further modify logical forms by intersecting with a unary filter (#4): given a formula z with some Freebase type (e.g., People), we look at all Freebase sub-types t (e.g., Composer), and check whether one of their Freebase descriptions (e.g., "composer") appears in x. If so, we add the formula Type.t z to Z x . Finally, we check whether x is an aggregation formula by identifying whether it starts with phrases such as "how many" or "number of" (#5).</p><p>On WEBQUESTIONS, this results in 645 for- mulas per utterance on average. Clearly, we can increase the expressivity of this step by expand- ing the template set. For example, we could han- dle superlative utterances ("What NBA player is tallest?") by adding a template with an argmax operator.</p><p>Utterance generation While mapping general language utterances to logical forms is hard, we observe that it is much easier to generate a canoni- cal natural language utterances of our choice given a logical form. <ref type="table" target="#tab_4">Table 2</ref> summarizes the rules used to generate canonical utterances from the template p.e. Questions begin with a question word, are fol- lowed by the Freebase description of the expected answer type (d(t)), and followed by Freebase de- scriptions of the entity (d(e)) and binary (d(p)). To fill in auxiliary verbs, determiners, and prepo- sitions, we parse the description d(p) into one of NP, VP, PP, or NP VP. This determines the gen- eration rule to be used.</p><p>Each Freebase property p has an explicit prop- erty p equivalent to the reverse R[p] (e.g., <ref type="bibr">ContainedBy</ref> and R <ref type="bibr">[Contains]</ref>). For each logical form z, we also generate using equivalent logical forms where p is replaced with R <ref type="bibr">[p ]</ref>. Reversed formulas have different generation rules, since en- tities in these formulas are in the subject position rather than object position.</p><p>We generate the description d(t) from the Free- base description of the type of z (this handles #4). For the template p 1 .p 2 .e (#2), we have a similar set of rules, which depends on the syntax of d(p 1 ) and d(p 2 ) and is omitted for brevity. The tem- plate p.(p 1 .e 1 p 2 .e 2 ) (#3) is generated by ap- pending the prepositional phrase in d(e 2 ), e.g, "What character is the character of Brad Pitt in Troy?". Lastly, we choose the question phrase "How many" for aggregation formulas (#5), and "What" for all other formulas.</p><p>We also generate canonical utterances using an alignment lexicon, released by <ref type="bibr" target="#b0">Berant et al. (2013)</ref>, which maps text phrases to Freebase bi- nary predicates. For a binary predicate b mapped from text phrase d(b), we generate the utterance   </p><note type="other"># Template Example Question 1 p.e Directed.TopGun Who directed Top Gun? 2 p1.p2.e Employment.EmployerOf.SteveBalmer Where does Steve Balmer work? 3 p.</note></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5">Paraphrasing</head><p>Once the candidate set of logical forms paired with canonical utterances is constructed, our problem is reduced to scoring pairs (c, z) based on a para- phrase model. The NLP paraphrase literature is vast and ranges from simple methods employing surface features ( <ref type="bibr" target="#b31">Wan et al., 2006</ref>), through vec- tor space models <ref type="bibr" target="#b27">(Socher et al., 2011</ref>), to latent variable models ( <ref type="bibr" target="#b5">Das and Smith, 2009;</ref><ref type="bibr" target="#b32">Wang and Manning, 2010;</ref><ref type="bibr" target="#b28">Stern and Dagan, 2011)</ref>. In this paper, we focus on two paraphrase mod- els that emphasize simplicity and efficiency. This is important since for each question-answer pair, we consider thousands of canonical utterances as potential paraphrases. In contrast, traditional para- phrase detection ( <ref type="bibr" target="#b6">Dolan et al., 2004</ref>) and Recog- nizing Textual Entailment (RTE) tasks <ref type="bibr" target="#b3">(Dagan et al., 2013</ref>) consider examples consisting of only a single pair of candidate paraphrases.</p><p>Our paraphrase model decomposes into an as- sociation model and a vector space model:  </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.1">Association model</head><p>The goal of the association model is to deter- mine whether x and c contain phrases that are likely to be paraphrases. Given an utterance x = x 0 , x 1 , .., x n−1 , we denote by x i:j the span from token i to token j. For each pair of utterances (x, c), we go through all spans of x and c and identify a set of pairs of potential paraphrases (x i:j , c i :j ), which we call associations. (We will describe how associations are identified shortly.) We then define features on each association; the weighted combination of these features yields a score. In this light, associations can be viewed as soft paraphrase rules. <ref type="figure" target="#fig_2">Figure 3</ref> presents exam- ples of associations extracted from a paraphrase pair and visualizes the learned scores. We can see that our model learns a positive score for associ- ating "type" with "genres", and a negative score for associating "is" with "play".</p><p>We define associations in x and c primarily by looking up phrase pairs in a phrase table con- structed using the PARALEX corpus <ref type="bibr" target="#b9">(Fader et al., 2013)</ref>. PARALEX is a large monolingual parallel Category Description Assoc. lemma(xi:j) ∧ lemma(c i :j ) pos(xi:j) ∧ pos(c i :j ) lemma(xi:j) = lemma(c i :j )? pos(xi:j) = pos(c i :j )? lemma(xi:j) and lemma(c i :j ) are synonyms? lemma(xi:j) and lemma(c i :j ) are derivations? Deletions Deleted lemma and POS tag <ref type="table">Table 3</ref>: Full feature set in the association model. xi:j and c i :j denote spans from x and c. pos(xi:j) and lemma(xi:j) denote the POS tag and lemma sequence of xi:j.</p><p>corpora, containing 18 million pairs of question paraphrases from wikianswers.com, which were tagged as having the same meaning by users. PARALEX is suitable for our needs since it fo- cuses on question paraphrases. For example, the phrase "do for a living" occurs mostly in ques- tions, and we can extract associations for this phrase from PARALEX. Paraphrase pairs in PAR- ALEX are word-aligned using standard machine translation methods. We use the word alignments to construct a phrase table by applying the con- sistent phrase pair heuristic ( <ref type="bibr" target="#b23">Och and Ney, 2004</ref>) to all 5-grams. This results in a phrase table with approximately 1.3 million phrase pairs. We let A denote this set of mined candidate associations.</p><p>For a pair (x, c), we also consider as candidate associations the set B (represented implicitly), which contains token pairs (x i , c i ) such that x i and c i share the same lemma, the same POS tag, or are linked through a derivation link on WordNet <ref type="bibr" target="#b10">(Fellbaum, 1998)</ref>. This allows us to learn para- phrases for words that appear in our datasets but are not covered by the phrase table, and to han- dle nominalizations for phrase pairs such as "Who designed the game of life?" and "What game de- signer is the designer of the game of life?".</p><p>Our model goes over all possible spans of x and c and constructs all possible associations from A and B. This results in many poor associations (e.g., "play" and "the"), but as illustrated in <ref type="figure" target="#fig_2">Fig- ure 3</ref>, we learn weights that discriminate good from bad associations. <ref type="table">Table 3</ref> specifies the full set of features. Note that unlike standard para- phrase detection and RTE systems, we use lexi- calized features, firing approximately 400,000 fea- tures on WEBQUESTIONS. By extracting POS features, we obtain soft syntactic rules, e.g., the feature "JJ N ∧ N" indicates that omitting ad- jectives before nouns is possible. Once associa- tions are constructed, we mark tokens in x and c that were not part of any association, and extract deletion features for their lemmas and POS tags. Thus, we learn that deleting pronouns is accept- able, while deleting nouns is not.</p><p>To summarize, the association model links phrases of two utterances in multiple overlapping ways. During training, the model learns which associations are characteristic of paraphrases and which are not.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.2">Vector space model</head><p>The association model relies on having a good set of candidate associations, but mining associations suffers from coverage issues. We now introduce a vector space (VS) model, which assigns a vec- tor representation for each utterance, and learns a scoring function that ranks paraphrase candidates.</p><p>We start by constructing vector representations of words. We run the WORD2VEC tool ( <ref type="bibr" target="#b22">Mikolov et al., 2013</ref>) on lower-cased Wikipedia text (1.59 bil- lion tokens), using the CBOW model with a win- dow of 5 and hierarchical softmax. We also ex- periment with publicly released word embeddings ( <ref type="bibr" target="#b16">Huang et al., 2012)</ref>, which were trained using both local and global context. Both result in k- dimensional vectors (k = 50). Next, we construct a vector v x ∈ R k for each utterance x by simply averaging the vectors of all content words (nouns, verbs, and adjectives) in x.</p><p>We can now estimate a paraphrase score for two utterances x and c via a weighted combination of the components of the vector representations:</p><formula xml:id="formula_3">v x W v c = k i,j=1 w ij v x,i v c,j</formula><p>where W ∈ R k×k is a parameter matrix. In terms of our earlier notation, we have θ vs = vec(W ) and φ vs (x, c) = vec(v x v c ), where vec(·) unrolls a ma- trix into a vector. In Section 6, we experiment with W equal to the identity matrix, constraining W to be diagonal, and learning a full W matrix.</p><p>The VS model can identify correct paraphrases in cases where it is hard to directly associate phrases from x and c. For example, the answer to "Where is made Kia car?" (from WEBQUES- TIONS), is given by the canonical utterance "What city is Kia motors a headquarters of?". The as- sociation model does not associate "made" and "headquarters", but the VS model is able to de- termine that these utterances are semantically re- lated. In other cases, the VS model cannot distin- guish correct paraphrases from incorrect ones. For    example, the association model identifies that the paraphrase for "What type of music did Richard Wagner Play?" is "What is the musical genres of Richard Wagner?", by relating phrases such as "type of music" and "musical genres". The VS model ranks the canonical utterance "What com- position has Richard Wagner as lyricist?" higher, as this utterance is also in the music domain. Thus, we combine the two models to benefit from their complementary nature. In summary, while the association model aligns particular phrases to one another, the vector space model provides a soft vector-based representation for utterances.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6">Empirical evaluation</head><p>In this section, we evaluate our system on WE- BQUESTIONS and FREE917. After describing the setup (Section 6.1), we present our main empirical results and analyze the components of the system (Section 6.2).</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6.1">Setup</head><p>We use the WEBQUESTIONS dataset <ref type="bibr" target="#b0">(Berant et al., 2013)</ref>, which contains 5,810 question-answer pairs. This dataset was created by crawling questions through the Google Suggest API, and then obtaining answers using Amazon Mechani- cal Turk. We use the original train-test split, and divide the training set into 3 random 80%-20% splits for development. This dataset is character- ized by questions that are commonly asked on the web (and are not necessarily grammatical), such as "What character did Natalie Portman play in Star Wars?" and "What kind of money to take to Bahamas?".</p><p>The FREE917 dataset contains 917 questions, authored by two annotators and annotated with logical forms. This dataset contains questions on rarer topics (for example, "What is the engine in a 2010 Ferrari California?" and "What was the cover price of the X-men Issue 1?"), but the phrasing of questions tends to be more rigid com- pared to WEBQUESTIONS. <ref type="table" target="#tab_6">Table 4</ref> provides some statistics on the two datasets. Following <ref type="bibr" target="#b1">Cai and Yates (2013)</ref>, we hold out 30% of the data for the final test, and perform 3 random 80%-20% splits of the training set for development. Since we train from question-answer pairs, we collect answers by executing the gold logical forms against Freebase.</p><p>We execute λ-DCS queries by converting them into SPARQL and executing them against a copy of Freebase using the Virtuoso database engine. We evaluate our system with accuracy, that is, the proportion of questions we answer correctly. We run all questions through the Stanford CoreNLP pipeline ( <ref type="bibr" target="#b29">Toutanova and Manning, 2003;</ref><ref type="bibr" target="#b11">Finkel et al., 2005;</ref><ref type="bibr" target="#b17">Klein and Manning, 2003)</ref>.</p><p>We tuned the L 1 regularization strength, devel- oped features, and ran analysis experiments on the development set (averaging across random splits). On WEBQUESTIONS, without L 1 regularization, the number of non-zero features was 360K; L 1 regularization brings it down to 17K.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6.2">Results</head><p>We compare our system to <ref type="bibr" target="#b1">Cai and Yates (2013</ref>  <ref type="table" target="#tab_8">Table 5</ref> presents results on the test set. We achieve a substantial relative improvement of 12% in accuracy on WEBQUESTIONS, and match the best results on FREE917. Interestingly, our system gets an oracle accuracy of 63% on WEBQUES- TIONS compared to 48% obtained by BCFL13, where the oracle accuracy is the fraction of ques- tions for which at least one logical form in the candidate set produced by the system is correct. This demonstrates that our method for construct- ing candidate logical forms is reasonable. To fur- ther examine this, we ran BCFL13 on the devel- opment set, allowing it to use only predicates from logical forms suggested by our logical form con- struction step. This improved oracle accuracy on the development set to 64.5%, but accuracy was 32.2%. This shows that the improvement in accu- racy should not be attributed only to better logical form generation, but also to the paraphrase model.</p><p>We now perform more extensive analysis of our system's components and compare it to various baselines.</p><p>Component ablation We ablate the association model, the VS model, and the entire paraphrase    model (using only logical form features). <ref type="table" target="#tab_8">Table 5</ref> shows that our full system obtains highest accu- racy, and that removing the association model re- sults in a much larger degradation compared to re- moving the VS model. Utterance generation Our system generates relatively natural utterances from logical forms us- ing simple rules based on Freebase descriptions (Section 4). We now consider simply concate- nating Freebase descriptions. For example, the logical form R <ref type="bibr">[PlaceOfBirth]</ref>.ElvisPresley would generate the utterance "What location Elvis Presley place of birth?". Row SIMPLEGEN in Ta- ble 6 demonstrates that we still get good results in this setup. This is expected given that our para- phrase models are not sensitive to the syntactic structure of the generated utterance.</p><p>VS model Our system learns parameters for a full W matrix. We now examine results when learning parameters for a full matrix W , a diago- nal matrix W , and when setting W to be the iden- tity matrix. <ref type="table" target="#tab_9">Table 6</ref> (third section) illustrates that learning a full matrix substantially improves accu- racy. <ref type="figure" target="#fig_7">Figure 4</ref> gives an example for a correct para- phrase pair, where the full matrix model boosts the overall model score. Note that the full ma- trix assigns a high score for the phrases "official language" and "speak" compared to the simpler models, but other pairs are less interpretable.</p><p>Baselines We also compared our system to the following implemented baselines:  x i W vc i for all content word tokens xi and c i , where W is an arbitrary full matrix, a diagonal matrix, or the identity matrix. We omit scores for the words "czech" and "republic" since they ap- pear in all canonical utterances for this example.</p><p>• JACCARD: We compute the Jaccard score between the tokens of x and c and define φ pr (x, c) to be this single feature.</p><p>• EDIT: We compute the token edit distance between x and c and define φ pr (x, c) to be this single feature.</p><p>• WDDC06: We re-implement 13 features from <ref type="bibr" target="#b31">Wan et al. (2006)</ref>, who obtained close to state-of-the-art performance on the Microsoft Research paraphrase corpus. 3 <ref type="table" target="#tab_9">Table 6</ref> demonstrates that we improve perfor- mance over all baselines. Interestingly, JACCARD and WDDC06 obtain reasonable performance on FREE917 but perform much worse on WE- BQUESTIONS. We surmise this is because ques- tions in FREE917 were generated by annotators prompted by Freebase facts, whereas questions in WEBQUESTIONS originated independently of Freebase. Thus, word choice in FREE917 is of- ten close to the generated Freebase descriptions, allowing simple baselines to perform well.</p><p>Error analysis We sampled examples from the development set to examine the main reasons PARASEMPRE makes errors. We notice that in many cases the paraphrase model can be further improved. For example, PARASEMPRE suggests that the best paraphrase for "What company did Henry Ford work for?" is "What written work novel by Henry Ford?" rather than "The em- ployer of Henry Ford", due to the exact match of the word "work". Another example is the question "Where is the Nascar hall of fame?", where PARASEMPRE suggests that "What hall of fame discipline has Nascar hall of fame as halls of fame?" is the best canonical utterance. This is because our simple model allows to associate "hall of fame" with the canonical utterance three times. Entity recognition also accounts for many errors, e.g., the entity chosen in "where was the gallipoli campaign waged?" is Galipoli and not GalipoliCampaign. Last, PARASEMPRE does not handle temporal information, which causes errors in questions like "Where did Harriet Tubman live after the civil war?"</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="7">Discussion</head><p>In this work, we approach the problem of seman- tic parsing from a paraphrasing viewpoint. A fundamental motivation and long standing goal of the paraphrasing and RTE communities has been to cast various semantic applications as para- phrasing/textual entailment ( <ref type="bibr" target="#b3">Dagan et al., 2013)</ref>. While it has been shown that paraphrasing meth- ods are useful for question answering ( <ref type="bibr" target="#b14">Harabagiu and Hickl, 2006</ref>) and relation extraction ( <ref type="bibr" target="#b26">Romano et al., 2006</ref>), this is, to the best of our knowledge, the first paper to perform semantic parsing through paraphrasing. Our paraphrase model emphasizes simplicity and efficiency, but the framework is ag- nostic to the internals of the paraphrase method.</p><p>On the semantic parsing side, our work is most related to <ref type="bibr" target="#b19">Kwiatkowski et al. (2013)</ref>. The main challenge in semantic parsing is coping with the mismatch between language and the KB. In both <ref type="bibr" target="#b19">Kwiatkowski et al. (2013)</ref> and this work, an inter- mediate representation is employed to handle the mismatch, but while they use a logical represen- tation, we opt for a text-based one. Our choice allows us to benefit from the parallel monolingual corpus PARALEX and from word vectors trained on Wikipedia. We believe that our approach is particularly suitable for scenarios such as factoid question answering, where the space of logical forms is somewhat constrained and a few gener- ation rules suffice to reduce the problem to para- phrasing.</p><p>Our work is also related to <ref type="bibr" target="#b9">Fader et al. (2013)</ref>, who presented a paraphrase-driven question an- swering system. One can view this work as a generalization of Fader et al. along three dimen- sions. First, Fader et al. use a KB over natu- ral language extractions rather than a formal KB and so querying the KB does not require a gener- ation step -they paraphrase questions to KB en- tries directly. Second, they suggest a particular paraphrasing method that maps a test question to a question for which the answer is already known in a single step. We propose a general paraphrasing framework and instantiate it with two paraphrase models. Lastly, Fader et al. handle queries with only one property and entity whereas we general- ize to more types of logical forms.</p><p>Since our generated questions are passed to a paraphrase model, we took a very simple ap- proach, mostly ensuring that we preserved the se- mantics of the utterance without striving for the most fluent realization. Research on generation ( <ref type="bibr" target="#b4">Dale et al., 2003;</ref><ref type="bibr" target="#b25">Reiter et al., 2005;</ref><ref type="bibr" target="#b30">Turner et al., 2009;</ref><ref type="bibr" target="#b24">Piwek and Boyer, 2012</ref>) typically fo- cuses on generating natural utterances for human consumption, where fluency is important.</p><p>In conclusion, the main contribution of this pa- per is a novel approach for semantic parsing based on a simple generation procedure and a paraphrase model. We achieve state-of-the-art results on two recently released datasets. We believe that our ap- proach opens a window of opportunity for learn- ing semantic parsers from raw text not necessarily related to the target KB. With more sophisticated generation and paraphrase, we hope to tackle com- positionally richer utterances.</p></div><figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_0"><head>Figure 2 :</head><label>2</label><figDesc>Figure 2: The main challenge in semantic parsing is coping with the mismatch between language and the KB. (a) Traditionally, semantic parsing maps utterances directly to logical forms. (b) Kwiatkowski et al. (2013) map the utterance to an underspecified logical form, and perform ontology matching to handle the mismatch. (c) We approach the problem in the other direction, generating canonical utterances for logical forms, and use paraphrase models to handle the mismatch.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_1"><head>φ</head><label></label><figDesc>pr (x, c) θ pr = φ as (x, c) θ as + φ vs (x, c) θ vs . x : What type of music did Richard Wagner play c : What is the musical genres of Richard Wagner</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_2"><head>Figure 3 :</head><label>3</label><figDesc>Figure 3: Token associations extracted for a paraphrase pair. Blue and dashed (red and solid) indicate positive (negative) score. Line width is proportional to the absolute value of the score.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_4"><head>FREE917</head><label></label><figDesc></figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_5"><head></head><label></label><figDesc>) (CY13), Berant et al. (2013) (BCFL13), and Kwiatkowski et al. (2013) (KCAZ13). For BCFL13, we obtained results using the SEMPRE package 2 and running Berant et al. (2013)'s sys- tem on the datasets.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_6"><head>FREE917</head><label></label><figDesc></figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_7"><head>Figure 4 :</head><label>4</label><figDesc>Figure 4: Values of the paraphrase score v</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_2" validated="false"><head>(p1.e1 p2.e2) Character.(Actor.BradPitt Film.Troy) Who did Brad Pitt play in</head><label></label><figDesc></figDesc><table>Troy? 
+4 Type.t z 
+Type.Composer SpeakerOf.French 
+What composers spoke French? 
+5 count(z) 
+count(BoatDesigner.NatHerreshoff) 
+How many ships were designed by 
+Nat Herreshoff? 
+
+</table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_3" validated="false"><head>Table 1 :</head><label>1</label><figDesc></figDesc><table>Logical form templates, where p, p1, p2 are Freebase properties, e, e1, e2 are Freebase entities, t is a Freebase type, 
+
+and z is a logical form. 
+
+d(p) Categ. 
+Rule 
+Example 
+p.e 
+NP 
+WH d(t) has d(e) as NP ? 
+What election contest has George Bush as winner? 
+VP 
+WH d(t) (AUX) VP d(e) ? 
+What radio station serves area New-York? 
+PP 
+WH d(t) PP d(e) ? 
+What beer from region Argentina? 
+NP VP 
+WH d(t) VP the NP d(e) ? 
+What mass transportation system served the area Berlin? 
+R(p).e NP 
+WH d(t) is the NP of d(e) ? What location is the place of birth of Elvis Presley? 
+VP 
+WH d(t) AUX d(e) VP ? 
+What film is Brazil featured in? 
+PP 
+WH d(t) d(e) PP ? 
+What destination Spanish steps near travel destination? 
+NP VP 
+WH NP is VP by d(e) ? 
+What structure is designed by Herod? 
+
+</table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_4" validated="false"><head>Table 2 :</head><label>2</label><figDesc></figDesc><table>Generation rules for templates of the form p.e and R[p].e based on the syntactic category of the property description. 
+
+Freebase descriptions for the type, entity, and property are denoted by d(t), d(e) and d(p) respectively. The surface form of the 
+auxiliary AUX is determined by the POS tag of the verb inside the VP tree. 
+
+WH d(t) d(b) d(e) ?. On the WEBQUESTIONS 
+dataset, we generate an average of 1,423 canonical 
+utterances c per input utterance x. In Section 6, 
+we show that an even simpler method of gener-
+ating canonical utterances by concatenating Free-
+base descriptions hurts accuracy by only a modest 
+amount. 
+
+</table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_6" validated="false"><head>Table 4 : Statistics on WEBQUESTIONS and FREE917.</head><label>4</label><figDesc></figDesc><table></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_8" validated="true"><head>Table 5 : Results on the test set.</head><label>5</label><figDesc></figDesc><table>FREE917 WEBQUESTIONS 
+Our system 
+73.9 
+41.2 
+-VSM 
+71.0 
+40.5 
+-ASSOCIATION 
+52.7 
+35.3 
+-PARAPHRASE 
+31.8 
+21.3 
+SIMPLEGEN 
+73.4 
+40.4 
+Full matrix 
+52.7 
+35.3 
+Diagonal 
+50.4 
+30.6 
+Identity 
+50.7 
+30.4 
+JACCARD 
+69.7 
+31.3 
+EDIT 
+40.8 
+24.8 
+WDDC06 
+71.0 
+29.8 
+
+</table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_9" validated="false"><head>Table 6 :</head><label>6</label><figDesc></figDesc><table>Results for ablations and baselines on develop-
+
+ment set. 
+
+</table></figure>
+
+			<note place="foot" n="4"> Canonical utterance construction We construct canonical utterances in two steps. Given an input utterance x, we first construct a set of logical forms Z x , and then generate canonical utterances from each z ∈ Z x. Both steps are performed with a small and simple set of deterministic rules, which suffices for our datasets, as</note>
+
+			<note place="foot" n="1"> Entities in Freebase are associated with a set of types, and properties have a type signature (t1, t2) We use these types to compute an expected type t for any logical form z.</note>
+
+			<note place="foot" n="2"> http://www-nlp.stanford.edu/software/sempre/</note>
+
+			<note place="foot" n="3"> We implement all features that do not require dependency parsing.</note>
+		</body>
+		<back>
+
+			<div type="acknowledgement">
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Acknowledgments</head><p>We thank Kai Sheng Tai for performing the er-ror analysis. Stanford University gratefully ac-knowledges the support of the Defense Advanced Research Projects Agency (DARPA) Deep Ex-ploration and Filtering of Text (DEFT) Program under Air Force Research Laboratory (AFRL) contract no. FA8750-13-2-0040. Any opinions, findings, and conclusion or recommendations ex-pressed in this material are those of the authors and do not necessarily reflect the view of the DARPA, AFRL, or the US government. The second author is supported by a Google Faculty Research Award.</p></div>
+			</div>
+
+			<div type="references">
+
+				<listBibl>
+
+<biblStruct xml:id="b0">
+	<analytic>
+		<title level="a" type="main">Semantic parsing on Freebase from question-answer pairs</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">J</forename><surname>Berant</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">A</forename><surname>Chou</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">R</forename><surname>Frostig</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">P</forename><surname>Liang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Empirical Methods in Natural Language Processing (EMNLP)</title>
+		<imprint>
+			<date type="published" when="2013" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b1">
+	<analytic>
+		<title level="a" type="main">Large-scale semantic parsing via schema matching and lexicon extension</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Q</forename><surname>Cai</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">A</forename><surname>Yates</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Association for Computational Linguistics (ACL)</title>
+		<imprint>
+			<date type="published" when="2013" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b2">
+	<analytic>
+		<title level="a" type="main">Discriminative learning over constrained latent representations</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">M</forename><surname>Chang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">D</forename><surname>Goldwasser</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">D</forename><surname>Roth</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">V</forename><surname>Srikumar</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">North American Association for Computational Linguistics (NAACL)</title>
+		<imprint>
+			<date type="published" when="2010" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b3">
+	<monogr>
+		<title level="m" type="main">Recognizing Textual Entailment: Models and Applications</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">I</forename><surname>Dagan</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">D</forename><surname>Roth</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">M</forename><surname>Sammons</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">F</forename><forename type="middle">M</forename><surname>Zanzotto</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2013" />
+			<publisher>Morgan and Claypool Publishers</publisher>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b4">
+	<analytic>
+		<title level="a" type="main">Coral: using natural language generation for navigational assistance</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">R</forename><surname>Dale</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">S</forename><surname>Geldof</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">J</forename><surname>Prost</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Australasian computer science conference</title>
+		<imprint>
+			<date type="published" when="2003" />
+			<biblScope unit="page" from="35" to="44" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b5">
+	<analytic>
+		<title level="a" type="main">Paraphrase identification as probabilistic quasi-synchronous recognition</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">D</forename><surname>Das</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">N</forename><forename type="middle">A</forename><surname>Smith</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Association for Computational Linguistics (ACL)</title>
+		<imprint>
+			<date type="published" when="2009" />
+			<biblScope unit="page" from="468" to="476" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b6">
+	<analytic>
+		<title level="a" type="main">Unsupervised construction of large paraphrase corpora: Exploiting massively parallel news sources</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">B</forename><surname>Dolan</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">C</forename><surname>Quirk</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">C</forename><surname>Brockett</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">International Conference on Computational Linguistics (COLING)</title>
+		<imprint>
+			<date type="published" when="2004" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b7">
+	<analytic>
+		<title level="a" type="main">Adaptive subgradient methods for online learning and stochastic optimization</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">J</forename><surname>Duchi</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">E</forename><surname>Hazan</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Y</forename><surname>Singer</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Conference on Learning Theory (COLT)</title>
+		<imprint>
+			<date type="published" when="2010" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b8">
+	<analytic>
+		<title level="a" type="main">Identifying relations for open information extraction</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">A</forename><surname>Fader</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">S</forename><surname>Soderland</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">O</forename><surname>Etzioni</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Empirical Methods in Natural Language Processing (EMNLP)</title>
+		<imprint>
+			<date type="published" when="2011" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b9">
+	<analytic>
+		<title level="a" type="main">Paraphrase-driven learning for open question answering</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">A</forename><surname>Fader</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">L</forename><surname>Zettlemoyer</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">O</forename><surname>Etzioni</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Association for Computational Linguistics (ACL)</title>
+		<imprint>
+			<date type="published" when="2013" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b10">
+	<monogr>
+		<title level="m" type="main">WordNet: An Electronic Lexical Database</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">C</forename><surname>Fellbaum</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="1998" />
+			<publisher>MIT Press</publisher>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b11">
+	<analytic>
+		<title level="a" type="main">Incorporating non-local information into information extraction systems by Gibbs sampling</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">J</forename><forename type="middle">R</forename><surname>Finkel</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">T</forename><surname>Grenager</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">C</forename><surname>Manning</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Association for Computational Linguistics (ACL)</title>
+		<imprint>
+			<date type="published" when="2005" />
+			<biblScope unit="page" from="363" to="370" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b12">
+	<monogr>
+				<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Google</surname></persName>
+		</author>
+		<ptr target="https://developers.google.com/freebase/data" />
+		<title level="m">Freebase data dumps</title>
+		<imprint>
+			<date type="published" when="2013" />
+			<biblScope unit="page" from="2013" to="2019" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b13">
+	<analytic>
+		<title level="a" type="main">Robust textual inference via graph matching</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">A</forename><surname>Haghighi</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">A</forename><forename type="middle">Y</forename><surname>Ng</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">C</forename><forename type="middle">D</forename><surname>Manning</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Empirical Methods in Natural Language Processing (EMNLP)</title>
+		<imprint>
+			<date type="published" when="2005" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b14">
+	<analytic>
+		<title level="a" type="main">Methods for using textual entailment in open-domain question answering</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">S</forename><surname>Harabagiu</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">A</forename><surname>Hickl</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Association for Computational Linguistics (ACL)</title>
+		<imprint>
+			<date type="published" when="2006" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b15">
+	<analytic>
+		<title level="a" type="main">Tree edit models for recognizing textual entailments, paraphrases, and answers to questions</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">M</forename><surname>Heilman</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">N</forename><forename type="middle">A</forename><surname>Smith</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Human Language Technology and North American Association for Computational Linguistics (HLT/NAACL)</title>
+		<imprint>
+			<date type="published" when="2010" />
+			<biblScope unit="page" from="1011" to="1019" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b16">
+	<analytic>
+		<title level="a" type="main">Improving word representations via global context and multiple word prototypes</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">E</forename><forename type="middle">H</forename><surname>Huang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">R</forename><surname>Socher</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">C</forename><forename type="middle">D</forename><surname>Manning</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">A</forename><forename type="middle">Y</forename><surname>Ng</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Association for Computational Linguistics (ACL)</title>
+		<imprint>
+			<date type="published" when="2012" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b17">
+	<analytic>
+		<title level="a" type="main">Accurate unlexicalized parsing</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">D</forename><surname>Klein</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">C</forename><surname>Manning</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Association for Computational Linguistics (ACL)</title>
+		<imprint>
+			<date type="published" when="2003" />
+			<biblScope unit="page" from="423" to="430" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b18">
+	<analytic>
+		<title level="a" type="main">Inducing probabilistic CCG grammars from logical form with higher-order unification</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">T</forename><surname>Kwiatkowski</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">L</forename><surname>Zettlemoyer</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">S</forename><surname>Goldwater</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">M</forename><surname>Steedman</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Empirical Methods in Natural Language Processing (EMNLP)</title>
+		<imprint>
+			<date type="published" when="2010" />
+			<biblScope unit="page" from="1223" to="1233" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b19">
+	<analytic>
+		<title level="a" type="main">Scaling semantic parsers with on-the-fly ontology matching</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">T</forename><surname>Kwiatkowski</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">E</forename><surname>Choi</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Y</forename><surname>Artzi</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">L</forename><surname>Zettlemoyer</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Empirical Methods in Natural Language Processing (EMNLP)</title>
+		<imprint>
+			<date type="published" when="2013" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b20">
+	<monogr>
+		<title level="m" type="main">Lambda dependency-based compositional semantics</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">P</forename><surname>Liang</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2013" />
+			<pubPlace>ArXiv</pubPlace>
+		</imprint>
+	</monogr>
+<note type="report_type">Technical report</note>
+</biblStruct>
+
+<biblStruct xml:id="b21">
+	<analytic>
+		<title level="a" type="main">Entity linking at web scale</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">T</forename><surname>Lin</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">O</forename><surname>Mausam</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Etzioni</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Knowledge Extraction Workshop</title>
+		<imprint>
+			<publisher>AKBC-WEKEX</publisher>
+			<date type="published" when="2012" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b22">
+	<monogr>
+		<title level="m" type="main">Efficient estimation of word representations in vector space</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">T</forename><surname>Mikolov</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">K</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">G</forename><surname>Corrado</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jeffrey</forename></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2013" />
+			<pubPlace>ArXiv</pubPlace>
+		</imprint>
+	</monogr>
+<note type="report_type">Technical report</note>
+</biblStruct>
+
+<biblStruct xml:id="b23">
+	<analytic>
+		<title level="a" type="main">The alignment template approach to statistical machine translation</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">F</forename><forename type="middle">J</forename><surname>Och</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">H</forename><surname>Ney</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Computational Linguistics</title>
+		<imprint>
+			<biblScope unit="volume">30</biblScope>
+			<biblScope unit="page" from="417" to="449" />
+			<date type="published" when="2004" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b24">
+	<analytic>
+		<title level="a" type="main">Varieties of question generation: Introduction to this special issue</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">P</forename><surname>Piwek</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">K</forename><forename type="middle">E</forename><surname>Boyer</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Dialogue and Discourse</title>
+		<imprint>
+			<biblScope unit="volume">3</biblScope>
+			<biblScope unit="page" from="1" to="9" />
+			<date type="published" when="2012" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b25">
+	<analytic>
+		<title level="a" type="main">Choosing words in computer-generated weather forecasts</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">E</forename><surname>Reiter</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">S</forename><surname>Sripada</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">J</forename><surname>Hunter</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">J</forename><surname>Yu</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">I</forename><surname>Davy</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Artificial Intelligence</title>
+		<imprint>
+			<biblScope unit="volume">167</biblScope>
+			<biblScope unit="page" from="137" to="169" />
+			<date type="published" when="2005" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b26">
+	<analytic>
+		<title level="a" type="main">Investigating a generic paraphrase-based approach for relation extraction</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">L</forename><surname>Romano</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">M</forename><surname>Kouylekov</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">I</forename><surname>Szpektor</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">I</forename><surname>Dagan</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">A</forename><surname>Lavelli</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of ECAL</title>
+		<meeting>ECAL</meeting>
+		<imprint>
+			<date type="published" when="2006" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b27">
+	<analytic>
+		<title level="a" type="main">Dynamic pooling and unfolding recursive autoencoders for paraphrase detection</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">R</forename><surname>Socher</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">E</forename><forename type="middle">H</forename><surname>Huang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">J</forename><surname>Pennin</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">C</forename><forename type="middle">D</forename><surname>Manning</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">A</forename><surname>Ng</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Advances in Neural Information Processing Systems (NIPS)</title>
+		<imprint>
+			<date type="published" when="2011" />
+			<biblScope unit="page" from="801" to="809" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b28">
+	<analytic>
+		<title level="a" type="main">A confidence model for syntactically-motivated entailment proofs</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">A</forename><surname>Stern</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">I</forename><surname>Dagan</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Recent Advances in Natural Language Processing</title>
+		<imprint>
+			<date type="published" when="2011" />
+			<biblScope unit="page" from="455" to="462" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b29">
+	<analytic>
+		<title level="a" type="main">Featurerich part-of-speech tagging with a cyclic dependency network</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">K</forename><surname>Toutanova</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">C</forename><forename type="middle">D</forename><surname>Manning</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Human Language Technology and North American Association for Computational Linguistics (HLT/NAACL)</title>
+		<imprint>
+			<date type="published" when="2003" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b30">
+	<analytic>
+		<title level="a" type="main">Generating approximate geographic descriptions</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">R</forename><surname>Turner</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Y</forename><surname>Sripada</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">E</forename><surname>Reiter</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">European Workshop on Natural Language Generation</title>
+		<imprint>
+			<date type="published" when="2009" />
+			<biblScope unit="page" from="42" to="49" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b31">
+	<analytic>
+		<title level="a" type="main">Using dependency-based features to take the &quot;para-farce&quot; out of paraphrase</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">S</forename><surname>Wan</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">M</forename><surname>Dras</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">R</forename><surname>Dale</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">C</forename><surname>Paris</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Australasian Language Technology Workshop</title>
+		<imprint>
+			<date type="published" when="2006" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b32">
+	<analytic>
+		<title level="a" type="main">Probabilistic treeedit models with structured latent variables for textual entailment and question answering</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">M</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">C</forename><forename type="middle">D</forename><surname>Manning</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">The International Conference on Computational Linguistics</title>
+		<imprint>
+			<date type="published" when="2010" />
+			<biblScope unit="page" from="1164" to="1172" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b33">
+	<analytic>
+		<title level="a" type="main">Learning synchronous grammars for semantic parsing with lambda calculus</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Y</forename><forename type="middle">W</forename><surname>Wong</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">R</forename><forename type="middle">J</forename><surname>Mooney</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Association for Computational Linguistics (ACL)</title>
+		<imprint>
+			<date type="published" when="2007" />
+			<biblScope unit="page" from="960" to="967" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b34">
+	<analytic>
+		<title level="a" type="main">Learning to parse database queries using inductive logic proramming</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">M</forename><surname>Zelle</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">R</forename><forename type="middle">J</forename><surname>Mooney</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Association for the Advancement of Artificial Intelligence (AAAI)</title>
+		<imprint>
+			<date type="published" when="1996" />
+			<biblScope unit="page" from="1050" to="1055" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b35">
+	<analytic>
+		<title level="a" type="main">Learning to map sentences to logical form: Structured classification with probabilistic categorial grammars</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">L</forename><forename type="middle">S</forename><surname>Zettlemoyer</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">M</forename><surname>Collins</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Uncertainty in Artificial Intelligence (UAI)</title>
+		<imprint>
+			<date type="published" when="2005" />
+			<biblScope unit="page" from="658" to="666" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+				</listBibl>
+			</div>
+		</back>
+	</text>
+</TEI>

@@ -1,0 +1,507 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<TEI xmlns="http://www.tei-c.org/ns/1.0" 
+xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+xsi:schemaLocation="http://www.tei-c.org/ns/1.0 /home/ana/installs/grobid/grobid-0.5.1/grobid-home/schemas/xsd/Grobid.xsd"
+ xmlns:xlink="http://www.w3.org/1999/xlink">
+	<teiHeader xml:lang="en">
+		<encodingDesc>
+			<appInfo>
+				<application version="0.5.1-SNAPSHOT" ident="GROBID" when="2019-04-18T12:36+0000">
+					<ref target="https://github.com/kermitt2/grobid">GROBID - A machine learning software for extracting information from scholarly documents</ref>
+				</application>
+			</appInfo>
+		</encodingDesc>
+		<fileDesc>
+			<titleStmt>
+				<title level="a" type="main">Constituency Parsing with a Self-Attentive Encoder</title>
+			</titleStmt>
+			<publicationStmt>
+				<publisher>Association for Computational Linguistics</publisher>
+				<availability status="unknown"><p>Copyright Association for Computational Linguistics</p>
+				</availability>
+				<date>July 15-20, 2018. 2018. 2676</date>
+			</publicationStmt>
+			<sourceDesc>
+				<biblStruct>
+					<analytic>
+						<author>
+							<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Nikita</forename><surname>Kitaev</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="department">Computer Science Division</orgName>
+								<orgName type="institution">University of California</orgName>
+								<address>
+									<settlement>Berkeley</settlement>
+								</address>
+							</affiliation>
+						</author>
+						<author>
+							<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Dan</forename><surname>Klein</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="department">Computer Science Division</orgName>
+								<orgName type="institution">University of California</orgName>
+								<address>
+									<settlement>Berkeley</settlement>
+								</address>
+							</affiliation>
+						</author>
+						<title level="a" type="main">Constituency Parsing with a Self-Attentive Encoder</title>
+					</analytic>
+					<monogr>
+						<title level="m">Proceedings of the 56th Annual Meeting of the Association for Computational Linguistics (Long Papers)</title>
+						<meeting>the 56th Annual Meeting of the Association for Computational Linguistics (Long Papers) <address><addrLine>Melbourne, Australia</addrLine></address>
+						</meeting>
+						<imprint>
+							<publisher>Association for Computational Linguistics</publisher>
+							<biblScope unit="page" from="2676" to="2686"/>
+							<date type="published">July 15-20, 2018. 2018. 2676</date>
+						</imprint>
+					</monogr>
+				</biblStruct>
+			</sourceDesc>
+		</fileDesc>
+		<profileDesc>
+			<abstract>
+				<p>We demonstrate that replacing an LSTM encoder with a self-attentive architecture can lead to improvements to a state-of-the-art discriminative constituency parser. The use of attention makes explicit the manner in which information is propagated between different locations in the sentence, which we use to both analyze our model and propose potential improvements. For example, we find that separating positional and content information in the encoder can lead to improved parsing accuracy. Additionally, we evaluate different approaches for lexical representation. Our parser achieves new state-of-the-art results for single models trained on the Penn Treebank: 93.55 F1 without the use of any external data, and 95.13 F1 when using pre-trained word representations. Our parser also outperforms the previous best-published accuracy figures on 8 of the 9 languages in the SPMRL dataset.</p>
+			</abstract>
+		</profileDesc>
+	</teiHeader>
+	<text xml:lang="en">
+		<body>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="1">Introduction</head><p>In recent years, neural network approaches have led to improvements in constituency parsing <ref type="bibr" target="#b7">(Dyer et al., 2016;</ref><ref type="bibr" target="#b5">Cross and Huang, 2016;</ref><ref type="bibr" target="#b3">Choe and Charniak, 2016;</ref><ref type="bibr">Stern et al., 2017a;</ref><ref type="bibr" target="#b8">Fried et al., 2017</ref>). Many of these parsers can broadly be char- acterized as following an encoder-decoder design: an encoder reads the input sentence and summa- rizes it into a vector or set of vectors (e.g. one for each word or span in the sentence), and then a decoder uses these vector summaries to incre- mentally build up a labeled parse tree. In con- trast to the large variety of decoder architectures investigated in recent work, the encoders in re- cent parsers have predominantly been built using recurrent neural networks (RNNs), and in particu- lar Long Short-Term Memory networks (LSTMs). RNNs have largely replaced approaches such as the fixed-window-size feed-forward networks of <ref type="bibr" target="#b6">Durrett and Klein (2015)</ref> in part due to their ability to capture global context. However, RNNs are not the only architecture capable of summarizing large global contexts: recent work by <ref type="bibr">Vaswani et al. (2017)</ref> presented a new state-of-the-art approach to machine translation with an architecture that en- tirely eliminates recurrent connections and relies instead on a repeated neural attention mechanism. In this paper, we introduce a parser that combines an encoder built using this kind of self-attentive architecture with a decoder customized for pars- ing ( <ref type="figure" target="#fig_0">Figure 1</ref>). In Section 2 of this paper, we de- scribe the architecture and present our finding that self-attention can outperform an LSTM-based ap- proach. A neural attention mechanism makes explicit the manner in which information is transferred be- tween different locations in the sentence, which we can use to study the relative importance of dif- ferent kinds of context to the parsing task. Dif- ferent locations in the sentence can attend to each other based on their positions, but also based on their contents (i.e. based on the words at or around those positions). In Section 3 we present our find-ing that when our parser learns to make an implicit trade-off between these two types of attention, it predominantly makes use of position-based atten- tion, and show that explicitly factoring the two types of attention can noticeably improve parsing accuracy. In Section 4, we study our model's use of attention and reaffirm the conventional wisdom that sentence-wide global context is important for parsing decisions.</p><p>Like in most neural parsers, we find morpholog- ical (or at least sub-word) features to be important to achieving good results, particularly on unseen words or inflections. In Section 5.1, we demon- strate that a simple scheme based on concatenating character embeddings of word prefixes/suffixes can outperform using part-of-speech tags from an external system. We also present a version of our model that uses a character LSTM, which per- forms better than other lexical representations - even if word embeddings are removed from the model. In Section 5.2, we explore an alternative approach for lexical representations that makes use of pre-training on a large unsupervised corpus. We find that using the deep contextualized rep- resentations proposed by <ref type="bibr" target="#b13">Peters et al. (2018)</ref> can boost parsing accuracy.</p><p>Our parser achieves 93.55 F1 on the Penn Tree- bank WSJ test set when not using external word representations, outperforming all previous single- system constituency parsers trained only on the WSJ training set. The addition of pre-trained word representations following <ref type="bibr" target="#b13">Peters et al. (2018)</ref> in- creases parsing accuracy to 95.13 F1, a new state- of-the-art for this dataset. Our model also out- performs previous best published results on 8 of the 9 languages in the SPMRL 2013/2014 shared tasks. Code and trained English models are pub- licly available. <ref type="bibr">1</ref> </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2">Base Model</head><p>Our parser follows an encoder-decoder architec- ture, as shown in <ref type="figure" target="#fig_0">Figure 1</ref>. The decoder, described in Section 2.1, is borrowed from the chart parser of <ref type="bibr">Stern et al. (2017a)</ref> with additional modifica- tions from <ref type="bibr" target="#b9">Gaddy et al. (2018)</ref>. Their parser is ar- chitecturally streamlined yet achieves the highest performance among discriminative single-system parsers trained on WSJ data only, which is why we selected it as the starting point for our experiments with encoder variations. Sections 2.2 and 2.3 de-</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.1">Tree Scores and Chart Decoder</head><p>Our parser assigns a real-valued score s(T ) to each tree T , which decomposes as</p><formula xml:id="formula_0">s(T ) = X (i,j,l)2T s(i, j, l)<label>(1)</label></formula><p>Here s(i, j, l) is a real-valued score for a con- stituent that is located between fencepost positions i and j in a sentence and has label l. To han- dle unary chains, the set of labels includes a col- lapsed entry for each unary chain in the training set. The model handles n-ary trees by binarizing them and introducing a dummy label ? to nodes created during binarization, with the property that 8i, j : s(i, j, ?) = 0. Enforcing that scores as- sociated with the dummy labels are always zero ensures that (1) continues to hold for all possible binarizations of an n-ary tree. At test time, the model-optimal treê</p><formula xml:id="formula_1">treê T = arg max T s(T )</formula><p>can be found efficiently using a CKY-style infer- ence algorithm. Given the correct tree T ? , the model is trained to satisfy the margin constraints</p><formula xml:id="formula_2">s(T ? ) s(T ) + (T, T ? )</formula><p>for all trees T by minimizing the hinge loss</p><formula xml:id="formula_3">max ⇣ 0, max T 6 =T ? [s(T ) + (T, T ? )] s(T ? ) ⌘</formula><p>Here is the Hamming loss on labeled spans, and the tree corresponding to the most-violated con- straint can be found using a slight modification of the inference algorithm used at test time. For further details, see <ref type="bibr" target="#b9">Gaddy et al. (2018)</ref>. The remainder of this paper concerns itself with the functional form of s(i, j, l), which is calculated using a neural network for all l 6 = ?.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.2">Context-Aware Word Representations</head><p>The encoder portion of our model is split into two parts: a word-based portion that assigns a context- aware vector representation y t to each position t in the sentence (described in this section), and a chart portion that combines the vectors y t to gen- erate span scores s(i, j, l) (Section 2.3). The ar- chitecture for generating the vectors y t is adapted from <ref type="bibr">Vaswani et al. (2017)</ref>. The encoder takes as input a sequence of word embeddings [w 1 , w 2 , . . . , w T ], where the first and last embeddings are of special start and stop to- kens. All word embeddings are learned jointly with other parts of the model. To better general- ize to words that are not seen during training, the encoder also receives a sequence of part-of-speech tag embeddings [m 1 , m 2 , . . . , m T ] based on the output of an external tagger (alternative lexical representations are discussed in Section 5). Addi- tionally, the encoder stores a learned table of posi- tion embeddings, where every number i 2 1, 2, . . . (up to some maximum sentence length) is associ- ated with a vector p i . All embeddings have the same dimensionality, which we call d model , and are added together at the input of the encoder:</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Multi-Head Attention</head><formula xml:id="formula_4">z t = w t + m t + p t .</formula><p>The vectors [z 1 , z 2 , . . . , z T ] are transformed by a stack of 8 identical layers, as shown in <ref type="figure" target="#fig_1">Figure 2</ref>. Each layer consists of two stacked sublayers: a multi-headed attention mechanism and a position- wise feed-forward sublayer. The output of each sublayer given an input x is LayerNorm(x + SubLayer(x)), i.e. each sublayer is followed by a residual connection and a Layer Normalization ( <ref type="bibr" target="#b0">Ba et al., 2016</ref>) step. As a result, all sublayer out- puts, including final outputs y t , are of size d model .</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.2.1">Self-Attention</head><p>The first sublayer in each of our 8 layers is a multi-headed self-attention mechanism, which is the only means by which information may propa- gate between positions in the sentence. The input An input x t is split into three vectors that participate in the atten- tion mechanism: a query q t , a key k t , and a value v t . The query q t is compared with all keys to form a probability distribution p(t ! ·), which is then used to retrieve an average value ¯ v t .</p><p>to the attention mechanism is a T ⇥ d model matrix X, where each row vector x t corresponds to word t in the sentence. We first consider a single attention head, as il- lustrated in <ref type="figure">Figure 3</ref>. Learned parameter matri- ces W Q , W K , and W V are used to map an input x t to three vectors: a query q t = W &gt; Q x t , a key k t = W &gt; K x t , and a value v t = W &gt; V x t . Query and key vectors have the same number of dimensions, which we call d k . The probability that word i at- tends to word j is then calculated as p(i ! j) / exp(</p><formula xml:id="formula_5">q i ·k j p d k )</formula><p>. The values v j for all words that have been attended to are aggregated to form an aver- age value ¯ v i = P j p(i ! j)v j , which is projected back to size d model using a learned matrix W O . In matrix form, the behavior of a single attention head is:</p><formula xml:id="formula_6">SingleHead(X) =  Softmax ✓ QK &gt; p d k ◆ V W O where Q = XW Q ; K = XW K ; V = XW V</formula><p>Rather than using a single head, our model sums together the outputs from multiple heads:</p><formula xml:id="formula_7">MultiHead(X) = 8 X n=1 SingleHead (n) (X)</formula><p>Each of the 8 heads has its own trainable parame- ters</p><formula xml:id="formula_8">W (n) Q , W (n) K , W (n) V , and W (n)</formula><p>O . This allows a word to gather information from up to 8 remote lo- cations in the sentence at each attention sublayer.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.2.2">Position-Wise Feed-Forward Sublayer</head><p>We use the same form as <ref type="bibr">Vaswani et al. (2017)</ref>:</p><formula xml:id="formula_9">FeedForward(x) = W 2 relu(W 1 x + b 1 ) + b 2</formula><p>Here relu denotes the Rectified Linear Unit non- linearity, and distinct sets of learned parameters are used at each of the 8 instances of the feed- forward sublayer in our model.</p><p>The input and output dimensions are the same because of the use of residual connections throughout the model, but we can vary the number of parameters by adjusting the size of the interme- diate vector that the nonlinearity is applied to.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.3">Span Scores</head><p>The outputs y t from the word-based encoder por- tion described in the previous section are com- bined to form span scores s(i, j, ·) following the method of <ref type="bibr">Stern et al. (2017a)</ref>. Concretely,</p><formula xml:id="formula_10">s(i, j, ·) = M 2 relu(LayerNorm(M 1 v + c 1 )) + c 2</formula><p>where LayerNorm denotes Layer Normalization, relu is the Rectified Linear Unit nonlinearity, and v = [ y k and y k in terms of the output of the forward and backward por- tions, respectively, of their BiLSTM encoder; we instead construct each of ! y k and y k by splitting in half 2 the outputs y k from Section 2.2. We also introduce a Layer Normalization step to match the use of Layer Normalization throughout our model.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.4">Results</head><p>The model presented above achieves a score of 92.67 F1 on the Penn Treebank WSJ development set. Details regarding hyperparameter choice and optimizer settings are presented in the supplemen- tary material. For comparison, a model that uses the same decode procedure with an LSTM-based encoder achieves a development set score of 92.24 ( <ref type="bibr" target="#b9">Gaddy et al., 2018</ref>). These results demonstrate that an RNN-based encoder is not required for <ref type="bibr">2</ref> To avoid an adverse interaction with material described in Section 3, when a vector y k is split in half the even coordi- nates contribute to ! y k and the odd coordinates contribute to y k . building a good parser; in fact, self-attention can achieve better results.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3">Content vs. Position Attention</head><p>The primary mechanism for information transfer throughout our encoder is self-attention, where words can attend to each other using both con- tent features and position information. In Sec- tion 2, we described an encoder that takes as in- put a component-wise addition between a word, tag, and position embedding for each word in the sentence. Content and position information are in- termingled throughout the network. While ideally the network would learn to balance the different types of information, in practice it does not. In this section we show that factoring the model to explicitly separate content and position informa- tion results in increased parsing accuracy.</p><p>To help gauge the relative importance of the two types of attention, we trained a modified ver- sion of our model that was only allowed to use position attention. This constraint was enforced by making the query and key vectors used for the attention mechanism be linear transformations of the corresponding word's position embedding:</p><formula xml:id="formula_11">Q (n) = P W (n) Q and K (n) = P W (n)</formula><p>K . The per- head weight matrices now multiply a matrix P containing the same position embeddings that are used at the input to the encoder, rather than the layer input X (as in Section 2.2.1). However, value vectors V (n) = XW (n) V remain unchanged and continue to carry content-related information.</p><p>We expected our parser to still achieve rea- sonable performance when restricted to only use positional attention because the resulting archi- tecture can be viewed as a generalization of a multi-layer convolutional neural network. The 8 attention heads at each layer of our model can mimic the behavior of a size-8 convolutional fil- ter, but can also determine their attention targets dynamically and need not respect any translation- invariance properties. Disabling content-based at- tention throughout all 8 layers of the network re- sults in a development-set accuracy decrease of only 0.27 F1. While we expected reasonable pars- ing performance in this setting, it seems strange that content-based attention benefits our model to such a small degree.</p><p>We next investigate the possibility that inter- mingling content and position information in a sin- gle vector can cause one type of attention to domi-nate over the other and compromise the network's ability to find the optimal balance of the two. To do this we propose a factored version of our model that explicitly separates content and position infor- mation.</p><p>A first step is to replace the component-wise ad- dition z t = w t +m t +p t (where w t , m t , and p t rep- resent word, tag, and position embeddings, respec- tively) with a concatenation z t = [w t + m t ; p t ]. We preserve the size of the vector z t by cutting the dimensionality of embeddings in half for the concatenative scheme. However, simply isolating the position-related components of the input vec- tors in this manner does not improve the perfor- mance of our network: the concatenative network achieves a development-set F1 of 92.60 (not much different from 92.67 F1 using the model in Sec- tion 2).</p><p>The issue with intermingling information is not the component-wise addition per se. In fact, con- catenation and addition often perform similarly in high dimensions (especially when the resulting vector is immediately multiplied by a matrix that intermingles the two sources of information). On that note, we can examine how the mixed vectors are used later in the network, and in particular in the query-key dot products for the attention mech- anism. If we have a query-key dot product q · k (see Section 2.2.1) where we imagine q decom- posing into content and positional information as q = q (c) + q (p) (and likewise for k), we have</p><formula xml:id="formula_12">q · k = (q (c) + q (p) ) · (k (c) + k (p)</formula><p>). This for- mulation includes cross-terms such as q (c) · k (p) ; for example it is possible to learn a network where the word the always attends to the 5th position in the sentence. Such cross-attention seems of lim- ited use compared to the potential for overfitting that it introduces.</p><p>To complete our factored model, we find all cases where a vector x = [x (c) ; x (p) ] is multi- plied by a parameter matrix, and replace the ma- trix multiplication c = W x with a split form</p><formula xml:id="formula_13">c = [c (c) ; c (p) ] = [W (c) x (c) ; W (p) x (p) ].</formula><p>This causes a number of intermediate quantities in our model to be factored, including all query and key vectors. Query-key dot products now decompose as q·k = q (c) ·k (c) +q (p) ·k (p) . The result of factor- ing a single attention head, shown in <ref type="figure" target="#fig_4">Figure 4</ref>, can also be viewed as separately applying attention to x (c) and x (p) , except that the log-probabilities in the two halves are added together prior to value  lookup. The feed-forward sublayers in our model (Section 2.2.2) are likewise split into two indepen- dent portions that operate on position and content information. Alternatively, factoring can be seen as enforcing the block-sparsity constraint</p><formula xml:id="formula_14">W =  W (c) 0 0 W (p)</formula><p>on parameter matrices throughout our model. We maintain the same vector sizes as in Section 2, which means that factoring strictly reduces the number of trainable parameters. For simplicity, we split each vector into equal halves that contain po- sition and content information, cutting the number of model parameters roughly in half. This factored scheme is able to achieve 93.15 development-set F1, an improvement of almost 0.5 F1 over the un- factored model. These results suggest that factoring different types of information leads to a better parser, but there is in principle a confound: perhaps by making all matrices block-sparse we've stumbled across a better hyperparameter configuration. For example, these gains could be due to a differ- ence in the number of trainable parameters alone. To control for this confound we also evaluated a version of our model that enforces block-sparsity throughout, but retains the use of component- wise addition at the inputs. This model achieves 92.63 F1 (not much different from the unfactored model), which supports our hypothesis that true factoring of information is important.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Attention</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Content</head><p>Position  <ref type="table">Table 1</ref>: Development-set F1 scores when content and/or position attention is selectively disabled at test-time only for a subset of the layers in our model. Position attention is the most important contributor to our model, but content attention is also helpful (especially at the final layers of the encoder).</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4">Analysis of our Model</head><p>The defining feature of our encoder is the use of self-attention, which is the only mechanism for transfer of information between different locations throughout a sentence. The attention is further factored into types: content-based attention and position-based attention. In this section, we an- alyze the manner in which our model uses this at- tention mechanism to make its predictions.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.1">Content vs. Position Attention</head><p>To examine the relative utilization of content- based vs. position-based attention in our architec- ture, we perturb a trained model at test-time by selectively zeroing out the contribution of either the content or the position component to any atten- tion mechanism. This can be done independently at different layers; the results of this experiment are shown in <ref type="table">Table 1</ref>.</p><p>We can see that our model learns to use a com- bination of the two attention types, with position- based attention being the most important. We also see that content-based attention is more useful at later layers in the network, which is consistent with the idea that the initial layers of our model act similarly to a dilated convolutional network while the upper layers have a greater balance between the two attention types.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.2">Windowed Attention</head><p>We can also examine our model's use of long- distance context information by applying window-  <ref type="table">Table 2</ref>: Development-set F1 scores when atten- tion is constrained to not exceed a particular dis- tance in the sentence at test time only. In the re- laxed setting, the first and last two tokens of the sentence can attend to any word and be attended to by any word, to allow for sentence-wide pool- ing of information.</p><p>ing to the attention mechanism. We begin by tak- ing our trained model and windowing the atten- tion mechanism at test-time only. As shown in Ta- ble 2, strict windowing yields poor results: even a window of size 40 causes a loss in parsing ac- curacy compared to the original model. When we began to investigate how the model makes use of long-distance attention, we immediately found that there are particular attention heads at some layers in our model that almost always attend to the start token. This suggests that the start token is being used as the location for some sentence-wide pooling/processing, or perhaps as a dummy target location when a head fails to find the particular phenomenon that it's learned to search for. In light of this observation, we introduce a relaxed varia- tion on the windowing scheme, where the start to- ken, first word, last word, and stop token can par- ticipate in all possible uses of attention, but pairs of other words in the sentence can only attend to each other if they are within a given window. We include three other positions in addition to the start token to do our best to cover possible locations for global pooling by our model. Results for re- laxed windowing at test-time only are also shown in <ref type="table">Table 2</ref>. Even when we allow global process- ing to take place at designated locations such as the start token, our model is able to make use of long-distance dependencies at up to length 40. Next, we examine whether the parser's use of long-distance dependencies is actually essential to performing the task by retraining our model sub- ject to windowing. To evaluate the role of global  <ref type="table">Table 3</ref>: Development-set F1 scores when atten- tion is constrained to not exceed a particular dis- tance in the sentence during training and at test time. In the relaxed setting, the first and last two tokens of the sentence can attend to any word and be attended to by any word, to allow for sentence- wide pooling of information.</p><p>computation, we consider both strict and relaxed windowing. In principle we could have replaced relaxed windowing at training time with explicit provisions for global computation, but for analysis purposes we choose to minimize departures from our original architecture.</p><p>The results, shown in <ref type="table">Table 3</ref>, demonstrate that long-distance dependencies continue to be essen- tial for achieving maximum parsing accuracy us- ing our model. Note that when a window of size 10 was imposed at training time, this was per-layer and the series of 8 layers actually had an effective context size of around 80 -which was still insuffi- cient to recover the performance of our full parser (with either approach to windowing). The side- by-side comparison of strict and relaxed window- ing shows that the ability to pool global informa- tion, using the designated locations that are always available in the relaxed scheme, consistently trans- lates to accuracy gains but is insufficient to com- pensate for small window sizes. This suggests that not only must the information signal from long- distance tokens be available in principle, but that it also helps to have this information be directly accessible without an intermediate bottleneck.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5">Lexical Models</head><p>The models described in previous sections all rely on pretagged input sentences, where the tags are predicted using the Stanford tagger. We use the same pretagged dataset as <ref type="bibr" target="#b5">Cross and Huang (2016)</ref>. In this section we explore two alterna- tive classes of lexical models: those that use no external systems or data of any kind, as well as word vectors that are pretrained in an unsuper- vised manner.   <ref type="table">Table 4</ref>: Development-set F1 scores for differ- ent approaches to handling morphology, with and without the addition of learned word embeddings.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.1">Models with Subword Features</head><p>If tag embeddings are removed from our model and only word embeddings remain (where word embeddings are learned jointly with other model parameters), performance suffers by around 1 F1.</p><p>To restore performance without introducing any dependencies on an external system, we explore incorporating lexical features directly into our model. The results for different approaches we de- scribe in this section are shown in <ref type="table">Table 4</ref>. We first evaluate an approach (CHARLSTM) that independently runs a bidirectional LSTM over the characters in each word and uses the LSTM outputs in place of part-of-speech tag embeddings. We find that this approach performs better than us- ing predicted part-of-speech tags. We can further remove the word embeddings (leaving the charac- ter LSTMs only), which does not seem to hurt and can actually help increase parsing accuracy.</p><p>Next we examine the importance of recurrent connections by constructing and evaluating a sim- pler alternative. Our approach (CHARCONCAT) is inspired by <ref type="bibr" target="#b10">Hall et al. (2014)</ref>, who found it ef- fective to replace words with frequently-occurring suffixes, and the observation that our original tag embeddings are rather high-dimensional. To rep- resent a word, we extract its first 8 letters and last 8 letters, embed each letter, and concatenate the results. If we use 32-dimensional embeddings, the 16 letters can be packed into a 512-dimensional vector -the same size as the inputs to our model. This size for the inputs in our model was cho- sen to simplify the use of residual connections (by matching vector dimensions), even though the inputs themselves could have been encoded in a smaller vector. This allows us to directly replace tag embeddings with the 16-letter prefix/suffix concatenation. For short words, embeddings of a padding token are inserted as needed. Words longer than 16 letters are represented in a lossy manner by this concatenative approach, but we hy- pothesize that prefix/suffix information is enough for our task. We find this simple scheme remark- ably effective: it is able to outperform pretagging and can operate even in the absence of word em- beddings. However, its performance is ultimately not quite as good as using a character LSTM.</p><p>Given the effectiveness of the self-attentive en- coder at the sentence level, it is aesthetically ap- pealing to consider it as a sub-word architecture as well. However, it was empirically much slower, did not parallelize better than a character-level LSTM (because words tend to be short), and ini- tial results underperformed the LSTM. One expla- nation is that in a lexical model, one only wants to compute a single vector per word, whereas the self-attentive architecture is better adapted for pro- ducing context-aware summaries at multiple posi- tions in a sequence.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.2">External Embeddings</head><p>Next, we consider a version of our model that uses external embeddings. Recent work by <ref type="bibr" target="#b13">Peters et al. (2018)</ref> has achieved state-of-the-art performance across a range of NLP tasks by augmenting ex- isting models with a new technique for word rep- resentation called ELMo (Embeddings from Lan- guage Models). Their approach is able to capture both subword information and contextual clues: the embeddings are produced by a network that takes characters as input and then uses an LSTM to capture contextual information when producing a vector representation for each word in a sentence.</p><p>We evaluate a version of our model that uses ELMo as the sole lexical representa- tion, using publicly available ELMo weights. These pre-trained word representations are 1024- dimensional, whereas all of our factored models thus far have 512-dimensional content represen- tations; we found that the most effective way to address this mismatch is to project the ELMo vec- tors to the required dimensionality using a learned weight matrix. With the addition of contextual- ized word representations, we hypothesized that a full 8 layers of self-attention would no longer be necessary. This proved true in practice: our best development set result of 95.21 F1 was obtained with a 4-layer encoder.</p><p>Encoder Architecture F1 (dev) LSTM ( <ref type="bibr" target="#b9">Gaddy et al., 2018)</ref> 92.24 -0.43 Self-attentive <ref type="table">(Section 2)</ref> 92.67 0.00 + Factored <ref type="table">(Section 3)</ref> 93.15 0.48 + CharLSTM (Section 5.1) 93.61 0.94 + ELMo (Section 5.2) 95.21 2.54 <ref type="table">Table 5</ref>: A comparison of different encoder ar- chitectures and their development-set performance relative to our base self-attentive model.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>LR LP F1</head><p>Single model, WSJ only  </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6">Results</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6.1">English (WSJ)</head><p>The development set scores of the parser varia- tions presented in previous sections are summa- rized in <ref type="table">Table 5</ref>. Our best-performing parser used a factored self-attentive encoder over ELMo word representations.</p><p>The results of evaluating our model on the test set are shown in <ref type="table" target="#tab_6">Table 6</ref>. The test score of 93.55 F1 for our CharLSTM parser exceeds the previous best numbers for single-system parsers trained on the Penn Treebank (without the use of any exter- nal data, such as pre-trained word embeddings). When our parser is augmented with ELMo word representations, it achieves a new state-of-the-art score of 95.13 F1 on the WSJ test set.</p><p>Our WSJ-only parser took 18 hours to train us- ing a single Tesla K80 GPU and can parse the   <ref type="bibr" target="#b4">Coavoux and Crabbé (2017)</ref> use predicted part-of-speech tags.</p><p>1,700-sentence WSJ development set in 8 seconds.</p><p>When using ELMo embeddings, training time was 13 hours (not including the time needed to pre- train the word embeddings) and parsing the devel- opment set takes 24 seconds. Training and infer- ence times are dominated by neural network com- putations; our single-threaded Cython implemen- tation of the chart decoder (Section 2.1) consumes a negligible fraction of total running time.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6.2">Multilingual (SPMRL)</head><p>We tested our model's ability to generalize across languages by training it on the nine languages rep- resented in the SPMRL 2013/2014 shared tasks ( <ref type="bibr">Seddah et al., 2013)</ref>. To verify that our lexical representations can function for morphologically- rich languages and smaller treebanks, we re- stricted ourselves to running a subset of the exact models that we evaluated on English. In particular, we evaluated the model that uses a character-level LSTM, with and without the addition of learned word embeddings. We did not evaluate ELMo in the multilingual setting because pre-trained ELMo weights were only available for English. Hyper- parameters were unchanged compared to the En- glish model with the exception of the learning rate, which we adjusted for some of the smaller datasets in the SPMRL task (see <ref type="table">Table 9</ref> in the supplemen- tary material). Results are shown in <ref type="table" target="#tab_8">Table 7</ref>. Development set results show that the addition of word embeddings to a model that uses a char- acter LSTM has a mixed effect: it improves per- formance for some languages, but hurts for oth- ers. For each language, we selected the trained model that performed better on the development set and evaluated it on the test set. On 8 of the 9 languages, our test set result exceeds the previous best-published numbers from any sys- tem we are aware of. The exception is Swedish, where the model of <ref type="bibr" target="#b1">Björkelund et al. (2014)</ref> con- tinues to be state-of-the-art despite a number of approaches proposed in the intervening years that have achieved better performance on other lan- guages. We note that their model uses ensem- bling (via product grammars) and a reranking step, whereas our model was only evaluated in the single-system condition.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="7">Conclusion</head><p>In this paper, we show that the choice of encoder can have a substantial effect on parser perfor- mance. In particular, we demonstrate state-of-the- art parsing results with a novel encoder based on factored self-attention. The gains we see come not only from incorporating more information (such as subword features or externally-trained word rep- resentations), but also from structuring the archi- tecture to separate different kinds of information from each other. Our results suggest that fur- ther research into different ways of encoding ut- terances can lead to additional improvements in both parsing and other natural language process- ing tasks.</p></div><figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_0"><head>Figure 1 :</head><label>1</label><figDesc>Figure 1: Our parser combines a chart decoder with a sentence encoder based on self-attention.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_1"><head>Figure 2 :</head><label>2</label><figDesc>Figure 2: An overview of our encoder, which produces a context-aware summary vector for each word in the sentence. The multi-headed attention mechanism is the only means by which information may propagate between different positions in the sentence.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_2"><head></head><label></label><figDesc>Figure 3: A single attention head. An input x t is split into three vectors that participate in the attention mechanism: a query q t , a key k t , and a value v t. The query q t is compared with all keys to form a probability distribution p(t ! ·), which is then used to retrieve an average value ¯ v t .</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_3"><head></head><label></label><figDesc>; y j+1 y i+1 ] combines summary vectors for relevant positions in the sentence. A span endpoint to the right of the word potentially requires different information from the endpoint to the left, so a word at a position k is associated with two annotation vectors ( ! y k and y k ). Stern et al. (2017a) define !</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_4"><head>Figure 4 :</head><label>4</label><figDesc>Figure 4: A single attention head, after factoring content and position information. Attention probabilities are calculated separately for the two types of information, and a combined probability distribution is then applied to both types of input information.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_6" validated="false"><head>Table 6 :</head><label>6</label><figDesc></figDesc><table>Comparison of F1 scores on the WSJ test 
+set. 
+
+</table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_8" validated="false"><head>Table 7 :</head><label>7</label><figDesc></figDesc><table>Results on the SPMRL dataset. All values are F1 scores calculated using the version of evalb 
+distributed with the shared task. a Björkelund et al. (2013) b Uses character LSTM, whereas other results 
+from </table></figure>
+
+			<note place="foot" n="1"> https://github.com/nikitakit/self-attentive-parser scribe the base version of our encoder, where the self-attentive architecture described in Section 2.2 is adapted from Vaswani et al. (2017).</note>
+		</body>
+		<back>
+
+			<div type="acknowledgement">
+			</div>
+
+			<div type="references">
+
+				<listBibl>
+
+<biblStruct xml:id="b0">
+	<monogr>
+		<title level="m" type="main">Layer Normalization</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jimmy</forename><forename type="middle">Lei</forename><surname>Ba</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jamie</forename><forename type="middle">Ryan</forename><surname>Kiros</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Geoffrey</forename><forename type="middle">E</forename></persName>
+		</author>
+		<idno type="arXiv">arXiv:1607.06450</idno>
+		<idno>ArXiv: 1607.06450</idno>
+		<imprint>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+	<note>Hinton. cs, stat</note>
+</biblStruct>
+
+<biblStruct xml:id="b1">
+	<analytic>
+		<title level="a" type="main">The IMSWrocław-Szeged-CIS entry at the SPMRL 2014 shared task: Reranking and morphosyntax meet unlabeled data</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Anders</forename><surname>Björkelund</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ozlem</forename><surname>Cetinoglu</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Agnieszka</forename><surname>Fale´nskafale´nska</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Richárd</forename><surname>Farkas</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Thomas</forename><surname>Mueller</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the First Joint Workshop on Statistical Parsing of Morphologically Rich Languages and Syntactic Analysis of NonCanonical Languages</title>
+		<meeting>the First Joint Workshop on Statistical Parsing of Morphologically Rich Languages and Syntactic Analysis of NonCanonical Languages</meeting>
+		<imprint>
+			<date type="published" when="2014" />
+			<biblScope unit="page" from="97" to="102" />
+		</imprint>
+	</monogr>
+	<note>Wolfgang Seeker, and Zsolt Szántó</note>
+</biblStruct>
+
+<biblStruct xml:id="b2">
+	<analytic>
+		<title level="a" type="main">Re)ranking meets morphosyntax: State-of-the-art results from the SPMRL 2013 shared task</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Anders</forename><surname>Björkelund</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ozlem</forename><surname>Cetinoglu</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Richárd</forename><surname>Farkas</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Thomas</forename><surname>Mueller</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Wolfgang</forename><surname>Seeker</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Fourth Workshop on Statistical Parsing of Morphologically-Rich Languages</title>
+		<meeting>the Fourth Workshop on Statistical Parsing of Morphologically-Rich Languages<address><addrLine>Seattle, Washington, USA</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2013" />
+			<biblScope unit="page" from="135" to="145" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b3">
+	<analytic>
+		<title level="a" type="main">Parsing as language modeling</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kook</forename><surname>Do</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Eugene</forename><surname>Choe</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Charniak</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2016 Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>the 2016 Conference on Empirical Methods in Natural Language Processing</meeting>
+		<imprint>
+			<date type="published" when="2016" />
+			<biblScope unit="page" from="2331" to="2336" />
+		</imprint>
+	</monogr>
+	<note>Association for Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b4">
+	<analytic>
+		<title level="a" type="main">Multilingual lexicalized constituency parsing with wordlevel auxiliary tasks</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Maximin</forename><surname>Coavoux</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Benoit</forename><surname>Crabbé</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 15th Conference of the European Chapter of the Association for Computational Linguistics</title>
+		<meeting>the 15th Conference of the European Chapter of the Association for Computational Linguistics</meeting>
+		<imprint>
+			<date type="published" when="2017" />
+			<biblScope unit="volume">2</biblScope>
+			<biblScope unit="page" from="331" to="336" />
+		</imprint>
+	</monogr>
+	<note>Short Papers. Association for Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b5">
+	<analytic>
+		<title level="a" type="main">Span-based constituency parsing with a structure-label system and provably optimal dynamic oracles</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">James</forename><surname>Cross</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Liang</forename><surname>Huang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2016 Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>the 2016 Conference on Empirical Methods in Natural Language Processing</meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2016" />
+			<biblScope unit="page" from="1" to="11" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b6">
+	<analytic>
+		<title level="a" type="main">Neural CRF parsing</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Greg</forename><surname>Durrett</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Dan</forename><surname>Klein</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 53rd Annual Meeting of the Association for Computational Linguistics and the 7th International Joint Conference on Natural Language Processing</title>
+		<meeting>the 53rd Annual Meeting of the Association for Computational Linguistics and the 7th International Joint Conference on Natural Language Processing</meeting>
+		<imprint>
+			<date type="published" when="2015" />
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="302" to="312" />
+		</imprint>
+	</monogr>
+	<note>Long Papers). Association for Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b7">
+	<analytic>
+		<title level="a" type="main">Recurrent neural network grammars</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Chris</forename><surname>Dyer</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Adhiguna</forename><surname>Kuncoro</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Miguel</forename><surname>Ballesteros</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Noah</forename><forename type="middle">A</forename><surname>Smith</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2016 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies</title>
+		<meeting>the 2016 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies</meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2016" />
+			<biblScope unit="page" from="199" to="209" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b8">
+	<analytic>
+		<title level="a" type="main">Improving neural parsing by disentangling model combination and reranking effects</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Daniel</forename><surname>Fried</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Mitchell</forename><surname>Stern</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Dan</forename><surname>Klein</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 55th Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 55th Annual Meeting of the Association for Computational Linguistics</meeting>
+		<imprint>
+			<date type="published" when="2017" />
+			<biblScope unit="volume">2</biblScope>
+			<biblScope unit="page" from="161" to="166" />
+		</imprint>
+	</monogr>
+	<note>Short Papers). Association for Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b9">
+	<analytic>
+		<title level="a" type="main">What&apos;s going on in neural constituency parsers? An analysis</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">David</forename><surname>Gaddy</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Mitchell</forename><surname>Stern</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Dan</forename><surname>Klein</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2018 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies. Association for Computational Linguistics</title>
+		<meeting>the 2018 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies. Association for Computational Linguistics</meeting>
+		<imprint>
+			<date type="published" when="2018" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b10">
+	<analytic>
+		<title level="a" type="main">Less grammar, more features</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">David</forename><surname>Hall</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Greg</forename><surname>Durrett</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Dan</forename><surname>Klein</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 52nd</title>
+		<meeting>the 52nd</meeting>
+		<imprint>
+			<date type="published" when="2014" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b11">
+	<monogr>
+				<title level="m">Annual Meeting of the Association for Computational Linguistics</title>
+		<imprint>
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="228" to="237" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b12">
+	<analytic>
+		<title level="a" type="main">In-order transition-based constituent parsing</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jiangming</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yue</forename><surname>Zhang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Transactions of the Association for Computational Linguistics</title>
+		<imprint>
+			<biblScope unit="volume">5</biblScope>
+			<biblScope unit="page" from="413" to="424" />
+			<date type="published" when="2017" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b13">
+	<analytic>
+		<title level="a" type="main">Deep contextualized word representations</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Matthew</forename><forename type="middle">E</forename><surname>Peters</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Mark</forename><surname>Neumann</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Mohit</forename><surname>Iyyer</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Matt</forename><surname>Gardner</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Christopher</forename><surname>Clark</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kenton</forename><surname>Lee</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Luke</forename><surname>Zettlemoyer</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2018 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies</title>
+		<meeting>the 2018 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies</meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2018" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b14">
+	<monogr>
+				<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">H</forename><surname>Wallach</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">R</forename><surname>Fergus</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">S</forename><surname>Vishwanathan</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">R</forename><surname>Garnett</surname></persName>
+		</author>
+		<title level="m">Advances in Neural Information Processing Systems</title>
+		<imprint>
+			<publisher>Curran Associates, Inc</publisher>
+			<biblScope unit="volume">30</biblScope>
+			<biblScope unit="page" from="5998" to="6008" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b15">
+	<analytic>
+		<title level="a" type="main">Grammar as a foreign language</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Oriol</forename><surname>Vinyals</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Łukasz</forename><surname>Kaiser</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Terry</forename><surname>Koo</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Slav</forename><surname>Petrov</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ilya</forename><surname>Sutskever</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Geoffrey</forename><surname>Hinton</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Advances in Neural Information Processing Systems</title>
+		<imprint>
+			<publisher>Curran Associates, Inc</publisher>
+			<date type="published" when="2015" />
+			<biblScope unit="volume">28</biblScope>
+			<biblScope unit="page" from="2755" to="2763" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+				</listBibl>
+			</div>
+		</back>
+	</text>
+</TEI>

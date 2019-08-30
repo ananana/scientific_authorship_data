@@ -1,0 +1,913 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<TEI xmlns="http://www.tei-c.org/ns/1.0" 
+xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+xsi:schemaLocation="http://www.tei-c.org/ns/1.0 /home/ana/installs/grobid/grobid-0.5.1/grobid-home/schemas/xsd/Grobid.xsd"
+ xmlns:xlink="http://www.w3.org/1999/xlink">
+	<teiHeader xml:lang="en">
+		<encodingDesc>
+			<appInfo>
+				<application version="0.5.1-SNAPSHOT" ident="GROBID" when="2019-04-18T11:30+0000">
+					<ref target="https://github.com/kermitt2/grobid">GROBID - A machine learning software for extracting information from scholarly documents</ref>
+				</application>
+			</appInfo>
+		</encodingDesc>
+		<fileDesc>
+			<titleStmt>
+				<title level="a" type="main">Imitation Learning for Neural Morphological String Transduction</title>
+			</titleStmt>
+			<publicationStmt>
+				<publisher>Association for Computational Linguistics</publisher>
+				<availability status="unknown"><p>Copyright Association for Computational Linguistics</p>
+				</availability>
+				<date>October 31-November 4, 2018. 2018</date>
+			</publicationStmt>
+			<sourceDesc>
+				<biblStruct>
+					<analytic>
+						<author role="corresp">
+							<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Peter</forename><surname>Makarov</surname></persName>
+							<email>makarov@cl.uzh.ch simon.clematide@cl.uzh.ch</email>
+							<affiliation key="aff0">
+								<orgName type="department">Institute of Computational Linguistics</orgName>
+								<orgName type="institution">University of Zurich</orgName>
+								<address>
+									<country key="CH">Switzerland</country>
+								</address>
+							</affiliation>
+						</author>
+						<author>
+							<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Simon</forename><surname>Clematide</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="department">Institute of Computational Linguistics</orgName>
+								<orgName type="institution">University of Zurich</orgName>
+								<address>
+									<country key="CH">Switzerland</country>
+								</address>
+							</affiliation>
+						</author>
+						<title level="a" type="main">Imitation Learning for Neural Morphological String Transduction</title>
+					</analytic>
+					<monogr>
+						<title level="m">Proceedings of the 2018 Conference on Empirical Methods in Natural Language Processing</title>
+						<meeting>the 2018 Conference on Empirical Methods in Natural Language Processing <address><addrLine>Brussels, Belgium</addrLine></address>
+						</meeting>
+						<imprint>
+							<publisher>Association for Computational Linguistics</publisher>
+							<biblScope unit="page" from="2877" to="2882"/>
+							<date type="published">October 31-November 4, 2018. 2018</date>
+						</imprint>
+					</monogr>
+					<note>2877</note>
+				</biblStruct>
+			</sourceDesc>
+		</fileDesc>
+		<profileDesc>
+			<abstract>
+				<p>We employ imitation learning to train a neural transition-based string transducer for morphological tasks such as inflection generation and lemmatization. Previous approaches to training this type of model either rely on an external character aligner for the production of gold action sequences, which results in a subopti-mal model due to the unwarranted dependence on a single gold action sequence despite spurious ambiguity, or require warm starting with an MLE model. Our approach only requires a simple expert policy, eliminating the need for a character aligner or warm start. It also addresses familiar MLE training biases and leads to strong and state-of-the-art performance on several benchmarks.</p>
+			</abstract>
+		</profileDesc>
+	</teiHeader>
+	<text xml:lang="en">
+		<body>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="1">Introduction</head><p>Recently, morphological tasks such as inflection generation and lemmatization ( <ref type="figure" target="#fig_0">Figure 1</ref>) have been successfully tackled with neural transition- based models over edit actions <ref type="bibr" target="#b0">(Aharoni and Goldberg, 2017;</ref><ref type="bibr" target="#b30">Robertson and Goldwater, 2018;</ref><ref type="bibr" target="#b24">Makarov and Clematide, 2018;</ref><ref type="bibr" target="#b9">Cotterell et al., 2017b</ref>). The model, introduced in <ref type="bibr" target="#b0">Aharoni and Goldberg (2017)</ref>, uses familiar inductive biases about morphological string transduction such as conditioning on a single input character and mono- tonic character-to-character alignment. Due to this, the model achieves lower time complexity (compared to soft-attentional seq2seq models) and strong performance on several datasets.</p><p>Aharoni and Goldberg train the model by maximizing the conditional log-likelihood (MLE) of gold edit actions derived by an independent character-pair aligner. The MLE training proce- dure is therefore a pipeline, and the aligner is completely uninformed of the end task. This re- sults in error propagation and the unwarranted dependence of the transducer on a single gold action sequence-in contrast to weighted finite- state transducers (WFST) that take into account all permitted action sequences. Although these problems-as well as the exposure bias and the loss-metric mismatch arising from this MLE train- ing <ref type="bibr" target="#b34">(Wiseman and Rush, 2016</ref>)-can be addressed by reinforcement learning-style methods ( <ref type="bibr" target="#b27">Ranzato et al., 2016;</ref><ref type="bibr" target="#b1">Bahdanau et al., 2017;</ref><ref type="bibr">Shen et al., 2016, RL)</ref>, for an effective performance, all these approaches require warm-start initialization with an MLE-pretrained model. Another shortcoming of the RL-style methods is delayed punishment: For many NLP problems, including morphological string transduction, one can pinpoint actions that adversely affect the global score. For example, it is easy to tell if inserting some character c at step t would render the entire output incorrect. Assign- ing individual blame to single actions directly- as opposed to scoring the entire sequence via a sequence-level objective-simplifies the learning problem.</p><p>Faced with problems similar to those arising in transition-based dependency parsing with static oracles <ref type="bibr" target="#b17">(Goldberg and Nivre, 2012)</ref>, we train this model in the imitation learning (IL) framework <ref type="bibr" target="#b10">(Daumé III et al., 2009;</ref><ref type="bibr" target="#b31">Ross et al., 2011;</ref><ref type="bibr" target="#b5">Chang et al., 2015)</ref>, using a simple expert policy. Our approach eliminates both all dependency on an external character aligner and the need for MLE pre-training. By making use of exploration of past and future actions and having a global objective, it addresses the MLE training biases, while provid- ing relevant action-level training signal. The ap- proach leads to strong and state-of-the-art results on a number of morphological datasets, outper- forming models trained with minimum risk train- ing (MRT).</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2">Model Description</head><p>We use a variant of the seq2seq state-transition system by <ref type="bibr" target="#b0">Aharoni and Goldberg (2017)</ref>. The model transduces the input string into the out- put string by performing single-character edits (in- sertions, deletions). The encoder RNN computes context-enriched representations of input charac- ters, which are pushed onto the buffer at the be- ginning of transduction. The decoder RNN keeps track of the history of edits. Transitions-edits- are scored based on the output of the decoder state and can write a character or pop the rep- resentation of a character from the top of the buffer. We choose the model variant of <ref type="bibr" target="#b24">Makarov and Clematide (2018)</ref>, who add the copy edit, which results in strong performance gains in low- resource settings.</p><p>Let x = x 1 . . . x n , x i ∈ Σ x be an input sequence, y = y 1 . . . y p , y j ∈ Σ y an output se- quence, and a = a 1 . . . a m , a t ∈ Σ a an action se- quence. Let {f h } H h=1 be the set of all features. The morpho-syntactic description of a transduction is then an n-hot vector e ∈ {0, 1} H .</p><p>The model employs a bidirectional long short- term memory (LSTM) encoder <ref type="bibr" target="#b19">(Graves and Schmidhuber, 2005</ref>) to produce representations for each character of the input x:</p><formula xml:id="formula_0">h 1 , . . . , h n = BiLSTM(E(x 1 ), . . . , E(x n )), (1)</formula><p>where E returns the embedding for x i . We push h 1 , . . . , h n in reversed order onto the buffer. The transduction begins with the full buffer and the empty decoder state.</p><p>Transitions are scored based on the output of the LSTM decoder state (Hochreiter and Schmidhu- ber, 1997):</p><formula xml:id="formula_1">s t = LSTM(c t−1 , [A(a t−1 ) ; h i ]),<label>(2)</label></formula><p>where c t−1 is the previous decoder state, A(a t−1 ) is the embedding of the previous edit action, and h i is the input character representation at the top of the buffer. If features are part of the input in the task, then the input to the decoder also contains the representation of morpho-syntactic description e,</p><formula xml:id="formula_2">[F (f 1 ) ; . . . ; F (f H )]</formula><p>, which is a concatenation of the embedded features and a designated embed- ding</p><formula xml:id="formula_3">F (0) is used instead of F (f h ) if e h = 0.</formula><p>The probabilities of transitions are computed with a softmax classifier:</p><formula xml:id="formula_4">P (a t = k | a &lt;t , x, Θ) = softmax k (W·s t +b) (3)</formula><p>Model parameters Θ include W, b, the embed- dings, and the parameters of the LSTMs.</p><p>The alphabet of edit actions Σ a contains IN- SERT(c) for each c ∈ Σ y , DELETE, and COPY. An INSERT(c) action outputs c; DELETE pops h i from the top of the buffer; COPY pops h i from the top of the buffer and outputs x i . The system exhibits spu- rious ambiguity: Multiple action sequences lead to the same output string.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.1">MLE Training</head><p>Aharoni and Goldberg train their model by mini- mizing the negative conditional log-likelihood of</p><formula xml:id="formula_5">the data D = {(x (l) , a (l) )} N l=1</formula><p>:</p><formula xml:id="formula_6">L(D, Θ) = − N l=1 m t=1 logP (a (l) t | a (l) &lt;t , x (l) ,Θ), (4)</formula><p>where gold action sequences a (l) are determinis- tically computed from a character-pair alignment of the input and output sequences (x (l) , y (l) ). The character-pair aligner is trained separately to op- timize the likelihood of the actual training data</p><formula xml:id="formula_7">T = {(x (l) , y (l) )} N l=1</formula><p>. For the details, we refer the reader to <ref type="bibr" target="#b0">Aharoni and Goldberg (2017)</ref>.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3">IL Training</head><p>One problem with the MLE approach is that the aligner is trained in a disconnect from the end task. As a result, alignment errors lead to the learning of a suboptimal transducer. Switching to a differ- ent aligner can dramatically improve performance <ref type="bibr" target="#b24">(Makarov and Clematide, 2018)</ref>. More fundamen- tally, in the face of the vast spurious ambiguity, the transducer is forced to adhere to a single gold action sequence whereas typically, legitimate and equally likely alternative edit sequences exist. This uncertainty is not accessible to the transducer, but could be profitably leveraged by it.</p><p>We address this problem within the IL frame- work and train the model to imitate an expert policy (dynamic oracle), which is a map-on the training data-from configurations to sets of opti- mal actions. Actions are optimal if they lead to the lowest sequence-level loss, under the assumption that all future actions are also optimal <ref type="bibr" target="#b10">(Daumé III et al., 2009</ref>). In the roll-in stage, we run the model on a training sample and follow actions either re- turned by the expert policy (as in teacher forc- ing) or sampled from the model (which itself is a stochastic policy). In this way, we obtain a se- quence of configurations summarized as decoder outputs s 1 , . . . , s m . In the roll-out stage, we com- pute the sequence-level loss for every valid action a in each configuration s t . To this end, we execute a and then either query the expert to obtain the loss for the optimal action sequence following a or run the model for the rest of the input and evaluate the loss of the resulting action sequence. Finally, the sequence-level losses obtained in this way for all actions a enter the action-level loss for configura- tion s t that we minimize with respect to Θ.</p><p>Sequence-level loss We define the loss in terms of the Levenshtein distance <ref type="bibr" target="#b23">(Levenshtein, 1966)</ref> between the prediction and the target and the edit cost of the action sequence. Given input x (l) with target y (l) , the loss from producing an action se- quence a is:</p><formula xml:id="formula_8">(a, x (l) , y (l) ) = β distance(y, y (l) )+cost(a), (5)</formula><p>where y is computed from a and x (l) and β ≥ 1 is some penalty for unit distance. <ref type="bibr">1</ref> The first term represents the task objective. The second term en- forces that the task objective is reached with a min- imum number of edits.</p><p>The second term is crucial as it takes over the role of the character aligner. Initially, we also ex- perimented with only Levenshtein distance as loss, similar to previous work on character-level prob- lems ( <ref type="bibr" target="#b22">Leblond et al., 2018;</ref><ref type="bibr" target="#b1">Bahdanau et al., 2017)</ref>. However, models did not learn much, which we attribute to sparse training signal as all action sequences producing the same y would incur the same sequence-level loss, including intuitively very wasteful ones, e.g. first deleting all of x (l) and then inserting of all of y (l) .</p><p>Expert The expert policy keeps track of the pre- fix of the target y (l) in the predicted sequence y &lt;t and returns actions that lead to the completion of the suffix of y (l) using an action sequence with the lowest edit cost. The resulting prediction y at- tains the minimum edit distance from y (l) . For ex- ample, if x (l) = walk and y (l) = walked, the <ref type="bibr">1</ref> We use unit costs to compute edit cost and distance. top of the buffer is h 3 representing x 3 = l, and y &lt;3 = wad due to a sampling error from a roll-in with the model, the expert returns {COPY}.</p><p>Action-level loss Given sequence-level losses, we compute the regret for each action a:</p><formula xml:id="formula_9">r t (a) = (a, x (l) , y (l) )−min a ∈A(st) (a , x (l) , y (l) ), (6)</formula><p>where a (or a ) is the action sequence resulting from taking a (or a ) at s t and A(s t ) is the set of valid actions. Thus, r t (a), which quantifies how much we suffer from taking action a relative to the optimal action under the current policy, constitutes the direct blame of a in the sequence-level loss.</p><p>Classic IL employs cost-sensitive classification, with regrets making up costs <ref type="bibr" target="#b10">(Daumé III et al., 2009;</ref><ref type="bibr" target="#b5">Chang et al., 2015)</ref>. Our initial experi- ments with cost-sensitive classification resulted in rather inefficient training and not very effective models. Instead, we choose to minimize the neg- ative marginal log-likelihood of all optimal ac- tions ( <ref type="bibr" target="#b29">Riezler et al., 2000;</ref><ref type="bibr" target="#b16">Goldberg, 2013;</ref><ref type="bibr" target="#b2">Ballesteros et al., 2016)</ref>. Given the training data T = {(x (l) , y (l) )} N l=1 , the action-level loss is:</p><formula xml:id="formula_10">L(T, Θ) = − N l=1 m t=1 log a∈At P (a | a &lt;t , x (l) ,Θ),<label>(7)</label></formula><p>where A t = {a ∈ A(s t ) : r t (a) = 0}, the set of optimal actions under the current policy. Depend- ing on the roll-in schedule, the next edit a t+1 is sampled either uniformly at random from A t or from the distribution of valid edits. To include all the computed regrets into the loss, we also exper- iment with the cost-augmented version of this ob- jective ( <ref type="bibr" target="#b15">Gimpel and Smith, 2010)</ref>, where regrets function as costs.</p><p>The downside of IL is that roll-outs are costly. We avoid computing most of the roll-outs by checking if an action increases the edit distance from y (l) . If it does, we heuristically assign this action a regret of β. We use this heuristic in both expert and model roll-outs.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4">Experiments</head><p>We demonstrate the effectiveness of our approach on three tasks: inflection generation (using the typologically diverse <ref type="bibr">SIGMORPHON 2016</ref><ref type="bibr">and SIGMORPHON 2017</ref><ref type="bibr">datasets of Cotterell et al. (2016</ref><ref type="bibr">, 2017a</ref>), reinflection (the small-sized Ger- man CELEX dataset of <ref type="bibr" target="#b11">Dreyer et al. (2008)</ref>), and     Experimental results. Soft-attention seq2seq models: <ref type="bibr">MED=Kann and Schütze (2016)</ref> (cited from Aha- roni and Goldberg <ref type="formula" target="#formula_1">(2017)</ref>), <ref type="bibr">SOFT=Aharoni and Goldberg (2017)</ref>, <ref type="bibr">LEM=Bergmanis and Goldwater (2018)</ref>. WFSTs: <ref type="bibr">LAT=Dreyer et al. (2008)</ref>, <ref type="bibr">NWFST=Rastogi et al. (2016)</ref>. Transition-based models: <ref type="bibr">HA=Aharoni and Goldberg (2017)</ref>, <ref type="bibr">SGM17TOP=Makarov</ref>  We use character and feature embeddings of size 100 and 20, respectively, and one-layer LSTMs with hidden-state size 200. Following Aharoni and Goldberg, for every character c ∈ Σ x ∩ Σ y , we let A(INSERT(c)) := E(c), i.e. the same embedding represents both c and the inser- tion of c. We optimize with ADADELTA <ref type="bibr" target="#b36">(Zeiler, 2012)</ref>, use early stopping and batches of size 1. We set the penalty for unit distance β = 5 and roll in with an inverse-sigmoid decay schedule as in <ref type="bibr" target="#b3">Bengio et al. (2015)</ref>. CA-D models are trained with expert roll-outs only (as is often the case in dynamic-oracle parsing). CA-R and CA-RM mod- els mix expert and learned roll-outs with probabil- ity 0.5 as in <ref type="bibr" target="#b5">Chang et al. (2015)</ref>. CA-RM models optimize softmax-margin.</p><p>For comparison, we also train models with MRT (CA-MRT-A) as in <ref type="bibr" target="#b32">Shen et al. (2016)</ref>, using a global objective similar to our sequence-level loss (Eq. 5). We use batches of at most 20 unique sam- ples per training example. The risk is a convex combination of normalized Levenshtein distance and the action sequence cost, which we min-max scale, within a batch, to the <ref type="bibr">[0,</ref><ref type="bibr">1]</ref> interval.</p><p>We decode all our models using beam search with beam width 4.</p><p>Our approach performs best on most languages of the SIGMORPHON 2016 data <ref type="table">(Table 1)</ref> and both limited-resource settings of SIGMORPHON 2017 <ref type="table" target="#tab_3">(Table 4)</ref>. It achieves marginal improvement over an MRT model on the reinflection task <ref type="table" target="#tab_1">(Table 2)</ref> with consistent gains on the 2PKE →z transforma- tion ( <ref type="bibr" target="#b11">Dreyer et al., 2008)</ref>, that involves infixation. Using mixed roll-outs (CA-R, CA-RM) improves performance on the SIGMORPHON 2017 inflec- tion data <ref type="table" target="#tab_3">(Table 4)</ref>, otherwise the results are close to CA-D. We also note strong gains over CA-MRT- A trained with a similar global loss <ref type="table" target="#tab_3">(Table 4)</ref>. Gen- erally, improvements are most pronounced in in- flection generation, the only task where the model could profit from adjusting alignment to available feature information (cf. <ref type="table" target="#tab_2">Table 3</ref>).</p><p>We take a closer look at the results in the SIG- MORPHON 2017 medium data-size setting (1,000 training examples per language). CA-RM makes the largest performance gains on languages with complex morphological phenomena (Semitic and Uralic languages, Navajo) and an above average number of unique morpho-syntactic descriptions. Khaling and Basque, outliers with 367 and 740 unique morpho-syntactic descriptions in the train- ing data, are among the top five languages with the largest gains. The lowest gains and rare losses are made for Romance and Germanic languages and languages with many unique morpho-syntactic descriptions but regular morphologies (Quechua, Urdu/Hindi).</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5">Related work</head><p>Traditionally, morphological string transduction has been approached with discriminative weighted finite-state transducers ( <ref type="bibr" target="#b28">Rastogi et al., 2016;</ref><ref type="bibr" target="#b8">Cotterell et al., 2014;</ref><ref type="bibr" target="#b11">Dreyer et al., 2008;</ref><ref type="bibr" target="#b13">Eisner, 2002</ref>). <ref type="bibr" target="#b35">Yu et al. (2016)</ref> and <ref type="bibr" target="#b18">Graves (2012)</ref> tackle the modeling of unbounded dependencies in the output, while preserving latent monotonic hard character alignment. <ref type="bibr" target="#b14">Faruqui et al. (2016)</ref>; <ref type="bibr" target="#b21">Kann and Schütze (2016)</ref> successfully apply seq2seq modeling to the task. <ref type="bibr" target="#b0">Aharoni and Goldberg (2017)</ref> introduce a neural version of the transition- based model over edits. <ref type="bibr" target="#b24">Makarov and Clematide (2018)</ref> show gains from using the copy edit and address the MLE training biases with MRT.</p><p>The limitations of teacher forcing have recently been the focus of intense research <ref type="bibr" target="#b12">(Edunov et al., 2017;</ref><ref type="bibr" target="#b34">Wiseman and Rush, 2016;</ref><ref type="bibr" target="#b32">Shen et al., 2016)</ref>, including the adaptation of RL methods ( <ref type="bibr" target="#b27">Ranzato et al., 2016;</ref><ref type="bibr" target="#b1">Bahdanau et al., 2017</ref>). Most of these approaches require warm start with an MLE model and themselves introduce discrepan- cies between training with sampling and search- based decoding. Such biases do not arise from IL, which has recently been proposed for seq2seq models ( <ref type="bibr" target="#b22">Leblond et al., 2018)</ref>. Our approach, re- lated to <ref type="bibr" target="#b22">Leblond et al. (2018)</ref>, additionally ad- dresses the problem of spurious ambiguity, which is not present in seq2seq models.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6">Conclusion</head><p>We show that training to imitate a simple ex- pert policy results in an effective neural transition- based model for morphological string transduc- tion. The fully end-to-end approach addresses var- ious shortcomings of previous training regimes (the need for an external character aligner, warm- start initialization, and MLE training biases), and leads to strong empirical results. We make our code and predictions publicly available. 4</p></div><figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_0"><head>Figure 1 :</head><label>1</label><figDesc>Figure 1: Morphological tasks with examples in Korean: inflection generation (top) and lemmatization (bottom). (McCune-Reischauer: =hada, =hasy˘ oss˘ umnikka).</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_1"><head></head><label></label><figDesc>Medium settings of SIGMOR- PHON 2017 data (averaged over 52 languages). -MRT: minimum risk train- ing; -MRT-A: MRT with ac- tion cost in the loss; -D: only expert roll-outs; -R: ex- pert and model roll-outs; -RM: softmax-margin, expert and model roll-outs</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_2"><head></head><label></label><figDesc>et al. (2017), and from Makarov and Clematide (2018): HA * =reimplementation of HA, CA=model in §2, and HA * -MRT, CA-MRT (risk=normalized edit distance). We report exact-match accuracies for ensembles of 5 models (SIGM. 2016 and 2017) and single-model averages over 5 folds (CELEX) and 10 folds (lemmatization). lemmatization (the standard subset of the Wicen- towski (2002) dataset).</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_1" validated="false"><head>Table 2 : Results on CELEX data.</head><label>2</label><figDesc></figDesc><table></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_2" validated="false"><head>Table 3 : Lemmatization results.</head><label>3</label><figDesc></figDesc><table>Model 
+L 
+M 
+
+SGM17TOP 
+
+50.6 82.8 
+
+HA  *  
+
+31.5 80.2 
+
+CA 
+
+48.8 81.0 
+HA  *  -MRT 33.1 81.5 
+
+CA-MRT 
+
+49.9 82.9 
+
+CA-MRT-A 
+
+49.9 82.7 
+
+CA-D 
+
+50.3 82.6 
+
+CA-R 
+
+51.6 83.8 
+
+CA-RM 
+
+50.6 84.0 
+
+</table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_3" validated="false"><head>Table 4 :</head><label>4</label><figDesc></figDesc><table>Results on Low and 
+
+</table></figure>
+
+			<note place="foot" n="2"> Language codes: RU=Russian, DE=German, ES=Spanish, KA=Georgian, FI=Finnish, TR=Turkish, HU=Hungarian, NV=Navajo, AR=Arabic, MT=Maltese, EU=Basque, EN=English, GA=Irish, TL=Tagalog. 3 Personal communication.</note>
+
+			<note place="foot" n="4"> https://github.com/ZurichNLP/emnlp2018-imitationlearning-for-neural-morphology</note>
+		</body>
+		<back>
+
+			<div type="acknowledgement">
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Acknowledgments</head><p>We thank Mathias Müller for help with the manuscript, Toms Bergmanis for sharing with us the results of his system, and the reviewers for interesting and helpful comments. We also thank the anonymous COLING reviewer who sug-gested that we should look at spurious ambigu-ity. Peter Makarov has been supported by Euro-pean Research Council Grant No. 338875, Simon Clematide by the Swiss National Science Founda-tion under Grant No. CRSII5 173719.</p></div>
+			</div>
+
+			<div type="references">
+
+				<listBibl>
+
+<biblStruct xml:id="b0">
+	<analytic>
+		<title level="a" type="main">Morphological inflection generation with hard monotonic attention</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Roee</forename><surname>Aharoni</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yoav</forename><surname>Goldberg</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">ACL</title>
+		<imprint>
+			<date type="published" when="2017" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b1">
+	<analytic>
+		<title level="a" type="main">An actor-critic algorithm for sequence prediction</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Dzmitry</forename><surname>Bahdanau</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Philemon</forename><surname>Brakel</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kelvin</forename><surname>Xu</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Anirudh</forename><surname>Goyal</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ryan</forename><surname>Lowe</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Joelle</forename><surname>Pineau</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Aaron</forename><surname>Courville</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yoshua</forename><surname>Bengio</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">ICLR</title>
+		<imprint>
+			<date type="published" when="2017" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b2">
+	<analytic>
+		<title level="a" type="main">Training with exploration improves a greedy stack-LSTM parser</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Miguel</forename><surname>Ballesteros</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yoav</forename><surname>Goldberg</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Chris</forename><surname>Dyer</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Noah A</forename><surname>Smith</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">EMNLP</title>
+		<imprint>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b3">
+	<analytic>
+		<title level="a" type="main">Scheduled sampling for sequence prediction with recurrent neural networks</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Samy</forename><surname>Bengio</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Oriol</forename><surname>Vinyals</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Navdeep</forename><surname>Jaitly</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Noam</forename><surname>Shazeer</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">NIPS</title>
+		<imprint>
+			<date type="published" when="2015" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b4">
+	<analytic>
+		<title level="a" type="main">Context sensitive neural lemmatization with Lematus</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Toms</forename><surname>Bergmanis</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Sharon</forename><surname>Goldwater</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">NAACL</title>
+		<imprint>
+			<date type="published" when="2018" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b5">
+	<analytic>
+		<title level="a" type="main">Learning to search better than your teacher</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kai-Wei</forename><surname>Chang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Akshay</forename><surname>Krishnamurthy</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Alekh</forename><surname>Agarwal</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Hal</forename><surname>Daume</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Iii</forename></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">John</forename><surname>Langford</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">ICML</title>
+		<imprint>
+			<date type="published" when="2015" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b6">
+	<analytic>
+		<title level="a" type="main">Jason Eisner, and Mans Hulden. 2017a. The CoNLL-SIGMORPHON 2017 shared task: Universal morphological reinflection in 52 languages</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ryan</forename><surname>Cotterell</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Christo</forename><surname>Kirov</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">John</forename><surname>Sylak-Glassman</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Géraldine</forename><surname>Walther</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ekaterina</forename><surname>Vylomova</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Patrick</forename><surname>Xia</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Manaal</forename><surname>Faruqui</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Sandra</forename><surname>Kübler</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">David</forename><surname>Yarowsky</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the CoNLLSIGMORPHON 2017 Shared Task: Universal Morphological Reinflection</title>
+		<meeting>the CoNLLSIGMORPHON 2017 Shared Task: Universal Morphological Reinflection</meeting>
+		<imprint/>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b7">
+	<analytic>
+		<title level="a" type="main">Jason Eisner, and Mans Hulden. 2016. The SIGMORPHON 2016 Shared TaskMorphological Reinflection</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ryan</forename><surname>Cotterell</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Christo</forename><surname>Kirov</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">John</forename><surname>Sylak-Glassman</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">David</forename><surname>Yarowsky</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2016 Meeting of SIGMORPHON</title>
+		<meeting>the 2016 Meeting of SIGMORPHON</meeting>
+		<imprint/>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b8">
+	<analytic>
+		<title level="a" type="main">Stochastic contextual edit distance and probabilistic FSTs</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ryan</forename><surname>Cotterell</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Nanyun</forename><surname>Peng</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jason</forename><surname>Eisner</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">ACL</title>
+		<imprint>
+			<date type="published" when="2014" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b9">
+	<analytic>
+		<title level="a" type="main">Neural graphical models over strings for principal parts morphological paradigm completion</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ryan</forename><surname>Cotterell</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">John</forename><surname>Sylak-Glassman</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Christo</forename><surname>Kirov</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">EACL</title>
+		<imprint>
+			<date type="published" when="2017" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b10">
+	<analytic>
+		<title level="a" type="main">Search-based structured prediction</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Hal</forename><surname>Daumé</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Iii</forename></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">John</forename><surname>Langford</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Daniel</forename><surname>Marcu</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Machine learning</title>
+		<imprint>
+			<date type="published" when="2009" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b11">
+	<analytic>
+		<title level="a" type="main">Latent-variable modeling of string transductions with finite-state methods</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Markus</forename><surname>Dreyer</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jason</forename><forename type="middle">R</forename><surname>Smith</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jason</forename><surname>Eisner</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">ACL</title>
+		<imprint>
+			<date type="published" when="2008" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b12">
+	<analytic>
+		<title level="a" type="main">Classical structured prediction losses for sequence to sequence learning</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Sergey</forename><surname>Edunov</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Myle</forename><surname>Ott</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Michael</forename><surname>Auli</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">David</forename><surname>Grangier</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Marc&amp;apos;aurelio</forename><surname>Ranzato</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">NAACL</title>
+		<imprint>
+			<date type="published" when="2017" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b13">
+	<analytic>
+		<title level="a" type="main">Parameter estimation for probabilistic finite-state transducers</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jason</forename><surname>Eisner</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">ACL</title>
+		<imprint>
+			<date type="published" when="2002" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b14">
+	<monogr>
+		<title level="m" type="main">Morphological inflection generation using character sequence to sequence learning</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Manaal</forename><surname>Faruqui</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yulia</forename><surname>Tsvetkov</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Graham</forename><surname>Neubig</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Chris</forename><surname>Dyer</surname></persName>
+		</author>
+		<editor>NAACL-HLT</editor>
+		<imprint>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b15">
+	<monogr>
+		<title level="m" type="main">Softmaxmargin CRFs: Training log-linear models with cost functions</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kevin</forename><surname>Gimpel</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Noah</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Smith</surname></persName>
+		</author>
+		<editor>NAACL-HLT</editor>
+		<imprint>
+			<date type="published" when="2010" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b16">
+	<analytic>
+		<title level="a" type="main">Dynamic-oracle transitionbased parsing with calibrated probabilistic output</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yoav</forename><surname>Goldberg</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">IWPT</title>
+		<imprint>
+			<date type="published" when="2013" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b17">
+	<analytic>
+		<title level="a" type="main">A dynamic oracle for arc-eager dependency parsing</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yoav</forename><surname>Goldberg</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Joakim</forename><surname>Nivre</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">COLING</title>
+		<imprint>
+			<date type="published" when="2012" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b18">
+	<monogr>
+				<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Alex</forename><surname>Graves</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1211.3711</idno>
+		<title level="m">Sequence transduction with recurrent neural networks</title>
+		<imprint>
+			<date type="published" when="2012" />
+		</imprint>
+	</monogr>
+<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b19">
+	<analytic>
+		<title level="a" type="main">Framewise phoneme classification with bidirectional LSTM and other neural network architectures</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Alex</forename><surname>Graves</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jürgen</forename><surname>Schmidhuber</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Neural Networks</title>
+		<imprint>
+			<date type="published" when="2005" />
+			<biblScope unit="volume">18</biblScope>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b20">
+	<analytic>
+		<title level="a" type="main">Long short-term memory</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Sepp</forename><surname>Hochreiter</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jürgen</forename><surname>Schmidhuber</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Neural computation</title>
+		<imprint>
+			<biblScope unit="issue">8</biblScope>
+			<biblScope unit="page">9</biblScope>
+			<date type="published" when="1997" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b21">
+	<analytic>
+		<title level="a" type="main">Singlemodel encoder-decoder with explicit morphological representation for reinflection</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Katharina</forename><surname>Kann</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Hinrich</forename><surname>Schütze</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">ACL</title>
+		<imprint>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b22">
+	<analytic>
+		<title level="a" type="main">SEARNN: Training RNNs with global-local losses</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Rémi</forename><surname>Leblond</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jean-Baptiste</forename><surname>Alayrac</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Anton</forename><surname>Osokin</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Simon</forename><surname>Lacoste-Julien</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">ICLR</title>
+		<imprint>
+			<date type="published" when="2018" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b23">
+	<analytic>
+		<title level="a" type="main">Binary codes capable of correcting deletions, insertions, and reversals</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Vladimir I Levenshtein</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Soviet physics doklady</title>
+		<imprint>
+			<date type="published" when="1966" />
+			<biblScope unit="volume">10</biblScope>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b24">
+	<analytic>
+		<title level="a" type="main">Neural transition-based string transduction for limitedresource setting in morphology</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Peter</forename><surname>Makarov</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Simon</forename><surname>Clematide</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">COLING</title>
+		<imprint>
+			<date type="published" when="2018" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b25">
+	<analytic>
+		<title level="a" type="main">Align and copy: UZH at SIGMORPHON 2017 shared task for morphological reinflection</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Peter</forename><surname>Makarov</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Tatiana</forename><surname>Ruzsics</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Simon</forename><surname>Clematide</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the CoNLL SIGMORPHON 2017</title>
+		<meeting>the CoNLL SIGMORPHON 2017</meeting>
+		<imprint>
+			<date type="published" when="2017" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b26">
+	<monogr>
+		<title level="m" type="main">Shared Task: Universal Morphological Reinflection</title>
+		<imprint/>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b27">
+	<monogr>
+		<title level="m" type="main">Sequence level training with recurrent neural networks</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Sumit</forename><surname>Marc&amp;apos;aurelio Ranzato</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Michael</forename><surname>Chopra</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Wojciech</forename><surname>Auli</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Zaremba</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+	<note>In ICLR</note>
+</biblStruct>
+
+<biblStruct xml:id="b28">
+	<monogr>
+		<title level="m" type="main">Weighting finite-state transductions with neural context</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Pushpendre</forename><surname>Rastogi</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ryan</forename><surname>Cotterell</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jason</forename><surname>Eisner</surname></persName>
+		</author>
+		<editor>NAACL-HLT</editor>
+		<imprint>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b29">
+	<analytic>
+		<title level="a" type="main">Lexicalized stochastic modeling of constraint-based grammars using log-linear measures and EM training</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Stefan</forename><surname>Riezler</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jonas</forename><surname>Kuhn</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Detlef</forename><surname>Prescher</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Mark</forename><surname>Johnson</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">ACL</title>
+		<imprint>
+			<date type="published" when="2000" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b30">
+	<monogr>
+		<title level="m" type="main">Evaluating historical text normalization systems: How well do they generalize? In NAACL</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Alexander</forename><surname>Robertson</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Sharon</forename><surname>Goldwater</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2018" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b31">
+	<analytic>
+		<title level="a" type="main">A reduction of imitation learning and structured prediction to no-regret online learning</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Stéphane</forename><surname>Ross</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Geoffrey</forename><surname>Gordon</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Drew</forename><surname>Bagnell</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the fourteenth international conference on artificial intelligence and statistics</title>
+		<meeting>the fourteenth international conference on artificial intelligence and statistics</meeting>
+		<imprint>
+			<date type="published" when="2011" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b32">
+	<analytic>
+		<title level="a" type="main">Minimum risk training for neural machine translation</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Shiqi</forename><surname>Shen</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yong</forename><surname>Cheng</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Zhongjun</forename><surname>He</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Wei</forename><surname>He</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Hua</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Maosong</forename><surname>Sun</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yang</forename><surname>Liu</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">ACL</title>
+		<imprint>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b33">
+	<monogr>
+		<title level="m" type="main">Modeling and learning multilingual inflectional morphology in a minimally supervised framework</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Richard</forename><surname>Wicentowski</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2002" />
+		</imprint>
+		<respStmt>
+			<orgName>Johns Hopkins University</orgName>
+		</respStmt>
+	</monogr>
+<note type="report_type">Ph.D. thesis</note>
+</biblStruct>
+
+<biblStruct xml:id="b34">
+	<monogr>
+		<title level="m" type="main">Sequence-to-sequence learning as beam-search optimization</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Sam</forename><surname>Wiseman</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Alexander M</forename><surname>Rush</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+	<note>In EMNLP</note>
+</biblStruct>
+
+<biblStruct xml:id="b35">
+	<monogr>
+		<title level="m" type="main">Online segment to segment neural transduction</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Lei</forename><surname>Yu</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jan</forename><surname>Buys</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Phil</forename><surname>Blunsom</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+	<note>In EMNLP</note>
+</biblStruct>
+
+<biblStruct xml:id="b36">
+	<monogr>
+		<title level="m" type="main">ADADELTA: an adaptive learning rate method</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Matthew D Zeiler</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1212.5701</idno>
+		<imprint>
+			<date type="published" when="2012" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+				</listBibl>
+			</div>
+		</back>
+	</text>
+</TEI>

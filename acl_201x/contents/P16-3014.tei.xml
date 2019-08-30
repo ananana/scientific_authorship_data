@@ -1,0 +1,564 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<TEI xmlns="http://www.tei-c.org/ns/1.0" 
+xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+xsi:schemaLocation="http://www.tei-c.org/ns/1.0 /home/ana/installs/grobid/grobid-0.5.1/grobid-home/schemas/xsd/Grobid.xsd"
+ xmlns:xlink="http://www.w3.org/1999/xlink">
+	<teiHeader xml:lang="en">
+		<encodingDesc>
+			<appInfo>
+				<application version="0.5.1-SNAPSHOT" ident="GROBID" when="2019-04-18T13:01+0000">
+					<ref target="https://github.com/kermitt2/grobid">GROBID - A machine learning software for extracting information from scholarly documents</ref>
+				</application>
+			</appInfo>
+		</encodingDesc>
+		<fileDesc>
+			<titleStmt>
+				<title level="a" type="main">Graph-and surface-level sentence chunking</title>
+			</titleStmt>
+			<publicationStmt>
+				<publisher/>
+				<availability status="unknown"><licence/></availability>
+				<date>August 7-12, 2016</date>
+			</publicationStmt>
+			<sourceDesc>
+				<biblStruct>
+					<analytic>
+						<author>
+							<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ewa</forename><surname>Muszy´nska</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="institution">Computer Laboratory University of Cambridge</orgName>
+							</affiliation>
+						</author>
+						<author>
+							<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Muszy´</forename><surname>Muszy´nska</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="institution">Computer Laboratory University of Cambridge</orgName>
+							</affiliation>
+						</author>
+						<title level="a" type="main">Graph-and surface-level sentence chunking</title>
+					</analytic>
+					<monogr>
+						<title level="m">Proceedings of the 54th Annual Meeting of the Association for Computational Linguistics-Student Research Workshop</title>
+						<meeting>the 54th Annual Meeting of the Association for Computational Linguistics-Student Research Workshop <address><addrLine>Berlin, Germany</addrLine></address>
+						</meeting>
+						<imprint>
+							<biblScope unit="page" from="93" to="99"/>
+							<date type="published">August 7-12, 2016</date>
+						</imprint>
+					</monogr>
+				</biblStruct>
+			</sourceDesc>
+		</fileDesc>
+		<profileDesc>
+			<abstract>
+				<p>The computing cost of many NLP tasks increases faster than linearly with the length of the representation of a sentence. For parsing the representation is tokens, while for operations on syntax and semantics it will be more complex. In this paper we propose a new task of sentence chunking: splitting sentence representations into coherent substructures. Its aim is to make further processing of long sentences more tractable. We investigate this idea experimentally using the Dependency Minimal Recursion Semantics (DMRS) representation .</p>
+			</abstract>
+		</profileDesc>
+	</teiHeader>
+	<text xml:lang="en">
+		<body>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="1">Introduction</head><p>Long sentences pose a challenge in many Nat- ural Language Processing (NLP) tasks, such as parsing or translation. We propose chunking as a way of making such sentences more tractable before further processing. Chunking a sentence means cutting a complex sentence into grammat- ical constituents that can be processed indepen- dently and then recombined without loss of infor- mation. Such an operation can be defined both on the surface string of a sentence and on its semantic representation, and is applicable to a wide range of tasks.</p><p>Some approaches to parsing have space and time requirements which are much worse than lin- ear in sentence length. This can lead to practical difficulties in processing. For example, the ACE processor 1 running the English Resource Gram- mar (ERG) <ref type="bibr" target="#b2">(Copestake and Flickinger, 2000</ref>) re- quires roughly 530 MB of RAM to parse Sen- tence 1. In fact, longer and more complicated sen-tences can cause the parser to time out or run out of memory before a solution is found.</p><p>(1) Marcellina has hired Bartolo as her coun- sel, since Figaro had once promised to marry her if he should default on a loan she had made to him, and she intends to enforce that promise.</p><p>Chunking would make processing of long sen- tences more tractable. For example, we aim to split sentences like Sentence 1 into chunks 2a-d. c. He should default on a loan she made to him.</p><p>d. She intends to enforce that promise.</p><p>Each of these shorter sentences can be parsed with less than 20 MB, requiring in total less than a fifth of RAM needed to parse the full sentence. What exactly constitutes a valid chunk has to be considered in the context of the task which we want to simplify by chunking. In this sense a po- tentially useful analogy could be made to the use of factoids in summarisation ( <ref type="bibr" target="#b14">Teufel and Van Halteren, 2004;</ref><ref type="bibr" target="#b9">Nenkova et al., 2007</ref>). However, we can make some general assumptions about the na- ture of 'good' chunks. They have to be semanti- cally and grammatically self-contained parts of the larger sentence.</p><p>Sentence chunking resembles clause splitting as defined by the CoNLL-2001 shared task ( <ref type="bibr" target="#b15">Tjong et al., 2001</ref>). Each of the chunks a-d is a fi- nite clause, although each consists of multiple smaller clauses. This points to a crucial differ- ence between sentence chunking and clause split- ting which justifies treating them as separate tasks.</p><p>We define chunking in terms of its purpose as a pre-processing step and because of that it is more restrictive. Not every clause boundary is a chunk boundary. A key aspect of sentence chunking is deciding where to place a chunk border so that the resulting chunks can be processed and recombined without loss of information.</p><p>Another difference between sentence chunking and clause splitting is the domain of the task. Clause splitting is performed on the surface string of a sentence, while we can define chunking not only on the surface representation but also on more complex ones, such a graph-based semantic repre- sentation.</p><p>There are two reasons why chunking a semantic representation is a good idea:</p><p>1. Many operations on graphs have worse than linear complexity, some types of graph matching are NP-complete. Chunking se- mantic representations can make their manip- ulation more tractable (Section 1.1).</p><p>2. Such a form of chunking, apart from being useful in its own right, can also help chunking surface sentences (Section 1.2).</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="1.1">Chunking semantic representations</head><p>In this paper we describe an approach to sen- tence chunking based on Dependency Minimal Recursion Semantics (DMRS) graphs <ref type="bibr" target="#b5">(Copestake, 2009)</ref>. We chunk a sentence by dividing its seman- tic representation into subgraphs corresponding to logical chunks. The link structure of a DMRS graph reveals appropriate chunk boundaries. Since we envision chunking to be one of the steps in a processing pipeline, we prioritize precision over coverage to minimize error propagation. The goal is to chunk fewer sentences but correctly rather than more but with low precision. Sentence chunking understood as graph chunk- ing of a semantic representation can be directly useful for applications that already use the rep- resentation. Although we use the DMRS, chunk- ing could be just as well adapted for other seman- tic representations, for example AMR (Abstract Meaning Representation) ( <ref type="bibr" target="#b0">Banarescu et al., 2013)</ref>. Part of our reason to choose the DMRS frame- work was the fact that the DMRS format is readily interchangeable with Minimal Recursion Seman- tics (MRS). Thanks to this relationship our sys- tem is compatible with any applications stemming from the DELPH-IN initiative 2 .</p><p>Horvat et al. (2015) introduce a statistical ap- proach to realization, in which they treat realiza- tion like a translation problem. As part of their approach, they extract grammatical rules based on DMRS subgraphs. Since operations on subgraphs are computationally expensive, chunking the sen- tence before the algorithm is applied could reduce the complexity of the task.</p><p>Another task which could benefit from chunk- ing is treebanking. LinGO Redwoods 2 ( <ref type="bibr" target="#b10">Oepen et al., 2004</ref>) is an initiative aimed at designing and developing a treebank which supports the HPSG grammar. The treebank relies on discriminants to differentiate and choose between possible parses. Chunking could be used to preferentially select parses which contain subtrees corresponding to well-formed chunk subgraphs.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="1.2">Towards string chunking</head><p>The DMRS-based rule approach cannot be itself used to improve parsing because it requires a full parse to find the chunks in the first place. How- ever, development of the surface chunking ma- chine learning algorithm can extend applicability of chunking to parsing and other tasks for which a deep parse is unavailable.</p><p>The alignment between the semantic and sur- face representations of a sentence allows us to cut the sentence string into surface chunks. We intend to use the rule-based approach to create training data for a minimally supervised machine learning algorithm.</p><p>Following <ref type="bibr">Rei (2013, pp. 11-12)</ref> we use the term 'minimally supervised' to mean a system trained using "domain-specific resources, other than annotated training data, which could be pro- duced by a domain-expert in a relatively short time". In our case the resource is a small set of manually coded rules developed through examina- tion of data.</p><p>The ultimate goal of our work is the creation of a reliable tool which performs chunking of sen- tence strings without relying on semantic repre- sentation and deep parsing. The applicability of chunking would then extend to tasks which cannot rely on deep parsing, such as statistical machine translation or parsing itself.</p><p>The next sections give more details on the 2 Deep Linguistic Processing with HPSG, www.delph-in.net</p><p>Since I bought a cat, we have had no problems with mice. <ref type="figure">Figure 1</ref>: A DMRS graph of a sentence Since I bought a cat, we have had no problems with mice. The two chunks are marked, while since is separated as a functional chunk and chunking trigger. The links with circular labels are crucial for chunking.</p><formula xml:id="formula_0">ARG1/H ARG2/H ARG1/NEQ ARG2/NEQ RSTR/H ARG1/NEQ ARG1/EQ ARG1/EQ RSTR/H ARG2/NEQ</formula><p>DELPH-IN framework, DMRS and our approach to rule-based chunking. We present our prelimi- nary results in Section 4 and outline our current investigation focus and future research directions in Sections 5. Chunking is a new task, however it is related to several existing ones as discussed in Section 6.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2">DELPH-IN framework and DMRS</head><p>The  <ref type="bibr" target="#b5">(Copestake, 2009)</ref>, which represents its dependency structure. The nodes correspond to predicates; edges, re- ferred to as links, represent relations between them. An example of a DMRS graph is shown in <ref type="figure">Figure 1</ref>. DMRS graphs can be manipulated using two existing Python libraries. The pyDelphin 4 is a more general MRS-dedicated library. It al- lows conversions between MRS and DMRS rep- resentations but internally performs operations on MRS objects. The pydmrs library <ref type="bibr">5 (Copestake et al., 2016</ref>) is dedicated solely to DMRS manip- ulations. The work described in Section 4 used pyDelphin.</p><p>The ERG is a bidirectional grammar which sup- ports both parsing and generation. There exist sev- eral processors, which parse sentences into MRSs and generate surface forms from MRS represen- tations using chart generation. In our experiments we use ACE <ref type="bibr">6</ref> to obtain MRSs and to generate from them, so that parsing and generation themselves are performed using already existing DELPH-IN tools. The chunking algorithm operates on graphs -we use the pyDelphin and pydmrs libraries for MRS-DMRS conversion and for manipulating DMRS objects.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3">DMRS-based chunking</head><p>In our research so far we have restricted valid chunks to finite clauses. A sentence is chunked correctly if all the chunks are either full finite clauses with a subject-verb structure or functional trigger chunks, such as since or and. A chunk can consist of multiple clauses if it is needed to ensure that all chunks are satisfactory.</p><p>The finite clause restriction was introduced be- cause well-formedness of finite clauses can be eas- ily checked and they can be more readily pro- cessed independently and recombined than other types of clauses.</p><p>We developed the chunking rules through ex- amination of data and finding structural patterns in DMRS graphs. Currently chunking is based on three grammatical constructions: clausal coordi- nation (3), suboordinating conjunctions (4ab) and clausal complements (5).</p><p>(3) The cat chased a toy and the dog slept un- der the table.</p><p>(4) a. The cat chased a toy because it was bored. b. Since the dog slept, Kim didn't offer it a snack.</p><p>(5) Kim thought that they should talk.</p><p>Extending the coverage of the technique to other structures is one of future directions of investiga- tion.</p><p>We discover potential chunking points by spot- ting trigger nodes. Those are the nodes which correspond to coordinating and subordinating con- junctions, and to verbs with clausal complements. In the example from <ref type="figure">Figure 1</ref> since is a trigger.</p><p>After a trigger is found, we check whether the clauses associated with it are finite. We can do that by following links outgoing from the trig- ger node which lead to heads of the clauses. We marked these links in the figure with circular la- bels. In symmetric constructions, such as coordi- nation, chunks are separated unambiguously by a conjunction. In other cases, such as the one in the example, we can find the chunk border by detect- ing a gap in the graph's link structure. No links outgoing from either of the main chunks span the gap between cat and we in <ref type="figure">Figure 1</ref>.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4">Preliminary results</head><p>So far we evaluated the system using a parsing and regeneration procedure, leveraging bidirectional- ity of the ERG. The surface of each sentence was chunked into substrings based on its semantic rep- resentation. Each of the resulting surface chunks was then parsed using the ACE. Next we fed the top parse for each chunk as input to the ACE gen- erator, which produced the surface matching the semantic representation of the chunk. Finally, we recombined the surfaces generated in this fashion and compared the results with the original sen- tence.</p><p>The parsing and regeneration is a way of check- ing whether any information loss was caused by chunking. We do not attempt to improve pars- ing, only to evaluate how well the chunks meet the criteria of well-formedness and applicability we posit. At the same time this form of evalua- tion assesses the semantic representation chunk- ing only indirectly, focusing on the quality of pro- duced surface chunks. This is desirable in for cre- ating a good quality dataset for the minimally su- pervised machine learning algorithm discussed in Section 1.2.</p><p>As our dataset, we used the 1212 release of the WikiWoods corpus ( <ref type="bibr" target="#b6">Flickinger et al., 2010)</ref> which is a snapshot of Wikipedia from July 2008. The entire corpus contains 44,031,336 entries, from which we selected only long sentences, viz. sen- tences with more than 40 nodes in their DMRS graph. Additionally we filtered out some non- sentential entries.</p><p>We compared the results obtained using the DMRS-based system with a simple string-based heuristic baseline, similar to one of the techniques used currently in statistical machine translation community <ref type="bibr">7</ref> . The baseline attempts to chunk 67% of long sentences it encounters, compared with 25% attempted by the DMRS-based approach. As a result, the absolute number of sentences the baseline chunks correctly is greater but low pre- cision makes the heuristic approach highly unreli- able. Any application which used it would require a lot of human supervision. The DMRS-based procedure correctly chunks 42.0% of sentences in which it finds chunking opportunities, while base- line correctly chunks only 19.6% of sentences.</p><p>The evaluation method with which we obtained these results was harsh. It required all non- functional chunks to be finite clauses. If even one of many chunks was not a finite clause, we counted the entire sentence as chunked incorrectly. Some errors occurred in the final step of the evaluation: generation from chunk's surface string. We re- quired a high similarity between the reconstructed sentence and the original. For example, according to the ERG lexicon, St and Street have the same semantic representation and the generator can't choose between them. If a generated string con- tained Baker Street when the original used Baker St, the difference would be penalised even though the two are equivalent. More than one mistake of this kind in a sentence would be enough to reject the result as incorrect.</p><p>A significant percentage of errors stems from the dataset itself. Sentences and parses in the WikiWoods dataset were not checked by humans. In fact, not all Wikiwoods entries are grammatical sentences and many of them could not be easily filtered out. Bearing that in mind we briefly re- peated the experiment with a smaller WeScience corpus 8 ( <ref type="bibr" target="#b18">Ytrestøl et al., 2009</ref>  <ref type="table">Table 1</ref>: Performance of the DMRS-based chunking algorithm and the baseline on the WikiWoods and WeScience datasets. Precision is the percentage of attempted sentences which were chunked correctly, while Correct and Incorrect columns give absolute numbers of correctly and incorrectly chunked sen- tences. Attempted column is the percentage of sentences for which a chunking opportunity was found and attempted.</p><p>it originates from Wikipedia but has been checked by human annotators. Indeed, the chunking procedure performs much better on the human-checked dataset: 62.7% cor- rect chunkings as compared with 42% for Wiki- Woods <ref type="table">(Table 1)</ref>, indicating the algorithm's sensi- tivity to parsing errors.</p><p>The error analysis of the WeScience experiment reveals that over 25% of the errors made by the rules-based system can be explained by the pres- ence of grammatical structures which the rules did not account for. Increasing the coverage of structures used for chunking should decrease the number of errors of this origin. Another common source of errors were adverbs and prepositional phrases left behind after chunking sentences be- ginning with However, when. . . or For example, if. . . . We address this issue in the newer version of the system.</p><p>For comparison, the string heuristics baseline makes chunking decisions based solely on the presence of trigger words, such as and, without the knowledge of what clauses are involved. The position of good chunking boundaries is often de- termined by dependencies between distant parts of the surface, which are difficult to capture with string-based rules, but are clearly reflected in the DMRS link structure. This results in the baseline yielding unsatisfactory chunks like those under- lined in Sentence 6.</p><p>(6) The dog barked and chased the cat.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5">Current work and future research</head><p>Currently we are preparing a different evalua- tion technique which will directly compare DMRS representations of chunks and the original sen- tence, eliminating the generation step responsi- ble for many errors. In the new evaluation chunk graphs are matched against the full graph using the pyDmrs matching module ( <ref type="bibr" target="#b4">Copestake et al., 2016</ref>) which scores the degree of the match on a continuous scale.</p><p>We are also cooperating with the authors of the statistical approach to realisation <ref type="bibr" target="#b8">(Horvat et al., 2015</ref>) on incorporating chunking into their graph manipulations. We hope to use their system for extrinsic evaluation.</p><p>Sentences which would most benefit from chunking are also, not accidentally, sentences with which parsers struggle most. Chunking often fails because the parse on which we base it is incor- rect. In the future we would like to experiment with considering a number of parses instead of just the top one. This would enable us to mix chunking into the correct parse selection procedure.</p><p>One of the investigation directions is extend- ing the catalogue of grammatical structures on which we base the chunks. Some syntactical structures we consider as extensions are relative clauses, verb phrase coordinations, gerund-based adjuncts, parentheticals and appositions. Their in- clusion would increase the coverage and quality of chunks, crucial for our purposes.</p><p>The treatment of clausal complements needs improvement as well. Some clauses are obligatory syntactic elements and their removal changes how the main clause is parsed. We do not address this issue in the current early version of the system but the lexicalist nature of the ERG offers a solution. The information about whether a clausal comple- ment is obligatory for a given verb is contained in the grammar's lexicon and can be leveraged to im- prove chunking decisions. We aim to include this mechanism in a later version of the algorithm.</p><p>DMRS graphs store information about the alignment between nodes and surface fragments. This information allows us to chunk surfaces of sentences based on the results of graph chunking.</p><p>As discussed in Section 1.2, we intend to create a training dataset for a machine learning algorithm which would perform surface chunking. Since, as the WeScience experiment showed, our rule-based approach is sensitive to errors in original parses of full sentences, we might base our training corpus on the RedWoods treebank, which is larger than WeScience but still human-checked.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6">Related work</head><p>We define sentence chunking as a new task. As discussed in Introduction, it bears similarity to clause splitting but because of its definition in terms of functionality, it has to be considered sep- arately.</p><p>The most important similarity between chunk- ing and clause splitting is how the two problems can be defined for the purpose of machine learn- ing. Clause splitting was the CoNLL-2001 shared task ( <ref type="bibr" target="#b15">Tjong et al., 2001</ref>) and the results of that research can guide the development of a machine learning system for chunking. Another task which can provide insights into how to design a suitable machine learning system is Sentence Boundary Disambiguation (SBD) task ( <ref type="bibr" target="#b16">Walker et al., 2001</ref>).</p><p>Other research related to chunking was con- ducted in the context of text simplification. Sen- tence chunking is a natural step in a simplification process, among other rewrite operations such as paraphrase extraction, but the two tasks have dif- ferent goals. While sentence simplification mod- ifies sentences, replacing lexical items and rear- ranging order of information, sentence chunking aims to preserve as much of the original sentence as possible. <ref type="bibr" target="#b1">Chandrasekar et al. (1996)</ref> suggested using dependency structures for simplifying sentences. The authors gave an example of simplifying rela- tive clauses that is similar to chunking but outside of the current scope of our experiments. This re- search represented early work on automatic syn- tactic simplification and was succeeded by Sid- dharthan (2010) who performs simplification by defining transformation rules over type depen- dency structures. Siddharthan's approach mixes lexical and syntactical transformations and cannot be directly compared with chunking.</p><p>Another example of work on simplification is a paper by <ref type="bibr" target="#b17">Woodsend and Lapata (2011)</ref>. The authors call sentence chunking sentence splitting and approach it from the perspective of tree-based Quasi-synchronous Grammar (QG). Their algo- rithm learns possible chunking points by aligning the original sentence with two shorter target sen- tences. Unlike the method we propose, the QG approach requires a manually created dataset con- sisting of original and target sentences from which the rules can be inferred. Unfortunately, it is im- possible to compare the performance of our sen- tence chunking and the authors' sentence splitting. The QG splitting algorithm is an integral part of the text simplification system and the paper de- scribing it does not give any numbers regarding the performance of individual parts of the system.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="7">Conclusions</head><p>We defined sentence chunking in terms of its use- fulness for other tasks. Its aim is to produce chunks which can be processed and recombined without loss of information. The procedure can be defined for both the surface of a sentence and for its semantic representation.</p><p>In our experiments we perform chunking us- ing rules based on the DMRS graphs of sentences. Our work is an early attempt at the task so we fo- cus on easier cases, aiming to gradually increase coverage. Since chunking is intended as a pre- processing step for other tasks, the reliability and precision are more important than chunking as many sentences as possible. Bearing this in mind, we are satisfied to report that according to pre- liminary experiments, our chunking procedure at- tempted 25% of all sentences in the dataset and it chunked 42% of these correctly. For compari- son, a baseline using heuristics attempted to chunk 67% of sentences, but only 19.6% of these sen- tences were chunked correctly.</p></div><figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_0"><head>( 2 )</head><label>2</label><figDesc>a. Marcellina has hired Bartolo as her counsel. b. Figaro had once promised to marry her.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_1" validated="false"><head>). Like WikiWoods, Algorithm (Dataset)</head><label></label><figDesc></figDesc><table>Precision Correct Incorrect Attempted 
+DMRS-based (WikiWoods) 
+42.0% 
+3036 
+4195 
+24.9% 
+Baseline (WikiWoods) 
+19.6% 
+3783 
+15526 
+66.6% 
+DMRS-based (WeScience) 
+62.7% 
+106 
+63 
+22.7% 
+Baseline (WeScience) 
+14.2% 
+60 
+362 
+56.7% 
+
+</table></figure>
+
+			<note place="foot" n="1"> Woodley Packard&apos;s Answer Constraint Engine, http: //sweaglesw.org/linguistics/ace/</note>
+
+			<note place="foot" n="3"> Linguistic Grammars Online, lingo.stanford. edu 4 https://github.com/delph-in/pydelphin 5 https://github.com/delph-in/pydmrs</note>
+
+			<note place="foot" n="6"> Woodley Packard&apos;s Answer Constraint Engine, http: //sweaglesw.org/linguistics/ace/</note>
+
+			<note place="foot" n="7"> Cambridge SMT system: Source sentence chopping, http://ucam-smt.github.io/tutorial/ basictrans.html#chopping 8 http://moin.delph-in.net/WeScience</note>
+		</body>
+		<back>
+
+			<div type="acknowledgement">
+			</div>
+
+			<div type="references">
+
+				<listBibl>
+
+<biblStruct xml:id="b0">
+	<analytic>
+		<title level="a" type="main">Abstract Meaning Representation for sembanking</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Laura</forename><surname>Banarescu</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Claire</forename><surname>Bonial</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Shu</forename><surname>Cai</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Madalina</forename><surname>Georgescu</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kira</forename><surname>Griffitt</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ulf</forename><surname>Hermjakob</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kevin</forename><surname>Knight</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Philipp</forename><surname>Koehn</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Martha</forename><surname>Palmer</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Nathan</forename><surname>Schneider</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 7th Linguistic Annotation Workshop and Interoperability with Discourse</title>
+		<meeting>the 7th Linguistic Annotation Workshop and Interoperability with Discourse</meeting>
+		<imprint>
+			<date type="published" when="2013" />
+			<biblScope unit="page" from="178" to="186" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b1">
+	<analytic>
+		<title level="a" type="main">Motivations and methods for text simplification</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">R</forename><surname>Chandrasekar</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Christine</forename><surname>Doran</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">B</forename><surname>Srinivas</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Sixteenth International Conference on Computational Linguistics (COLING &apos;96</title>
+		<meeting>the Sixteenth International Conference on Computational Linguistics (COLING &apos;96</meeting>
+		<imprint>
+			<date type="published" when="1996" />
+			<biblScope unit="page" from="1041" to="1044" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b2">
+	<analytic>
+		<title level="a" type="main">An open source grammar development environment and broad-coverage English grammar using HPSG</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ann</forename><surname>Copestake</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Dan</forename><surname>Flickinger</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of LREC 2000</title>
+		<meeting>LREC 2000</meeting>
+		<imprint>
+			<date type="published" when="2000" />
+			<biblScope unit="page" from="591" to="600" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b3">
+	<analytic>
+		<title level="a" type="main">Minimal recursion semantics: An introduction</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ann</forename><surname>Copestake</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Dan</forename><surname>Flickinger</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Carl</forename><surname>Pollard</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ivan</forename><forename type="middle">A</forename><surname>Sag</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Research on Language and Computation</title>
+		<imprint>
+			<biblScope unit="volume">3</biblScope>
+			<biblScope unit="issue">2</biblScope>
+			<biblScope unit="page" from="281" to="332" />
+			<date type="published" when="2005" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b4">
+	<analytic>
+		<title level="a" type="main">Resources for building applications with Dependency Minimal Recursion Semantics</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ann</forename><surname>Copestake</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Guy</forename><surname>Emerson</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Michael</forename><forename type="middle">Wayne</forename><surname>Goodman</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Matic</forename><surname>Horvat</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Alexander</forename><surname>Kuhnle</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ewa</forename><surname>Muszy´nskamuszy´nska</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Tenth Language Resources and Evaluation Conference (LREC &apos;16)</title>
+		<meeting>the Tenth Language Resources and Evaluation Conference (LREC &apos;16)</meeting>
+		<imprint>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+	<note>In press</note>
+</biblStruct>
+
+<biblStruct xml:id="b5">
+	<analytic>
+		<title level="a" type="main">Slacker semantics: Why superficiality, dependency and avoidance of commitment can be the right way to go</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ann</forename><surname>Copestake</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 12th Conference of the European Chapter of the ACL (EACL 2009)</title>
+		<meeting>the 12th Conference of the European Chapter of the ACL (EACL 2009)<address><addrLine>Athens, Greece, March</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2009" />
+			<biblScope unit="page" from="1" to="9" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b6">
+	<analytic>
+		<title level="a" type="main">WikiWoods: syntacto-semantic annotation for English Wikipedia</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Dan</forename><surname>Flickinger</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Stephan</forename><surname>Oepen</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Gisle</forename><forename type="middle">;</forename><surname>Ytrestøl</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Khalid</forename><surname>Choukri</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Bente</forename><surname>Maegaard</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Joseph</forename><surname>Mariani</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Seventh International Conference on Language Resources and Evaluation (LREC&apos;10)</title>
+		<meeting>the Seventh International Conference on Language Resources and Evaluation (LREC&apos;10)<address><addrLine>Odijk, Stelios Piperidis, Mike Rosner, and Daniel Tapias; Valletta, Malta, may</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2010-01" />
+		</imprint>
+	</monogr>
+	<note>Nicoletta Calzolari (Conference Chair). European Language Resources Association (ELRA</note>
+</biblStruct>
+
+<biblStruct xml:id="b7">
+	<analytic>
+		<title level="a" type="main">On building a more efficient grammar by exploiting types</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Dan</forename><surname>Flickinger</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Natural Language Engineering</title>
+		<imprint>
+			<biblScope unit="volume">6</biblScope>
+			<biblScope unit="issue">1</biblScope>
+			<biblScope unit="page" from="15" to="28" />
+			<date type="published" when="2000" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b8">
+	<analytic>
+		<title level="a" type="main">Hierarchical Statistical Semantic Realization for Minimal Recursion Semantics</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Matic</forename><surname>Horvat</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ann</forename><surname>Copestake</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">William</forename><surname>Byrne</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the International Conference on Computational Semantics</title>
+		<meeting>the International Conference on Computational Semantics</meeting>
+		<imprint>
+			<date type="published" when="2015" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b9">
+	<analytic>
+		<title level="a" type="main">The pyramid method: Incorporating human content selection variation in summarization evaluation</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ani</forename><surname>Nenkova</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Rebecca</forename><surname>Passonneau</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kathleen</forename><surname>Mckeown</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">ACM Trans. Speech Lang. Process</title>
+		<imprint>
+			<biblScope unit="volume">4</biblScope>
+			<biblScope unit="issue">2</biblScope>
+			<date type="published" when="2007-05" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b10">
+	<analytic>
+		<title level="a" type="main">LinGO Redwoods</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Stephan</forename><surname>Oepen</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Dan</forename><surname>Flickinger</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kristina</forename><surname>Toutanova</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Christopherd</forename><surname>Manning</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Research on Language and Computation</title>
+		<imprint>
+			<biblScope unit="volume">2</biblScope>
+			<biblScope unit="issue">4</biblScope>
+			<biblScope unit="page" from="575" to="596" />
+			<date type="published" when="2004" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b11">
+	<monogr>
+		<title level="m" type="main">Minimally supervised dependencybased methods for natural language processing</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Marek</forename><surname>Rei</surname></persName>
+		</author>
+		<idno>840</idno>
+		<imprint>
+			<date type="published" when="2013" />
+		</imprint>
+		<respStmt>
+			<orgName>Computer Laboratory</orgName>
+		</respStmt>
+	</monogr>
+<note type="report_type">PhD thesis</note>
+	<note>University of Cambridge</note>
+</biblStruct>
+
+<biblStruct xml:id="b12">
+	<analytic>
+		<title level="a" type="main">Complex lexico-syntactic reformulation of sentences using typed dependency representations</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Advaith</forename><surname>Siddharthan</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 6th International Natural Language Generation Conference, INLG &apos;10</title>
+		<meeting>the 6th International Natural Language Generation Conference, INLG &apos;10<address><addrLine>Stroudsburg, PA, USA</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2010" />
+			<biblScope unit="page" from="125" to="133" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b13">
+	<monogr>
+				<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Smt</forename><surname>Cambridge</surname></persName>
+		</author>
+		<ptr target="http://ucam-smt.github.io/tutorial/basictrans.html#chopping.Accessed" />
+		<title level="m">source sentence chopping</title>
+		<imprint>
+			<biblScope unit="page" from="2016" to="2020" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b14">
+	<analytic>
+		<title level="a" type="main">Evaluating information content by factoid analysis: Human annotation and stability</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Simone</forename><surname>Teufel</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Hans</forename><surname>Van Halteren</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of Conference on Empirical Methods on Natural Language Processing (EMNLP)</title>
+		<meeting>Conference on Empirical Methods on Natural Language Processing (EMNLP)</meeting>
+		<imprint>
+			<date type="published" when="2004" />
+			<biblScope unit="page" from="419" to="426" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b15">
+	<analytic>
+		<title level="a" type="main">Introduction to the CoNLL-2001 shared task: Clause identification</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Erik</forename><forename type="middle">F</forename><surname>Tjong</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kim</forename><surname>Sang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Hervé</forename><surname>Déjean</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the</title>
+		<meeting>the<address><addrLine>Stroudsburg, PA, USA</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2001" />
+			<biblScope unit="volume">7</biblScope>
+			<biblScope unit="page">1</biblScope>
+		</imprint>
+	</monogr>
+	<note>Association for Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b16">
+	<analytic>
+		<title level="a" type="main">Sentence boundary detection: A comparison of paradigms for improving MT quality</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Daniel</forename><forename type="middle">J</forename><surname>Walker</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">David</forename><forename type="middle">E</forename><surname>Clements</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Maki</forename><surname>Darwin</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jan</forename><forename type="middle">W</forename><surname>Amtrup</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">roceedings of MT Summit VIII: Santiago de Compostela</title>
+		<imprint>
+			<date type="published" when="2001" />
+			<biblScope unit="page" from="18" to="22" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b17">
+	<analytic>
+		<title level="a" type="main">Learning to simplify sentences with quasi-synchronous grammar and integer programming</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kristian</forename><surname>Woodsend</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Mirella</forename><surname>Lapata</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Conference on Empirical Methods in Natural Language Processing, EMNLP &apos;11</title>
+		<meeting>the Conference on Empirical Methods in Natural Language Processing, EMNLP &apos;11<address><addrLine>Stroudsburg, PA, USA</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2011" />
+			<biblScope unit="page" from="409" to="420" />
+		</imprint>
+	</monogr>
+	<note>Association for Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b18">
+	<analytic>
+		<title level="a" type="main">Extracting and annotating Wikipedia subdomains-towards a new eScience community resource</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Gisle</forename><surname>Ytrestøl</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Dan</forename><surname>Flickinger</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Stephan</forename><surname>Oepen</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Seventh International Workshop on Treebanks and Linguistic Theories (TLT 7)</title>
+		<meeting>the Seventh International Workshop on Treebanks and Linguistic Theories (TLT 7)<address><addrLine>Groningen</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2009" />
+			<biblScope unit="page" from="185" to="197" />
+		</imprint>
+	</monogr>
+	<note>The Netherlands</note>
+</biblStruct>
+
+				</listBibl>
+			</div>
+		</back>
+	</text>
+</TEI>

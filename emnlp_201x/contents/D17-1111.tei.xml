@@ -1,0 +1,1045 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<TEI xmlns="http://www.tei-c.org/ns/1.0" 
+xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+xsi:schemaLocation="http://www.tei-c.org/ns/1.0 /home/ana/installs/grobid/grobid-0.5.1/grobid-home/schemas/xsd/Grobid.xsd"
+ xmlns:xlink="http://www.w3.org/1999/xlink">
+	<teiHeader xml:lang="en">
+		<encodingDesc>
+			<appInfo>
+				<application version="0.5.1-SNAPSHOT" ident="GROBID" when="2019-04-18T12:09+0000">
+					<ref target="https://github.com/kermitt2/grobid">GROBID - A machine learning software for extracting information from scholarly documents</ref>
+				</application>
+			</appInfo>
+		</encodingDesc>
+		<fileDesc>
+			<titleStmt>
+				<title level="a" type="main">Globally Normalized Reader</title>
+			</titleStmt>
+			<publicationStmt>
+				<publisher>Association for Computational Linguistics</publisher>
+				<availability status="unknown"><p>Copyright Association for Computational Linguistics</p>
+				</availability>
+				<date>September 7-11, 2017. 2017</date>
+			</publicationStmt>
+			<sourceDesc>
+				<biblStruct>
+					<analytic>
+						<author>
+							<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jonathan</forename><surname>Raiman</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="laboratory">Baidu Silicon Valley Artificial Intelligence Lab</orgName>
+							</affiliation>
+						</author>
+						<author>
+							<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">John</forename><surname>Miller</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="laboratory">Baidu Silicon Valley Artificial Intelligence Lab</orgName>
+							</affiliation>
+						</author>
+						<title level="a" type="main">Globally Normalized Reader</title>
+					</analytic>
+					<monogr>
+						<title level="m">Natural Language Processing</title>
+						<meeting> <address><addrLine>Copenhagen, Denmark</addrLine></address>
+						</meeting>
+						<imprint>
+							<publisher>Association for Computational Linguistics</publisher>
+							<biblScope unit="page" from="1059" to="1069"/>
+							<date type="published">September 7-11, 2017. 2017</date>
+						</imprint>
+					</monogr>
+				</biblStruct>
+			</sourceDesc>
+		</fileDesc>
+		<profileDesc>
+			<abstract>
+				<p>Rapid progress has been made towards question answering (QA) systems that can extract answers from text. Existing neu-ral approaches make use of expensive bi-directional attention mechanisms or score all possible answer spans, limiting scala-bility. We propose instead to cast extrac-tive QA as an iterative search problem: select the answer&apos;s sentence, start word, and end word. This representation reduces the space of each search step and allows computation to be conditionally allocated to promising search paths. We show that globally normalizing the decision process and back-propagating through beam search makes this representation viable and learning efficient. We empirically demonstrate the benefits of this approach using our model, Globally Normalized Reader (GNR), which achieves the second highest single model performance on the Stanford Question Answering Dataset (68.4 EM, 76.21 F1 dev) and is 24.7x faster than bi-attention-flow. We also introduce a data-augmentation method to produce semantically valid examples by aligning named entities to a knowledge base and swapping them with new entities of the same type. This method improves the performance of all models considered in this work and is of independent interest for a variety of NLP tasks.</p>
+			</abstract>
+		</profileDesc>
+	</teiHeader>
+	<text xml:lang="en">
+		<body>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="1">Introduction</head><p>Question answering (QA) and information extrac- tion systems have proven to be invaluable in wide variety of applications such as medical informa- tion collection on drugs and genes <ref type="bibr">(Quirk and</ref> Who was first to recognize that the Analytical Engine had applications beyond pure calculation?</p><p>Ada Lovelace was known for her work on Charles Babbage's Analytical Engine.</p><p>She was the first to recognize that the machine had applications beyond calculation.</p><p>Ada  <ref type="figure">Figure 1</ref>: GNR answering a question. It first picks a sentence, then start word, then end word. Probabilities are global and normalized over the beam. Model initially picks the wrong sentence, but global normalization lets it recover. Final prediction's probability (0.64) exceeds sentence pick (0.49), whereas with local normalization each probability is upper bounded by the previous step.</p><p>Poon, 2016), large scale health impact studies <ref type="bibr" target="#b1">(Althoff et al., 2016)</ref>, or educational material develop- ment ( <ref type="bibr" target="#b10">Koedinger et al., 2015)</ref>. Recent progress in neural-network based extractive question answer- ing models are quickly closing the gap with human performance on several benchmark QA tasks such as SQuAD ( <ref type="bibr" target="#b16">Rajpurkar et al., 2016)</ref>, MS MARCO ( <ref type="bibr" target="#b12">Nguyen et al., 2016)</ref>, or NewsQA ( <ref type="bibr" target="#b19">Trischler et al., 2016a</ref>). However, current approaches to extractive question answering face several limitations:</p><p>1. Computation is allocated equally to the en- tire document, regardless of answer location, with no ability to ignore or focus computation on specific parts. This limits applicability to longer documents.</p><p>2. They rely extensively on expensive bi- directional attention mechanisms ( <ref type="bibr" target="#b17">Seo et al., 2016)</ref> or must rank all possible answer spans ( <ref type="bibr" target="#b11">Lee et al., 2016</ref>).</p><p>3. While data-augmentation for question an- swering have been proposed ( , current approaches still do not pro- vide training data that can improve the per- formance of existing systems.</p><p>In this paper we demonstrate a methodology for addressing these three limitations, and make the following claims:</p><p>1. Extractive Question Answering can be cast as a nested search process, where sentences provide a powerful document decomposition and an easy to learn search step. This fac- torization enables conditional computation to be allocated to sentences and spans likely to contain the right answer.</p><p>2. When cast as a search process, models with- out bi-directional attention mechanisms and without ranking all possible answer spans can achieve near state of the art results on extrac- tive question answering.</p><p>3. Preserving narrative structure and explicitly incorporating type and question information into synthetic data generation is key to gener- ating examples that actually improve the per- formance of question answering systems.</p><p>Our claims are supported by experiments on the SQuAD dataset where we show that the Globally Normalized Reader (GNR), a model that performs an iterative search process through a document (shown visually in <ref type="figure">Figure 1</ref>), and has computation conditionally allocated based on the search pro- cess, achieves near state of the art Exact Match (EM) and F1 scores without resorting to more ex- pensive attention or ranking of all possible spans. Furthermore, we demonstrate that Type Swaps, a type-aware data augmentation strategy that aligns named entities with a knowledge base and swaps them out for new entities that share the same type, improves the performance of all models on extrac- tive question answering.</p><p>We structure the paper as follows: in Section 2 we introduce the task and our model. Section 3 de- scribes our data-augmentation strategy. Section 4 introduces our experiments and results. In Section 5 we discuss our findings. In Section 6 we relate our work to existing approaches. Conclusions and directions for future work are given in Section 7.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2">Model</head><p>Given a document d and a question q, we pose ex- tractive question answering as a search problem. First, we select the sentence, the first word of the span, and finally the last word of the span. A ex- ample of the output of the model is shown in <ref type="figure">Fig- ure 1</ref>, and the network architecture is depicted in <ref type="figure" target="#fig_0">Figure 2</ref>.</p><p>More formally, let d 1 , . . . , d n denote each sen- tence in the document, and for each sentence d i , let d i,1 , . . . , d i,m i denote the word vectors corre- sponding to the words in the sentence. Similarly, let q 1 , . . . , q denote the word vectors correspond- ing to words in the question. An answer is a tuple a = (i * , j * , k * ) indicating the correct sentence i * , start word in the sentence j * and end word in the sentence k * . Let A(d) denote the set of valid an- swer tuples for document d. We now describe each stage of the model in turn.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.1">Question Encoding</head><p>Each question is encoded by running a stack of bidirectional LSTM (Bi-LSTM) over each word in the question, producing hidden states <ref type="bibr" target="#b6">and Schmidhuber, 2005)</ref>.</p><formula xml:id="formula_0">(h fwd 1 , h bwd 1 ), . . . , (h fwd , h bwd ) (Graves</formula><p>Following <ref type="bibr" target="#b11">Lee et al. (2016)</ref>, these hidden states are used to compute a passage-independent question embedding, q indep . Formally,</p><formula xml:id="formula_1">s j = w q MLP([h bwd j ; h fwd j ])<label>(1)</label></formula><formula xml:id="formula_2">α j = exp(s j ) j =1 exp(s j ) (2) q indep = j=1 α j [h bwd j ; h fwd j ],<label>(3)</label></formula><p>where w q is a trainable embedding vector, and MLP is a two-layer neural network with a Relu non-linearity. The question is represented by concatenating the final hidden states of the for-ward and backward LSTMs and the passage- independent embedding, q = [h bwd 1 ; h fwd ; q indep ].</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.2">Question-Aware Document Encoding</head><p>Conditioned on the question vector, we compute a representation of each document word that is sensitive to both the surrounding context and the question. Specifically, each word in the document is represented as the concatenation of its word vec- tor d i,j , the question vector q, boolean features indicating if a word appears in the question or is repeated, and a question-aligned embedding from <ref type="bibr" target="#b11">Lee et al. (2016)</ref>. The question-aligned embed- ding q align i,j is given by</p><formula xml:id="formula_3">s i,j,k = MLP(d i,j ) MLP(q k )<label>(4)</label></formula><formula xml:id="formula_4">α i,j,k = exp(s i,j,k ) k =1 exp(s i,j,k ) (5) q align i,j = k=1 α i,j,k q k .<label>(6)</label></formula><p>The document is encoded by a separate stack of Bi-LSTMs, producing a sequence of hidden states</p><formula xml:id="formula_5">(h fwd 1,1 , h bwd 1,1 ), . . . , (h fwd n,mn , h bwd n,mn ).</formula><p>The search procedure then operates on these hidden states.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.3">Answer Selection</head><p>Sentence selection. The first phase of our search process picks the sentence that contains the answer span. Each sentence d i is represented by the hid- den state of the first and last word in the sentence for the backward and forward LSTM respectively,</p><formula xml:id="formula_6">[h bwd i,1 ; h fwd i,m i</formula><p>], and is scored by passing this repre- sentation through a fully connected layer that out- puts the unnormalized sentence score for sentence</p><formula xml:id="formula_7">d i , denoted φ sent (d i ).</formula><p>Span start selection. After selecting a sentence d i , we pick the start of the answer span within the sentence. Each potential start word d i,j is rep- resented as its corresponding document encoding</p><formula xml:id="formula_8">[h fwd i,j ; h bwd i,j ]</formula><p>, and is scored by passing this encod- ing through a fully connected layer that outputs the unnormalized start word score for word j in sen- tence i, denoted φ sw (d i,j ).</p><p>Span end selection. Conditioned on sentence d i and starting word d i,j , we select the end word from the remaining words in the sen- tence d i,j , . . . , d i,m i . To do this, we run a Bi- LSTM over the remaining document hidden states</p><formula xml:id="formula_9">(h fwd i,j , h bwd i,j ), . . . , (h fwd i,m i , h bwd i,m i ) to produce repre- sentations ( ˜ h fwd i,j , ˜ h bwd i,j ), . . . , ( ˜ h fwd i,m i , ˜ h bwd i,m i ). Each end word d i,k is then scored by passing [ ˜ h fwd i,k ; ˜ h bwd i,k ]</formula><p>through a fully connected layer that outputs the unnormalized end word score for word k in sentence i, with start word j, denoted φ ew (d i,j:k ).</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.4">Global Normalization</head><p>The scores for each stage of our model can be nor- malized at the local or global level. Previous work demonstrated that locally-normalized models have a weak ability to correct mistakes made in previ- ous decisions, while globally normalized models are strictly more expressive than locally normal- ized models <ref type="bibr" target="#b2">(Andor et al., 2016;</ref><ref type="bibr" target="#b30">Zhou et al., 2015;</ref><ref type="bibr" target="#b5">Collins and Roark, 2004</ref>).</p><p>In a locally normalized model each decision is made conditional on the previous decision. The probability of some answer a = (i, j, k) is decom- posed as</p><formula xml:id="formula_10">P(a|d, q) =P sent (i|d, q) · P sw (j|i, d, q)· P ew (k|j, i, d, q).<label>(7)</label></formula><p>Each sub-decision is locally normalized by apply- ing a softmax to the relevant selection scores:</p><formula xml:id="formula_11">P sent (i|d, q) = exp(φ sent (d i )) n x=1 exp(φ sent (d x )) ,<label>(8)</label></formula><formula xml:id="formula_12">P sw (j|i, d, q) = exp(φ sw (d i,j )) m i x=1 exp(φ sw (d i,x )) ,<label>(9)</label></formula><formula xml:id="formula_13">P ew (k|j, i, d, q) = exp(φ ew (d i,j:k )) m i x=j exp(φ ew (d i,j:x )) .</formula><p>(10) To allow our model to recover from incorrect sentence or start word selections, we instead glob- ally normalize the scores from each stage of our procedure. In a globally normalized model, we define</p><formula xml:id="formula_14">score(a, d, q) = φ sent (d i )+φ sw (d i,j )+φ ew (d i,j:k ).</formula><p>(11) Then, we model</p><formula xml:id="formula_15">P(a | d, q) = exp(score(a, d, q)) Z ,<label>(12)</label></formula><p>where Z is the partition function  In contrast to locally-normalized models, the model is normalized over all possible search paths instead of normalizing each step of search proce- dure. At inference time, the problem is to find arg max</p><formula xml:id="formula_16">Z = a ∈A(d) exp(score(a , d, q)).<label>(13</label></formula><formula xml:id="formula_17">a∈A(d) P(a | d, q),<label>(14)</label></formula><p>which can be approximately computed using beam search.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.5">Objective and Training</head><p>We minimize the negative log-likelihood on the training set using stochastic gradient descent. For a single example (a, d, q), the negative log- likelihood</p><formula xml:id="formula_18">−score(a, d, q) + log Z<label>(15)</label></formula><p>requires an expensive summation to compute log Z. </p><p>At training time, if the gold sequence falls off the beam at step t during decoding, a stochastic gradient step is performed on the partial objective computed through step t and normalized over the beam at step t.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.6">Implementation</head><p>Our best performing model uses a stack of 3 Bi- LSTMs for the question and document encodings, and a single Bi-LSTM for the end of span predic- tion. The hidden dimension of all recurrent layers is 200.</p><p>We use the 300 dimensional 8.4B token Com- mon Crawl GloVe vectors ( <ref type="bibr" target="#b13">Pennington et al., 2014</ref>). Words missing from the Common Crawl vocabulary are set to zero. In our experiments, all architectures considered have sufficient capac- ity to overfit the training set. We regularize the models by fixing the word embeddings throughout training, dropping out the inputs of the Bi-LSTMs with probability 0.3 and the inputs to the fully- connected layers with probability 0.4 ( <ref type="bibr" target="#b18">Srivastava et al., 2014)</ref>, and adding gaussian noise to the re- current weights with σ = 10 −6 . Our models are trained using Adam with a learning rate of 0.0005, β 1 = 0.9, β 2 = 0.999, = 10 −8 and a batch size of 32 ( <ref type="bibr" target="#b9">Kingma and Ba, 2014</ref>).</p><p>All our experiments are implemented in Ten- sorflow ( <ref type="bibr" target="#b0">Abadi et al., 2016)</ref>, and we tokenize us- ing Ciseau <ref type="bibr" target="#b15">(Raiman, 2017)</ref>. Despite perform- ing beam-search during training, our model trains to convergence in under 4 hours through the use of efficient LSTM primitives in <ref type="bibr">CuDNN (Chetlur et al., 2014</ref>) and batching our computation over examples and search beams. We release our code and augmented dataset. <ref type="bibr">1</ref> Our implementation of the GNR is 24.7 times faster at inference time than the official Bi-Directional Attention Flow implementation 2 . Specifically, on a machine running Ubuntu 14 with 40 Intel Xeon 2.6Ghz processors, 386GB of RAM, and a 12GB TitanX-Maxwell GPU, the GNR with beam size 32 and batch size 32 requires 51.58 ± 0.266 seconds (mean ± std) <ref type="bibr">3</ref>   In extractive question answering, the set of pos- sible answer spans can be pruned by only keeping answers whose nature (person, object, place, date, etc.) agrees with the question type (Who, What, Where, When, etc.). While this heuristic helps hu- man readers filter out irrelevant parts of a docu- ment when searching for information, no explicit supervision of this kind is present in the dataset. Despite this absence, the distribution question rep- resentations learned by our models appear to uti- lize this heuristic. The final hidden state of the question-encoding LSTMs naturally cluster based on question type <ref type="table">(Table 1)</ref>.</p><note type="other">to process the SQUAD validation set. By contrast, the Bi- Directional Attention Flow model with batch size 32 requires 1260.23 ± 17.26 seconds. We attribute this speedup to avoiding expensive bi-directional attention mechanisms and making computation conditional on the search beams.</note><p>In other words, the task induces a question en- coding that superficially respects type informa- tion. This property is a double-edged sword: it allows the model to easily weed out answers that are inapplicable, but also leads it astray by select- ing a text span that shares the answer's type but has the wrong underlying entity. A similar obser- vation was made in the error analysis of <ref type="bibr" target="#b26">(Weissenborn et al., 2017)</ref>. We propose Type Swaps, an augmentation strategy that leverages this emergent behavior in order to improve the model's ability to prune wrong answers, and make it more robust to surface form variation. This strategy has three steps:</p><p>1. Locate named entities in document and ques- tion.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.">Collect surface variation for each entity type:</head><p>human → {Ada Lovelace, Daniel Kah- nemann,...}, country → {USA, France, ...}, ...</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.">Generate new document-question-answer ex-</head><p>amples by swapping each named entity in an original triplet with a surface variant that shares the same type from the collection.  <ref type="formula" target="#formula_1">(3127)</ref> number <ref type="formula" target="#formula_4">(2868)</ref> organization <ref type="formula" target="#formula_11">(825)</ref> country <ref type="formula" target="#formula_1">(381)</ref> monarchy <ref type="formula" target="#formula_1">(21)</ref> commercial building <ref type="formula" target="#formula_11">(8)</ref> international conference <ref type="formula" target="#formula_1">(1)</ref> Variations per Type Assigning types to named entities in natural lan- guage is an open problem, nonetheless when faced <ref type="table">Table 1</ref>: Top bigrams in K-means (K = 7) clusters of question after Bi-LSTM. We observe emergent clustering according to question type: e.g. Where→ Cluster 7, Who→ Cluster 3. "What" granularity only observable with more clusters. with documents where we can safely assume that the majority of the entities will be contained in a large knowledge base (KB) such as Wikidata Vrandeči´Vrandeči´c and Krötzsch (2014) we find that sim- ple string matching techniques are sufficiently ac- curate. Specifically, we use a part of speech tagger <ref type="bibr" target="#b7">(Honnibal, 2017)</ref> to extract nominal groups in the training data and string-match them with entities in Wikidata. Using this technique, we are able to extract 47,598 entities in SQuAD that fall under 6,380 Wikidata instance of 4 types. Addition- ally we assign "number types" (e.g. year, day of the week, distance, etc.) to nominal groups that contain dates, numbers, or quantities 5 . These ex- traction steps produce 84,632 unique surface vari- ants (on average 16.93 per type) with the majority of the variation found in humans, numbers or or- ganizations as visible in <ref type="figure" target="#fig_4">Figure 4</ref>. With this method, we can generate 2.92 · 10 369 unique documents (average of 3.36 · 10 364 new documents for each original document). To ensure there is sufficient variation in the generated docu- ments, we sample from this set and only keep vari- ations where the question or answer is mutated. At each training epoch, we train on T Type Swap ex-amples and the full original training data. An ex- ample output of the method is shown in <ref type="figure" target="#fig_2">Figure 3</ref>.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Cluster</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4">Results</head><p>We evaluate our model on the 100,000 example SQuAD dataset ( <ref type="bibr" target="#b16">Rajpurkar et al., 2016</ref>) and per- form several ablations to evaluate the relative im- portance of the proposed methods.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.1">Learning to Search</head><p>In our first experiment, we aim to quantify the im- portance of global normalization on the learning and search process. We use T = 10 4 Type Swap samples and vary beam width B between 1 and 32 for a locally and globally normalized models and summarize the Exact-Match and F1 score of the model's predicted answer and ground truth com- puted using the evaluation scripts from <ref type="bibr" target="#b16">(Rajpurkar et al., 2016)</ref>  <ref type="table" target="#tab_5">(Table 3</ref>). We additionally report an- other metric, the Sentence score, which is a mea- sure for how often the predicted answer came from the correct sentence. This metric provides a mea- sure for where mistakes are made during predic- tion.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.2">Type Swaps</head><p>In our second experiment, we evaluate the impact of the amount of augmented data on the perfor- mance of our model. In this experiment, we use  <ref type="bibr" target="#b16">Rajpurkar et al., 2016)</ref> 80.3 90.5 Single model Sliding Window ( <ref type="bibr" target="#b16">Rajpurkar et al., 2016)</ref> 13.3 20.2 Match-LSTM ( <ref type="bibr" target="#b23">Wang and Jiang, 2016)</ref> 64.1 73.9 DCN <ref type="figure" target="#fig_0">(Xiong et al., 2016)</ref> 65.4 75.6 Rasor ( <ref type="bibr" target="#b11">Lee et al., 2016)</ref> 66.4 74.9 Bi-Attention Flow ( <ref type="bibr" target="#b17">Seo et al., 2016)</ref> 67.7 77.3 R-Net( <ref type="bibr" target="#b24">Wang et al., 2017)</ref> 72.3 80.6 Globally Normalized Reader w/o Type Swaps (Ours) 66.6 75.0 Globally Normalized Reader (Ours)</p><p>68.4 76.21 the best beam sizes for each model (B = 10 for lo- cal and B = 32 for global) and vary the augmenta- tion from T = 0 (no augmentation) to T = 5 · 10 4 . The results of this experiment are summarized in <ref type="table" target="#tab_6">(Table 4)</ref>. We observe that both models improve in perfor- mance with T &gt; 0 and performance degrades past T = 10 4 . Moreover, data augmentation and global normalization are complementary. Combined, we obtain 1.6 EM and 2.0 F1 improvement over the locally normalized baseline.</p><p>We also verify that the effects of Type Swaps are not limited to our specific model by observ- ing the impact of augmented data on the DCN+ ( <ref type="bibr" target="#b28">Xiong et al., 2016)</ref>  <ref type="bibr">6</ref> . We find that it strongly re- duces generalization error, and helps improve F1, with potential further improvements coming by re-   <ref type="table" target="#tab_7">(Table 5)</ref>.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5">Discussion</head><p>In this section we will discuss the results presented in Section 4, and explain how they relate to our main claims.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.1">Extractive Question Answering as a Search Problem</head><p>Sentences provide a natural and powerful docu- ment decomposition for search that can be eas- ily learnt as a search step: for all the models and configurations considered, the Sentence score was above 88% correct <ref type="table" target="#tab_5">(Table 3)</ref>  <ref type="bibr">7</ref> . Thus, sentence se- lection is the easy part of the problem, and the model can allocate more computation (such as the end-word selection Bi-LSTM) to spans likely to contain the answer. This approach avoids wasteful work on unpromising spans and is important for further scaling these methods to long documents.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.2">Global Normalization</head><p>The Globally Normalized Reader outperforms previous approaches and achieves the second highest EM behind ( <ref type="bibr" target="#b24">Wang et al., 2017)</ref>, with- out using bi-directional attention and only scor- ing spans in its final beam. Increasing the beam width improves the results for both locally and globally normalized models <ref type="table" target="#tab_5">(Table 3)</ref>, suggest- ing search errors account for a significant por- tion of the performance difference between mod- els. Models such as <ref type="bibr" target="#b11">Lee et al. (2016)</ref> and <ref type="bibr" target="#b23">Wang and Jiang (2016)</ref> overcome this difficulty by rank- ing all possible spans and thus never skipping a possible answer. Even with large beam sizes, the locally normalized model underperforms these ap- proaches. However, by increasing model flexi- bility and performing search during training, the globally normalized model is able to recover from search errors and achieve much of the benefits of scoring all possible spans.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.3">Type-Aware Data Augmentation</head><p>Type Swaps, our data augmentation strategy, of- fers a way to incorporate the nature of the ques- tion and the types of named entities in the answers into the learning process of our model and reduce sensitivity to surface variation. Existing neural- network approaches to extractive QA have so far ignored this information. Augmenting the dataset with additional type-sensitive synthetic examples improves performance by providing better cover- age of different answer types. Growing the num- ber of augmented samples used improves the per- formance of all models under study ( for globally normalized models. Past a certain amount of augmentation, we ob- serve performance degradation. This suggests that despite efforts to closely mimic the original train- ing set, there is a train-test mismatch or excess du- plication in the generated examples.</p><p>Our experiments are conducted on two vastly different architectures and thus these benefits are expected to carry over to different models <ref type="bibr" target="#b26">(Weissenborn et al., 2017;</ref><ref type="bibr" target="#b17">Seo et al., 2016;</ref><ref type="bibr" target="#b24">Wang et al., 2017)</ref>, and perhaps more broadly in other natu- ral language tasks that contain named entities and have limited supervised data.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6">Related Work</head><p>Our work is closely related to existing approaches in learning to search, extractive question answer- ing, and data augmentation for NLP tasks.</p><p>Learning to Search. Several approaches to learning to search have been proposed for various NLP tasks and conditional computation. Most re- cently, <ref type="bibr" target="#b2">Andor et al. (2016)</ref> and <ref type="bibr" target="#b30">Zhou et al. (2015)</ref> demonstrated the effectiveness of globally normal- ized networks and training with beam search for part of speech tagging and transition-based depen- dency parsing, while <ref type="bibr" target="#b27">Wiseman and Rush (2016)</ref> showed that these techniques could also be applied to sequence-to-sequence models in several appli- cation areas including machine translation. These works focus on parsing and sequence prediction tasks and have a fixed computation regardless of the search path, while we show that the same tech- niques can also be straightforwardly applied to question answering and extended to allow for con- ditional computation based on the search path.</p><p>Learning to search has also been used in con- text of modular neural networks with conditional computation in the work of <ref type="bibr" target="#b3">Andreas et al. (2016)</ref> for image captioning. In their work reinforcement learning was used to learn how to turn on and off computation, while we find that conditional com- putation can be easily learnt with maximum like- lihood and the help of early updates <ref type="bibr" target="#b2">(Andor et al., 2016;</ref><ref type="bibr" target="#b30">Zhou et al., 2015;</ref><ref type="bibr" target="#b5">Collins and Roark, 2004</ref>) to guide the training process.</p><p>Our framework for conditional computation whereby the search space is pruned by a sequence of increasingly complex models is broadly rem- iniscent of the structured prediction cascades of <ref type="bibr" target="#b25">(Weiss and Taskar, 2010)</ref>. <ref type="bibr" target="#b20">Trischler et al. (2016b)</ref> also explored this approach in the context of ques- tion answering.</p><p>Extractive Question Answering. Since the in- troduction of the SQuAD dataset, numerous sys- tems have achieved strong results. <ref type="bibr" target="#b17">Seo et al. (2016)</ref>; <ref type="bibr" target="#b24">Wang et al. (2017)</ref> and <ref type="bibr" target="#b28">Xiong et al. (2016)</ref> make use of a bi-directional attention mecha- nisms, whereas the GNR is more lightweight and achieves similar results without this type of at- tention mechanism. The document representation used by the GNR is very similar to <ref type="bibr" target="#b11">Lee et al. (2016)</ref>. However, both <ref type="bibr" target="#b11">Lee et al. (2016)</ref> and <ref type="bibr" target="#b23">Wang and Jiang (2016)</ref> must score all O(N 2 ) possible answer spans, making training and infer- ence expensive. The GNR avoids this complex- ity by learning to search during training and out- performs both systems while scoring only O(B) spans. <ref type="bibr" target="#b26">Weissenborn et al. (2017)</ref> is a locally nor- malized model that first predicts start and then end words of each span. Our experiments lead us to believe that further factorizing the problem and using global normalization along with our data augmentation would yield corresponding im- provements.</p><p>Data augmentation. Several works use data augmentation to control the generalization error of deep learning models. <ref type="bibr" target="#b29">Zhang and LeCun (2015)</ref> use a thesaurus to generate new training examples based on synonyms. <ref type="bibr" target="#b21">Vijayaraghavan et al. (2016)</ref> employs a similar method, but uses Word2vec and cosine similarity to find similar words. <ref type="bibr" target="#b8">Jia and Liang (2016)</ref> use a high-precision synchronous context-free grammar to generate new semantic parsing examples. Our data augmentation tech- nique, Type Swaps, is unique in that it leverages an external knowledge-base to provide new ex- amples that have more variation and finer-grained changes than methods that use only a thesaurus or Word2Vec, while also keeping the narrative and grammatical structure intact.</p><p>More recently  proposed a sequence-to-sequence model to generate diverse and realistic training question-answer pairs on SQuAD. Similar to their approach, our technique makes use of existing examples to produce new examples that are fluent, however we also are able to explicitly incorporate entity type information into the generation process and use the generated data to improve the performance of question an- swering models.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="7">Conclusions and Future Work</head><p>In this work, we provide a methodology that over- comes several limitations of existing approaches to extractive question answering. In particular, our proposed model, the Globally Normalized Reader, reduces the computational complexity of previous models by casting the question answer- ing as search and allocating more computation to promising answer spans. Empirically, we find that this approach, combined with global normaliza- tion and beam search during training, leads to near state of the art results. Furthermore, we find that a type-aware data augmentation strategy improves the performance of all models under study on the SQuAD dataset. The method is general, only re- quiring that the training data contains named enti- ties from a large KB. We expect it to be applicable to other NLP tasks that would benefit from more training data.</p><p>As future work we plan to apply the GNR to other question answering datasets such as MS MARCO <ref type="bibr" target="#b12">(Nguyen et al., 2016</ref>) or NewsQA ( <ref type="bibr" target="#b19">Trischler et al., 2016a)</ref>, as well as investigate the applicability and benefits of Type Swaps to other tasks like named entity recognition, entity link- ing, machine translation, and summarization. Fi- nally, we believe there a broad range of structured prediction problems (code generation, generative models for images, audio, or videos) where the size of original search space makes current tech- niques intractable, but if cast as learning-to-search problems with conditional computation, might be within reach.</p></div><figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_0"><head>Figure 2 :</head><label>2</label><figDesc>Figure 2: Globally Normalized Reader's search process. Same color Bi-LSTMs share weights.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_1"><head></head><label></label><figDesc>fight would change from military to law enforcement? Answer: Sheryl Sandberg Jeh Johnson Document (snippet):. .. Basic objectives of the Cabinet of Japan Bush administration</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_2"><head>Figure 3 :</head><label>3</label><figDesc>Figure 3: Type Swaps example. Replacements underlined with originals underneath.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_4"><head>Figure 4 :</head><label>4</label><figDesc>Figure 4: The majority of the surface variations occur for people, numbers, dates, and organizations.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_1" validated="false"><head>)</head><label></label><figDesc></figDesc><table>Bi-LSTM 
+
+P(sentence | question) 
+
+FC 
+
+Top-k 
+
+Top Sentence 1 
+
+Top Sentence k 
+Bi-LSTM 
+
+P(sentence, span start | question) 
+
+Top sentence 1 span start 
+
+Top sentence k span start 
+
+Top-k 
+
+Top Span Start 1 
+
+Top Span Start k 
+
+Bi-LSTM 
+
+FC 
+
+Bi-LSTM 
+
+P(sentence, span start,span stop | question) 
+
+Top span 1 span stop 
+
+Top span k span stop 
+
+Argmax 
+
+Sentence, 
+Span start, 
+Span stop 
+
+… 
+
+Sentence 1 
+Sentence N 
+
+Bi-LSTM 
+
+FC 
+
+Question 
+
+Bi-LSTM 
+
+Softmax 
+Softmax 
+Softmax 
+
+… 
+… 
+
+… 
+… 
+
+… 
+
+Global norm score addition 
+Network connection 
+
+Sentence Span Start 
+Span Stop 
+
+… 
+
+Decision Boundary 
+
+</table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_4" validated="false"><head>Table 2 : Model comparison</head><label>2</label><figDesc></figDesc><table>Model 
+</table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_5" validated="true"><head>Table 3 : Impact of Beam Width B</head><label>3</label><figDesc></figDesc><table>Model 
+B EM 
+F1 Sentence 
+
+Local, T = 10 4 
+
+1 65.7 
+74.8 
+89.0 
+2 66.6 
+75.0 
+88.3 
+10 66.7 
+75.0 
+88.6 
+32 66.3 
+74.6 
+88.0 
+64 66.6 
+75.0 
+88.8 
+
+Global, T = 10 4 
+
+1 58.8 
+68.4 
+84.5 
+2 64.3 
+73.0 
+86.8 
+10 66.6 
+75.2 
+88.1 
+32 68.4 76.21 
+88.4 
+64 67.0 
+75.6 
+88.4 
+
+</table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_6" validated="true"><head>Table 4 : Impact of Augmentation Sample Size T .</head><label>4</label><figDesc></figDesc><table>Model 
+T EM 
+F1 Sentence 
+Local 
+0 65.8 
+74.0 
+88.0 
+Local 
+10 3 66.3 
+74.6 
+88.9 
+Local 
+10 4 66.7 
+74.9 
+89.0 
+Local 
+5 · 10 4 66.7 
+75.0 
+89.0 
+Local 
+10 5 66.2 
+74.5 
+88.6 
+Global 
+0 66.6 
+75.0 
+88.2 
+Global 
+10 3 66.9 
+75.0 
+88.1 
+Global 
+10 4 68.4 76.21 
+88.4 
+Global 5 · 10 4 66.8 
+75.3 
+88.3 
+Global 
+10 5 66.1 
+74.3 
+86.9 
+
+</table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_7" validated="true"><head>Table 5 : Impact of Type Swaps on the DCN+</head><label>5</label><figDesc></figDesc><table>T 
+Train F1 Dev F1 
+0 
+81.3 
+78.1 
+5 · 10 4 
+72.5 
+78.2 
+
+ducing other forms of regularization </table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_8" validated="false"><head>Table 4 -</head><label>4</label><figDesc></figDesc><table>5). 
+With T ∈ [10 4 , 5 · 10 4 ], (EM, F1) improve from 
+(65.8 → 66.7, 74.0 → 75.0) for locally normal-
+ized models, and (66.6 → 68.4, 75.0 → 76.21) </table></figure>
+
+			<note place="foot" n="1"> https://github.com/baidu-research/ GloballyNormalizedReader</note>
+
+			<note place="foot" n="2"> https://github.com/allenai/ bi-att-flow 3 All numbers are averaged over 5 runs.</note>
+
+			<note place="foot" n="4"> https://www.wikidata.org/wiki/ Property:P31 5 In our experiments we found that not including numerical variation in the generated examples led to an imbalanced dataset and lower final performance.</note>
+
+			<note place="foot" n="6"> The DCN+ is the DCN with additional hyperparameter tuning by the same authors as submitted on the SQuAD leaderboard https://rajpurkar.github. io/SQuAD-explorer/.</note>
+
+			<note place="foot" n="7"> The objective function difference explains the lower performance of globally versus locally normalized models on the Sentence score: local models must always assign the highest probability to the correct sentence, while global models only ensure the correct span has the highest probability. Thus global models do not need to enforce a high margin between the correct answer&apos;s sentence score and others and are more likely to keep alternate sentences around.</note>
+		</body>
+		<back>
+
+			<div type="acknowledgement">
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Acknowledgments</head><p>We would like to thank the anonymous review-ers for their valuable feedback. In addition, we thank Adam Coates, Carl Case, Andrew Gibian-sky, and Szymon Sidor for thoughtful comments and fruitful discussion. We also thank James Brad-bury and Bryan McCann for running Type Swap experiments on the DCN+.</p></div>
+			</div>
+
+			<div type="references">
+
+				<listBibl>
+
+<biblStruct xml:id="b0">
+	<monogr>
+		<title level="m" type="main">Tensorflow: Large-scale machine learning on heterogeneous distributed systems</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Martín</forename><surname>Abadi</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ashish</forename><surname>Agarwal</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Paul</forename><surname>Barham</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Eugene</forename><surname>Brevdo</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Zhifeng</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Craig</forename><surname>Citro</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Greg</forename><forename type="middle">S</forename><surname>Corrado</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Andy</forename><surname>Davis</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jeffrey</forename><surname>Dean</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Matthieu</forename><surname>Devin</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1603.04467</idno>
+		<imprint>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b1">
+	<analytic>
+		<title level="a" type="main">Influence of pokémon go on physical activity: Study and implications</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Tim</forename><surname>Althoff</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">W</forename><surname>Ryen</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Eric</forename><surname>White</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Horvitz</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Journal of Medical Internet Research</title>
+		<imprint>
+			<biblScope unit="volume">18</biblScope>
+			<biblScope unit="issue">12</biblScope>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b2">
+	<monogr>
+				<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Daniel</forename><surname>Andor</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Chris</forename><surname>Alberti</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">David</forename><surname>Weiss</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Aliaksei</forename><surname>Severyn</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Alessandro</forename><surname>Presta</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kuzman</forename><surname>Ganchev</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1603.06042</idno>
+		<title level="m">Globally normalized transition-based neural networks</title>
+		<meeting><address><addrLine>Slav Petrov, and Michael Collins</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b3">
+	<monogr>
+		<title level="m" type="main">Learning to compose neural networks for question answering</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jacob</forename><surname>Andreas</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Marcus</forename><surname>Rohrbach</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Trevor</forename><surname>Darrell</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Dan</forename><surname>Klein</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1601.01705</idno>
+		<imprint>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b4">
+	<monogr>
+				<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Sharan</forename><surname>Chetlur</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Cliff</forename><surname>Woolley</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Philippe</forename><surname>Vandermersch</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jonathan</forename><surname>Cohen</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">John</forename><surname>Tran</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Bryan</forename><surname>Catanzaro</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Evan</forename><surname>Shelhamer</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1410.0759</idno>
+		<title level="m">Efficient primitives for deep learning</title>
+		<imprint>
+			<date type="published" when="2014" />
+		</imprint>
+	</monogr>
+<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b5">
+	<analytic>
+		<title level="a" type="main">Incremental parsing with the perceptron algorithm</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Michael</forename><surname>Collins</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Brian</forename><surname>Roark</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 42nd Annual Meeting on Association for Computational Linguistics</title>
+		<meeting>the 42nd Annual Meeting on Association for Computational Linguistics</meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2004" />
+			<biblScope unit="page">111</biblScope>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b6">
+	<analytic>
+		<title level="a" type="main">Framewise phoneme classification with bidirectional lstm and other neural network architectures</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Alex</forename><surname>Graves</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jürgen</forename><surname>Schmidhuber</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Neural Networks</title>
+		<imprint>
+			<biblScope unit="volume">18</biblScope>
+			<biblScope unit="issue">5</biblScope>
+			<biblScope unit="page" from="602" to="610" />
+			<date type="published" when="2005" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b7">
+	<monogr>
+		<title/>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Matthew</forename><surname>Honnibal</surname></persName>
+		</author>
+		<ptr target="https://" />
+		<imprint>
+			<date type="published" when="2017" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b8">
+	<monogr>
+		<title level="m" type="main">Data recombination for neural semantic parsing</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Robin</forename><surname>Jia</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Percy</forename><surname>Liang</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1606.03622</idno>
+		<imprint>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b9">
+	<monogr>
+		<title level="m" type="main">Adam: A method for stochastic optimization</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Diederik</forename><surname>Kingma</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jimmy</forename><surname>Ba</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1412.6980</idno>
+		<imprint>
+			<date type="published" when="2014" />
+		</imprint>
+	</monogr>
+<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b10">
+	<analytic>
+		<title level="a" type="main">Data mining and education</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Kenneth R Koedinger</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">D&amp;apos;</forename><surname>Sidney</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Elizabeth</forename><forename type="middle">A</forename><surname>Mello</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Zachary</forename><forename type="middle">A</forename><surname>Mclaughlin</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Carolyn</forename><forename type="middle">P</forename><surname>Pardos</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Rosé</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Cognitive Science</title>
+		<imprint>
+			<biblScope unit="volume">6</biblScope>
+			<biblScope unit="issue">4</biblScope>
+			<biblScope unit="page" from="333" to="353" />
+			<date type="published" when="2015" />
+		</imprint>
+	</monogr>
+<note type="report_type">Wiley Interdisciplinary Reviews</note>
+</biblStruct>
+
+<biblStruct xml:id="b11">
+	<monogr>
+		<title level="m" type="main">Learning recurrent span representations for extractive question answering</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kenton</forename><surname>Lee</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Tom</forename><surname>Kwiatkowski</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ankur</forename><surname>Parikh</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Dipanjan</forename><surname>Das</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1611.01436</idno>
+		<imprint>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b12">
+	<monogr>
+		<title level="m" type="main">Ms marco: A human generated machine reading comprehension dataset</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Tri</forename><surname>Nguyen</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Mir</forename><surname>Rosenberg</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Xia</forename><surname>Song</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jianfeng</forename><surname>Gao</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Saurabh</forename><surname>Tiwary</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Rangan</forename><surname>Majumder</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Li</forename><surname>Deng</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1611.09268</idno>
+		<imprint>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b13">
+	<analytic>
+		<title level="a" type="main">Glove: Global vectors for word representation</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jeffrey</forename><surname>Pennington</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Richard</forename><surname>Socher</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Christopher D</forename><surname>Manning</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">EMNLP</title>
+		<imprint>
+			<date type="published" when="2014" />
+			<biblScope unit="volume">14</biblScope>
+			<biblScope unit="page" from="1532" to="1543" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b14">
+	<monogr>
+		<title level="m" type="main">Distant supervision for relation extraction beyond the sentence boundary</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Chris</forename><surname>Quirk</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Hoifung</forename><surname>Poon</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1609.04873</idno>
+		<imprint>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b15">
+	<monogr>
+		<title/>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jonathan</forename><surname>Raiman</surname></persName>
+		</author>
+		<ptr target="https://github.com/jonathanraiman/ciseau" />
+		<imprint>
+			<date type="published" when="2017" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b16">
+	<monogr>
+		<title level="m" type="main">Squad: 100,000+ questions for machine comprehension of text</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Pranav</forename><surname>Rajpurkar</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jian</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Konstantin</forename><surname>Lopyrev</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Percy</forename><surname>Liang</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1606.05250</idno>
+		<imprint>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b17">
+	<monogr>
+		<title level="m" type="main">Bidirectional attention flow for machine comprehension</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Minjoon</forename><surname>Seo</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Aniruddha</forename><surname>Kembhavi</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ali</forename><surname>Farhadi</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Hannaneh</forename><surname>Hajishirzi</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1611.01603</idno>
+		<imprint>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b18">
+	<analytic>
+		<title level="a" type="main">Dropout: a simple way to prevent neural networks from overfitting</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Nitish</forename><surname>Srivastava</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Geoffrey</forename><forename type="middle">E</forename><surname>Hinton</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Alex</forename><surname>Krizhevsky</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ilya</forename><surname>Sutskever</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ruslan</forename><surname>Salakhutdinov</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Journal of Machine Learning Research</title>
+		<imprint>
+			<biblScope unit="volume">15</biblScope>
+			<biblScope unit="issue">1</biblScope>
+			<biblScope unit="page" from="1929" to="1958" />
+			<date type="published" when="2014" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b19">
+	<monogr>
+				<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Adam</forename><surname>Trischler</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Tong</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Xingdi</forename><surname>Yuan</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Justin</forename><surname>Harris</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Alessandro</forename><surname>Sordoni</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Philip</forename><surname>Bachman</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kaheer</forename><surname>Suleman</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1611.09830</idno>
+		<title level="m">Newsqa: A machine comprehension dataset</title>
+		<imprint>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b20">
+	<monogr>
+		<title level="m" type="main">A parallel-hierarchical model for machine comprehension on sparse data</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Adam</forename><surname>Trischler</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Zheng</forename><surname>Ye</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Xingdi</forename><surname>Yuan</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jing</forename><surname>He</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Phillip</forename><surname>Bachman</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kaheer</forename><surname>Suleman</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1603.08884</idno>
+		<imprint>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b21">
+	<monogr>
+		<title level="m" type="main">Deepstance at semeval-2016 task 6: Detecting stance in tweets using character and word-level cnns</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Prashanth</forename><surname>Vijayaraghavan</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ivan</forename><surname>Sysoev</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Soroush</forename><surname>Vosoughi</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Deb</forename><surname>Roy</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1606.05694</idno>
+		<imprint>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b22">
+	<analytic>
+		<title level="a" type="main">Wikidata: a free collaborative knowledgebase</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Denny</forename><surname>Vrandeči´vrandeči´c</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Markus</forename><surname>Krötzsch</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Communications of the ACM</title>
+		<imprint>
+			<biblScope unit="volume">57</biblScope>
+			<biblScope unit="issue">10</biblScope>
+			<biblScope unit="page" from="78" to="85" />
+			<date type="published" when="2014" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b23">
+	<monogr>
+		<title level="m" type="main">Machine comprehension using match-lstm and answer pointer</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Shuohang</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jing</forename><surname>Jiang</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1608.07905</idno>
+		<imprint>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b24">
+	<analytic>
+		<title level="a" type="main">Gated self-matching networks for reading comprehension and question answering</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Wenhui</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Nan</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Furu</forename><surname>Wei</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Baobao</forename><surname>Chang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ming</forename><surname>Zhou</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 55th Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 55th Annual Meeting of the Association for Computational Linguistics</meeting>
+		<imprint>
+			<date type="published" when="2017" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b25">
+	<analytic>
+		<title level="a" type="main">Structured prediction cascades</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">David</forename><surname>Weiss</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Benjamin</forename><surname>Taskar</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Thirteenth International Conference on Artificial Intelligence and Statistics</title>
+		<meeting>the Thirteenth International Conference on Artificial Intelligence and Statistics</meeting>
+		<imprint>
+			<date type="published" when="2010" />
+			<biblScope unit="page" from="916" to="923" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b26">
+	<monogr>
+		<title level="m" type="main">Fastqa: A simple and efficient neural architecture for question answering</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Dirk</forename><surname>Weissenborn</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Georg</forename><surname>Wiese</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Laura</forename><surname>Seiffe</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1703.04816</idno>
+		<imprint>
+			<date type="published" when="2017" />
+		</imprint>
+	</monogr>
+<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b27">
+	<monogr>
+		<title level="m" type="main">Sequence-to-sequence learning as beam-search optimization</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Sam</forename><surname>Wiseman</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Alexander M</forename><surname>Rush</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1606.02960</idno>
+		<imprint>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b28">
+	<monogr>
+		<title level="m" type="main">Dynamic coattention networks for question answering</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Caiming</forename><surname>Xiong</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Victor</forename><surname>Zhong</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Richard</forename><surname>Socher</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1611.01604</idno>
+		<imprint>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b29">
+	<monogr>
+				<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Xiang</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yann</forename><surname>Lecun</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1502.01710</idno>
+		<title level="m">Text understanding from scratch</title>
+		<imprint>
+			<date type="published" when="2015" />
+		</imprint>
+	</monogr>
+<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b30">
+	<analytic>
+		<title level="a" type="main">A neural probabilistic structuredprediction model for transition-based dependency parsing</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Hao</forename><surname>Zhou</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yue</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Shujian</forename><surname>Huang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jiajun</forename><surname>Chen</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">ACL (1)</title>
+		<imprint>
+			<date type="published" when="2015" />
+			<biblScope unit="page" from="1213" to="1222" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b31">
+	<monogr>
+				<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Qingyu</forename><surname>Zhou</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Nan</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Furu</forename><surname>Wei</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Chuanqi</forename><surname>Tan</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Hangbo</forename><surname>Bao</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ming</forename><surname>Zhou</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1704.01792</idno>
+		<title level="m">Neural question generation from text: A preliminary study</title>
+		<imprint>
+			<date type="published" when="2017" />
+		</imprint>
+	</monogr>
+<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+				</listBibl>
+			</div>
+		</back>
+	</text>
+</TEI>

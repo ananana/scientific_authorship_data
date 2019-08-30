@@ -1,0 +1,973 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<TEI xmlns="http://www.tei-c.org/ns/1.0" 
+xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+xsi:schemaLocation="http://www.tei-c.org/ns/1.0 /home/ana/installs/grobid/grobid-0.5.1/grobid-home/schemas/xsd/Grobid.xsd"
+ xmlns:xlink="http://www.w3.org/1999/xlink">
+	<teiHeader xml:lang="en">
+		<encodingDesc>
+			<appInfo>
+				<application version="0.5.1-SNAPSHOT" ident="GROBID" when="2019-04-18T11:31+0000">
+					<ref target="https://github.com/kermitt2/grobid">GROBID - A machine learning software for extracting information from scholarly documents</ref>
+				</application>
+			</appInfo>
+		</encodingDesc>
+		<fileDesc>
+			<titleStmt>
+				<title level="a" type="main">Event Coreference Resolution by Iteratively Unfolding Inter-dependencies among Events</title>
+			</titleStmt>
+			<publicationStmt>
+				<publisher>Association for Computational Linguistics</publisher>
+				<availability status="unknown"><p>Copyright Association for Computational Linguistics</p>
+				</availability>
+				<date>September 7-11, 2017. 2017</date>
+			</publicationStmt>
+			<sourceDesc>
+				<biblStruct>
+					<analytic>
+						<author role="corresp">
+							<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Prafulla</forename><forename type="middle">Kumar</forename><surname>Choubey</surname></persName>
+							<email>(prafulla.choubey, huangrh)@tamu.edu</email>
+							<affiliation key="aff0">
+								<orgName type="department">Department of Computer Science and Engineering</orgName>
+								<orgName type="institution">Texas A&amp;M University</orgName>
+							</affiliation>
+						</author>
+						<author>
+							<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ruihong</forename><surname>Huang</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="department">Department of Computer Science and Engineering</orgName>
+								<orgName type="institution">Texas A&amp;M University</orgName>
+							</affiliation>
+						</author>
+						<title level="a" type="main">Event Coreference Resolution by Iteratively Unfolding Inter-dependencies among Events</title>
+					</analytic>
+					<monogr>
+						<title level="m">Natural Language Processing</title>
+						<meeting> <address><addrLine>Copenhagen, Denmark</addrLine></address>
+						</meeting>
+						<imprint>
+							<publisher>Association for Computational Linguistics</publisher>
+							<biblScope unit="page" from="2124" to="2133"/>
+							<date type="published">September 7-11, 2017. 2017</date>
+						</imprint>
+					</monogr>
+				</biblStruct>
+			</sourceDesc>
+		</fileDesc>
+		<profileDesc>
+			<abstract>
+				<p>We introduce a novel iterative approach for event coreference resolution that gradually builds event clusters by exploiting inter-dependencies among event mentions within the same chain as well as across event chains. Among event mentions in the same chain, we distinguish within-and cross-document event coreference links by using two distinct pairwise classifiers, trained separately to capture differences in feature distributions of within-and cross-document event clusters. Our event coref-erence approach alternates between WD and CD clustering and combines arguments from both event clusters after every merge, continuing till no more merge can be made. And then it performs further merging between event chains that are both closely related to a set of other chains of events. Experiments on the ECB+ corpus show that our model outper-forms state-of-the-art methods in joint task of WD and CD event coreference resolution .</p>
+			</abstract>
+		</profileDesc>
+	</teiHeader>
+	<text xml:lang="en">
+		<body>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="1">Introduction</head><p>Event coreference resolution is the task of iden- tifying event mentions and clustering them such that each cluster represents a unique real world event. The capability of resolving links among co- referring event identities is vital for information aggregation and many NLP applications, includ- ing topic detection and tracking, information ex- traction, question answering and text summariza- tion ( <ref type="bibr" target="#b18">Humphreys et al., 1997;</ref><ref type="bibr" target="#b1">Allan et al., 1998;</ref><ref type="bibr" target="#b16">Daniel et al., 2003;</ref><ref type="bibr" target="#b24">Narayanan and Harabagiu, 2004;</ref><ref type="bibr" target="#b23">Mayfield et al., 2009;</ref><ref type="bibr" target="#b33">Zhang et al., 2015</ref>). Yet, studies on event coreference are few com- pared to the well-studied entity coreference reso- lution.</p><p>Event mentions that refer to the same event can occur both within a document (WD) and across multiple documents (CD). One common practice ( <ref type="bibr" target="#b19">Lee et al., 2012</ref>) to approach CD coreference task is to resolve event coreference in a mega- document created by concatenating topic-relevant documents, which essentially does not distinguish WD and CD event links.</p><p>However, intuitively, recognizing CD corefer- ent event pairs requires stricter evidence com- pared to WD event linking because it is riskier to link two event mentions from two distinct docu- ments rather than the same document. In a per- fect scenario where all WD event mentions are properly clustered and their participants and argu- ments are combined within a cluster, CD cluster- ing can be performed with ease as sufficient ev- idences are collected through initial WD cluster- ing. Therefore, another very common practice for event coreference is to first group event mentions within a document and then group WD clusters across documents ( <ref type="bibr" target="#b32">Yang et al., 2015)</ref>.</p><p>Nonetheless, WD coreference chains are equally hard to resolve. Event mentions in the same document can look very dissimilar ("killed/ VB" and "murder/ NN"), have event arguments (i.e., participants and spatio-temporal information of an event <ref type="bibr" target="#b3">(Bejan and Harabagiu, 2010)</ref>) partially or entirely omitted, or appear in distinct contexts compared to their antecedent event mentions, par- tially to avoid repetitions. Under this irresolute state, approaching WD and CD individually is in- competent.</p><p>While CD coreference resolution is overall dif- ficult, we observe that some CD coreferent event mentions, especially the ones that appear at the beginning of documents, share sufficient contexts and are relatively easier to resolve. At the same time, many of them bear sufficient differences that can bring in new information and further lead to more WD merges and consequently more CD merges.</p><p>Guided by these observations, we present an event coreference approach that exploits inter- dependencies among event mentions within an event chain both within a document and across documents, by sequentially applying WD and CD merges in an alternating manner until no more merge can be made. We combine argument fea- tures of event mentions after each CD (WD) merge in order to resolve more difficult WD (CD) merges in the following iterations. Furthermore, our model uses two distinct pairwise classifiers that are separately trained with features intrinsic to each type. Specifically, the WD classifier uses fea- tures based on event mentions and their arguments while the CD classifier relies on features charac- terizing surrounding contexts of event mentions as well.</p><p>We further exploit second-order inter- dependencies across event clusters in order to resolve additional WD and CD coreferent event pairs. Intuitively, if two event mentions are related to the same set of events, it is likely that the two event mentions refer to the same real world event, even when their word forms and local contexts are distinct. Specifically, we merge event clusters if their event mentions are tightly associated (i.e., having the same dependency relations) or loosely associated (i.e., co-occurring in the same sentential context) with enough (i.e., passing a threshold) other events that are known coreferent.</p><p>Experimental results on the benchmark event coreference dataset, ECB+ <ref type="bibr">(Cybulska and Vossen, 2014b,a)</ref>, show that our model extensively ex- ploits inter-dependencies between events and out- performs the state-of-the-art methods for both WD and CD event coreference resolution.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2">Related Work</head><p>Different approaches, focusing on either of WD or CD coreference chains, have been proposed for event coreference resolution. Works specific to WD event coreference includes pairwise classi- fiers <ref type="bibr" target="#b0">(Ahn, 2006;</ref>) graph based clustering method , informa- tion propagation ( <ref type="bibr" target="#b20">Liu et al., 2014)</ref>, and markov logic networks <ref type="bibr" target="#b21">Lu et al. (2016)</ref>. As to only CD event coreference, <ref type="bibr" target="#b14">Cybulska and Vossen (2015a)</ref> created pairwise classifiers using features indicat- ing granularities of event slots and in another work (2015b), grouped events based on compatibilities of event contexts.</p><p>Like this work, several studies have consid- ered both WD and CD event coreference resolu- tion task together. However to simplify the prob- lem, they ( <ref type="bibr" target="#b19">Lee et al., 2012;</ref><ref type="bibr">Harabagiu, 2010, 2014</ref>) created a meta-document by concate- nating topic-relevant documents and treated both as an identical task. Most recently, <ref type="bibr" target="#b32">Yang et al. (2015)</ref> applied a two-level clustering model that first groups event mentions within a document and then groups WD clusters across documents in a joint inference process. Our approach advances these works and emphasizes on different natures of WD and CD clusters along with the benefits of distinguishing WD merges from CD merges and exploiting their mutual dependencies.</p><p>Iterative models, in general, have been applied to both entity coreference resolution ( <ref type="bibr" target="#b27">Singh et al., 2009;</ref><ref type="bibr">Manning, 2015, 2016;</ref><ref type="bibr" target="#b31">Wiseman et al., 2016</ref>) and prior event coreference resolution ( <ref type="bibr" target="#b19">Lee et al., 2012</ref>) works, which gradually build clusters and enable later merges to benefit from earlier ones. Especially, <ref type="bibr" target="#b19">Lee et al. (2012)</ref> used an iterative model to jointly build entity and event clusters and showed the advantages of information flow between entity and event clusters through se- mantic role features. Our model, by alternating be- tween WD and CD merges, allows the multi-level flow of first order interdependencies. Moreover, additional cross cluster merges based on 2nd order interdependencies effectively exploits the seman- tic relations among events, in contrast to only se- mantic roles (between events and arguments) used in previous work.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3">System Overview and A Worked Example</head><p>Inter-dependencies among event mentions can be effectively exploited by conducting sequential WD and CD merges in an iterative manner. In ad- dition, recognizing second order relations between event chains relies on adequate number of event mentions that are already linked. Therefore, our model conducts event coreference in two stages.</p><p>In the first stage, it iteratively conducts WD and CD merges as suggested by pairwise WD and CD merging classifiers respectively. Argument fea- tures of individual event mentions are propagated within a cluster after each merge operation. In the second stage, it explores second order relations across event clusters w.r.t context event mentions in order to carefully generate candidate event clus- ters and perform further merging.</p><p>The example in <ref type="figure" target="#fig_0">Figure 1</ref> illustrates the two stages of our proposed approach. It shows two iterations of WD and CD merges. In iteration 1, relatively easy coreferent event mentions were linked, including the two shooting and two trial event mentions in doc 1 and doc 2 as well as the event mentions presented, trial and murder across the two documents. Argument propagation was conducted after each merge and murder's argu- ment "mother of 12" in doc 1 is combined with the murder event in doc 2 after iteration 1. Then in iteration 2, more merges were made by rec- ognizing additional coreferent event mentions in- cluding event mentions in one document (e.g., murdering and killed in doc 2 ) and event men- tions across the two documents (e.g., shooting in doc 1 and shootout in doc 2 ). Next, two additional merges were made by leveraging second-order inter-dependencies. Specifically, both the event mentions released in doc 1 and presented in doc 2 are in the same dependency relation ("nmod") with a mention of the trial event cluster, therefore, a new merge was made between clusters contain- ing the two mentions. Following this, the event mentions court hearing in doc 1 and trial in doc 2 were identified to have multiple coreferent events in their sentential contexts, therefore, the clusters containing these two event mentions were merged as well.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4">Detailed System Description:</head><p>Exploiting Interdependencies between Events</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.1">Document Clustering</head><p>Our approach starts with a pre-processing step that clusters input documents (D) into a set of docu- ment clusters (C). This is meant to reduce search space and mitigate errors ( <ref type="bibr" target="#b19">Lee et al., 2012</ref>). In our experiments, we used the Affinity Propaga- tion algorithm (Buitinck et al., 2013) on tf − idf vectors, where terms are only proper nouns and verbs (excludes reporting and auxiliary verbs) in the document. While it is interesting to under- stand the influences of wrong document clusters to event coreference, this algorithm yielded per- fect document clusters on the benchmark ECB+ dataset ( <ref type="bibr">Cybulska and Vossen, 2014b,a)</ref>. This is consistent with the prior study ( <ref type="bibr" target="#b19">Lee et al., 2012</ref>) on the related ECB dataset (Bejan and Harabagiu, 2010) 1 , which shows that document clustering in the ECB dataset is trivial. for each two clusters</p><formula xml:id="formula_0">E 1 , E 2 ∈ EM s.t. ∃e 1 ∈ E 1 , e 2 ∈ E 2 , (e 1 , e 2 ) ∈ a Doc, and score(Θ WD , e 1 , e 2 ) &gt; 0.60 do 9 Merge(E 1 , E 2 , EM ) 10 iterate = True 11 if not iterate break 12 iterate = False 13 for each two clusters E 1 , E 2 ∈ EM s.t. ∃e 1 ∈ E 1 , e 2 ∈ E 2 , (e 1 , e 2 ) /</formula><p>∈ a Doc, and score(Θ CD , e 1 , e 2 ) &gt; 0.90 do 14</p><p>Merge</p><formula xml:id="formula_1">(E 1 , E 2 , EM ) 15 iterate = True // Exploiting Second-Order Inter- dependencies Across Event Chains 16 while ∃ two clusters E 1 , E 2 ∈ EM s.t. GovernorModifierRelated(E 1 , E 2 , Θ CD ) do 17 EM = Merge(E 1 , E 2 , EM ) 18 while ∃ two clusters E 1 , E 2 ∈ EM s.t. ContextSimilarity(E 1 , E 2 , Θ CD ) do 19 EM = Merge(E 1 , E 2 , EM ) 20 EM = EM + EM 21 output: EM</formula></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.2">Iterative WD and CD Merging</head><p>We iteratively conduct WD merges and CD merges until no more merge can be done. We train pairwise classifiers for identifying event clusters to merge. Specifically for WD merges as indi- cated in lines 8-10 in Algorithm 1, we iteratively go through pairs of clusters that contain a pair <ref type="bibr">1</ref> The ECB+ dataset is an extended version of the ECB dataset. Both datasets have documents for the same 43 topics. of within-document event mentions, one mention from each cluster. If the similarity score between the two event mentions is above a tuned threshold of 0.6 2 , we merge the two clusters. Similarly, for CD merges described in lines 13-15 of Algorithm 1, we iteratively go through pairs of clusters that contain a pair of cross-document event mentions and merge the two clusters if the similarity score between the two event mentions is above another tuned threshold of 0.9 3 . Following each cluster pair merge, arguments are combined for the two merged clusters.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.3">Merging by Exploiting Second-Order</head><p>Inter-dependencies Across Event Chains</p><p>Intuitively, two event mentions that share events in their contexts are likely to be coreferent. Simi- larly, if their context events are coreferent, the two events are likely to be coreferent as well. First, if two event mentions are in the same dependency relation with two other event mentions that are known coreferent, then the first two event mentions are likely to de- scribe the same real world event as well. In steps 16-17 of Algorithm 1, we perform event cluster merges by collecting evidence pertain- ing to dependency relations.</p><p>The subrou- tine GovernorM odif ierRelated (E 1 , E 2 , Θ CD ) checks whether two event mentions e 1 and e 2 , from clusters E 1 and E 2 respectively, have a re- lated event e 3 from another cluster E 3 , such that E 3 / ∈ {E 1 , E 2 } and pairs (e 1 , e 3 ), (e 2 , e 3 ) are linked with the same dependency relation. Note that observing shared event mentions in the con- texts will increase the likelihood that the two event mentions are coreferent, but we can not suffi- ciently infer the coreference relation yet, we still need to look at features describing the event men- tions. Therefore, if the condition was satisfied, the subroutine eventually makes merges based on the CD confidence score assigned to the event pair (e 1 , e 2 ) but using a lower threshold of 0.8.</p><p>In addition, seeing coreferent event mentions in the sentential contexts of two events will increase the likelihood that the two events are coreferent as well. Then as shown in steps 18-19, we fur- ther use context events co-occurring in the same sentence as another parameter to perform addi- tional clustering. Subroutine ContextSimilarity (E 1 , E 2 , Θ CD ) generates a context vector (CV) for each event cluster and check whether cosine sim- ilarity between context vectors of two clusters E 1 and E 2 (cos( CV 1 , CV 2 )) is above 0.7. Specifically, we define context clusters for an event mention as the different event clusters that have event men- tions co-occurring in the same sentence. Then the context vector of an event cluster has an entry for each of its context clusters, with the value to be the number of sentences where event mentions from the two clusters co-occur. This subroutine also makes merges based on the CD confidence score using the same lower threshold of 0.8.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5">Distinguishing WD and CD Merging</head><p>We implement two distinct pairwise classifiers to effectively utilize the distributional variations in WD and CD clusters. The first classifier (WD) is used for calculating a similarity between two event mentions within a document and recogniz- ing coreferent event mention pairs. The second classifier (CD) is used for calculating a similar- ity between two event mentions across two doc- uments and then identifying coreferent event men- tion pairs across documents. Both classifiers were implemented as neural nets <ref type="bibr" target="#b9">(Chollet, 2015)</ref>. The architectures of the two classifiers are shown in <ref type="figure" target="#fig_2">Figure 2</ref>.</p><p>WD Classifier: the neural network based WD classifier essentially inherits the features that have been shown effective in previous event corefer- ence studies <ref type="bibr" target="#b0">(Ahn, 2006;</ref>, in- cluding both features for event words and fea- tures for their arguments. Specifically, the classi- fier includes a common neural layer shared by two event mentions to embed event lemma and parts- of-speech features. Then the classifier calculates cosine similarity and euclidean distance between two event embeddings, one per event mention. In addition, the classifier includes a neural layer com- ponent to embed event arguments that are over- lapped between the two event mentions. Its out- put layer takes the calculated cosine similarity and euclidean distance between event mention embed- dings as well as the embedding of the overlapped event arguments as input, and output a confidence score to indicate the similarity of the two event mentions.</p><p>CD Classifier: the CD classifier mimics the WD classifier except that the CD classifier con- tains an additional LSTM layer <ref type="bibr" target="#b17">(Hochreiter and Schmidhuber, 1997</ref>) to embed context words. The LSTM layer is shared by both event mentions in order to calculate context word embeddings for both event mentions. Specifically, three words to each side of an event word together with the event word itself are used to calculate the context em- bedding for each event mention. The classifier then calculates cosine similarity and euclidean dis- tance between two context embeddings as well. The output neural net layer will take two sets of cosine similarity and euclidean distance scores that have been calculated w.r.t. context embed-dings and event word embeddings, as well as the embedding of the overlapped event arguments as input, and further calculate a confidence score indicating the similarity of two event mentions across documents.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.1">Characteristics of WD and CD Event Linking</head><p>In order to further understand characteristics of within-and cross-document event linking, we trained two classifiers having the same CD clas- sifier architecture <ref type="figure" target="#fig_2">(Figure 2(b)</ref>) but with differ- ent sets of event pairs, within-document or cross- document event pairs, then analyzed the impacts of features on each type of event linking by com- paring the neural net learned weights for each fea- ture. <ref type="table">Table 1</ref>  We can see that within-document event linking mainly relies on the euclidean distance and co- sine similarity scores calculated using event word features, with a reasonable amount of weight as- signed to overlapped arguments' embedding as well. However, only very small weights were as- signed to the similarity and distance scores calcu- lated using context embeddings. In contrast, in the classifier trained with cross-doc coreferent event mention pairs, the highest weight was assigned to the cosine similarity score calculated using con- text embeddings of two event mentions. Addi- tionally, both the cosine similarity score calculated using event word embeddings and the overlapped argument features were assigned high weights as well. The comparisons clearly demonstrate the significantly different nature of WD and CD event coreference.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.2">Neural Net Classifiers and Training</head><p>In both WD and CD classifiers, we use neural net- work layer with 60 neurons for embedding event word features and another layer with 1 neuron for embedding argument features. Additionally, in CD classifier, we use an LSTM layer with 30 neurons to embed context features. Dropout of 0.25 was applied to both the event word neural net layer and the context layer. We used sig- moid activation function for the dense layers and tanh activation for the LSTM layer. We used 300- dimensional word embeddings and one hot 37 4 di- mensional pos tag embeddings in all our experi- ments. Therefore, input to word embedding layer is a 337-dimensional vector and to LSTM layer is 300*7 dimensional vectors.</p><p>We train both classifiers using the ECB+ cor- pus ( <ref type="bibr">Cybulska and Vossen, 2014b,a)</ref>. We train the WD classifier using all pairs of WD event men- tions that are in an annotated event chain as pos- itive instances and using all pairs of WD event mentions that are not in an annotated event chain as negative instances. However, there are signif- icantly more CD coreferent event mention pairs annotated in the ECB+ corpus, therefore, we ran- domly sampled 70% of all the CD coreferent event mention pairs as positive instances and randomly sampled from non-coreferent CD event mention pairs as negative instances. Specifically, number of negative instances are kept 5 times of positive instances.</p><p>Note that the pairwise classifiers will be used throughout the iterative merging stage. However, after each merge, argument propagation is con- ducted to enrich features for each event mention in the merged cluster and the number of arguments of an event mention will grow after several merges. In order to account for the growing number of ar- guments in iterative merging, we augment argu- ments for each event mention in training instances with arguments derived from other event mentions in the same pair. The augmenting was performed randomly for only 50% of event mentions.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6">Evaluation</head><p>We perform all the experiments on the ECB+ corpus ( <ref type="bibr">Cybulska and Vossen, 2014b,a)</ref>, which is an extension to the earlier EventCorefBank (ECB) (Bejan and Harabagiu, 2010) dataset. We have adopted the settings used in <ref type="bibr" target="#b32">Yang et al. (2015)</ref>. We divide the dataset into training set (topics 1-20), validation set (topics 21-23) and test set (topics 24-43). <ref type="table" target="#tab_2">Table 2</ref> shows the distribution of the corpus.  We used event mentions identified by CRF based event extractor used in <ref type="bibr" target="#b32">Yang et al. (2015)</ref> and extracted event arguments by apply- ing state-of-the-art semantic role labeling system (SwiRL <ref type="figure" target="#fig_2">(Surdeanu et al., 2007)</ref>). In addition, we used the Stanford parser <ref type="bibr" target="#b6">(Chen and Manning, 2014</ref>) for generating dependency relations, parts- of-speech tags and lemmas. We use pre-trained Glove vectors ( <ref type="bibr" target="#b25">Pennington et al., 2014</ref>) <ref type="bibr">5</ref> for word representation and one-hot vectors for parts-of- speech tags.</p><p>We evaluate our model using four commonly adopted event coreference evaluation metrics, namely, MUC (Vilain et al., 1995), B 3 (Bagga and Baldwin, 1998), CEAF e ( <ref type="bibr" target="#b22">Luo, 2005)</ref> and CoNLL F1 ( <ref type="bibr" target="#b26">Pradhan et al., 2014</ref>). We used the publicly available official implementation of re- vised coreference scorer (v8.01). <ref type="bibr">6</ref> </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6.1">Baseline Systems</head><p>We compare our iterative event coreference reso- lution model with five baseline systems.</p><p>LEMMA: The Lemma match baseline links event mentions within-or cross-documents which have the same lemmatized head word. It is often considered a strong baseline for this task.</p><p>HDDCRP ( <ref type="bibr" target="#b32">Yang et al., 2015</ref>): The second base- line is the supervised Hierarchical Distance De- pendent Bayesian Model, the most recent event coreference system evaluated on the same ECB+ dataset. This model uses distances between event mentions, generated using a feature-rich learnable distance function, as Bayesian priors for single pass non-parametric clustering.</p><p>HDP-LEX 7 : A reimplementation of the unsu- pervised hierarchical bayesian model by <ref type="bibr">Harabagiu (2010, 2014)</ref>.</p><p>Agglomerative <ref type="bibr">7</ref> : A Reimplementation of two- step agglomerative clustering model, WD cluster- ing followed by CD clustering .</p><p>We have trained our systems using the same ECB+ dataset and the same set of event mentions as these prior systems.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6.2">Our Systems</head><p>We evaluate several variation systems of our pro- posed model. Common Classifier (WD or CD): the system implementing only the first stage of iterative WD &amp; CD merging. In addition, the same neural net classifier with the architecture as shown in <ref type="figure" target="#fig_2">Figure  2</ref>(a) (the WD classifier) or in <ref type="figure" target="#fig_2">Figure 2(b)</ref> (the CD classifier) was applied for both WD and CD merg- ing. The neural net classifiers were trained using all coreferent event mention pairs including both within-document and cross-document ones.</p><p>WD and CD Classifiers: distinguishes WD from CD merges by using two distinct classifiers <ref type="figure" target="#fig_2">(Fig- ure 2(a), 2(b)</ref>) in the first stage of the algorithm. + 2nd Order Relations: after iterative WD and CD merges within each individual chain as sug- gested by pairwise classifiers (the first stage), fur- ther merges (the second stage) were conducted leveraging second order event inter-dependencies across event chains. <ref type="table" target="#tab_5">Table 3</ref> shows the comparison results for both within-document and cross-document event coref- erence resolution. In the first stage of iterative merging, using two distinct WD and CD classifiers for corresponding WD and CD merges yields clear improvements for both WD and CD event coref- erence resolution tasks, compared with using one common classifier for both types of merges. In addition, the second stage of iterative merging fur- ther improves both WD and CD event coreference resolution performance stably by leveraging sec- ond order event inter-dependencies. The improve- ments are consistent when measured using various coreference resolution evaluation metrics.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6.3">Results</head><p>Our full model achieved more than 8% of improvements when compared with the lemma matching baseline, using the CoNLL F1-score for both WD and CD coreference resolution tasks. Furthermore, it outperforms state-of-the-art HD- DCRP model for both WD and CD event corefer- ence resolution by 2.1% and 4.9% respectively.  <ref type="formula">(2015)</ref> 40.6 78.5 53.5 67.1 80.3 73.1 68.9 38.6 49.5 58.7 HDP-LEX Bejan and Harabagiu <ref type="formula">(2010)</ref>     <ref type="table" target="#tab_6">Table 4</ref>). Our analysis of merges in each iter- ation shows that most of the merges in the initial it- eration are between event mentions with the same lemma or shared arguments. In the second and third iterations, more merges were between event mentions with synonymous lemmas or shared ar- guments that have been accumulated in previous iterations. Example merges between synonymous event mentions include (nominate, nominations), (die, death), (murder, killing), (hit, strike), (attack, bomb) etc.</p><p>Stage II: It is even more intriguing to discuss the clusters that were merged in stage 2 of merg- ing, that leverages second order event interdepen- dencies across event chains. We found that al- most all of the 81 merges happening in the second stage are between event mentions that are quite dissimilar including (take over, replace), (unveil, announce), (win, victory, comeback), (downtime, problem, outage), (cut, damage), (spark, trigger) etc. Most interestingly, two event pairs which are antonymous to each other, (win, beat) and (defeat, victory), were also correctly merged.</p><p>Errors: while our iterative algorithm has gradu- ally resolved coreference relations between event mentions that are synonyms or distant by sur- face forms, many coreference links were over- looked and many unrelated events were wrongly predicted as coreferential. We analyzed our sys- tem's final predictions in order to identify the most common sources of errors.</p><p>Missed Coreference Links: We found that many event mentions have few or no argument in their local context, and our event coreference resolution system often failed to link these event mentions with their coreferential mentions. For instance, in the following event mention pairs that were overlooked by the system, (operations, raids), (operations, sweep), (suicide, hang), (pros- ecution, jail), and (participating, role), one or both event mentions do not have an argument in their local context. This is mainly because the base WD and CD classifiers heavily rely on features extracted from the local context of two event men-tions, including event words and event arguments, in resolving the coreference relation. For these event mentions having few arguments identified, the iterative algorithm may get stuck from the be- ginning.</p><p>While it is a grand challenge to further re- solve coreferential relations between event men- tions that do not have sufficient local features, these missed coreference links easily break a long and influential event chain into several sub-chains, which makes event coreference resolution results less useful for many potential applications, such as text summarization.</p><p>Wrongly Predicted Coreference Links: The majority of this type of errors are between non- coreferent event mentions that have the same lemma. This is especially common among report- ing event mentions and light verb mentions. For instance, we found that 24 non-coreferent event clusters corresponding to reporting events, e.g., said, told and reported, and 13 non-coreferent clusters corresponding to light verbs, e.g., take, give and get, were incorrectly merged by the sys- tem.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="8">Conclusions and Future Work</head><p>We presented a novel approach for event coref- erence resolution that extensively exploits event inter-dependencies between event mentions in the same chain and event mentions across chains. The approach iteratively conducts WD and CD merges followed by further merges leveraging sec- ond order event inter-dependencies across chains. We further distinguish WD and CD merges using two distinct classifiers that capture differences of within-and cross-document event clusters in fea- ture distributions. Our system was shown effec- tive in both WD and CD event coreference and has outperformed the previous best event coreference system in both tasks.</p><p>Note that our approach is flexible to incorpo- rate different strategies for conducting WD and CD merges. In the future, we plan to continue to investigate the distinct characteristics of WD and CD coreferent event mentions in order to fur- ther improve event coreference performance. Es- pecially, we are interested in including additional discourse-level features for improving WD coref- erence merge performance, such as, features indi- cating the distance between two event mentions in a document.</p></div><figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_0"><head>Figure 1 :</head><label>1</label><figDesc>Figure 1: An example of Event Coreference using the iterative two stage model. All event mentions are boldfaced; solid arrow line between event mentions show second order relations between them; dashed lines link coreferent event mentions and are tagged with the type of merge.</figDesc><graphic url="image-1.png" coords="3,72.00,62.81,460.82,271.82" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_1"><head></head><label></label><figDesc>set of Documents D Within-Document Classifier: Θ WD Cross-Document Classifier: Θ CD // clusters of event mentions 1 EM = {} // clusters of Documents 2 C = ClusterDocument(D) 3 for each document cluster c in C do 4 EM = {Singleton Clusters} // Iterative WD and CD Merging 6 while iterate do 7 iterate = False 8</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_2"><head>Figure 2 :</head><label>2</label><figDesc>Figure 2: Pairwise Classifiers for resolving (a) Within-Document Coreference Links (b) Cross-Document Coreference Links. EM: event mentions; Arg0, Arg1, ArgM:LOC, ArgM:TMP: semantic roles.</figDesc><graphic url="image-2.png" coords="5,82.77,62.81,431.99,186.81" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_0" validated="false"><head></head><label></label><figDesc>shows the comparisons of feature weights.</figDesc><table>Features 
+WD 
+CD 
+Event Word Embedding: Euc 1.017 0.207 
+Event Word Embedding: Cos 1.086 1.142 
+Context Embedding: Euc 
+0.038 0.422 
+Context Embedding: Cos 
+0.004 3.910 
+Argument Embedding 
+0.349 3.270 
+
+Table 1: 
+Comparisons of Feature Weights 
+Learned Using In-doc or Cross-doc Coreferent 
+Event Pairs, Euc: Euclidean Distance, Cos: Co-
+sine Similarity 
+
+</table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_2" validated="false"><head>Table 2 : ECB+ Corpus Statistics.</head><label>2</label><figDesc></figDesc><table></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_5" validated="false"><head>Table 3 :</head><label>3</label><figDesc></figDesc><table>Within-and cross-document event coreference result on ECB+ Corpus. 
+
+7 Discussion and Analysis 
+
+Cross-Document Coreference Results 
+Fmeasure 
+B 3 
+MUC CEAF Ee CoNLL 
+1 Iteration 
+56 
+69.3 
+50.3 
+58.5 
+2 Iterations 57.9 69.9 
+52.4 
+60.1 
+3 Iterations 58.3 70.6 
+53.1 
+60.7 
+Within-Document Coreference Results 
+1 Iteration 
+69.7 55.8 
+68.8 
+64.8 
+2 Iterations 70.2 60.3 
+69.4 
+66.6 
+3 Iterations 70.9 61.2 
+69.5 
+67.2 
+
+</table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_6" validated="false"><head>Table 4 :</head><label>4</label><figDesc></figDesc><table>Per-iteration Performance Analysis for 
+the First Stage of Iterative WD &amp; CD Merging. 
+
+Stage I: The first stage of our algorithm, itera-
+tive WD and CD merging, went for three iterations 
+(See </table></figure>
+
+			<note place="foot" n="2"> all tunings are performed on Validation dataset (topics 23-25) 3 Note that these high threshold for WD-and CD-classifiers are meant to retain high precision and avoid error propagation in subsequent stages. Output from each classifier is a number bounded in [0,1].</note>
+
+			<note place="foot" n="4"> Corresponding to the unique 36 POS tags based on the Stanford POS tagger (Toutanova et al., 2003) and an additional &apos;padding&apos;.</note>
+
+			<note place="foot" n="5"> Trained on 840 billion tokens of Common Crawl data, http://nlp.stanford.edu/projects/glove/ 6 https://github.com/conll/reference-coreference-scorers 7 The results were taken from the paper Yang et al. (2015).</note>
+		</body>
+		<back>
+
+			<div type="acknowledgement">
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Acknowledgments</head><p>We want to thank our anonymous reviewers for providing insightful review comments.</p></div>
+			</div>
+
+			<div type="references">
+
+				<listBibl>
+
+<biblStruct xml:id="b0">
+	<analytic>
+		<title level="a" type="main">The stages of event extraction</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">David</forename><surname>Ahn</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Workshop on Annotating and Reasoning about Time and Events</title>
+		<meeting>the Workshop on Annotating and Reasoning about Time and Events</meeting>
+		<imprint>
+			<date type="published" when="2006" />
+			<biblScope unit="page" from="1" to="8" />
+		</imprint>
+	</monogr>
+	<note>Association for Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b1">
+	<monogr>
+		<title level="m" type="main">Topic detection and tracking pilot study final report</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">James</forename><surname>Allan</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jaime</forename><forename type="middle">G</forename><surname>Carbonell</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">George</forename><surname>Doddington</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jonathan</forename><surname>Yamron</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yiming</forename><surname>Yang</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="1998" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b2">
+	<analytic>
+		<title level="a" type="main">Algorithms for scoring coreference chains</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Amit</forename><surname>Bagga</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Breck</forename><surname>Baldwin</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">The first international conference on language resources and evaluation workshop on linguistics coreference</title>
+		<imprint>
+			<date type="published" when="1998" />
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="563" to="566" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b3">
+	<analytic>
+		<title level="a" type="main">Unsupervised event coreference resolution with rich linguistic features</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Adrian</forename><surname>Cosmin</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Sanda</forename><surname>Bejan</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Harabagiu</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 48th Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 48th Annual Meeting of the Association for Computational Linguistics</meeting>
+		<imprint>
+			<date type="published" when="2010" />
+			<biblScope unit="page" from="1412" to="1422" />
+		</imprint>
+	</monogr>
+	<note>Association for Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b4">
+	<analytic>
+		<title level="a" type="main">Unsupervised event coreference resolution</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Adrian</forename><surname>Cosmin</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Sanda</forename><surname>Bejan</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Harabagiu</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Computational Linguistics</title>
+		<imprint>
+			<biblScope unit="volume">40</biblScope>
+			<biblScope unit="issue">2</biblScope>
+			<biblScope unit="page" from="311" to="347" />
+			<date type="published" when="2014" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b5">
+	<analytic>
+		<title level="a" type="main">API design for machine learning software: experiences from the scikit-learn project</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Lars</forename><surname>Buitinck</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Gilles</forename><surname>Louppe</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Mathieu</forename><surname>Blondel</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Fabian</forename><surname>Pedregosa</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Andreas</forename><surname>Mueller</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Olivier</forename><surname>Grisel</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Vlad</forename><surname>Niculae</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Peter</forename><surname>Prettenhofer</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Alexandre</forename><surname>Gramfort</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jaques</forename><surname>Grobler</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Robert</forename><surname>Layton</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jake</forename><surname>Vanderplas</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Arnaud</forename><surname>Joly</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Brian</forename><surname>Holt</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Gaël</forename><surname>Varoquaux</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">ECML PKDD Workshop: Languages for Data Mining and Machine Learning</title>
+		<imprint>
+			<date type="published" when="2013" />
+			<biblScope unit="page" from="108" to="122" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b6">
+	<analytic>
+		<title level="a" type="main">A fast and accurate dependency parser using neural networks</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Danqi</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Christopher</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Manning</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">EMNLP</title>
+		<imprint>
+			<date type="published" when="2014" />
+			<biblScope unit="page" from="740" to="750" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b7">
+	<analytic>
+		<title level="a" type="main">Graph-based event coreference resolution</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Zheng</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Heng</forename><surname>Ji</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2009 Workshop on Graph-based Methods for Natural Language Processing</title>
+		<meeting>the 2009 Workshop on Graph-based Methods for Natural Language Processing</meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2009" />
+			<biblScope unit="page" from="54" to="57" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b8">
+	<analytic>
+		<title level="a" type="main">A pairwise event coreference model, feature impact and evaluation for event coreference resolution</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Zheng</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ji</forename><surname>Heng</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Robert</forename><surname>Haralick</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the workshop on events in emerging text types</title>
+		<meeting>the workshop on events in emerging text types</meeting>
+		<imprint>
+			<date type="published" when="2009" />
+			<biblScope unit="page" from="17" to="22" />
+		</imprint>
+	</monogr>
+	<note>Association for Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b9">
+	<monogr>
+		<title/>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">François</forename><surname>Chollet</surname></persName>
+		</author>
+		<ptr target="https://github.com/fchollet/keras" />
+		<imprint>
+			<date type="published" when="2015" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b10">
+	<monogr>
+		<title level="m" type="main">Entitycentric coreference resolution with model stacking</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kevin</forename><surname>Clark</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Christopher</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Manning</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2015" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b11">
+	<monogr>
+		<title level="m" type="main">Improving coreference resolution by learning entitylevel distributed representations</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kevin</forename><surname>Clark</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Christopher</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Manning</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b12">
+	<monogr>
+		<title level="m" type="main">Guidelines for ecb+ annotation of events and their coreference</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Agata</forename><surname>Cybulska</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Piek</forename><surname>Vossen</surname></persName>
+		</author>
+		<idno>NWR-2014-1</idno>
+		<imprint>
+			<date type="published" when="2014" />
+		</imprint>
+		<respStmt>
+			<orgName>VU University Amsterdam</orgName>
+		</respStmt>
+	</monogr>
+<note type="report_type">Technical Report</note>
+</biblStruct>
+
+<biblStruct xml:id="b13">
+	<analytic>
+		<title level="a" type="main">Using a sledgehammer to crack a nut? lexical diversity and event coreference resolution</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Agata</forename><surname>Cybulska</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Piek</forename><surname>Vossen</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">LREC</title>
+		<imprint>
+			<date type="published" when="2014" />
+			<biblScope unit="page" from="4545" to="4552" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b14">
+	<analytic>
+		<title level="a" type="main">Translating granularity of event slots into features for event coreference resolution</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Agata</forename><surname>Cybulska</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Piek</forename><surname>Vossen</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 3rd Workshop on EVENTS at the NAACL-HLT</title>
+		<meeting>the 3rd Workshop on EVENTS at the NAACL-HLT</meeting>
+		<imprint>
+			<date type="published" when="2015" />
+			<biblScope unit="page" from="1" to="10" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b15">
+	<monogr>
+		<title level="m" type="main">bag of events approach to event coreference resolution. supervised classification of event templates. IJCLA</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Agata</forename><surname>Cybulska</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Piek</forename><surname>Vossen</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2015" />
+			<biblScope unit="page">11</biblScope>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b16">
+	<analytic>
+		<title level="a" type="main">Sub-event based multi-document summarization</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Naomi</forename><surname>Daniel</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Dragomir</forename><surname>Radev</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Timothy</forename><surname>Allison</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the HLT-NAACL 03 on Text summarization workshop</title>
+		<meeting>the HLT-NAACL 03 on Text summarization workshop</meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2003" />
+			<biblScope unit="volume">5</biblScope>
+			<biblScope unit="page" from="9" to="16" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b17">
+	<analytic>
+		<title level="a" type="main">Long short-term memory</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Sepp</forename><surname>Hochreiter</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jürgen</forename><surname>Schmidhuber</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Neural computation</title>
+		<imprint>
+			<biblScope unit="volume">9</biblScope>
+			<biblScope unit="issue">8</biblScope>
+			<biblScope unit="page" from="1735" to="1780" />
+			<date type="published" when="1997" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b18">
+	<analytic>
+		<title level="a" type="main">Event coreference for information extraction</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kevin</forename><surname>Humphreys</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Robert</forename><surname>Gaizauskas</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Saliha</forename><surname>Azzam</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of a Workshop on Operational Factors in Practical, Robust Anaphora Resolution for Unrestricted Texts</title>
+		<meeting>a Workshop on Operational Factors in Practical, Robust Anaphora Resolution for Unrestricted Texts</meeting>
+		<imprint>
+			<date type="published" when="1997" />
+			<biblScope unit="page" from="75" to="81" />
+		</imprint>
+	</monogr>
+	<note>Association for Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b19">
+	<analytic>
+		<title level="a" type="main">Joint entity and event coreference resolution across documents</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Heeyoung</forename><surname>Lee</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Marta</forename><surname>Recasens</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Angel</forename><surname>Chang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Mihai</forename><surname>Surdeanu</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Dan</forename><surname>Jurafsky</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2012 Joint Conference on Empirical Methods in Natural Language Processing and Computational Natural Language Learning</title>
+		<meeting>the 2012 Joint Conference on Empirical Methods in Natural Language Processing and Computational Natural Language Learning</meeting>
+		<imprint>
+			<date type="published" when="2012" />
+			<biblScope unit="page" from="489" to="500" />
+		</imprint>
+	</monogr>
+	<note>Association for Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b20">
+	<analytic>
+		<title level="a" type="main">Supervised withindocument event coreference using information propagation</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Zhengzhong</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jun</forename><surname>Araki</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">H</forename><surname>Eduard</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Teruko</forename><surname>Hovy</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Mitamura</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">LREC</title>
+		<imprint>
+			<date type="published" when="2014" />
+			<biblScope unit="page" from="4539" to="4544" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b21">
+	<monogr>
+		<title level="m" type="main">Joint inference for event coreference resolution</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jing</forename><surname>Lu</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Deepak</forename><surname>Venugopal</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+	<note>Vibhav Gogate, and Vincent Ng</note>
+</biblStruct>
+
+<biblStruct xml:id="b22">
+	<analytic>
+		<title level="a" type="main">On coreference resolution performance metrics</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Xiaoqiang</forename><surname>Luo</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the conference on Human Language Technology and Empirical Methods in Natural Language Processing</title>
+		<meeting>the conference on Human Language Technology and Empirical Methods in Natural Language Processing</meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2005" />
+			<biblScope unit="page" from="25" to="32" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b23">
+	<analytic>
+		<title level="a" type="main">Cross-document coreference resolution: A key technology for learning by reading</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">James</forename><surname>Mayfield</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">David</forename><surname>Alexander</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Bonnie</forename><forename type="middle">J</forename><surname>Dorr</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jason</forename><surname>Eisner</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Tamer</forename><surname>Elsayed</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Tim</forename><surname>Finin</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Clayton</forename><surname>Fink</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Marjorie</forename><surname>Freedman</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Nikesh</forename><surname>Garera</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Paul</forename><surname>Mcnamee</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">AAAI Spring Symposium: Learning by Reading and Learning to Read</title>
+		<imprint>
+			<date type="published" when="2009" />
+			<biblScope unit="volume">9</biblScope>
+			<biblScope unit="page" from="65" to="70" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b24">
+	<analytic>
+		<title level="a" type="main">Question answering based on semantic structures</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Srini</forename><surname>Narayanan</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Sanda</forename><surname>Harabagiu</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 20th international conference on Computational Linguistics</title>
+		<meeting>the 20th international conference on Computational Linguistics</meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2004" />
+			<biblScope unit="page">693</biblScope>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b25">
+	<analytic>
+		<title level="a" type="main">Glove: Global vectors for word representation</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jeffrey</forename><surname>Pennington</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Richard</forename><surname>Socher</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Christopher D</forename><surname>Manning</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">EMNLP</title>
+		<imprint>
+			<date type="published" when="2014" />
+			<biblScope unit="volume">14</biblScope>
+			<biblScope unit="page" from="1532" to="1543" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b26">
+	<analytic>
+		<title level="a" type="main">Scoring coreference partitions of predicted mentions: A reference implementation</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Xiaoqiang</forename><surname>Sameer Pradhan</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Marta</forename><surname>Luo</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Eduard</forename><surname>Recasens</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Vincent</forename><surname>Hovy</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Michael</forename><surname>Ng</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Strube</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 52nd Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 52nd Annual Meeting of the Association for Computational Linguistics<address><addrLine>Baltimore, Maryland</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2014" />
+			<biblScope unit="volume">2</biblScope>
+			<biblScope unit="page" from="30" to="35" />
+		</imprint>
+	</monogr>
+	<note>Short Papers). Association for Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b27">
+	<analytic>
+		<title level="a" type="main">Bi-directional joint inference for entity resolution and segmentation using imperatively-defined factor graphs</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Sameer</forename><surname>Singh</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Karl</forename><surname>Schultz</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Andrew</forename><surname>Mccallum</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Machine Learning and Knowledge Discovery in Databases</title>
+		<imprint>
+			<date type="published" when="2009" />
+			<biblScope unit="page" from="414" to="429" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b28">
+	<analytic>
+		<title level="a" type="main">Combination strategies for semantic role labeling</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Mihai</forename><surname>Surdeanu</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">M</forename><surname>Lluís</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Xavier</forename><surname>Carreras</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Pere R</forename><surname>Comas</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Journal of Artificial Intelligence Research</title>
+		<imprint>
+			<biblScope unit="volume">29</biblScope>
+			<biblScope unit="page" from="105" to="151" />
+			<date type="published" when="2007" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b29">
+	<analytic>
+		<title level="a" type="main">Feature-Rich Part-of-Speech Tagging with a Cyclic Dependency Network</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">K</forename><surname>Toutanova</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">D</forename><surname>Klein</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">C</forename><surname>Manning</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Y</forename><surname>Singer</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of HLT-NAACL</title>
+		<meeting>HLT-NAACL</meeting>
+		<imprint>
+			<date type="published" when="2003" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b30">
+	<analytic>
+		<title level="a" type="main">A modeltheoretic coreference scoring scheme</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Marc</forename><surname>Vilain</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">John</forename><surname>Burger</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">John</forename><surname>Aberdeen</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 6th conference on Message understanding</title>
+		<meeting>the 6th conference on Message understanding</meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="1995" />
+			<biblScope unit="page" from="45" to="52" />
+		</imprint>
+	</monogr>
+	<note>Dennis Connolly, and Lynette Hirschman</note>
+</biblStruct>
+
+<biblStruct xml:id="b31">
+	<analytic>
+		<title level="a" type="main">Learning global features for coreference resolution</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Sam</forename><surname>Wiseman</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Alexander</forename><forename type="middle">M</forename><surname>Rush</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Stuart M</forename><surname>Shieber</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of NAACL-HLT</title>
+		<meeting>NAACL-HLT</meeting>
+		<imprint>
+			<date type="published" when="2016" />
+			<biblScope unit="page" from="994" to="1004" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b32">
+	<analytic>
+		<title level="a" type="main">A hierarchical distance-dependent bayesian model for event coreference resolution</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Bishan</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Claire</forename><surname>Cardie</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Peter</forename><surname>Frazier</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Transactions of the Association for Computational Linguistics</title>
+		<imprint>
+			<biblScope unit="volume">3</biblScope>
+			<biblScope unit="page" from="517" to="528" />
+			<date type="published" when="2015" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b33">
+	<analytic>
+		<title level="a" type="main">Cross-document event coreference resolution based on cross-media features</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Tongtao</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Hongzhi</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Heng</forename><surname>Ji</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Shihfu</forename><surname>Chang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">EMNLP</title>
+		<imprint>
+			<date type="published" when="2015" />
+			<biblScope unit="page" from="201" to="206" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+				</listBibl>
+			</div>
+		</back>
+	</text>
+</TEI>

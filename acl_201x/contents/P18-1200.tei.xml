@@ -1,0 +1,1449 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<TEI xmlns="http://www.tei-c.org/ns/1.0" 
+xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+xsi:schemaLocation="http://www.tei-c.org/ns/1.0 /home/ana/installs/grobid/grobid-0.5.1/grobid-home/schemas/xsd/Grobid.xsd"
+ xmlns:xlink="http://www.w3.org/1999/xlink">
+	<teiHeader xml:lang="en">
+		<encodingDesc>
+			<appInfo>
+				<application version="0.5.1-SNAPSHOT" ident="GROBID" when="2019-04-18T12:26+0000">
+					<ref target="https://github.com/kermitt2/grobid">GROBID - A machine learning software for extracting information from scholarly documents</ref>
+				</application>
+			</appInfo>
+		</encodingDesc>
+		<fileDesc>
+			<titleStmt>
+				<title level="a" type="main">Interpretable and Compositional Relation Learning by Joint Training with an Autoencoder</title>
+			</titleStmt>
+			<publicationStmt>
+				<publisher/>
+				<availability status="unknown"><licence/></availability>
+			</publicationStmt>
+			<sourceDesc>
+				<biblStruct>
+					<analytic>
+						<author>
+							<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ryo</forename><surname>Takahashi</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="institution">Tohoku University</orgName>
+							</affiliation>
+						</author>
+						<author>
+							<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ran</forename><surname>Tian</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="institution">Tohoku University</orgName>
+							</affiliation>
+						</author>
+						<author>
+							<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kentaro</forename><surname>Inui</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="institution">Tohoku University</orgName>
+							</affiliation>
+							<affiliation key="aff1">
+								<orgName type="laboratory">RIKEN</orgName>
+								<address>
+									<country key="JP">Japan</country>
+								</address>
+							</affiliation>
+						</author>
+						<title level="a" type="main">Interpretable and Compositional Relation Learning by Joint Training with an Autoencoder</title>
+					</analytic>
+					<monogr>
+						<imprint>
+							<date/>
+						</imprint>
+					</monogr>
+					<note type="submission">July 15 -20, 2018. c 2018 Association for Computational Linguistics 2148</note>
+					<note>(* equal contribution)</note>
+				</biblStruct>
+			</sourceDesc>
+		</fileDesc>
+		<profileDesc>
+			<abstract>
+				<p>Embedding models for entities and relations are extremely useful for recovering missing facts in a knowledge base. Intuitively , a relation can be modeled by a matrix mapping entity vectors. However , relations reside on low dimension sub-manifolds in the parameter space of arbitrary matrices-for one reason, composition of two relations M 1 , M 2 may match a third M 3 (e.g. composition of relations currency of country and country of film usually matches currency of film budget), which imposes compositional constraints to be satisfied by the parameters (i.e. M 1 ·M 2 ≈ M 3). In this paper we investigate a dimension reduction technique by training relations jointly with an autoencoder, which is expected to better capture compositional constraints. We achieve state-of-the-art on Knowledge Base Completion tasks with strongly improved Mean Rank, and show that joint training with an autoencoder leads to interpretable sparse codings of relations , helps discovering compositional constraints and benefits from compositional training. Our source code is released at github.com/tianran/glimvec.</p>
+			</abstract>
+		</profileDesc>
+	</teiHeader>
+	<text xml:lang="en">
+		<body>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="1">Introduction</head><p>Broad-coverage knowledge bases (KBs) such as Freebase ( <ref type="bibr" target="#b2">Bollacker et al., 2008)</ref> and DBPe- dia ( <ref type="bibr" target="#b0">Auer et al., 2007</ref>) store a large amount of facts in the form of head entity, relation, tail entity triples (e.g. The Matrix, country of film, Australia), which could support a wide range of reasoning and question answering applications. The Knowledge Base Completion (KBC) task aims <ref type="figure">Figure 1</ref>: In joint training, relation parameters (e.g. M 1 ) receive updates from both a KB-learning ob- jective, trying to predict entities in the KB; and a re- construction objective from an autoencoder, trying to recover relations from low dimension codings.</p><p>to predict the missing part of an incomplete triple, such as Finding Nemo, country of film, ?, by reasoning from known facts stored in the KB.</p><p>As a most common approach ( <ref type="bibr" target="#b39">Wang et al., 2017)</ref>, modeling entities and relations to operate in a low dimension vector space helps KBC, for three con- ceivable reasons. First, when dimension is low, entities modeled as vectors are forced to share pa- rameters, so "similar" entities which participate in many relations in common get close to each other (e.g. Australia close to US). This could im- ply that an entity (e.g. US) "type matches" a re- lation such as country of film. Second, rela- tions may share parameters as well, which could transfer facts from one relation to other similar relations, for example from x, award winner, y to x, award nominated, y. Third, spa- tial positions might be used to implement com- position of relations, as relations can be regarded as mappings from head to tail entities, and the composition of two maps can match a third (e.g. the composition of currency of country and country of film matches the relation currency of film budget), which could be captured by modeling composition in a space.</p><p>However, modeling relations as mappings natu- rally requires more parameters -a general linear map between d-dimension vectors is represented by a matrix of d 2 parameters -which are less likely to be shared, impeding transfers of facts between sim- ilar relations. Thus, it is desired to reduce dimen- sionality of relations; furthermore, the existence of a composition of two relations (assumed to be mod- eled by matrices M 1 , M 2 ) matching a third (M 3 ) also justifies dimension reduction, because it im- plies a compositional constraint M 1 · M 2 ≈ M 3 that can be satisfied only by a lower dimension sub-manifold in the parameter space <ref type="bibr">1</ref> .</p><p>Previous approaches reduce dimensionality of relations by imposing pre-designed hard con- straints on the parameter space, such as constrain- ing that relations are translations ( <ref type="bibr" target="#b3">Bordes et al., 2013</ref>) or diagonal matrices ( , or assuming they are linear combinations of a small number of prototypes ( <ref type="bibr" target="#b43">Xie et al., 2017)</ref>. However, pre-designed hard constraints do not seem to cope well with compositional constraints, because it is difficult to know a priori which two relations compose to which third relation, hence difficult to choose a pre-design; and com- positional constraints are not always exact (e.g. the composition of currency of country and headquarter location usually matches business operation currency but not al- ways), so hard constraints are less suited.</p><p>In this paper, we investigate an alternative ap- proach by training relation parameters jointly with an autoencoder <ref type="figure">(Figure 1</ref>). During training, the au- toencoder tries to reconstruct relations from low di- mension codings, with the reconstruction objective back-propagating to relation parameters as well. We show this novel technique promotes parame- ter sharing between different relations, and drives them toward low dimension manifolds (Sec.6.2). Besides, we expect the technique to cope better with compositional constraints, because it discov- ers low dimension manifolds posteriorly from data, and it does not impose any explicit hard constraints.</p><p>Yet, joint training with an autoencoder is not simple; one has to keep a subtle balance between gradients of the reconstruction and KB-learning objectives throughout the training process. We are not aware of any theoretical principles directly addressing this problem; but we found some im- portant settings after extensive pre-experiments (Sec.4). We evaluate our system using standard KBC datasets, achieving state-of-the-art on several of them (Sec.6.1), with strongly improved Mean Rank. We discuss detailed settings that lead to the performance (Sec.4.1), and we show that joint train- ing with an autoencoder indeed helps discovering compositional constraints (Sec.6.2) and benefits from compositional training (Sec.6.3).</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2">Base Model</head><p>A knowledge base (KB) is a set T of triples of the form h, r, t, where h, t ∈ E are enti- ties and r ∈ R is a relation (e.g. The Matrix, country of film, Australia). A relation r has its inverse r −1 ∈ R so that for every h, r, t ∈ T , we regard t, r −1 , h as also in the KB. Under this assumption and given T as training data, we con- sider the Knowledge Base Completion (KBC) task that predicts candidates for a missing tail entity in an incomplete h, r, ? triple.</p><p>Most approaches tackle this problem by train- ing a score function measuring the plausibility of triples being facts. The model we implement in this work represents entities h, t as d-dimension vectors u h , v t respectively, and relation r as a d×d matrix M r . If u h , v t are one-hot vectors with di- mension d = |E| corresponding to each entity, one can take M r as the adjacency matrix of entities joined by relation r, so the set of tail entities filling into h, r, ? is calculated by u h M r (with each nonzero entry corresponds to an answer). Thus, we have u h M r v t &gt; 0 if and only if h, r, t ∈ T . This motivates us to use u h M r v t as a natural pa- rameter to model plausibility of h, r, t, even in a low dimension space with d |E|. Thus, we define the score function as</p><formula xml:id="formula_0">s(h, r, t) := exp(u h M r v t )<label>(1)</label></formula><p>for the basic model. This is similar to the bilinear model of <ref type="bibr" target="#b25">Nickel et al. (2011)</ref>, except that we distin- guish u h (the vector for head entities) from v t (the vector for tail entities). It has also been proposed in <ref type="bibr" target="#b34">Tian et al. (2016)</ref>, but for modeling dependency trees rather than KBs.</p><p>More generally, we consider composition of re- lations r 1 / . . . /r l to model paths in a KB ( <ref type="bibr" target="#b10">Guu et al., 2015)</ref>, as defined by r 1 , . . . , r l participating in a sequence of facts such that the head entity of each fact coincides with the tail of its previous. For example, a sequence of two facts The Matrix, country of film, Australia and Australia, currency of country, Australian Dollar form a path of composition country of film / currency of country, because the head of the second fact (i.e. Australia) coincides with the tail of the first. Using the previous d = |E| ana- logue, one can verify that composition of relations is represented by multiplication of adjacency ma- trices, so we accordingly define</p><formula xml:id="formula_1">s(h, r 1 / . . . /r l , t) := exp(u h M r 1 · · · M r l v t )</formula><p>to measure the plausibility of a path. It is explored in <ref type="bibr" target="#b10">Guu et al. (2015)</ref> to learn a score function not only for single facts but also for paths. This compo- sitional training scheme is shown to bring valuable information about the structure of the KB and may help KBC. In this work, we conduct experiments both with and without compositional training.</p><p>In order to learn parameters u h , v t , M r of the score function, we follow Tian et al. (2016) using a Noise Contrastive Estimation (NCE) ( <ref type="bibr" target="#b9">Gutmann and Hyvärinen, 2012)</ref> objective. For each path (or triple) h, r 1 / . . . , t taken from the KB, we gener- ate negative samples by replacing the tail entity t with some random noise t * . Then, we maximize</p><formula xml:id="formula_2">L 1 := path ln s(h, r 1 / . . . , t) k + s(h, r 1 / . . . , t) + noise ln k k + s(h, r 1 / . . . , t * )</formula><p>as our KB-learning objective. Here, k is the num- ber of noises generated for each path. When the score function is regarded as probability, L 1 rep- resents the log-likelihood of "h, r 1 / . . . , t being actual path and h, r 1 / . . . , t * being noise". Max- imizing L 1 increases the scores of actual paths and decreases the scores of noises.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3">Joint Training with an Autoencoder</head><p>Autoencoders learn efficient codings of high- dimensional data while trying to reconstruct the original data from the coding. By joint training relation matrices with an autoencoder, we also ex- pect it to help reducing the dimensionality of the original data (i.e. relation matrices).</p><p>Formally, we define a vectorization m r for each relation matrix M r , and use it as input to the au- toencoder. m r is defined as a reshape of M r flat- tened into a d 2 -dimension vector, and normalized such that m r = √ d. We define</p><formula xml:id="formula_3">c r := ReLU(Am r )<label>(2)</label></formula><p>as the coding. Here A is a c × d 2 matrix with c d 2 , and ReLU is the Rectified Linear Unit function <ref type="bibr" target="#b20">(Nair and Hinton, 2010)</ref>. We reconstruct the input from c r by multiplying a d 2 × c matrix B.</p><p>We want Bc r to be more similar to m r than other relations. For this purpose, we define a similarity</p><formula xml:id="formula_4">g(r 1 , r 2 ) := exp( 1 √ dc m r 1 Bc r 2 ),<label>(3)</label></formula><p>which measures the length of Bc r 2 projected to the direction of m r 1 . In order to learn the parameters A, B, we adopt the Noise Contrastive Estimation scheme as in Sec.2, generate random noises r * for each relation r and maximize</p><formula xml:id="formula_5">L 2 := r∈R ln g(r, r) k + g(r, r) + r * ∼R ln k k + g(r, r * )</formula><p>as our reconstruction objective. Maximizing L 2 increases m r 's similarity with Bc r , and decreases it with Bc r * .</p><p>During joint training, both L 1 and L 2 are si- multaneously maximized, and the gradient L 2 propagates to relation matrices as well. Since L 2 depends on A and B, and A, B interact with all relations, they promote indirect parameter sharing between different relation matrices. In Sec.6.2, we further show that joint training drives relations to- ward a low dimension manifold.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4">Optimization Tricks</head><p>Joint training with an autoencoder is not simple. Relation matrices receive updates from both L 1 and L 2 , but if they update L 1 too much, the autoencoder has no effect; conversely, if they up- date L 2 too often, all relation matrices crush into one cluster. Furthermore, an autoencoder should learn from genuine patterns of relation matrices that emerge from fitting the KB, but not the re- verse -in which the autoencoder imposes arbitrary patterns to relation matrices according to random initialization. Therefore, it is not surprising that a naive optimization of L 1 + L 2 does not work.</p><p>After extensive pre-experiments, we have found some crucial settings for successful training. The most important "magic" is the scaling factor 1 √ dc in definition of the similarity function (3), perhaps being combined with other settings as we discuss below. We have tried different factors 1, 1</p><formula xml:id="formula_6">√ d , 1 √ c</formula><p>and 1 dc instead, with various combinations of d and c; but the autoencoder failed to learn meaningful codings in other settings. When the scaling factor is too small (e.g. 1 dc ), all relations get almost the same coding; conversely if the factor is too large (e.g. 1), all codings get very close to 0.</p><p>The next important rule is to keep a balance be- tween the updates coming from L 1 and L 2 . We use Stochastic Gradient Descent (SGD) for opti- mization, and the common practice (Bottou, 2012) is to set the learning rate as</p><formula xml:id="formula_7">α(τ ) := η 1 + ηλτ .<label>(4)</label></formula><p>Here, η, λ are hyper-parameters and τ is a counter of processed data points. In this work, in order to control the updates in detail to keep a balance, we modify (4) to use a a step counter τ r for each relation r, counting "number of updates" instead of data points 2 . That is, whenever M r gets a nonzero update from a gradient calculation, τ r increases by 1. Furthermore, we use different hyper-parameters for different "types of updates", namely η 1 , λ 1 for updates coming from L 1 , and η 2 , λ 2 for updates coming from L 2 . Thus, let ∆ 1 be the partial gradient of L 1 , and ∆ 2 the partial gradient of L 2 , we update M r by α 1 (τ r )∆ 1 + α 2 (τ r )∆ 2 at each step, where</p><formula xml:id="formula_8">α 1 (τ r ) := η 1 1 + η 1 λ 1 τ r , α 2 (τ r ) := η 2 1 + η 2 λ 2 τ r .</formula><p>The rule for setting η 1 , λ 1 and η 2 , λ 2 is that, η 2 should be much smaller than η 1 , because η 1 , η 2 control the magnitude of learning rates at the early stage of training, with the autoencoder still largely random and ∆ 2 not making much sense; on the other hand, one has to choose λ 1 and λ 2 such that ∆ 1 /λ 1 and ∆ 2 /λ 2 are at the same scale, be- cause the learning rates approach 1/(λ 1 τ r ) and 1/(λ 2 τ r ) respectively, as the training proceeds. In this way, the autoencoder will not impose random patterns to relation matrices according to its ini- tialization at the early stage, and a balance is kept between α 1 (τ r )∆ 1 and α 2 (τ r )∆ 2 later.</p><p>But how to estimate ∆ 1 and ∆ 2 ? It seems that we can approximately calculate their scales from initialization. In this work, we use i.i.d. Gaus- sians of variance 1/d to initialize parameters, so the initial Euclidean norms are u h ≈ 1, v t ≈ 1, M r ≈ √ d, and BAm r ≈ √ dc. Thus, by calculating L 1 and L 2 using <ref type="formula" target="#formula_0">(1)</ref> and <ref type="formula" target="#formula_4">(3)</ref>, we have approximately</p><formula xml:id="formula_9">∆ 1 ≈ u h v t ≈ 1,<label>and</label></formula><formula xml:id="formula_10">∆ 2 ≈ 1 √ dc Bc r ≈ 1 √ dc BAm r ≈ 1.</formula><p>It suggests that, because of the scaling factor 1 √ dc</p><p>in <ref type="formula" target="#formula_4">(3)</ref>, we have ∆ 1 and ∆ 2 at the same scale, so we can set λ 1 = λ 2 . This might not be a mere coincidence.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.1">Training the Base Model</head><p>Besides the tricks for joint training, we also found settings that significantly improve the base model on KBC, as briefly discussed below. In Sec.6.3, we will show performance gains by these settings using the FB15k-237 validation set. Initialization Instead of pure Gaussian, it is bet- ter to initialize matrices as (I + G)/2, where G is random. The identity matrix I helps passing information from head to tail <ref type="bibr" target="#b34">(Tian et al., 2016</ref>).</p><p>Negative Sampling Instead of a unigram distri- bution, it is better to use a uniform distribution for generating noises. This is somehow counter- intuitive compared to training word embeddings.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5">Related Works</head><p>KBs have a wide range of applications ( <ref type="bibr" target="#b1">Berant et al., 2013;</ref><ref type="bibr" target="#b12">Hixon et al., 2015;</ref><ref type="bibr" target="#b23">Nickel et al., 2016a)</ref> and KBC has inspired a huge amount of research ( <ref type="bibr" target="#b3">Bordes et al., 2013;</ref><ref type="bibr" target="#b26">Riedel et al., 2013;</ref><ref type="bibr" target="#b32">Socher et al., 2013;</ref><ref type="bibr">Wang et al., 2014b,a;</ref><ref type="bibr" target="#b42">Xiao et al., 2016;</ref><ref type="bibr" target="#b22">Nguyen et al., 2016;</ref><ref type="bibr" target="#b37">Toutanova et al., 2016;</ref><ref type="bibr" target="#b5">Das et al., 2017;</ref><ref type="bibr" target="#b11">Hayashi and Shimbo, 2017</ref>).</p><p>Among the previous works, <ref type="bibr">TransE (Bordes et al., 2013</ref>) is the classic method which repre- sents a relation as a translation of the entity vector space, and is partially inspired by <ref type="bibr" target="#b18">Mikolov et al. (2013)</ref>'s vector arithmetic method of solving word analogy tasks. Although competitive in KBC, it is speculated that this method is well-suited for 1- to-1 relations but might be too simple to represent N -to-N relations accurately( <ref type="bibr" target="#b39">Wang et al., 2017</ref></p><note type="other">). Thus, extensions such as TransR (Lin et al., 2015b) and STransE (Nguyen et al., 2016) are proposed to map entities into a relation-specific vector space before translation. The ITransF model (Xie et al., 2017) further enhances this approach by imposing a hard constraint that the relation-specific maps should be linear combinations of a small number of prototypical matrices. Our work inherits the same motivation with ITransF in terms of promot- ing parameter-sharing among relations.</note><p>On the other hand, the base model used in this work originates from RESCAL (Nickel et al., 2011), in which relations are naturally represented as analogue to the adjacency matrices (Sec.2). Fur- ther developments include HolE ( <ref type="bibr" target="#b24">Nickel et al., 2016b</ref>) and ConvE ( <ref type="bibr" target="#b6">Dettmers et al., 2018)</ref> which improve this approach in terms of parameter- efficiency, by introducing low dimension factoriza- tions of the matrices. We inherit the basic model of RESCAL but draw additional training techniques from <ref type="bibr" target="#b34">Tian et al. (2016)</ref>, and show that the base model already can achieve near state-of-the-art per- formance (Sec.6.1,6.3). This sends a message sim- ilar to <ref type="bibr" target="#b13">Kadlec et al. (2017)</ref>, saying that training tricks might be as important as model designs.</p><p>Nevertheless, we emphasize the novelty of this work in that the previous models mostly achieve di- mension reduction by imposing some pre-designed hard constraints ( <ref type="bibr" target="#b3">Bordes et al., 2013;</ref><ref type="bibr" target="#b38">Trouillon et al., 2016;</ref><ref type="bibr" target="#b24">Nickel et al., 2016b;</ref><ref type="bibr" target="#b43">Xie et al., 2017;</ref><ref type="bibr" target="#b6">Dettmers et al., 2018)</ref>, whereas the constraints themselves are not learned from data; in contrast, our approach by jointly training an autoen- coder does not impose any explicit hard constraints, so it leads to more flexible modeling.</p><p>Moreover, we additionally focus on leveraging composition in KBC. Although this idea has been frequently explored before ( <ref type="bibr" target="#b10">Guu et al., 2015;</ref><ref type="bibr" target="#b21">Neelakantan et al., 2015;</ref><ref type="bibr" target="#b14">Lin et al., 2015a</ref>), our discus- sion about the concept of compositional constraints and its connection to dimension reduction has not been addressed similarly in previous research. In experiments, we will show (Sec.6.2,6.3) that joint training with an autoencoder indeed helps finding compositional constraints and benefits from com- positional training.</p><p>Autoencoders have been used solo for learn- ing distributed representations of syntactic trees <ref type="bibr" target="#b33">(Socher et al., 2011</ref>), words and images <ref type="bibr" target="#b31">(Silberer and Lapata, 2014)</ref>, or semantic roles ( <ref type="bibr" target="#b35">Titov and Khoddam, 2015)</ref>. It is also used for pretraining other deep neural networks <ref type="figure" target="#fig_1">(Erhan et al., 2010)</ref>. However, when combined with other models, the learning of autoencoders, or more generally sparse codings ( <ref type="bibr" target="#b27">Rubinstein et al., 2010)</ref>, is usually con- veyed in an alternating manner, fixing one part of the model while optimizing the other, such as in <ref type="bibr" target="#b43">Xie et al. (2017)</ref>. To our knowledge, joint training with an autoencoder is not widely used previously for reducing dimensionality.</p><p>Jointly training an autoencoder is not simple be- cause it takes non-stationary inputs. In this work, we modified SGD so that it shares traits with some modern optimization algorithms such as Adagrad ( <ref type="bibr" target="#b7">Duchi et al., 2011)</ref>, in that they both set differ- ent learning rates for different parameters. While Adagrad sets them adaptively by keeping track of gradients for all parameters, our modification of SGD is more efficient and allows us to grasp a rough intuition about which parameter gets how much update. We believe our techniques and find- ings in joint training with an autoencoder could be helpful to reducing dimensionality and improving interpretability in other neural network architec- tures as well.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6">Experiments</head><p>We evaluate on standard KBC datasets, including WN18 and FB15k ( <ref type="bibr" target="#b3">Bordes et al., 2013</ref>), WN18RR (Dettmers et al., 2018) and <ref type="bibr">FB15k-237 (Toutanova and Chen, 2015)</ref>. The statistical information of these datasets are shown in <ref type="table">Table 1.</ref> WN18 collects word relations from WordNet <ref type="bibr" target="#b19">(Miller, 1995)</ref>, and FB15k is taken from Free- base ( <ref type="bibr" target="#b2">Bollacker et al., 2008)</ref>; both have filtered out low frequency entities. However, it is reported in <ref type="bibr" target="#b36">Toutanova and Chen (2015)</ref> that both WN18 and FB15k have information leaks because the in- verses of some test triples appear in the training set. FB15k-237 and WN18RR fix this problem by deleting such triples from training and test data. In this work, we do evaluate on WN18 and FB15k, but our models are mainly tuned on FB15k-237.  <ref type="table" target="#tab_3">#Train #Valid #Test   WN18  40,943  18 141,442 5,000 5,000  FB15k  14,951 1,345 483,142 50,000 59,071  WN18RR 40,943  11 86,835 3,034 3,134  FB15k-237 14,541  237 272,115 17,535 20,466   Table 1</ref>: Statistical information of the KBC datasets. |E| and |R| denote the number of entities and rela- tion types, respectively; #Train, #Valid, and #Test are the numbers of triples in the training, validation, and test sets, respectively.</p><p>For all datasets, we set the dimension d = 256 and c = 16, the SGD hyper-parameters η 1 = 1/64, η 2 = 2 −14 and λ 1 = λ 2 = 2 −14 . The training batch size is 32 and the triples in each batch share the same head entity. We compare the base model (BASE) to our joint training with an autoencoder model <ref type="bibr">(JOINT)</ref>, and the base model with compo- sitional training (BASE+COMP) to our joint model with compositional training (JOINT+COMP). When compositional training is enabled (BASE+COMP, JOINT+COMP), we use random walk to sample paths of length 1 + X, where X is drawn from a Poisson distribution of mean λ = 1.0.</p><p>For any incomplete triple h, r, ? in KBC test, we calculate a score s(h, r, e) from (1), for every entity e ∈ E such that h, r, e does not appear in any of the training, validation, or test sets ( <ref type="bibr" target="#b3">Bordes et al., 2013)</ref>. Then, the calculated scores together with s(h, r, t) for the gold triple is converted to ranks, and the rank of the gold entity t is used for evaluation. Evaluation metrics include Mean Rank (MR), Mean Reciprocal Rank (MRR), and Hits at 10 (H10). Lower MR, higher MRR, and higher H10 indicate better performance.</p><p>We consult MR and MRR on validation sets to determine training epochs; we stop training when both MR and MRR have stopped improving.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6.1">KBC Results</head><p>The results are shown in <ref type="table">Table 2</ref>. We found that joint training with an autoencoder mostly improves performance, and the improvement be- comes more clear when compositional training is enabled (i.e., JOINT ≥ BASE and JOINT+COMP &gt; BASE+COMP). This is convincing because gener- ally, joint training contributes with its regulariz- ing effects, and drastic improvements are less ex- pected <ref type="bibr">3</ref> . When compositional training is enabled, <ref type="bibr">3</ref> The source code and trained models are publicly released at https://github.com/tianran/glimvec, where profession profession −1 film_crew_role −1 film_release_region −1 film_language −1 nationality currency_of_country currency_of_company currency_of_university currency_of_film_budget <ref type="formula" target="#formula_0">2 4 6 8 10 12 14 16</ref> currency_of_film_budget release_region_of_film corporation_of_film producer_of_film writer_of_film   <ref type="table">Table 2</ref>: KBC results on the WN18, FB15k, WN18RR, and FB15k-237 datasets. The first and second sectors compare our joint to the base models with and without compositional training, respectively; the third sector shows our re-experiments and the fourth shows previous published results. Bold numbers are the best in each sector, and ( * ) indicates the best of all.</p><p>( <ref type="bibr" target="#b38">Trouillon et al., 2016)</ref> and ConvE were previously the best results. Our models mostly outperform them. Other results include <ref type="bibr" target="#b13">Kadlec et al. (2017)</ref>'s simple but strong baseline and several recent mod- els ( <ref type="bibr" target="#b28">Schlichtkrull et al., 2017;</ref><ref type="bibr" target="#b30">Shi and Weninger, 2017;</ref><ref type="bibr" target="#b29">Shen et al., 2017</ref>) which achieve best results on FB15k or WN18 in some measure. Our models have comparable results.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6.2">Intuition and Insight</head><p>What does the autoencoder look like? How does joint training affect relation matrices? We address these questions by analyses showing that (i) the autoencoder learns sparse and interpretable codings of relations, (ii) the joint training drives relation matrices toward a low dimension manifold, and (iii) it helps discovering compositional constraints.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Sparse Coding and Interpretability</head><p>Due to the ReLU function in (2), our autoencoder learns sparse coding, with most relations having large code values at only two or three dimensions. This sparsity makes it easy to find patterns in the model that to some extent explain the semantics of relations. <ref type="figure" target="#fig_1">Figure 2</ref> shows some examples.</p><p>In the first group of <ref type="figure" target="#fig_1">Figure 2</ref>, we show a small number of relations that are almost always assigned a near one-hot coding, regardless of initialization. These are high frequency relations joining two large categories (e.g. film and language), which probably constitute the skeleton of a KB.</p><p>In the second group, we found the 12th di- mension strongly correlates with currency; and in the third group, we found the 4th dimension strongly correlates with film. As for the relation currency of film budget, it has large code values at both dimensions. This kind of relation clustering also seems independent of initialization. Intuitively, it shows that the autoencoder may dis- cover similarities between relations and promote indirect parameter sharing among them. Yet, as the autoencoder only reconstructs approximations of relation matrices but never constrain them to be exactly equal to the original, relation matrices with very similar codings may still differ consid- erably. For example, producer of film and writer of film have codings of cosine simi- larity 0.973, but their relation matrices only have 6 a cosine similarity 0.338.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Low dimension manifold</head><p>In order to visualize the relation matrices learned by our joint and base models, we use UMAP 7 <ref type="bibr" target="#b17">(McInnes and Healy, 2018)</ref> to embed M r into a 2D plane 8 . We use relation matrices trained on FB15k-237, and compare models trained by the same number of epochs. The results are shown in <ref type="figure" target="#fig_2">Figure 3</ref>. We can see that <ref type="figure" target="#fig_2">Figure 3a</ref> and <ref type="figure" target="#fig_2">Figure 3c</ref> are mostly similar, with high frequency relations scat- tered randomly around a low frequency cluster, sug- gesting that they come from various directions of a high dimension space, with frequent relations prob- ably being pulled further by the training updates. On the other hand, in <ref type="figure" target="#fig_2">Figure 3b</ref> and <ref type="figure" target="#fig_2">Figure 3d</ref> we found less frequent relations being clustered with frequent ones, and multiple traces of low dimen- sion structures. It suggests that joint training with an autoencoder indeed drives relations toward a low dimension manifold. In addition, <ref type="figure" target="#fig_2">Figure 3d</ref> shows different structures against <ref type="figure" target="#fig_2">Figure 3b</ref>, which we conjecture could be related to compositional constraints discovered by compositional training.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Compositional constraints</head><p>In order to directly evaluate a model's ability to find compositional constraints, we extracted from FB15k-237 a list of (r 1 /r 2 , r 3 ) pairs such that r 1 /r 2 matches r 3 . Formally, the list is constructed as below. For any relation r, we define a content set C(r) as the set of (h, t) pairs such that h, r, t is a fact in the KB. Similarly, we define C(r 1 /r 2 ) t-SNE (van der <ref type="bibr" target="#b16">Maaten and Hinton, 2008)</ref>   as the set of (h, t) pairs such that h, r 1 /r 2 , t is a path. We regard (r 1 /r 2 , r 3 ) as a compositional constraint if their content sets are similar; that is, if |C(r 1 /r 2 ) ∩ C(r 3 )| ≥ 50 and the Jaccard similarity between C(r 1 /r 2 ) and C(r 3 ) is ≥ 0.4. Then, after filtering out degenerated cases such as r 1 = r 3 or r 2 = r −1 1 , we obtained a list of 154 compositional constraints, e.g. (currency of country/country of film, currency of film budget).</p><p>For each compositional constraint (r 1 /r 2 , r 3 ) in the list, we take the matrices M 1 , M 2 and M 3 corresponding to r 1 , r 2 and r 3 respectively, and rank M 3 according to its cosine similarity with M 1 M 2 , among all relation matrices. Then, we cal- culate MR and MRR for evaluation. We compare the JOINT+COMP model to BASE+COMP, as well as a randomized baseline where M 2 is selected ran- domly from the relation matrices in JOINT+COMP instead (RANDOMM2). The results are shown in <ref type="table" target="#tab_3">Table 3</ref>. We have evaluated 5 different random initializations for each model, trained by the same number of epochs, and we report the mean and standard deviation. We verify that JOINT+COMP performs better than BASE+COMP, indicating that joint training with an autoencoder indeed helps dis- covering compositional constraints. Furthermore, the random baseline RANDOMM2 tests a hypothe- sis that joint training might be just clustering M 3 and M 1 here, to the extent that M 3 and M 1 are so close that even a random M 2 can give the correct answer; but as it turns out, JOINT+COMP largely outperforms RANDOMM2, excluding this possibil- ity. Thus, joint training performs better not simply because it clusters relation matrices; it learns com- positions indeed.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6.3">Losses and Gains</head><p>In the KBC task, where are the losses and what are the gains of different settings? With additional eval- uations, we show (i) some crucial settings for the base model, and (ii) joint training with an autoen- coder benefits more from compositional training.  <ref type="table">Table 4</ref>: Ablation of the four settings of the base model as described in Sec.4.1</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Crucial settings for the base model</head><p>It is noteworthy that our base model already achieves strong results. This is due to several detailed but crucial settings as we discussed in Sec.4.1; <ref type="table">Table 4</ref> shows their gains on the FB15k- 237 validation data. The most dramatic improve- ment comes from the regularizer that drives matri- ces to orthogonal.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Gains with compositional training</head><p>One can force a model to focus more on (longer) compositions of relations, by sampling longer paths in compositional training. Since joint training with an autoencoder helps discovering compositional constraints, we expect it to be more helpful when the sampled paths are longer. In this work, path lengths are sampled from a Poisson distribution, we thus vary the mean λ of the Poisson to control the strength of compositional training. The results on FB15k-237 are shown in <ref type="table" target="#tab_6">Table 5</ref>.</p><p>We can see that, as λ gets larger, MR improves much but MRR slightly drops. It suggests that in FB15k-237, composition of relations might mainly help finding more appropriate candidates for a miss- ing entity, rather than pinpointing a correct one. Yet, joint training improves base models even more as the paths get longer, especially in MR. It further supports our conjecture that joint training with an autoencoder may strongly interact with composi- tional training.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="7">Conclusion</head><p>We have investigated a dimension reduction tech- nique which trains a KB embedding model jointly with an autoencoder. We have developed new train- ing techniques and achieved state-of-the-art results on several KBC tasks with strong improvements in Mean Rank. Furthermore, we have shown that the autoencoder learns low dimension sparse cod- ings that can be easily explained; the joint training technique drives high-dimensional data toward low   dimension manifolds; and the reduction of dimen- sionality may interact strongly with composition, help discovering compositional constraints and ben- efit from compositional training. We believe these findings provide insightful understandings of KB embedding models and might be applied to other neural networks beyond the KBC task.</p></div><figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_1"><head>Figure 2 :</head><label>2</label><figDesc>Figure 2: Examples of relation codings learned from FB15k-237. Each row shows a 16 dimension vector encoding a relation. Vectors are normalized such that their entries sum to 1.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_2"><head>Figure 3 :</head><label>3</label><figDesc>Figure 3: By UMAP, relation matrices are embedded into a 2D plane. Colors show frequencies of relations; and lighter color means more frequent.</figDesc><graphic url="image-3.png" coords="8,75.00,184.51,104.77,104.77" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_3"><head>Model</head><label></label><figDesc></figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_1" validated="false"><head>2154</head><label>2154</label><figDesc></figDesc><table>Model 
+WN18 
+FB15k 
+WN18RR 
+FB15k-237 
+
+MR 
+H10 MR H10 
+MR 
+MRR H10 
+MR MRR H10 
+
+JOINT 
+
+277 
+95.8 
+53 
+82.5 
+4233 .461  *  53.4 
+212 
+.336 52.3  *  
+
+BASE 
+
+286 
+95.8 
+53 
+82.5 
+4371 
+.459 
+52.9 
+215 .337  *  52.3  *  
+
+JOINT+COMP 
+
+191  *  94.8 
+53 
+69.7 2268  *  .343 54.8  *  197  *  .331 
+51.6 
+
+BASE+COMP 
+
+195 
+94.8 
+54 
+69.4 
+2447 
+.310 
+54.1 
+203 
+.328 
+51.5 
+
+TransE (Bordes et al., 2013) 
+292 
+92.0 
+66 
+70.4 
+4311 
+.202 
+45.6 
+278 
+.236 
+41.6 
+TransR (Lin et al., 2015b) 
+281 
+93.6 
+76 
+74.4 
+4222 
+.210 
+47.1 
+320 
+.282 
+45.9 
+RESCAL (Nickel et al., 2011) 
+911 
+58.0 163 41.0 
+9689 
+.105 
+20.3 
+457 
+.178 
+31.9 
+HolE (Nickel et al., 2016b) 
+724 
+94.3 293 66.8 
+8096 
+.376 
+40.0 1172 .169 
+30.9 
+
+STransE (Nguyen et al., 2016) 
+206 
+93.4 
+69 
+79.9 
+-
+-
+-
+-
+-
+-
+ITransF (Xie et al., 2017) 
+205 
+94.2 
+65 
+81.0 
+-
+-
+-
+-
+-
+-
+ComplEx (Trouillon et al., 2016) 
+-
+94.7 
+-
+84.0 
+5261 
+.44 
+51 
+339 
+.247 
+42.8 
+Ensemble DistMult (Kadlec et al., 2017) 457 
+95.0 35.9 90.4 
+-
+-
+-
+-
+-
+-
+IRN (Shen et al., 2017) 
+249 
+95.3 
+38 92.7  *  
+-
+-
+-
+-
+-
+-
+ConvE (Dettmers et al., 2018) 
+504 
+95.5 
+64 
+87.3 
+5277 
+.46 
+48 
+246 
+.316 
+49.1 
+R-GCN+ (Schlichtkrull et al., 2017) 
+-
+96.4  *  
+-
+84.2 
+-
+-
+-
+-
+.249 
+41.7 
+ProjE (Shi and Weninger, 2017) 
+-
+-
+34  *  
+88.4 
+-
+-
+-
+-
+-
+-
+
+</table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_2" validated="false"><head></head><label></label><figDesc>but found UMAP more insightful.</figDesc><table>Model 
+MR 
+MRR 
+
+JOINT+COMP 
+
+130±27 
+.0481±.0090 
+
+BASE+COMP 
+
+150±3 
+.0280±.0010 
+RANDOMM2 
+181±19 
+.0356±.0100 
+
+</table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_3" validated="false"><head>Table 3 :</head><label>3</label><figDesc></figDesc><table>Performance at discovering compositional 
+constraints extracted from FB15k-237 
+
+</table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_6" validated="false"><head>Table 5 :</head><label>5</label><figDesc></figDesc><table>Evaluation of BASE and gains by JOINT, 
+on FB15k-237 with different strengths of composi-
+tional training. Bold numbers are improvements. 
+
+</table></figure>
+
+			<note place="foot" n="1"> It is noteworthy that similar compositional constraints apply to most modeling schemes of relations, not just matrices.</note>
+
+			<note place="foot" n="2"> Similarly, we set separate step counters for all head and tail entities, and the autoencoder as well.</note>
+
+			<note place="foot" n="6"> Cosine similarity 0.338 is still high for matrices, due to the high dimensionality of their parameter space. 7 https://github.com/lmcinnes/umap 8 UMAP is a recently proposed manifold learning algorithm based on the fuzzy topological structure. We also tried</note>
+		</body>
+		<back>
+
+			<div type="acknowledgement">
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Acknowledgments</head><p>This work was supported by JST CREST Grant Number JPMJCR1301, Japan. We thank Pontus Stenetorp, Makoto Miwa, and the anonymous re-viewers for many helpful advices and comments.</p></div>
+			</div>
+
+			<div type="annex">
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>A Out-of-vocabulary Entities in KBC</head><p>Occasionally, a KBC test set may contain entities that never appear in the training data. Such out-of- vocabulary (OOV) entities pose a challenge to KBC systems; while some systems address this issue by explicitly learn an OOV entity vector <ref type="bibr" target="#b6">(Dettmers et al., 2018</ref>), our approach is described below. For an incomplete triple h, r, ? in the test, if h is OOV, we replace it with the most frequent entity that has ever appeared as a head of relation r in the training data. If the gold tail entity is OOV, we use the zero vector for computing the score and the rank of the gold entity.</p><p>Usually, OOV entities are rare and negligible in evaluation; except for the WN18RR test data which contains about 6.7% triples with OOV en- tities. Here, we also report adjusted scores on WN18RR in the setting that all triples with OOV entities are removed from the test. The results are shown in  </p></div>			</div>
+			<div type="references">
+
+				<listBibl>
+
+<biblStruct xml:id="b0">
+	<monogr>
+		<title level="m" type="main">Dbpedia: A nucleus for a web of open data. In The Semantic Web, 6th International Semantic Web Conference, 2nd Asian Semantic Web Conference</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Sören</forename><surname>Auer</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Christian</forename><surname>Bizer</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Georgi</forename><surname>Kobilarov</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jens</forename><surname>Lehmann</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Richard</forename><surname>Cyganiak</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Zachary</forename><forename type="middle">G</forename><surname>Ives</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2007-11-11" />
+			<biblScope unit="page" from="722" to="735" />
+			<pubPlace>Busan, Korea</pubPlace>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b1">
+	<analytic>
+		<title level="a" type="main">Semantic parsing on Freebase from question-answer pairs</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jonathan</forename><surname>Berant</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Andrew</forename><surname>Chou</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Roy</forename><surname>Frostig</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Percy</forename><surname>Liang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2013 Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>the 2013 Conference on Empirical Methods in Natural Language Processing<address><addrLine>Seattle, Washington, USA</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2013" />
+			<biblScope unit="page" from="1533" to="1544" />
+		</imprint>
+	</monogr>
+	<note>Association for Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b2">
+	<analytic>
+		<title level="a" type="main">Freebase: a collaboratively created graph database for structuring human knowledge</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kurt</forename><forename type="middle">D</forename><surname>Bollacker</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Colin</forename><surname>Evans</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Praveen</forename><surname>Paritosh</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Tim</forename><surname>Sturge</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jamie</forename><surname>Taylor</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the ACM SIGMOD International Conference on Management of Data</title>
+		<meeting>the ACM SIGMOD International Conference on Management of Data<address><addrLine>Vancouver, BC, Canada</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2008-06-10" />
+			<biblScope unit="page" from="1247" to="1250" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b3">
+	<analytic>
+		<title level="a" type="main">Translating embeddings for modeling multirelational data</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Antoine</forename><surname>Bordes</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Nicolas</forename><surname>Usunier</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Alberto</forename><surname>Garcíadurán</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jason</forename><surname>Weston</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Oksana</forename><surname>Yakhnenko</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Advances in Neural Information Processing Systems 26: 27th Annual Conference on Neural Information Processing Systems</title>
+		<meeting><address><addrLine>Lake Tahoe, Nevada, United States</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2013-12-05" />
+			<biblScope unit="page" from="2787" to="2795" />
+		</imprint>
+	</monogr>
+	<note>Proceedings of a meeting held</note>
+</biblStruct>
+
+<biblStruct xml:id="b4">
+	<analytic>
+		<title level="a" type="main">Stochastic gradient descent tricks</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Léon</forename><surname>Bottou</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Neural Networks: Tricks of the Trade</title>
+		<imprint>
+			<publisher>Springer</publisher>
+			<date type="published" when="2012" />
+			<biblScope unit="page" from="421" to="436" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b5">
+	<analytic>
+		<title level="a" type="main">Chains of reasoning over entities, relations, and text using recurrent neural networks</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Rajarshi</forename><surname>Das</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Arvind</forename><surname>Neelakantan</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">David</forename><surname>Belanger</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Andrew</forename><surname>Mccallum</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 15th Conference of the European Chapter</title>
+		<meeting>the 15th Conference of the European Chapter<address><addrLine>Long Papers; Valencia, Spain</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2017" />
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="132" to="141" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b6">
+	<analytic>
+		<title level="a" type="main">Convolutional 2d knowledge graph embeddings</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Tim</forename><surname>Dettmers</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Minervini</forename><surname>Pasquale</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Stenetorp</forename><surname>Pontus</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Sebastian</forename><surname>Riedel</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 32th AAAI Conference on Artificial Intelligence</title>
+		<meeting>the 32th AAAI Conference on Artificial Intelligence</meeting>
+		<imprint>
+			<date type="published" when="2018" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b7">
+	<analytic>
+		<title level="a" type="main">Adaptive subgradient methods for online learning and stochastic optimization</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">John</forename><forename type="middle">C</forename><surname>Duchi</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Elad</forename><surname>Hazan</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yoram</forename><surname>Singer</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Journal of Machine Learning Research</title>
+		<imprint>
+			<biblScope unit="volume">12</biblScope>
+			<biblScope unit="page" from="2121" to="2159" />
+			<date type="published" when="2011" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b8">
+	<analytic>
+		<title level="a" type="main">Why does unsupervised pre-training help deep learning</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yoshua</forename><surname>Dumitru Erhan</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Aaron</forename><forename type="middle">C</forename><surname>Bengio</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Pierre-Antoine</forename><surname>Courville</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Pascal</forename><surname>Manzagol</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Samy</forename><surname>Vincent</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Bengio</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Journal of Machine Learning Research</title>
+		<imprint>
+			<biblScope unit="volume">11</biblScope>
+			<biblScope unit="page" from="625" to="660" />
+			<date type="published" when="2010" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b9">
+	<analytic>
+		<title level="a" type="main">Noisecontrastive estimation of unnormalized statistical models, with applications to natural image statistics</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Michael</forename><surname>Gutmann</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Aapo</forename><surname>Hyvärinen</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Journal of Machine Learning Research</title>
+		<imprint>
+			<biblScope unit="volume">13</biblScope>
+			<biblScope unit="page" from="307" to="361" />
+			<date type="published" when="2012" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b10">
+	<analytic>
+		<title level="a" type="main">Traversing knowledge graphs in vector space</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kelvin</forename><surname>Guu</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">John</forename><surname>Miller</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Percy</forename><surname>Liang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2015 Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>the 2015 Conference on Empirical Methods in Natural Language Processing<address><addrLine>Lisbon, Portugal</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2015" />
+			<biblScope unit="page" from="318" to="327" />
+		</imprint>
+	</monogr>
+	<note>Association for Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b11">
+	<analytic>
+		<title level="a" type="main">On the equivalence of holographic and complex embeddings for link prediction</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Katsuhiko</forename><surname>Hayashi</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Masashi</forename><surname>Shimbo</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 55th Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 55th Annual Meeting of the Association for Computational Linguistics<address><addrLine>Vancouver, Canada</addrLine></address></meeting>
+		<imprint>
+			<publisher>Short Papers</publisher>
+			<date type="published" when="2017" />
+			<biblScope unit="volume">2</biblScope>
+			<biblScope unit="page" from="554" to="559" />
+		</imprint>
+	</monogr>
+	<note>Association for Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b12">
+	<analytic>
+		<title level="a" type="main">Learning knowledge graphs for question answering through conversational dialog</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ben</forename><surname>Hixon</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Peter</forename><surname>Clark</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Hannaneh</forename><surname>Hajishirzi</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2015 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies</title>
+		<meeting>the 2015 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies<address><addrLine>Denver, Colorado</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2015" />
+			<biblScope unit="page" from="851" to="861" />
+		</imprint>
+	</monogr>
+	<note>Association for Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b13">
+	<analytic>
+		<title level="a" type="main">Knowledge base completion: Baselines strike back</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Rudolf</forename><surname>Kadlec</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ondrej</forename><surname>Bajgar</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2nd Workshop on Representation Learning for NLP</title>
+		<meeting>the 2nd Workshop on Representation Learning for NLP<address><addrLine>Vancouver, Canada</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2017" />
+			<biblScope unit="page" from="69" to="74" />
+		</imprint>
+	</monogr>
+	<note>Association for Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b14">
+	<analytic>
+		<title level="a" type="main">Modeling relation paths for representation learning of knowledge bases</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yankai</forename><surname>Lin</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Zhiyuan</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Huanbo</forename><surname>Luan</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Maosong</forename><surname>Sun</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Siwei</forename><surname>Rao</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Song</forename><surname>Liu</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2015 Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>the 2015 Conference on Empirical Methods in Natural Language Processing<address><addrLine>Lisbon, Portugal</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2015" />
+			<biblScope unit="page" from="705" to="714" />
+		</imprint>
+	</monogr>
+	<note>Association for Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b15">
+	<analytic>
+		<title level="a" type="main">Learning entity and relation embeddings for knowledge graph completion</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yankai</forename><surname>Lin</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Zhiyuan</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Maosong</forename><surname>Sun</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yang</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Xuan</forename><surname>Zhu</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Twenty-Ninth AAAI Conference on Artificial Intelligence</title>
+		<meeting>the Twenty-Ninth AAAI Conference on Artificial Intelligence<address><addrLine>Austin, Texas, USA</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2015-01-25" />
+			<biblScope unit="page" from="2181" to="2187" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b16">
+	<analytic>
+		<title level="a" type="main">Visualizing data using t-SNE</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Laurens</forename><surname>Van Der Maaten</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Geoffrey</forename><surname>Hinton</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Journal of Machine Learning Research</title>
+		<imprint>
+			<biblScope unit="volume">9</biblScope>
+			<biblScope unit="page" from="2579" to="2605" />
+			<date type="published" when="2008" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b17">
+	<monogr>
+		<title level="m" type="main">UMAP: Uniform Manifold Approximation and Projection for Dimension Reduction</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">L</forename><surname>Mcinnes</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">J</forename><surname>Healy</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2018" />
+		</imprint>
+	</monogr>
+	<note>ArXiv e-prints</note>
+</biblStruct>
+
+<biblStruct xml:id="b18">
+	<analytic>
+		<title level="a" type="main">Linguistic regularities in continuous space word representations</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Tomas</forename><surname>Mikolov</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Geoffrey</forename><surname>Wen-Tau Yih</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Zweig</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2013 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies</title>
+		<meeting>the 2013 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies<address><addrLine>Atlanta, Georgia</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2013" />
+			<biblScope unit="page" from="746" to="751" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b19">
+	<analytic>
+		<title level="a" type="main">Wordnet: A lexical database for english</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">George</forename><forename type="middle">A</forename><surname>Miller</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Commun. ACM</title>
+		<imprint>
+			<biblScope unit="volume">38</biblScope>
+			<biblScope unit="issue">11</biblScope>
+			<biblScope unit="page" from="39" to="41" />
+			<date type="published" when="1995" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b20">
+	<analytic>
+		<title level="a" type="main">Rectified linear units improve restricted boltzmann machines</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Vinod</forename><surname>Nair</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Geoffrey</forename><forename type="middle">E</forename><surname>Hinton</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 27th International Conference on Machine Learning (ICML-10)</title>
+		<meeting>the 27th International Conference on Machine Learning (ICML-10)<address><addrLine>Haifa, Israel</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2010-06-21" />
+			<biblScope unit="page" from="807" to="814" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b21">
+	<analytic>
+		<title level="a" type="main">Compositional vector space models for knowledge base completion</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Arvind</forename><surname>Neelakantan</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Benjamin</forename><surname>Roth</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Andrew</forename><surname>Mccallum</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 53rd Annual Meeting of the Association for Computational Linguistics and the 7th International Joint Conference on Natural Language Processing</title>
+		<meeting>the 53rd Annual Meeting of the Association for Computational Linguistics and the 7th International Joint Conference on Natural Language Processing<address><addrLine>Beijing, China</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2015" />
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="156" to="166" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b22">
+	<analytic>
+		<title level="a" type="main">Stranse: a novel embedding model of entities and relationships in knowledge bases</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kairit</forename><surname>Dat Quoc Nguyen</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Lizhen</forename><surname>Sirts</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Mark</forename><surname>Qu</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Johnson</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2016 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies</title>
+		<meeting>the 2016 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies<address><addrLine>San Diego, California</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2016" />
+			<biblScope unit="page" from="460" to="466" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b23">
+	<monogr>
+		<title level="m" type="main">A review of relational machine learning for knowledge graphs. Proceedings of the IEEE</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Maximilian</forename><surname>Nickel</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kevin</forename><surname>Murphy</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Volker</forename><surname>Tresp</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Evgeniy</forename><surname>Gabrilovich</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2016" />
+			<biblScope unit="volume">104</biblScope>
+			<biblScope unit="page" from="11" to="33" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b24">
+	<analytic>
+		<title level="a" type="main">Holographic embeddings of knowledge graphs</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Maximilian</forename><surname>Nickel</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Lorenzo</forename><surname>Rosasco</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Tomaso</forename><forename type="middle">A</forename><surname>Poggio</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Thirtieth AAAI Conference on Artificial Intelligence</title>
+		<meeting>the Thirtieth AAAI Conference on Artificial Intelligence<address><addrLine>Phoenix, Arizona, USA</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="1217" />
+			<biblScope unit="page" from="1955" to="1961" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b25">
+	<analytic>
+		<title level="a" type="main">A three-way model for collective learning on multi-relational data</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Maximilian</forename><surname>Nickel</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Hans-Peter</forename><surname>Volker Tresp</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Kriegel</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 28th International Conference on International Conference on Machine Learning, ICML&apos;11</title>
+		<meeting>the 28th International Conference on International Conference on Machine Learning, ICML&apos;11<address><addrLine>USA</addrLine></address></meeting>
+		<imprint>
+			<publisher>Omnipress</publisher>
+			<date type="published" when="2011" />
+			<biblScope unit="page" from="809" to="816" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b26">
+	<analytic>
+		<title level="a" type="main">Relation extraction with matrix factorization and universal schemas</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Sebastian</forename><surname>Riedel</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Limin</forename><surname>Yao</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Andrew</forename><surname>Mccallum</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Benjamin</forename><forename type="middle">M</forename><surname>Marlin</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2013 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies</title>
+		<meeting>the 2013 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies<address><addrLine>Atlanta, Georgia</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2013" />
+			<biblScope unit="page" from="74" to="84" />
+		</imprint>
+	</monogr>
+	<note>Association for Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b27">
+	<analytic>
+		<title level="a" type="main">Dictionaries for sparse representation modeling</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">R</forename><surname>Rubinstein</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">A</forename><forename type="middle">M</forename><surname>Bruckstein</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">M</forename><surname>Elad</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Proceedings of the IEEE</title>
+		<imprint>
+			<biblScope unit="volume">98</biblScope>
+			<biblScope unit="issue">6</biblScope>
+			<biblScope unit="page" from="1045" to="1057" />
+			<date type="published" when="2010" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b28">
+	<monogr>
+		<title level="m" type="main">Modeling relational data with graph convolutional networks</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Michael Sejr</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Thomas</forename><forename type="middle">N</forename><surname>Schlichtkrull</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Peter</forename><surname>Kipf</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Rianne</forename><surname>Bloem</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Van Den</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ivan</forename><surname>Berg</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Max</forename><surname>Titov</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Welling</surname></persName>
+		</author>
+		<idno>abs/1703.06103</idno>
+		<imprint>
+			<date type="published" when="2017" />
+			<publisher>CoRR</publisher>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b29">
+	<analytic>
+		<title level="a" type="main">Modeling large-scale structured relationships with shared memory for knowledge base completion</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yelong</forename><surname>Shen</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Po-Sen</forename><surname>Huang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ming-Wei</forename><surname>Chang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jianfeng</forename><surname>Gao</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2nd Workshop on Representation Learning for NLP</title>
+		<meeting>the 2nd Workshop on Representation Learning for NLP<address><addrLine>Vancouver, Canada</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2017" />
+			<biblScope unit="page" from="57" to="68" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b30">
+	<analytic>
+		<title level="a" type="main">Proje: Embedding projection for knowledge graph completion</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Baoxu</forename><surname>Shi</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Tim</forename><surname>Weninger</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Thirty-First AAAI Conference on Artificial Intelligence</title>
+		<meeting>the Thirty-First AAAI Conference on Artificial Intelligence<address><addrLine>San Francisco, California, USA</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2017-02-04" />
+			<biblScope unit="page" from="1236" to="1242" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b31">
+	<analytic>
+		<title level="a" type="main">Learning grounded meaning representations with autoencoders</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Carina</forename><surname>Silberer</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Mirella</forename><surname>Lapata</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 52nd Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 52nd Annual Meeting of the Association for Computational Linguistics<address><addrLine>Baltimore, Maryland</addrLine></address></meeting>
+		<imprint>
+			<publisher>Long Papers</publisher>
+			<date type="published" when="2014" />
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="721" to="732" />
+		</imprint>
+	</monogr>
+	<note>Association for Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b32">
+	<analytic>
+		<title level="a" type="main">Reasoning with neural tensor networks for knowledge base completion</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Richard</forename><surname>Socher</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Danqi</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Christopher</forename><forename type="middle">D</forename><surname>Manning</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Andrew</forename><forename type="middle">Y</forename><surname>Ng</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Advances in Neural Information Processing Systems 26: 27th Annual Conference on Neural Information Processing Systems 2013. Proceedings of a meeting held</title>
+		<meeting><address><addrLine>Lake Tahoe, Nevada, United States</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2013-12-05" />
+			<biblScope unit="page" from="926" to="934" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b33">
+	<analytic>
+		<title level="a" type="main">Semi-supervised recursive autoencoders for predicting sentiment distributions</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Richard</forename><surname>Socher</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jeffrey</forename><surname>Pennington</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Eric</forename><forename type="middle">H</forename><surname>Huang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Andrew</forename><forename type="middle">Y</forename><surname>Ng</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Christopher</forename><forename type="middle">D</forename><surname>Manning</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2011 Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>the 2011 Conference on Empirical Methods in Natural Language Processing<address><addrLine>Edinburgh, Scotland, UK.</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2011" />
+			<biblScope unit="page" from="151" to="161" />
+		</imprint>
+	</monogr>
+	<note>Association for Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b34">
+	<analytic>
+		<title level="a" type="main">Learning semantically and additively compositional distributional representations</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ran</forename><surname>Tian</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Naoaki</forename><surname>Okazaki</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kentaro</forename><surname>Inui</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 54th Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 54th Annual Meeting of the Association for Computational Linguistics<address><addrLine>Berlin, Germany</addrLine></address></meeting>
+		<imprint>
+			<publisher>Long Papers</publisher>
+			<date type="published" when="2016" />
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="1277" to="1287" />
+		</imprint>
+	</monogr>
+	<note>Association for Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b35">
+	<analytic>
+		<title level="a" type="main">Unsupervised induction of semantic roles within a reconstructionerror minimization framework</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ivan</forename><surname>Titov</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ehsan</forename><surname>Khoddam</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2015 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies</title>
+		<meeting>the 2015 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies</meeting>
+		<imprint>
+			<date type="published" when="2015" />
+			<biblScope unit="page" from="1" to="10" />
+		</imprint>
+	</monogr>
+	<note>Denver, Colorado. Association for Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b36">
+	<analytic>
+		<title level="a" type="main">Observed versus latent features for knowledge base and text inference</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kristina</forename><surname>Toutanova</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Danqi</forename><surname>Chen</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 3rd Workshop on Continuous Vector Space Models and their Compositionality</title>
+		<meeting>the 3rd Workshop on Continuous Vector Space Models and their Compositionality<address><addrLine>Beijing, China</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2015" />
+			<biblScope unit="page" from="57" to="66" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b37">
+	<analytic>
+		<title level="a" type="main">Compositional learning of embeddings for relation paths in knowledge base and text</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kristina</forename><surname>Toutanova</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Victoria</forename><surname>Lin</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Wen-Tau</forename><surname>Yih</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Hoifung</forename><surname>Poon</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Chris</forename><surname>Quirk</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 54th Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 54th Annual Meeting of the Association for Computational Linguistics<address><addrLine>Berlin, Germany</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2016" />
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="1434" to="1444" />
+		</imprint>
+	</monogr>
+	<note>Long Papers). Association for Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b38">
+	<analytic>
+		<title level="a" type="main">Complex embeddings for simple link prediction</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Théo</forename><surname>Trouillon</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Johannes</forename><surname>Welbl</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Sebastian</forename><surname>Riedel</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Eric</forename><surname>Gaussier</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Guillaume</forename><surname>Bouchard</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 33nd International Conference on Machine Learning, ICML 2016</title>
+		<meeting>the 33nd International Conference on Machine Learning, ICML 2016<address><addrLine>New York City, NY, USA</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2016-06-19" />
+			<biblScope unit="page" from="2071" to="2080" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b39">
+	<analytic>
+		<title level="a" type="main">Knowledge graph embedding: A survey of approaches and applications</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Quan</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Zhendong</forename><surname>Mao</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Bin</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Li</forename><surname>Guo</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">IEEE Trans. Knowl. Data Eng</title>
+		<imprint>
+			<biblScope unit="volume">29</biblScope>
+			<biblScope unit="issue">12</biblScope>
+			<biblScope unit="page" from="2724" to="2743" />
+			<date type="published" when="2017" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b40">
+	<analytic>
+		<title level="a" type="main">Knowledge graph and text jointly embedding</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Zhen</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jianwen</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jianlin</forename><surname>Feng</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Zheng</forename><surname>Chen</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2014 Conference on Empirical Methods in Natural Language Processing (EMNLP)</title>
+		<meeting>the 2014 Conference on Empirical Methods in Natural Language Processing (EMNLP)<address><addrLine>Doha, Qatar</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2014" />
+			<biblScope unit="page" from="1591" to="1601" />
+		</imprint>
+	</monogr>
+	<note>Association for Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b41">
+	<analytic>
+		<title level="a" type="main">Knowledge graph embedding by translating on hyperplanes</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Zhen</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jianwen</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jianlin</forename><surname>Feng</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Zheng</forename><surname>Chen</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Twenty-Eighth AAAI Conference on Artificial Intelligence</title>
+		<meeting>the Twenty-Eighth AAAI Conference on Artificial Intelligence<address><addrLine>Québec City, Québec, Canada</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2014-07-27" />
+			<biblScope unit="page" from="1112" to="1119" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b42">
+	<analytic>
+		<title level="a" type="main">From one point to a manifold: Knowledge graph embedding for precise link prediction</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Han</forename><surname>Xiao</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Minlie</forename><surname>Huang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Xiaoyan</forename><surname>Zhu</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Twenty-Fifth International Joint Conference on Artificial Intelligence, IJCAI 2016</title>
+		<meeting>the Twenty-Fifth International Joint Conference on Artificial Intelligence, IJCAI 2016<address><addrLine>New York, NY, USA</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2016-07" />
+			<biblScope unit="page" from="1315" to="1321" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b43">
+	<analytic>
+		<title level="a" type="main">An interpretable knowledge transfer model for knowledge base completion</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Qizhe</forename><surname>Xie</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Xuezhe</forename><surname>Ma</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Zihang</forename><surname>Dai</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Eduard</forename><surname>Hovy</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 55th Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 55th Annual Meeting of the Association for Computational Linguistics<address><addrLine>Vancouver, Canada</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2017" />
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="950" to="962" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b44">
+	<analytic>
+		<title level="a" type="main">Embedding Entities and Relations for Learning and Inference in Knowledge Bases</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Bishan</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Wen-Tau</forename><surname>Yih</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Xiaodong</forename><surname>He</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jianfeng</forename><surname>Gao</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Li</forename><surname>Deng</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 3rd International Conference on Learning Representations</title>
+		<meeting>the 3rd International Conference on Learning Representations</meeting>
+		<imprint>
+			<date type="published" when="2015" />
+			<biblScope unit="page" from="1" to="12" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+				</listBibl>
+			</div>
+		</back>
+	</text>
+</TEI>

@@ -1,0 +1,942 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<TEI xmlns="http://www.tei-c.org/ns/1.0" 
+xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+xsi:schemaLocation="http://www.tei-c.org/ns/1.0 /home/ana/installs/grobid/grobid-0.5.1/grobid-home/schemas/xsd/Grobid.xsd"
+ xmlns:xlink="http://www.w3.org/1999/xlink">
+	<teiHeader xml:lang="en">
+		<encodingDesc>
+			<appInfo>
+				<application version="0.5.1-SNAPSHOT" ident="GROBID" when="2019-04-18T12:45+0000">
+					<ref target="https://github.com/kermitt2/grobid">GROBID - A machine learning software for extracting information from scholarly documents</ref>
+				</application>
+			</appInfo>
+		</encodingDesc>
+		<fileDesc>
+			<titleStmt>
+				<title level="a" type="main">N-ary Relation Extraction using Graph State LSTM</title>
+			</titleStmt>
+			<publicationStmt>
+				<publisher>Association for Computational Linguistics</publisher>
+				<availability status="unknown"><p>Copyright Association for Computational Linguistics</p>
+				</availability>
+				<date>October 31-November 4, 2018. 2018</date>
+			</publicationStmt>
+			<sourceDesc>
+				<biblStruct>
+					<analytic>
+						<author>
+							<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Linfeng</forename><surname>Song</surname></persName>
+						</author>
+						<author>
+							<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yue</forename><surname>Zhang</surname></persName>
+							<affiliation key="aff2">
+								<orgName type="department">School of Engineering</orgName>
+								<orgName type="institution">Westlake University</orgName>
+								<address>
+									<country key="CN">China</country>
+								</address>
+							</affiliation>
+						</author>
+						<author>
+							<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Zhiguo</forename><surname>Wang</surname></persName>
+							<affiliation key="aff1">
+								<orgName type="institution">IBM T.J. Watson Research Center</orgName>
+								<address>
+									<postCode>10598</postCode>
+									<settlement>Yorktown Heights</settlement>
+									<region>NY</region>
+								</address>
+							</affiliation>
+						</author>
+						<author>
+							<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Daniel</forename><surname>Gildea</surname></persName>
+						</author>
+						<author>
+							<affiliation key="aff0">
+								<orgName type="department">Department of Computer Science</orgName>
+								<orgName type="institution">University of Rochester</orgName>
+								<address>
+									<postCode>14627</postCode>
+									<settlement>Rochester</settlement>
+									<region>NY</region>
+								</address>
+							</affiliation>
+						</author>
+						<title level="a" type="main">N-ary Relation Extraction using Graph State LSTM</title>
+					</analytic>
+					<monogr>
+						<title level="m">Proceedings of the 2018 Conference on Empirical Methods in Natural Language Processing</title>
+						<meeting>the 2018 Conference on Empirical Methods in Natural Language Processing <address><addrLine>Brussels, Belgium</addrLine></address>
+						</meeting>
+						<imprint>
+							<publisher>Association for Computational Linguistics</publisher>
+							<biblScope unit="page" from="2226" to="2235"/>
+							<date type="published">October 31-November 4, 2018. 2018</date>
+						</imprint>
+					</monogr>
+					<note>2226</note>
+				</biblStruct>
+			</sourceDesc>
+		</fileDesc>
+		<profileDesc>
+			<abstract>
+				<p>Cross-sentence n-ary relation extraction detects relations among n entities across multiple sentences. Typical methods formulate an input as a document graph, integrating various intra-sentential and inter-sentential dependencies. The current state-of-the-art method splits the input graph into two DAGs, adopting a DAG-structured LSTM for each. Though being able to model rich linguistic knowledge by leveraging graph edges, important information can be lost in the splitting procedure. We propose a graph-state LSTM model, which uses a parallel state to model each word, recurrently enriching state values via message passing. Compared with DAG LSTMs, our graph LSTM keeps the original graph structure, and speeds up computation by allowing more par-allelization. On a standard benchmark, our model shows the best result in the literature.</p>
+			</abstract>
+		</profileDesc>
+	</teiHeader>
+	<text xml:lang="en">
+		<body>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="1">Introduction</head><p>As a central task in natural language processing, relation extraction has been investigated on news, web text and biomedical domains. It has been shown to be useful for detecting explicit facts, such as cause-effect ( <ref type="bibr" target="#b5">Hendrickx et al., 2009)</ref>, and predicting the effectiveness of a medicine on a cancer caused by mutation of a certain gene in the biomedical domain <ref type="bibr" target="#b16">Peng et al., 2017)</ref>. While most existing work ex- tracts relations within a sentence ( <ref type="bibr" target="#b28">Zelenko et al., 2003;</ref><ref type="bibr" target="#b15">Palmer et al., 2005;</ref><ref type="bibr" target="#b31">Zhao and Grishman, 2005;</ref><ref type="bibr" target="#b6">Jiang and Zhai, 2007;</ref><ref type="bibr" target="#b18">Plank and Moschitti, 2013;</ref><ref type="bibr" target="#b9">Li and Ji, 2014;</ref><ref type="bibr" target="#b4">Gormley et al., 2015;</ref><ref type="bibr" target="#b14">Miwa and Bansal, 2016;</ref><ref type="bibr" target="#b29">Zhang et al., 2017)</ref>, the task of cross-sentence relation extraction has received increasing attention ( <ref type="bibr" target="#b2">Gerber and Chai, 2010;</ref><ref type="bibr" target="#b27">Yoshikawa et al., 2011</ref> The deletion mutation on exon-19 of EGFR gene was present in 16 patients, while the 858E point mutation on exon-21 was noted in 10. All patients were treated with gefitinib and showed a partial response. et al. (2017) extend cross-sentence relation extrac- tion by further detecting relations among several entity mentions (n-ary relation). <ref type="table" target="#tab_1">Table 1</ref> shows an example, which conveys the fact that cancers caused by the 858E mutation on EGFR gene can respond to the gefitinib medicine. The three en- tity mentions form a ternary relation yet appear in distinct sentences. <ref type="bibr" target="#b16">Peng et al. (2017)</ref> proposed a graph-structured LSTM for n-ary relation extraction. As shown in <ref type="figure">Figure 1</ref> (a), graphs are constructed from input sentences with dependency edges, links between adjacent words, and inter-sentence relations, so that syntactic and discourse information can be used for relation extraction. To calculate a hidden state encoding for each word, <ref type="bibr" target="#b16">Peng et al. (2017)</ref> first split the input graph into two directed acyclic graphs (DAGs) by separating left-to-right edges from right-to-left edges <ref type="figure">(Figure 1 (b)</ref>). Then, two separate gated recurrent neural networks, which extend tree LSTM ( <ref type="bibr" target="#b22">Tai et al., 2015)</ref>, were adopted for each single-directional DAG, respectively. Fi- nally, for each word, the hidden states of both di- rections are concatenated as the final state. The bi-directional DAG LSTM model showed superior performance over several strong baselines, such as tree-structured LSTM ( <ref type="bibr" target="#b14">Miwa and Bansal, 2016)</ref>, on a biomedical-domain benchmark.</p><p>However, the bidirectional DAG LSTM model suffers from several limitations. First, important information can be lost when converting a graph into two separate DAGs. For the example in <ref type="figure">Fig- ure 1</ref>, the conversion breaks the inner structure of "exon-19 of EGFR gene", where the relation be- tween "exon-19" and "EGFR" via the dependency path "exon-19</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>PREP OF</head><p>! gene NN ! EGFR" is lost from the original subgraph. Second, using LSTMs on both DAGs, information of only ancestors and descendants can be incorporated for each word. Sibling information, which may also be important, is not included.</p><p>A potential solution to the problems above is to model a graph as a whole, learning its representa- tion without breaking it into two DAGs. Due to the existence of cycles, naive extension of tree LSTMs cannot serve this goal. Recently, graph convolu- tional networks (GCN) ( <ref type="bibr" target="#b8">Kipf and Welling, 2017;</ref><ref type="bibr" target="#b0">Bastings et al., 2017)</ref> and graph recurrent networks (GRN) ( ) have been pro- posed for representing graph structures for NLP tasks. Such methods encode a given graph by hi- erarchically learning representations of neighbor- ing nodes in the graphs via their connecting edges. While GCNs use CNN for information exchange, GRNs take gated recurrent steps to this end. For fair comparison with DAG LSTMs, we build a graph LSTM by extending , which strictly follow the configurations of <ref type="bibr" target="#b16">Peng et al. (2017)</ref> such as the source of features and hy- per parameter settings. In particular, the full in- put graph is modeled as a single state, with words in the graph being its sub states. State transitions are performed on the graph recurrently, allowing word-level states to exchange information through dependency and discourse edges. At each recur- rent step, each word advances its current state by receiving information from the current states of its adjacent words. Thus with increasing numbers of recurrent steps each word receives information from a larger context. <ref type="figure" target="#fig_0">Figure 2</ref> shows the recurrent transition steps where each node works simultane- ously within each transition step.</p><p>Compared with bidirectional DAG LSTM, our method has several advantages. First, it keeps the original graph structure, and therefore no informa- tion is lost. Second, sibling information can be easily incorporated by passing information up and then down from a parent. Third, information ex- change allows more parallelization, and thus can be very efficient in computation.</p><p>Results show that our model outperforms a bidirectional DAG LSTM baseline by 5.9% in accuracy, overtaking the state-of-the-art sys- tem of <ref type="bibr" target="#b16">Peng et al. (2017)</ref> by 1.2%.</p><p>Our code is available at https://github.com/ freesunshine0316/nary-grn.</p><p>Our contributions are summarized as follows.</p><p>• We empirically compared graph LSTM with DAG LSTM for n-ary relation extraction tasks, showing that the former is better by more effective use of structural information;</p><p>• To our knowledge, we are the first to investi- gate a graph recurrent network for modeling dependency and discourse relations.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2">Task Definition</head><p>Formally, the input for cross-sentence n-ary rela- tion extraction can be represented as a pair (E, T ), where E = (✏ 1 , . . . , ✏ N ) is the set of entity men- tions, and T = [S 1 ; . . . ; S M ] is a text consisting of multiple sentences. Each entity mention ✏ i be- longs to one sentence in T . There is a predefined relation set R = (r 1 , . . . , r L , None), where None represents that no relation holds for the entities.</p><p>This task can be formulated as a binary classifi- cation problem of determining whether ✏ 1 , . . . , ✏ N together form a relation ( <ref type="bibr" target="#b16">Peng et al., 2017)</ref>, or a multi-class classification problem of detecting which relation holds for the entity mentions. <ref type="table" target="#tab_1">Take  Table 1</ref> as an example. The binary classification task is to determine whether gefitinib would have an effect on this type of cancer, given a cancer patient with 858E mutation on gene EGFR. The multi-class classification task is to detect the exact drug effect: response, resistance, sensitivity, etc.</p><p>3 Baseline: Bi-directional DAG LSTM <ref type="bibr" target="#b16">Peng et al. (2017)</ref> formulate the task as a graph- structured problem in order to adopt rich depen- dency and discourse features. In particular, Stan- ford parser ) is used to assign syntactic structure to input sentences, and heads of two consecutive sentences are connected to rep- resent discourse information, resulting in a graph structure. For each input graph G = (V, E), the nodes V are words within input sentences, and each edge e 2 E connects two words that ei- ther have a relation or are adjacent to each other. Each edge is denoted as a triple (i, j, l), where i and j are the indices of the source and target words, respectively, and the edge label l indicates either a dependency or discourse relation (such as "nsubj") or a relative position (such as "next tok" or "prev tok"). Throughout this paper, we use E in (j) and E out (j) to denote the sets of incom- ing and outgoing edges for word j. For a bi-directional DAG LSTM baseline, we follow <ref type="bibr" target="#b16">Peng et al. (2017)</ref>, splitting each input graph into two separate DAGs by separating left- to-right edges from right-to-left edges ( <ref type="figure">Figure 1</ref>). Each DAG is encoded by using a DAG LSTM (Section 3.2), which takes both source words and edge labels as inputs (Section 3.1). Finally, the hidden states of entity mentions from both LSTMs are taken as inputs to a logistic regression classi- fier to make a prediction:</p><formula xml:id="formula_0">ˆ y = softmax(W 0 [h ✏ 1 ; . . . ; h ✏ N ] + b 0 ), (1)</formula><p>where h ✏ j is the hidden state of entity ✏ j . W 0 and b 0 are parameters.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.1">Input Representation</head><p>Both nodes and edge labels are useful for model- ing a syntactic graph. As the input to our DAG LSTM, we first calculate the representation for each edge (i, j, l) by:</p><formula xml:id="formula_1">x l i,j = W 1 ⇣ [e l ; e i ] ⌘ + b 1 ,<label>(2)</label></formula><p>where W 1 and b 1 are model parameters, e i is the embedding of the source word indexed by i, and e l is the embedding of the edge label l.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.2">State transition</head><p>The baseline LSTM model learns DAG represen- tations sequentially, following word orders. Tak- ing the edge representations (such as x l i,j ) as input, gated state transition operations are executed on both the forward and backward DAGs. For each word j, the representations of its incoming edges E in (j) are summed up as one vector:</p><formula xml:id="formula_2">x in j = X (i,j,l)2E in (j) x l i,j<label>(3)</label></formula><p>Similarly, for each word j, the states of all incom- ing nodes are summed to a single vector before being passed to the gated operations:</p><formula xml:id="formula_3">h in j = X (i,j,l)2E in (j) h i (4)</formula><p>Finally, the gated state transition operation for the hidden state h j of the j-th word can be defined as:</p><formula xml:id="formula_4">i j = (W i x in j + U i h in j + b i ) o j = (W o x in j + U o h in j + b o ) f i,j = (W f x l i,j + U f h i + b f ) u j = (W u x in j + U u h in j + b u ) c j = i j u j + X (i,j,l)2E in (j) f i,j c i h j = o j tanh(c j ),<label>(5)</label></formula><p>where i j , o j and f i,j are a set of input, output and forget gates, respectively, and W x , U x and b x (x 2 {i, o, f, u}) are model parameters.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.3">Comparison with Peng et al. (2017)</head><p>Our baseline is computationally similar to <ref type="bibr" target="#b16">Peng et al. (2017)</ref>, but different on how to utilize edge labels in the gated network. In particular, Peng et al. <ref type="formula" target="#formula_1">(2017</ref>  U s (in Equation 5) to different edge types, so that each edge label is associated with a 2D weight ma- trix to be tuned in training. On the other hand, EM- BED assigns each edge label to an embedding vec- tor, but complicates the gated operations by chang- ing the U s to be 3D tensors. <ref type="bibr">1</ref> In contrast, we take edge labels as part of the input to the gated network. In general, the edge labels are first represented as embeddings, before being concatenated with the node representation vectors (Equation 2). We choose this setting for both the baseline and our graph state LSTM model in Section 4, since it requires fewer parameters compared with FULL and EMBED, thus being less exposed to overfitting on small-scaled data.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4">Graph State LSTM</head><p>Our input graph formulation strictly follows Sec- tion 3. In particular, our model adopts the same methods for calculating input representation (as in Section 3.1) and performing classification as the baseline model. However, different from the base- line bidirectional DAG LSTM model, we leverage a graph-structured LSTM to directly model the in- put graph, without splitting it into two DAGs. <ref type="figure" target="#fig_0">Figure 2</ref> shows an overview of our model. For- mally, given an input graph G = (V, E), we define a state vector h j for each word v j 2 V . The state of the graph consists of all word states, and thus can be represented as:</p><formula xml:id="formula_5">g = {h j }| v j 2V<label>(6)</label></formula><p>1 For more information please refer Section 3.3 of <ref type="bibr" target="#b16">Peng et al. (2017).</ref> In order to capture non-local information, our model performs information exchange between words through a recurrent state transition pro- cess, resulting in a sequence of graph states g 0 , g 1 , . . . , g t , where g t = {h j t }| v j 2V . The ini- tial graph state g 0 consists of a set of initial word states h j 0 = h 0 , where h 0 is a zero vector.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.1">State transition</head><p>Following the approches of  and , a recurrent neural network is utilized to model the state transition process. In particular, the transition from g t1 to g t consists of hidden state transition for each word, as shown in <ref type="figure" target="#fig_0">Figure 2</ref>. At each step t, we allow information exchange between a word and all words that are directly connected to the word. To avoid gradi- ent diminishing or bursting, gated LSTM cells are adopted, where a cell c j t is taken to record mem- ory for h j t . We use an input gate i j t , an output gate o j t and a forget gate f j t to control information flow from the inputs and to h j t . The inputs to a word v j , include representations of edges that are connected to v j , where v j can be either the source or the target of the edge. Simi- lar to Section 3.1, we define each edge as a triple (i, j, l), where i and j are indices of the source and target words, respectively, and l is the edge label. x l i,j is the representation of edge (i, j, l). The in- puts for v j are distinguished by incoming and out- going directions, where:</p><formula xml:id="formula_6">x i j = X (i,j,l)2E in (j) x l i,j x o j = X (j,k,l)2Eout(j) x l j,k<label>(7)</label></formula><p>Here E in (j) and E out (j) denote the sets of incom- ing and outgoing edges of v j , respectively. In addition to edge inputs, a cell also takes the hidden states of its incoming and outgoing words during a state transition. In particular, the states of all incoming words and outgoing words are summed up, respectively:</p><formula xml:id="formula_7">h i j = X (i,j,l)2E in (j) h i t1 h o j = X (j,k,l)2Eout(j) h k t1 ,<label>(8)</label></formula><p>Based on the above definitions of x i j , x o j , h i j and h o j , the recurrent state transition from g t1 to g t , as represented by h j t , is defined as:</p><formula xml:id="formula_8">i j t = (W i x i j + ˆ W i x o j + U i h i j + ˆ U i h o j + b i ) o j t = (W o x i j + ˆ W o x o j + U o h i j + ˆ U o h o j + b o ) f j t = (W f x i j + ˆ W f x o j + U f h i j + ˆ U f h o j + b f ) u j t = (W u x i j + ˆ W u x o j + U u h i j + ˆ U u h o j + b u ) c j t = f j t c j t1 + i j t u j t h j t = o j t tanh(c j t ),</formula><p>where i j t , o j t and f j t are the input, output and forget gates, respectively.</p><formula xml:id="formula_9">W x , ˆ W x , U x , ˆ U x , b x (x 2 {i, o, f, u}) are model parameters.</formula><p>Graph State LSTM vs bidirectional DAG LSTM A contrast between the baseline DAG LSTM and our graph LSTM can be made from the perspective of information flow. For the base- line, information flow follows the natural word order in the input sentence, with the two DAG components propagating information from left to right and from right to left, respectively. In con- trast, information flow in our graph state LSTM is relatively more concentrated at individual words, with each word exchanging information with all its graph neighbors simultaneously at each sate transition. As a result, wholistic contextual infor- mation can be leveraged for extracting features for each word, as compared to separated handling of bi-directional information flow in DAG LSTM. In addition, arbitrary structures, including arbitrary cyclic graphs, can be handled.</p><p>From an initial state with isolated words, in- formation of each word propagates to its graph neighbors after each step. Information exchange between non-neighboring words can be achieved through multiple transition steps. We experiment with different transition step numbers to study the effectiveness of global encoding. Unlike the base- line DAG LSTM encoder, our model allows par- allelization in node-state updates, and thus can be highly efficient using a GPU.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5">Training</head><p>We train our models with a cross-entropy loss over a set of gold standard data:</p><formula xml:id="formula_10">l = log p(y i |X i ; ✓),<label>(9)</label></formula><p>where X i is an input graph, y i is the gold class la- bel of X i , and ✓ is the model parameters. Adam ( <ref type="bibr" target="#b7">Kingma and Ba, 2014</ref>) with a learning rate of   0.001 is used as the optimizer, and the model that yields the best devset performance is selected to evaluate on the test set. Dropout with rate 0.3 is used during training. Both training and evaluation are conducted using a Tesla K20X GPU.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6">Experiments</head><p>We conduct experiments for the binary relation de- tection task and the multi-class relation extraction task discussed in Section 2.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6.1">Data</head><p>We use the dataset of <ref type="bibr" target="#b16">Peng et al. (2017)</ref>, which is a biomedical-domain dataset focusing on drug- gene-mutation ternary relations, 2 extracted from PubMed. It contains 6987 ternary instances about drug-gene-mutation relations, and 6087 binary in- stances about drug-mutation sub-relations. <ref type="table" target="#tab_5">Table  2</ref> shows statistics of the dataset. Most instances of ternary data contain multiple sentences, and the average number of sentences is around 2. There are five classification labels: "resistance or non- response", "sensitivity", "response", "resistance" and "None". We follow <ref type="bibr" target="#b16">Peng et al. (2017)</ref> and bi- narize multi-class labels by grouping all relation classes as "Yes" and treat "None" as "No". </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6.2">Settings</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6.3">Development Experiments</head><p>We first analyze our model on the drug-gene- mutation ternary relation dataset, taking the first among 5-fold cross validation settings for our data setting. <ref type="figure" target="#fig_2">Figure 3</ref> shows the devset accuracies of different state transition numbers, where forward and backward execute our graph state model only on the forward or backward DAG, respectively. Concat concatenates the hidden states of forward and backward. All executes our graph state model on original graphs. The performance of forward and backward lag behind concat, which is consistent with the intu- ition that both forward and backward relations are useful ( <ref type="bibr" target="#b16">Peng et al., 2017)</ref>. In addition, all gives better accuracies compared with concat, demon- strating the advantage of simultaneously consider- ing forward and backward relations during repre- sentation learning. For all the models, more state transition steps result in better accuracies, where larger contexts can be integrated in the represen- tations of graphs. The performance of all starts to converge after 4 and 5 state transitions, so we set the number of state transitions to 5 in the remain- ing experiments.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6.4">Final results</head><p>Table 3 compares our model with the bidirec- tional DAG baseline and the state-of-the-art results on this dataset, where EMBED and FULL have been briefly introduced in Section 3.3. +multi- task applies joint training of both ternary (drug- gene-mutation) relations and their binary (drug- mutation) sub-relations.  use a statistical method with a logistic regres- sion classifier and features derived from shortest paths between all entity pairs. Bidir DAG LSTM</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Model</head><p>Single Cross  74.7 77.7 <ref type="bibr" target="#b16">Peng et al. (2017)</ref> -EMBED 76.5 80.6 Peng et al. <ref type="formula" target="#formula_1">(2017)</ref>   is our bidirectional DAG LSTM baseline, and GS GLSTM is our graph state LSTM model. Using all instances (the Cross column in <ref type="table" target="#tab_7">Table  3</ref>), our graph state LSTM model shows the highest test accuracy among all methods, which is 5.9% higher than our baseline. <ref type="bibr">4</ref> The accuracy of our baseline is lower than EMBED and FULL of <ref type="bibr" target="#b16">Peng et al. (2017)</ref>, which is likely due to the differences mentioned in Section 3.3. Our final results are bet- ter than <ref type="bibr" target="#b16">Peng et al. (2017)</ref>, despite the fact that we do not use multi-task learning.</p><p>We also report accuracies only on instances within single sentences (column Single in <ref type="table" target="#tab_7">Table  3</ref>), which exhibit similar contrasts. Note that all systems show performance drops when evaluated only on single-sentence relations, which are actu- ally more challenging. One reason may be that some single sentences cannot provide sufficient context for disambiguation, making it necessary to study cross-sentence context. Another reason may be overfitting caused by relatively fewer training instances in this setting, as only 30% instances are within a single sentence. One interesting obser- vation is that our baseline shows the least perfor- mance drop of 1.7 points, in contrast to up to 4.1 for other neural systems. This can be a supporting evidence for overfitting, as our baseline has fewer parameters at least than FULL and EMBED.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6.5">Analysis</head><p>Efficiency. <ref type="table" target="#tab_8">Table 4</ref> shows the training and de- coding time of both the baseline and our model. Our model is 8 to 10 times faster than the base- line in training and decoding speeds, respectively. By revisiting <ref type="table" target="#tab_5">Table 2</ref>, we can see that the average number of tokens for the ternary-relation data is</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Model</head><p>Train <ref type="table" target="#tab_1">Decode  Bidir DAG LSTM 281s</ref> 27.3s GS GLSTM 36.7s 2.7s 74, which means that the baseline model has to ex- ecute 74 recurrent transition steps for calculating a hidden state for each input word. On the other hand, our model only performs 5 state transitions, and calculations between each pair of nodes for one transition are parallelizable. This accounts for the better efficiency of our model.</p><p>Accuracy against sentence length Figure 5 (a) shows the test accuracies on different sentence lengths. We can see that GS GLSTM and Bidir DAG LSTM show performance increase along in- creasing input sentence lengths. This is likely be- cause longer contexts provide richer information for relation disambiguation. GS GLSTM is consis- tently better than Bidir DAG LSTM, and the gap is larger on shorter instances. This demonstrates that GS GLSTM is more effective in utilizing a smaller context for disambiguation.</p><p>Accuracy against the maximal number of neighbors <ref type="figure" target="#fig_4">Figure 5 (b)</ref> shows the test accura- cies against the maximum number of neighbors. Intuitively, it is easier to model graphs containing nodes with more neighbors, because these nodes can serve as a "supernode" that allow more ef- ficient information exchange. The performances of both GS GLSTM and Bidir DAG LSTM in- crease with increasing maximal number of neigh- bors, which coincide with this intuition. In addi- tion, GS GLSTM shows more advantage than Bidir DAG LSTM under the inputs having lower maxi- mal number of neighbors, which further demon- strates the superiority of GS GLSTM over Bidir DAG LSTM in utilizing context information.</p><p>Case study <ref type="figure" target="#fig_3">Figure 4</ref> visualizes the merits of GS GLSTM over Bidir DAG LSTM using two ex- amples. GS GLSTM makes the correct predictions for both cases, while Bidir DAG LSTM fails to.</p><p>The first case generally mentions that Gefitinib does not have an effect on T790M mutation on EGFR gene. Note that both "However" and "was not" serve as indicators; thus incorporating them into the contextual vectors of these entity men-</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Model</head><p>Single Cross  73.9 75.2 Miwa and Bansal <ref type="formula" target="#formula_1">(2016)</ref> 75.9 75.9 <ref type="bibr" target="#b16">Peng et al. (2017)</ref> -EMBED 74.3 76.5 <ref type="bibr" target="#b16">Peng et al. (2017)</ref> -FULL 75.6 76.7 + multi-task - 78.5 Bidir DAG LSTM 76.9 76.4 GS GLSTM 83.5* 83.6* tions is important for making a correct prediction. However, both indicators are leaves of the depen- dency tree, making it impossible for Bidir DAG LSTM to incorporate them into the contextual vec- tors of entity mentions up the tree through depen- dency edges. <ref type="bibr">5</ref> On the other hand, it is easier for GS GLSTM. For instance, "was not" can be incorpo- rated into "Gefitinib" through "suppressed agent ! treatment nn ! Gefitinib". The second case is to detect the relation among "cetuximab" (drug), "EGFR" (gene) and "S492R" (mutation), which does not exist. However, the context introduces further ambiguity by mention- ing another drug "Panitumumab", which does have a relation with "EGFR" and "S492R". Being sibling nodes in the dependency tree, "can not" is an indicator for the relation of "cetuximab". GS GLSTM is correct, because "can not" can be easily included into the contextual vector of "cetuximab" in two steps via "bind nsubj !cetuximab".</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6.6">Results on Binary Sub-relations</head><p>Following previous work, we also evaluate our model on drug-mutation binary relations. <ref type="table" target="#tab_9">Table 5</ref> shows the results, where <ref type="bibr" target="#b14">Miwa and Bansal (2016)</ref> is a state-of-the-art model using sequential and tree-structured LSTMs to jointly capture linear and dependency contexts for relation extraction. Other models have been introduced in Section 6.4.</p><p>Similar to the ternary relation extraction exper- iments, GS GLSTM outperforms all the other sys- tems with a large margin, which shows that the message passing graph LSTM is better at encoding rich linguistic knowledge within the input graphs. Binary relations being easier, both GS GLSTM and Bidir DAG LSTM show increased or similar per- formances compared with the ternary relation ex-However , the phosphorylation level of EGFR in EGFR 2 T790M 3 mutatnt cells ( H1975TM/ LR ) was not suppressed by Gefitinib 1 treatment .</p><p>(a)  periments. On this set, our bidirectional DAG LSTM model is comparable to FULL using all in- stances ("Cross") and slightly better than FULL using only single-sentence instances ("Single").</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6.7">Fine-grained Classification</head><p>Our dataset contains five classes as mentioned in Section 6.1. However, previous work only investi- gates binary relation detection. Here we also study the multi-class classification task, which can be more informative for applications. <ref type="table" target="#tab_10">Table 6</ref> shows accuracies on multi-class relation extraction, which makes the task more ambigu- ous compared with binary relation extraction. The results show similar comparisons with the binary relation extraction results. However, the perfor- mance gaps between GS GLSTM and Bidir DAG LSTM dramatically increase, showing the superi- ority of GS GLSTM over Bidir DAG LSTM in uti- lizing context information.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="7">Related Work</head><p>N -ary relation extraction N -ary relation ex- tractions can be traced back to MUC-7 (Chinchor,</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Model</head><p>TERNARY BINARY Bidir DAG LSTM 51.7 50.7 GS GLSTM 71.1* 71.7* 1998), which focuses on entity-attribution rela- tions. It has also been studied in biomedical do- main ( <ref type="bibr" target="#b13">McDonald et al., 2005</ref>), but only the in- stances within a single sentence are considered. Previous work on cross-sentence relation extrac- tion relies on either explicit co-reference annota- tion ( <ref type="bibr" target="#b2">Gerber and Chai, 2010;</ref><ref type="bibr" target="#b27">Yoshikawa et al., 2011</ref>), or the assumption that the whole document refers to a single coherent event ( <ref type="bibr" target="#b24">Wick et al., 2006;</ref><ref type="bibr" target="#b21">Swampillai and Stevenson, 2011</ref>). Both simplify the problem and reduce the need for learning bet- ter contextual representation of entity mentions. A notable exception is , who adopt distant supervision and integrated contex- tual evidence of diverse types without relying on these assumptions. However, they only study bi- nary relations. We follow <ref type="bibr" target="#b16">Peng et al. (2017)</ref> by studying ternary cross-sentence relations. Graph encoder <ref type="bibr" target="#b10">Liang et al. (2016)</ref> build a graph LSTM model for semantic object parsing, which aims to segment objects within an image into more fine-grained, semantically meaningful parts. The nodes of an input graph come from im- age superpixels, and the edges are created by con- necting spatially neighboring nodes. Their model is similar as <ref type="bibr" target="#b16">Peng et al. (2017)</ref> by calculating node states sequentially: for each input graph, a start node and a node sequence are chosen, which de- termines the order of recurrent state updates. In contrast, our graph LSTM do not need ordering of graph nodes, and is highly parallelizable.</p><p>Graph convolutional networks (GCNs) and very recently graph recurrent networks <ref type="bibr">(GRNs)</ref> have been used to model graph structures in NLP tasks, such as semantic role labeling , machine translation ( <ref type="bibr" target="#b0">Bastings et al., 2017</ref>), text generation ( ), text representation (  and seman- tic parsing <ref type="figure" target="#fig_0">(Xu et al., 2018b,a)</ref>. In particular,  use GRN to represent raw sentences by building a graph structure of neigh- boring words and a sentence-level node, showing that the encoder outperforms BiLSTMs and Trans- former ( <ref type="bibr" target="#b23">Vaswani et al., 2017</ref>) on classification and sequence labeling tasks;  build a GRN for encoding AMR graphs, showing that the representation is superior compared to BiLSTM on serialized AMR. Our work is in line with their work in the investigation of GRN on NLP. To our knowledge, we are the first to use GRN for repre- senting dependency and discourse structures. Un- der the same recurrent framework, we show that modeling the original graphs with one GRN model is more useful than two DAG LSTMs for our rela- tion extraction task. We choose GRN as our main method because it gives a more fair comparison with DAG LSTM. We leave it to future work to compare GCN and GRN for our task.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="8">Conclusion</head><p>We explored a graph-state LSTM model for cross- sentence n-ary relation extraction, which uses a recurrent state transition process to incrementally refine a neural graph state representation capturing graph structure contexts. Compared with a bidi- rectional DAG LSTM baseline, our model has sev- eral advantages. First, it does not change the input graph structure, so that no information can be lost. For example, it can easily incorporate sibling in- formation when calculating the contextual vector of a node. Second, it is better parallelizable. Ex- periments show significant improvements over the previously reported numbers, including that of the bidirectional graph LSTM model.</p><p>For future work, we consider adding corefer- ence information as an entity mention can have coreferences, which help on information collec- tion. Another possible direction is including word sense information. Confusing caused by word senses can be a severe problem. Not only content words, but also propositions can introduce word sense problem ( <ref type="bibr" target="#b3">Gong et al., 2018</ref>).</p></div><figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_0"><head>Figure 2 :</head><label>2</label><figDesc>Figure 2: Graph state transitions via message passing, where each w i is a word.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_1"><head>Data</head><label></label><figDesc></figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_2"><head>FollowingFigure 3 :</head><label>3</label><figDesc>Figure 3: Dev accuracies against transition steps for the graph state LSTM model.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_3"><head>Figure 4 :</head><label>4</label><figDesc>Figure 4: Example cases. Words with subindices 1, 2 and 3 represent drugs, genes and mutations, respectively. References for both cases are "No". For both cases, GS GLSTM makes the correct predictions, while Bidir DAG LSTM does incorrectly.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_4"><head>Figure 5 :</head><label>5</label><figDesc>Figure 5: Test set performances on (a) different sentence lengths, and (b) different maximal number of neighbors.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_1" validated="false"><head>Table 1 :</head><label>1</label><figDesc>An example showing that tumors with L858E mutation in EGFR gene respond to gefitinib treatment.</figDesc><table></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_2" validated="false"><head>DET NN The ? deletion ? mutation ? on ? exon-19 ? of ? EGFR ? gene ? was ? presented ? in ? 16 ? patients ...</head><label></label><figDesc></figDesc><table>(a) 
+
+PREP_ON 
+PREP_OF 
+
+NN 
+
+NSUBJ 
+
+COP 
+
+ROOT 
+PREP_IN 
+
+NUM 
+
+(b) 
+
+Figure 1: (a) A fraction of the dependency graph of the example in Table 1. For simplicity, we omit edges of 
+discourse relations. (b) Results after splitting the graph into two DAGs. 
+
+</table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_5" validated="false"><head>Table 2 :</head><label>2</label><figDesc></figDesc><table>Dataset statistics. Avg. Tok. and Avg. Sent. are 
+the average number of tokens and sentences, respec-
+tively. Cross is the percentage of instances that contain 
+multiple sentences. 
+
+</table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_7" validated="false"><head>Table 3 :</head><label>3</label><figDesc></figDesc><table>Average test accuracies for TERNARY drug-
+gene-mutation interactions. Single represents experi-
+ments only on instances within single sentences, while 
+Cross represents experiments on all instances. *: sig-
+nificant at p &lt; 0.01 
+
+</table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_8" validated="false"><head>Table 4 :</head><label>4</label><figDesc></figDesc><table>The average times for training one epoch 
+and decoding (seconds) over five folds on drug-gene-
+mutation TERNARY cross sentence setting. 
+
+</table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_9" validated="false"><head>Table 5 :</head><label>5</label><figDesc></figDesc><table>Average test accuracies in five-fold cross-
+validation for BINARY drug-mutation interactions. 
+
+</table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_10" validated="false"><head>Table 6 :</head><label>6</label><figDesc></figDesc><table>Average test accuracies for multi-class relation 
+extraction with all instances ("Cross"). 
+
+</table></figure>
+
+			<note place="foot" n="2"> The dataset is available at http://hanover.azurewebsites.net. 3 The released data has been separated into 5 portions, and we follow the exact split.</note>
+
+			<note place="foot" n="4"> p &lt; 0.01 using t-test. For the remaining of this paper, we use the same measure for statistical significance.</note>
+
+			<note place="foot" n="5"> As shown in Figure 1, a directional DAG LSTM propagates information according to the edge directions.</note>
+		</body>
+		<back>
+
+			<div type="acknowledgement">
+			</div>
+
+			<div type="references">
+
+				<listBibl>
+
+<biblStruct xml:id="b0">
+	<analytic>
+		<title level="a" type="main">Graph convolutional encoders for syntax-aware neural machine translation</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Joost</forename><surname>Bastings</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ivan</forename><surname>Titov</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Wilker</forename><surname>Aziz</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Diego</forename><surname>Marcheggiani</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Khalil</forename><surname>Simaan</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Conference on Empirical Methods in Natural Language Processing</title>
+		<imprint>
+			<date type="published" when="2017" />
+			<biblScope unit="page">17</biblScope>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b1">
+	<monogr>
+		<title level="m" type="main">Overview of muc-7/met-2</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">; Science Applications International Corp San Diego</forename><surname>Nancy A Chinchor</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Ca</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="1998" />
+		</imprint>
+	</monogr>
+<note type="report_type">Technical report</note>
+</biblStruct>
+
+<biblStruct xml:id="b2">
+	<analytic>
+		<title level="a" type="main">Beyond nombank: A study of implicit arguments for nominal predicates</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Matthew</forename><surname>Gerber</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Joyce</forename><surname>Chai</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 48th Annual Meeting of the Association for Computational Linguistics (ACL-10)</title>
+		<meeting>the 48th Annual Meeting of the Association for Computational Linguistics (ACL-10)</meeting>
+		<imprint>
+			<date type="published" when="2010" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b3">
+	<analytic>
+		<title level="a" type="main">Embedding syntax and semantics of prepositions via tensor decomposition</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Hongyu</forename><surname>Gong</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Suma</forename><surname>Bhat</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Pramod</forename><surname>Viswanath</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2018 Meeting of the North American chapter of the Association for Computational Linguistics (NAACL-18)</title>
+		<meeting>the 2018 Meeting of the North American chapter of the Association for Computational Linguistics (NAACL-18)</meeting>
+		<imprint>
+			<date type="published" when="2018" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b4">
+	<analytic>
+		<title level="a" type="main">Improved relation extraction with feature-rich compositional embedding models</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Matthew</forename><forename type="middle">R</forename><surname>Gormley</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Mo</forename><surname>Yu</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Mark</forename><surname>Dredze</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Conference on Empirical Methods in Natural Language Processing</title>
+		<imprint>
+			<date type="published" when="2015" />
+			<biblScope unit="page">15</biblScope>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b5">
+	<analytic>
+		<title level="a" type="main">Semeval-2010 task 8: Multi-way classification of semantic relations between pairs of nominals</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Iris</forename><surname>Hendrickx</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Su</forename><forename type="middle">Nam</forename><surname>Kim</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Zornitsa</forename><surname>Kozareva</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Preslav</forename><surname>Nakov</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Diarmuid´odiarmuid´</forename><forename type="middle">Diarmuid´o</forename><surname>Séaghdha</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Sebastian</forename><surname>Padó</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Marco</forename><surname>Pennacchiotti</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Lorenza</forename><surname>Romano</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Stan</forename><surname>Szpakowicz</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Workshop on Semantic Evaluations: Recent Achievements and Future Directions</title>
+		<meeting>the Workshop on Semantic Evaluations: Recent Achievements and Future Directions</meeting>
+		<imprint>
+			<date type="published" when="2009" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b6">
+	<analytic>
+		<title level="a" type="main">A systematic exploration of the feature space for relation extraction</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jing</forename><surname>Jiang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Chengxiang</forename><surname>Zhai</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2015 Meeting of the North American chapter of the Association for Computational Linguistics (NAACL-15)</title>
+		<meeting>the 2015 Meeting of the North American chapter of the Association for Computational Linguistics (NAACL-15)</meeting>
+		<imprint>
+			<date type="published" when="2007" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b7">
+	<monogr>
+		<title level="m" type="main">Adam: A method for stochastic optimization</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Diederik</forename><surname>Kingma</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jimmy</forename><surname>Ba</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1412.6980</idno>
+		<imprint>
+			<date type="published" when="2014" />
+		</imprint>
+	</monogr>
+<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b8">
+	<analytic>
+		<title level="a" type="main">Semisupervised classification with graph convolutional networks</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">N</forename><surname>Thomas</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Max</forename><surname>Kipf</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Welling</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">International Conference on Learning Representations (ICLR)</title>
+		<imprint>
+			<date type="published" when="2017" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b9">
+	<analytic>
+		<title level="a" type="main">Incremental joint extraction of entity mentions and relations</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Qi</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Heng</forename><surname>Ji</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 52nd Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 52nd Annual Meeting of the Association for Computational Linguistics</meeting>
+		<imprint>
+			<date type="published" when="2014" />
+			<biblScope unit="page">14</biblScope>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b10">
+	<analytic>
+		<title level="a" type="main">Semantic object parsing with graph LSTM</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Xiaodan</forename><surname>Liang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Xiaohui</forename><surname>Shen</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jiashi</forename><surname>Feng</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Liang</forename><surname>Lin</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Shuicheng</forename><surname>Yan</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">European Conference on Computer Vision</title>
+		<imprint>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b11">
+	<monogr>
+		<title level="m" type="main">The Stanford CoreNLP natural language processing toolkit</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Christopher</forename><forename type="middle">D</forename><surname>Manning</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Mihai</forename><surname>Surdeanu</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">John</forename><surname>Bauer</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jenny</forename><surname>Finkel</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Steven</forename><forename type="middle">J</forename><surname>Bethard</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">David</forename><surname>Mcclosky</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2014" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b12">
+	<analytic>
+		<title level="a" type="main">Encoding sentences with graph convolutional networks for semantic role labeling</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Diego</forename><surname>Marcheggiani</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ivan</forename><surname>Titov</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Conference on Empirical Methods in Natural Language Processing</title>
+		<imprint>
+			<date type="published" when="2017" />
+			<biblScope unit="page">17</biblScope>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b13">
+	<analytic>
+		<title level="a" type="main">Simple algorithms for complex relation extraction with applications to biomedical IE</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ryan</forename><surname>Mcdonald</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Fernando</forename><surname>Pereira</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Seth</forename><surname>Kulick</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Scott</forename><surname>Winters</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yang</forename><surname>Jin</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Pete</forename><surname>White</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 43rd Annual Meeting of the Association for Computational Linguistics (ACL&apos;05)</title>
+		<meeting>the 43rd Annual Meeting of the Association for Computational Linguistics (ACL&apos;05)</meeting>
+		<imprint>
+			<date type="published" when="2005" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b14">
+	<analytic>
+		<title level="a" type="main">End-to-end relation extraction using LSTMs on sequences and tree structures</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Makoto</forename><surname>Miwa</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Mohit</forename><surname>Bansal</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 54th Annual Meeting of the Association for Computational Linguistics (ACL-16)</title>
+		<meeting>the 54th Annual Meeting of the Association for Computational Linguistics (ACL-16)</meeting>
+		<imprint>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b15">
+	<analytic>
+		<title level="a" type="main">The proposition bank: An annotated corpus of semantic roles</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Martha</forename><surname>Palmer</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Daniel</forename><surname>Gildea</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Paul</forename><surname>Kingsbury</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Computational linguistics</title>
+		<imprint>
+			<biblScope unit="volume">31</biblScope>
+			<biblScope unit="issue">1</biblScope>
+			<biblScope unit="page" from="71" to="106" />
+			<date type="published" when="2005" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b16">
+	<analytic>
+		<title level="a" type="main">Cross-sentence n-ary relation extraction with graph LSTMs. Transactions of the Association for</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Nanyun</forename><surname>Peng</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Hoifung</forename><surname>Poon</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Chris</forename><surname>Quirk</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kristina</forename><surname>Toutanova</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Wen-Tau</forename><surname>Yih</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Computational Linguistics</title>
+		<imprint>
+			<biblScope unit="volume">5</biblScope>
+			<biblScope unit="page" from="101" to="115" />
+			<date type="published" when="2017" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b17">
+	<analytic>
+		<title level="a" type="main">GloVe: Global vectors for word representation</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jeffrey</forename><surname>Pennington</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Richard</forename><surname>Socher</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Christopher</forename><forename type="middle">D</forename><surname>Manning</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Conference on Empirical Methods in Natural Language Processing</title>
+		<imprint>
+			<date type="published" when="2014" />
+			<biblScope unit="page">14</biblScope>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b18">
+	<analytic>
+		<title level="a" type="main">Embedding semantic similarity in tree kernels for domain adaptation of relation extraction</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Barbara</forename><surname>Plank</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Alessandro</forename><surname>Moschitti</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 51st Annual Meeting of the Association for Computational Linguistics (ACL-13)</title>
+		<meeting>the 51st Annual Meeting of the Association for Computational Linguistics (ACL-13)</meeting>
+		<imprint>
+			<date type="published" when="2013" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b19">
+	<analytic>
+		<title level="a" type="main">Distant supervision for relation extraction beyond the sentence boundary</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Chris</forename><surname>Quirk</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Hoifung</forename><surname>Poon</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 15th Conference of the European Chapter of the ACL (EACL-17)</title>
+		<meeting>the 15th Conference of the European Chapter of the ACL (EACL-17)</meeting>
+		<imprint>
+			<date type="published" when="2017" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b20">
+	<analytic>
+		<title level="a" type="main">A graph-to-sequence model for amrto-text generation</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Linfeng</forename><surname>Song</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yue</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Zhiguo</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Daniel</forename><surname>Gildea</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 56th Annual Meeting of the Association for Computational Linguistics (ACL-18)</title>
+		<meeting>the 56th Annual Meeting of the Association for Computational Linguistics (ACL-18)</meeting>
+		<imprint>
+			<date type="published" when="2018" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b21">
+	<analytic>
+		<title level="a" type="main">Extracting relations within and across sentences</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kumutha</forename><surname>Swampillai</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Mark</forename><surname>Stevenson</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the International Conference Recent Advances in Natural Language Processing</title>
+		<meeting>the International Conference Recent Advances in Natural Language Processing</meeting>
+		<imprint>
+			<date type="published" when="2011" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b22">
+	<analytic>
+		<title level="a" type="main">Improved semantic representations from tree-structured long short-term memory networks</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kai Sheng</forename><surname>Tai</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Richard</forename><surname>Socher</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Christopher</forename><forename type="middle">D</forename><surname>Manning</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 53rd Annual Meeting of the Association for Computational Linguistics (ACL-15)</title>
+		<meeting>the 53rd Annual Meeting of the Association for Computational Linguistics (ACL-15)</meeting>
+		<imprint>
+			<date type="published" when="2015" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b23">
+	<analytic>
+		<title level="a" type="main">Attention is all you need</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ashish</forename><surname>Vaswani</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Noam</forename><surname>Shazeer</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Niki</forename><surname>Parmar</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jakob</forename><surname>Uszkoreit</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Llion</forename><surname>Jones</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Aidan</forename><forename type="middle">N</forename><surname>Gomez</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Illia</forename><surname>Kaiser</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Polosukhin</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Advances in Neural Information Processing Systems</title>
+		<editor>I. Guyon, U. V. Luxburg, S. Bengio, H. Wallach, R. Fergus, S. Vishwanathan, and R. Garnett</editor>
+		<imprint>
+			<date type="published" when="2017" />
+			<biblScope unit="volume">30</biblScope>
+			<biblScope unit="page" from="5998" to="6008" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b24">
+	<analytic>
+		<title level="a" type="main">Learning field compatibilities to extract database records from unstructured text</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Michael</forename><surname>Wick</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Aron</forename><surname>Culotta</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Andrew</forename><surname>Mccallum</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Conference on Empirical Methods in Natural Language Processing</title>
+		<imprint>
+			<date type="published" when="2006" />
+			<biblScope unit="page">6</biblScope>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b25">
+	<monogr>
+		<title level="m" type="main">Graph2seq: Graph to sequence learning with attention-based neural networks</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kun</forename><surname>Xu</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Lingfei</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Zhiguo</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Vadim</forename><surname>Sheinin</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1804.00823</idno>
+		<imprint>
+			<date type="published" when="2018" />
+		</imprint>
+	</monogr>
+<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b26">
+	<analytic>
+		<title level="a" type="main">Exploiting rich syntactic information for semantic parsing with graph-to-sequence model</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kun</forename><surname>Xu</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Lingfei</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Zhiguo</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Mo</forename><surname>Yu</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Liwei</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Vadim</forename><surname>Sheinin</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Conference on Empirical Methods in Natural Language Processing</title>
+		<imprint>
+			<date type="published" when="2018" />
+			<biblScope unit="page">18</biblScope>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b27">
+	<analytic>
+		<title level="a" type="main">Coreference based event-argument relation extraction on biomedical text</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Katsumasa</forename><surname>Yoshikawa</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Sebastian</forename><surname>Riedel</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Tsutomu</forename><surname>Hirao</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Masayuki</forename><surname>Asahara</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yuji</forename><surname>Matsumoto</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Journal of Biomedical Semantics</title>
+		<imprint>
+			<biblScope unit="volume">2</biblScope>
+			<biblScope unit="issue">5</biblScope>
+			<biblScope unit="page">6</biblScope>
+			<date type="published" when="2011" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b28">
+	<analytic>
+		<title level="a" type="main">Kernel methods for relation extraction</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Dmitry</forename><surname>Zelenko</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Chinatsu</forename><surname>Aone</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Anthony</forename><surname>Richardella</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Journal of machine learning research</title>
+		<imprint>
+			<biblScope unit="volume">3</biblScope>
+			<biblScope unit="page" from="1083" to="1106" />
+			<date type="published" when="2003-02" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b29">
+	<analytic>
+		<title level="a" type="main">End-to-end neural relation extraction with global optimization</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Meishan</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yue</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Guohong</forename><surname>Fu</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Conference on Empirical Methods in Natural Language Processing</title>
+		<imprint>
+			<date type="published" when="2017" />
+			<biblScope unit="page">17</biblScope>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b30">
+	<analytic>
+		<title level="a" type="main">Sentencestate lstm for text representation</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yue</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Qi</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Linfeng</forename><surname>Song</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 56th Annual Meeting of the Association for Computational Linguistics (ACL-18)</title>
+		<meeting>the 56th Annual Meeting of the Association for Computational Linguistics (ACL-18)</meeting>
+		<imprint>
+			<date type="published" when="2018" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b31">
+	<analytic>
+		<title level="a" type="main">Extracting relations with integrated information using kernel methods</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Shubin</forename><surname>Zhao</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ralph</forename><surname>Grishman</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 43rd Annual Meeting of the Association for Computational Linguistics (ACL&apos;05)</title>
+		<meeting>the 43rd Annual Meeting of the Association for Computational Linguistics (ACL&apos;05)</meeting>
+		<imprint>
+			<date type="published" when="2005" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+				</listBibl>
+			</div>
+		</back>
+	</text>
+</TEI>

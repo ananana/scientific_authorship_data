@@ -1,0 +1,1001 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<TEI xmlns="http://www.tei-c.org/ns/1.0" 
+xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+xsi:schemaLocation="http://www.tei-c.org/ns/1.0 /home/ana/installs/grobid/grobid-0.5.1/grobid-home/schemas/xsd/Grobid.xsd"
+ xmlns:xlink="http://www.w3.org/1999/xlink">
+	<teiHeader xml:lang="en">
+		<encodingDesc>
+			<appInfo>
+				<application version="0.5.1-SNAPSHOT" ident="GROBID" when="2019-04-18T12:13+0000">
+					<ref target="https://github.com/kermitt2/grobid">GROBID - A machine learning software for extracting information from scholarly documents</ref>
+				</application>
+			</appInfo>
+		</encodingDesc>
+		<fileDesc>
+			<titleStmt>
+				<title level="a" type="main">Efficient and Expressive Knowledge Base Completion Using Subgraph Feature Extraction</title>
+			</titleStmt>
+			<publicationStmt>
+				<publisher>Association for Computational Linguistics</publisher>
+				<availability status="unknown"><p>Copyright Association for Computational Linguistics</p>
+				</availability>
+				<date type="published" when="2015-09">September 2015. 2015</date>
+			</publicationStmt>
+			<sourceDesc>
+				<biblStruct>
+					<analytic>
+						<author>
+							<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Matt</forename><surname>Gardner</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="institution">Carnegie Mellon University</orgName>
+							</affiliation>
+						</author>
+						<author>
+							<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Tom</forename><surname>Mitchell</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="institution">Carnegie Mellon University</orgName>
+							</affiliation>
+						</author>
+						<title level="a" type="main">Efficient and Expressive Knowledge Base Completion Using Subgraph Feature Extraction</title>
+					</analytic>
+					<monogr>
+						<title level="m">Proceedings of the 2015 Conference on Empirical Methods in Natural Language Processing</title>
+						<meeting>the 2015 Conference on Empirical Methods in Natural Language Processing <address><addrLine>Lisbon, Portugal</addrLine></address>
+						</meeting>
+						<imprint>
+							<publisher>Association for Computational Linguistics</publisher>
+							<biblScope unit="page" from="17" to="21"/>
+							<date type="published" when="2015-09">September 2015. 2015</date>
+						</imprint>
+					</monogr>
+				</biblStruct>
+			</sourceDesc>
+		</fileDesc>
+		<profileDesc>
+			<abstract>
+				<p>We explore some of the practicalities of using random walk inference methods , such as the Path Ranking Algorithm (PRA), for the task of knowledge base completion. We show that the random walk probabilities computed (at great expense) by PRA provide no discernible benefit to performance on this task, so they can safely be dropped. This allows us to define a simpler algorithm for generating feature matrices from graphs, which we call subgraph feature extraction (SFE). In addition to being conceptually simpler than PRA, SFE is much more efficient, reducing computation by an order of magnitude , and more expressive, allowing for much richer features than paths between two nodes in a graph. We show experimentally that this technique gives substantially better performance than PRA and its variants, improving mean average precision from .432 to .528 on a knowledge base completion task using the NELL KB.</p>
+			</abstract>
+		</profileDesc>
+	</teiHeader>
+	<text xml:lang="en">
+		<body>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="1">Introduction</head><p>Knowledge bases (KBs), such as Freebase ( <ref type="bibr" target="#b1">Bollacker et al., 2008</ref>), NELL ( , and DBPedia ( <ref type="bibr" target="#b17">Mendes et al., 2012</ref>) contain large collections of facts about things, people, and places in the world. These knowledge bases are useful for various tasks, including training rela- tion extractors and semantic parsers <ref type="bibr" target="#b11">(Hoffmann et al., 2011;</ref><ref type="bibr" target="#b12">Krishnamurthy and Mitchell, 2012)</ref>, and question answering <ref type="bibr" target="#b0">(Berant et al., 2013)</ref>. While these knowledge bases may be very large, they are still quite incomplete, missing large percentages of facts about common or popular entities <ref type="bibr" target="#b30">(West et al., 2014;</ref><ref type="bibr" target="#b5">Choi et al., 2015)</ref>. The task of knowl- edge base completion-filling in missing facts by examining the facts already in the KB, or by look- ing in a corpus-is one attempt to mitigate the problems of this knowledge sparsity.</p><p>In this work we examine one method for performing knowledge base completion that is currently in use: the Path Ranking Algorithm (PRA) <ref type="bibr" target="#b14">(Lao et al., 2011;</ref><ref type="bibr" target="#b6">Dong et al., 2014</ref>). PRA is a method for performing link prediction in a graph with labeled edges by computing feature matrices over node pairs in the graph. The method has a strong connection to logical inference ( , as the feature space considered by PRA consists of a restricted class of horn clauses found in the graph. While PRA can be applied to any link prediction task in a graph, its primary use has been in KB completion ( <ref type="bibr" target="#b8">Gardner et al., 2013;</ref><ref type="bibr" target="#b9">Gardner et al., 2014)</ref>.</p><p>PRA is a two-step process, where the first step finds potential path types between node pairs to use as features in a statistical model, and the sec- ond step computes random walk probabilities as- sociated with each path type and node pair (these are the values in a feature matrix). This second step is very computationally intensive, requiring time proportional to the average out-degree of the graph to the power of the path length for each cell in the computed feature matrix. In this paper we consider whether this computational effort is well- spent, or whether we might more profitably spend computation in other ways. We propose a new way of generating feature matrices over node pairs in a graph that aims to improve both the efficiency and the expressivity of the model relative to PRA.</p><p>Our technique, which we call subgraph fea- ture extraction (SFE), is similar to only doing the first step of PRA. Given a set of node pairs in a graph, we first do a local search to characterize the graph around each node. We then run a set of feature extractors over these local subgraphs to obtain feature vectors for each node pair. In the simplest case, where the feature extractors only look for paths connecting the two nodes, the fea- ture space is equivalent to PRA's, and this is the same as running PRA and binarizing the resultant feature vectors. However, because we do not have to compute random walk probabilities associated with each path type in the feature matrix, we can extract much more expressive features, including features which are not representable as paths in the graph at all. In addition, we can do a more exhaus- tive search to characterize the local graph, using a breadth-first search instead of random walks. SFE is a much simpler method than PRA for obtaining feature matrices over node pairs in a graph. De- spite its simplicity, however, we show experimen- tally that it substantially outperforms PRA, both in terms of running time and prediction performance. SFE decreases running time over PRA by an order of magnitude, it improves mean average precision from .432 to .528 on the NELL KB, and it im- proves mean reciprocal rank from .850 to .933.</p><p>In the remainder of this paper, we first describe PRA in more detail. We then situate our meth- ods in the context of related work, and provide ad- ditional experimental motivation for the improve- ments described in this paper. We then formally define SFE and the feature extractors we used, and finally we present an experimental compari- son between PRA and SFE on the NELL KB. The code and data used in this paper is available at http://rtw.ml.cmu.edu/emnlp2015 sfe/.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2">The Path Ranking Algorithm</head><p>The path ranking algorithm was introduced by <ref type="bibr" target="#b13">Lao and Cohen (2010)</ref>. It is a two-step process for gen- erating a feature matrix over node pairs in a graph. The first step finds a set of potentially useful path types that connect the node pairs, which become the columns of the feature matrix. The second step then computes the values in the feature matrix by finding random walk probabilities as described be- low. Once the feature matrix has been computed, it can be used with whatever classification model is desired (or even incorporated as one of many factors in a structured prediction model), though almost all prior work with PRA simply uses logis- tic regression.</p><p>More formally, consider a graph G with nodes N , edges E, and edge labels R, and a set of node pairs (s j , t j ) ∈ D that are instances of some rela- tionship of interest. PRA will generate a feature vector for each (s j , t j ) pair, where each feature is some sequence of edge labels -e 1 -e 2 -. . .-e l -. If the edge sequence, or path type, corresponding to the feature exists between the source and target nodes in the graph, the value of that feature in the feature vector will be non-zero.</p><p>Because the feature space considered by PRA is so large, 1 and because computing the feature values is so computationally intensive, the first step PRA must perform is feature selection, which is done using random walks over the graph. In this step of PRA, we find path types π that are likely to be useful in predicting new instances of the relation represented by the input node pairs. These path types are found by performing random walks on the graph G starting at the source and target nodes in D and recording which paths con- nect some source node with its target. <ref type="bibr">2</ref> Note that these are two-sided, unconstrained random walks: the walks from sources and targets can be joined on intermediate nodes to get a larger set of paths that connect the source and target nodes. Once connectivity statistics have been computed in this way, k path types are selected as features. <ref type="bibr" target="#b14">Lao et al. (2011)</ref> use measures of the precision and recall of each feature in this selection, while <ref type="bibr" target="#b9">Gardner et al. (2014)</ref> simply pick those most frequently seen.</p><p>Once a set of path features has been selected, the second step of PRA is to compute values for each cell in the feature matrix. Recall that rows in this matrix correspond to node pairs, and the columns correspond to the path types found in the first step. The cell value assigned by PRA is the probability of arriving at the target node of a node pair, given that a random walk began at the source node and was constrained to follow the path type: p(t|s, π). There are several ways of computing this probability. The most straightforward method is to use a path-constrained breadth-first search to exhaustively enumerate all possible targets given a source node and a path type, count how frequently each target is seen, and normalize the distribution. This calculates the desired probability exactly, but at the cost of doing a breadth-first search (with <ref type="bibr">1</ref> The feature space consists of the set of all possible edge label sequences, with cardinality l i=1 |R| i , assuming a bound l on the maximum path length.complexity proportional to the average per-edge- label out-degree to the power of the path length) per source node per path type.</p><p>There are three methods that can potentially re- duce the computational complexity of this proba- bility calculation. The first is to use random walks to approximate the probability via rejection sam- pling: for each path type and source node, a num- ber of random walks are performed, attempting to follow the edge sequence corresponding to the path type. If a node is reached where it is no longer possible to follow the path type, the ran- dom walk is restarted. This does not reduce the time necessary to get an arbitrarily good approxi- mation, but it does allow us to decrease computa- tion time, even getting a fixed complexity, at the cost of accepting some error in our probability es- timates. Second, <ref type="bibr" target="#b16">Lao (2012)</ref> showed that when the target node of a query is known, the exponent can be cut in half by using a two-sided BFS. In this method, some careful bookkeeping is done with dynamic programming such that the probability can be computed correctly when the two-sided search meets at an intermediate node. Lao's dy- namic programming technique is only applicable when the target node is known, however, and only cuts the exponent in half-this is still quite compu- tationally intensive. Lastly, we could replace the BFS with a multiplication of adjacency matrices, which performs the same computation. The effi- ciency gain comes from the fact that we can just do the multiplication once per path type, instead of once per path type per source node. However, to correctly compute the probabilities for a (source, target) pair, we need to exclude from the graph the edge connecting that training instance. This means that the matrix computed for each path type should be different for each training instance, and so we either lose our efficiency gain or we accept incor- rect probability estimates. In this work we use the rejection sampling technique.</p><p>As mentioned above, once the feature matrix has been computed in the second step of PRA, one can use any kind of classifier desired to learn a model and make predictions on test data.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3">Related Work</head><p>The task of knowledge base completion has seen a lot of attention in recent years, with entire work- shops devoted to it <ref type="bibr" target="#b26">(Suchanek et al., 2013</ref>). We will touch on three broad categories related to KB completion: the task of relation extraction, embed- ding methods for KB completion, and graph meth- ods for KB completion.</p><p>Relation extraction. Relation extraction and knowledge base completion have the same goal: to predict new instances of relations in a formal knowledge base such as Freebase or NELL. The difference is that relation extraction focuses on de- termining what relationship is expressed by a par- ticular sentence, while knowledge base comple- tion tries to predict which relationships hold be- tween which entities. A relation extraction system can be used for knowledge base completion, but typical KB completion methods do not make pre- dictions on single sentences. This is easily seen in the line of work known as distantly-supervised relation extraction ( <ref type="bibr" target="#b18">Mintz et al., 2009;</ref><ref type="bibr" target="#b11">Hoffmann et al., 2011;</ref><ref type="bibr" target="#b27">Surdeanu et al., 2012</ref>); these models use the relation instances in a knowledge base as their only supervision, performing some heuristic mapping of the entities in text to the knowledge base, then using that mapping to train extractors for each relation in the KB. The cost of using these methods is that is it generally difficult to incorpo- rate richer features from the knowledge base when predicting whether a particular sentence expresses a relation, and so techniques that make fuller use of the KB can perform better on the KB comple- tion task ).</p><p>Embedding methods for KB completion. There has been much recent work that attempts to perform KB completion by learning an embed- ded representation of entities and relations in the KB and then using these representations to infer missing relationships. Some of earliest work along these lines were the RESCAL model <ref type="bibr" target="#b21">(Nickel et al., 2011</ref>) and Structured Embeddings (Bordes et al., 2011). These were soon followed by TransE (Bor- des et al., 2013), Neural Tensor Networks ( <ref type="bibr" target="#b25">Socher et al., 2013)</ref>, and many variants on all of these algorithms ( <ref type="bibr" target="#b4">Chang et al., 2014;</ref><ref type="bibr" target="#b7">García-Durán et al., 2014;</ref><ref type="bibr" target="#b29">Wang et al., 2014</ref>). These methods perform well when there is structural redundancy in the knowledge base tensor, but when the ten- sor (or individual relations in the tensor) has high rank, learning good embeddings can be challeng- ing. The ARE model ( <ref type="bibr" target="#b22">Nickel et al., 2014</ref>) at- tempted to address this by only making the em- beddings capture the residual of the tensor that cannot be readily predicted from the graph-based techniques mentioned below. Graph-based methods for KB completion. A separate line of research into KB completion can be broadly construed as performing some kind of inference over graphs in order to predict missing instances in a knowledge base. Markov logic net- works ( <ref type="bibr" target="#b23">Richardson and Domingos, 2006</ref>) fall into this category, as does ProPPR ( <ref type="bibr" target="#b28">Wang et al., 2013</ref>) and many other logic-based systems. PRA, the main subject of this paper, also fits in this line of work. Work specifically with PRA has ranged from incorporating a parsed corpus as additional evidence when doing random walk inference ( , to introducing better representations of the text corpus ( <ref type="bibr" target="#b8">Gardner et al., 2013;</ref><ref type="bibr" target="#b9">Gardner et al., 2014)</ref>, and using PRA in a broader context as part of Google's Knowledge Vault ( <ref type="bibr" target="#b6">Dong et al., 2014</ref>). An interesting piece of work that combines embedding methods with graph-based methods is that of <ref type="bibr" target="#b20">Neelakantan et al. (2015)</ref>, which uses a re- cursive neural network to create embedded repre- sentations of PRA-style paths.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4">Motivation</head><p>We motivate our modifications to PRA with three observations. First, it appears that binarizing the feature matrix produced by PRA, removing most of the information gained in PRA's second step, has no significant impact on prediction perfor- mance in knowledge base completion tasks. We show this on the NELL KB and the Freebase KB in <ref type="table">Table 1</ref>. <ref type="bibr">3</ref> The fact that random walk probabilities carry no additional information for this task over binary features is surprising, and it shows that the second step of PRA spends a lot of its computation for no discernible gain in performance.</p><p>Second, <ref type="bibr" target="#b20">Neelakantan et al. (2015)</ref> presented ex-periments showing a substantial increase in perfor- mance from using a much larger set of features in a PRA-like model. <ref type="bibr">4</ref> All of their experiments used binary features, so this is not a direct comparison of random walk probabilities versus binarized fea- tures, but it shows that increasing the feature size beyond the point that is computationally feasible with random walk probabilities seems useful. Ad- ditionally, they showed that using path bigram fea- tures, where each sequential pair of edges types in each path was added as an additional feature to the model, gave a significant increase in performance. These kind of features are not representable in the traditional formulation of PRA. Lastly, the method used to compute the random walk probabilities-rejection sampling-makes the inclusion of more expressive features problem- atic. Consider the path bigrams mentioned above; one could conceivably compute a probability for a path type that only specifies that the last edge type in the path must be r, but it would be incredibly inefficient with rejection sampling, as most of the samples would end up rejected (leaving aside the additional issues of an unspecified path length). In contrast, if the features simply signify whether a particular path type exists in the graph, without any associated probability, these kinds of features are very easy to compute.</p><p>Given this motivation, our work attempts to im- prove both the efficiency and the expressivity of PRA by removing the second step of the algo- rithm. Efficiency is improved because the sec- ond step is the most computationally expensive, and expressivity is improved by allowing features that cannot be reasonably computed with rejec- tion sampling. We show experimentally that the techniques we introduce do indeed improve per- formance quite substantially.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5">Subgraph Feature Extraction</head><p>In this section we discuss how SFE constructs fea- ture matrices over node pairs in a graph using just a single search over the graph for each node (which is comparable to only using the first step of PRA). As outlined in Section 2, the first step of PRA does a series of random walks from each source and target node (s j , t j ) in a dataset D. In PRA these random walks are used to find a rela- tively small set of potentially useful path types for which more specific random walk probabilities are then computed, at great expense. In our method, subgraph feature extraction (SFE), we stop after this first set of random walks and instead construct a binary feature matrix.</p><p>More</p><note type="other">formally, for each node n in the data (where n could be either a source node or a target node), SFE constructs a subgraph centered around that node using k random walks. Each random walk that leaves n follows some path type π and ends at some intermediate node i. We keep all of these (π, i) pairs as the characterization of the subgraph around n, and we will refer to this sub- graph as G n . To construct a feature vector for a source-target pair (s j , t j ), SFE takes the sub- graphs G s j and G t j and merges them on the in- termediate nodes i. That is, if an intermediate node i is present in both G s j and G t j , SFE takes the path types π corresponding to i and combines them (reversing the path type coming from the tar- get node t j ). If some intermediate node for the source s j</note><p>happens to be t j , no combination of path types is necessary (and similarly if an intermediate node for the target t j is s j -the path only needs to be reversed in this case). This creates a feature space that is exactly the same as that constructed by PRA: sequences of edge types that connect a source node to a target node. To construct the fea- ture vector SFE just takes all of these combined path types as binary features for (s j , t j ). Note, however, that we need not restrict ourselves to only using the same feature space as PRA; Sec- tion 5.1 will examine extracting more expressive features from these subgraphs.</p><p>This method for generating a feature matrix over node pairs in a graph is much simpler and less computationally expensive than PRA, and from looking at <ref type="table">Table 1</ref> we would expect that it would perform on par with PRA with drastically reduced computation costs. Some experimentation shows that it is not that simple. <ref type="table" target="#tab_2">Table 2</ref> shows a com- parison between PRA and SFE on 10 NELL rela- tions. 5 SFE has a higher mean average precision, but the difference is not statistically significant. There is a large variance in SFE's performance, and on some relations PRA performs better.</p><p>We examined the feature matrices computed <ref type="bibr">5</ref> The data and evaluation methods are described more fully in Section 6.1. These experiments were conducted on a different development split of the same data.  by these methods and discovered that the reason for the inconsistency of SFE's improvement is because its random walks are all unconstrained.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Method MAP Ave. Features</head><p>Consider the case of a node with a very high de- gree, say 1000. If we only do 200 random walks from this node, we cannot possibly get a complete characterization of the graph even one step away from the node. If a particularly informative path is &lt;CITYINSTATE, STATEINCOUNTRY&gt;, and both the city from which a random walk starts and the intermediate state node have very high degree, the probability of actually finding this path type using unconstrained random walks is quite low. This is the benefit gained by the path-constrained random walks performed by PRA; PRA leverages training instances with relatively low degree and aggrega- tion across a large number of instances to find path types that are potentially useful. Once they are found, significant computational effort goes into discovering whether each path type exists for all (s, t) pairs. It is this computational effort that allows the path type &lt;CITYINSTATE, STATEIN- COUNTRY&gt; to have a non-zero value even for very highly connected nodes.</p><p>How do we mitigate this issue, so that SFE can consistently find these path types? It seems the only option without resorting to a similar two-step process to what PRA uses is to do a more exhaus- tive search. PRA uses random walks to improve scalability on very large graphs, particularly be- cause the second step of the algorithm is so ex- pensive. However, if we are only doing a single search, and the graph fits in memory, a few steps of a breadth-first search (BFS) per node is not infea- sible. We can make the BFS more tractable by ex- cluding edge types whose fan out is too high. For example, at a type node in Freebase, there could be thousands of edges of type /TYPE/OBJECT/TYPE; if there are a large number of edges of the same type leaving a node, we do not include those edges in the BFS. Note that because the type node will still be counted as an intermediate node in the sub- graph, we can still find paths that go through that   node; we just do not continue searching if the out- degree of a particular edge type is too high. When using a BFS instead of random walks to obtain the subgraphs G s j and G t j for each node pair, we saw a dramatic increase in the number of path type features found and a substantial increase in performance. <ref type="bibr">6</ref> These results are shown in Ta- ble 3; SFE-RW is our SFE implementation using random walks, and SFE-BFS uses a BFS.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.1">More expressive features</head><p>The description above shows how to recreate the feature space used by PRA using our simpler sub- graph feature extraction technique. As we have mentioned, however, we need not restrict our- selves to merely recreating PRA's feature space. Eliminating random walk probabilities allows us to extract a much richer set of features from the subgraphs around each node, and here we present the feature extractors we have experimented with. <ref type="figure" target="#fig_1">Figure 1</ref> contains an example graph that we will refer to when describing these features.</p><p>PRA-style features. We explained these fea- tures in Section 5, but we repeat them here for con- sistency, and use the example to make the feature extraction process more clear. Relying on the no- tation introduced earlier, these features are gener- ated by intersecting the subgraphs G s and G t on the intermediate nodes. That is, when the sub- graphs share an intermediate node, we combine the path types found from the source and target to that node. In the example in <ref type="figure" target="#fig_1">Figure 1</ref>, there are two common intermediate nodes ("Barack Obama" and "Michelle Obama"), and combining the path types corresponding to those nodes gives the same path type: -ALIAS-"is married to"-ALIAS -1 -.</p><p>Path bigram features. In Section 4, we mentioned that <ref type="bibr" target="#b20">Neelakantan et al. (2015)</ref>  Subgraph for /m/Barack Obama π i -ALIAS- "Barack Obama" -GENDER- /m/Male -ALIAS-"is married to"-"Michelle Obama" Subgraph for /m/Michelle Obama π i -ALIAS- "Michelle Obama" -GENDER- /m/Female -ALIAS-"is married to" -1 -"Barack Obama" include those features here as well. For any path π between a source node s and a target node t, we create a feature for each relation bigram in the path type. In the example in <ref type="figure" target="#fig_1">Figure 1</ref>, this would result in the features "BIGRAM:@START@-ALIAS", "BIGRAM:ALIAS-is married to", "BIGRAM:is married to-ALIAS", and "BIGRAM:ALIAS- @END@".</p><p>One-sided features. We use one-sided path to describe a sequence of edges that starts at a source or target node in the data, but does not necessarily terminate at a corresponding target or source node, as PRA features do. Following the notation intro- duced in Section 5, we use as features each (π, i) pair in the subgraph characterizations G s and G t , along with whether the feature came from the source node or the target node. The motivation for these one-sided path types is to better model which sources and targets are good candidates for participating in a particular relation. For example, not all cities participate in the relation CITYCAPI- TALOFCOUNTRY, even though the domain of the relation is all cities. A city that has a large number of sports teams may be more likely to be a capi- tal city, and these one-sided features could easily capture that kind of information.</p><p>Example one-sided features from the ex- ample in <ref type="figure" target="#fig_1">Figure 1</ref> would be "SOURCE:- GENDER-:male", "TARGET:-GENDER-:female", "SOURCE:-ALIAS-:Barack Obama", and "SOURCE:-ALIAS-is married to-:Michelle Obama".</p><p>One-sided feature comparisons. We can ex- pand on the one-sided features introduced above by allowing for comparisons of these features in certain circumstances. For example, if both the source and target nodes have an age or gender en- coded in the graph, we might profitably use com- parisons of these values to make better predictions.</p><p>Drawing again on the notation from Section 5, we can formalize these features as analogous to the pairwise PRA features. To get the PRA features, we intersect the intermediate nodes i from the subgraphs G s and G t , and combine the path types π when we find common intermediate nodes. To get these comparison features, we in- stead intersect the subgraphs on the path types, and combine the intermediate nodes when there are common path types. That is, if we see a com- mon path type, such as -GENDER-, we will con- struct a feature representing a comparison between the intermediate node for the source and the target.</p><p>If the values are the same, this information can be captured with a PRA feature, but it cannot be eas- ily captured by PRA when the values are different.</p><p>In the example in <ref type="figure" target="#fig_1">Figure 1</ref>, there are two common path types: -ALIAS-, and -GENDER- . The feature generated from the path type - GENDER-would be "COMPARISON:-GENDER- :/m/Male:/m/Female".</p><p>Vector space similarity features. <ref type="bibr" target="#b9">Gardner et al. (2014)</ref> introduced a modification of PRA's ran- dom walks to incorporate vector space similarity between the relations in the graph. On the data they were using, a graph that combined a formal knowledge base with textual relations extracted from text, they found that this technique gave a substantial performance improvement. The vector space random walks only affected the second step of PRA, however, and we have removed that step in SFE. While it is not as conceptually clean as the vector space random walks, we can obtain a similar effect with a simple feature transformation using the vectors for each relation. We obtain vec- tor representations of relations through factoriza- tion of the knowledge base tensor as did Gardner et al., and replace each edge type in a PRA-style path with edges that are similar to it in the vec- tor space. We also introduce a special "any edge" symbol, and say that all other edge types are simi- lar to this edge type.</p><p>To reduce the combinatorial explosion of the feature space that this feature extractor cre- ates, we only allow replacing one relation at a time with a similar relation.</p><p>In the ex- ample graph in <ref type="figure" target="#fig_1">Figure 1</ref>, and assuming that "spouse of" is found to be similar to "is mar- ried to", some of the features extracted would be the following: "VECSIM:-ALIAS-is married to- ALIAS-", "VECSIM:-ALIAS-spouse of-ALIAS-", "VECSIM:-ALIAS-@ANY REL@-ALIAS-", and "VECSIM:-@ANY REL@-is married to-ALIAS- ". Note that the first of those features, "VECSIM:- ALIAS-is married to-ALIAS-", is necessary even though it just duplicates the original PRA-style feature. This allows path types with different but similar relations to generate the same features.</p><p>Any-Relation features.</p><p>It turns out that much of the benefit gained from Gardner et al.'s vector space similarity features came from allowing any path type that used a surface edge to match any other surface edge with non-zero probability. <ref type="bibr">7</ref> To test whether the vector space similarity features give us any benefit over just replacing relations with dummy symbols, we add a feature extractor that is identical to the one above, assuming an empty vector similarity mapping. The features extracted from <ref type="figure" target="#fig_1">Figure 1</ref> would thus be "ANYREL:-@ANY REL@- is married to-ALIAS", "ANYREL:-ALIAS- @ANY REL@-ALIAS", "ANYREL:-ALIAS-is married to-@ANY REL@".</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6">Experiments</head><p>Here we present experimental results evaluating the feature extractors we presented, and a com- parison between SFE and PRA. As we showed in Section 5 that using a breadth-first search to ob- tain subgraphs is superior to using random walks, all of the experiments presented here use the BFS implementation of SFE.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6.1">Data</head><p>To evaluate SFE and the feature extractors we in- troduced, we learned models for 10 relations in the NELL KB. We used the same data as <ref type="bibr" target="#b9">Gardner et al. (2014)</ref>, using both the formal KB relations and the surface relations extracted from text in our graph. We used logistic regression with elastic net (L1 and L2) regularization. We tuned the L1 and L2 parameters for each method on a random de- velopment split of the data, then used a new split of the data to run the final tests presented here.</p><p>The evaluation metrics we use are mean aver- age precision (MAP) and mean reciprocal rank (MRR). We judge statistical significance using a paired permutation test, where the average preci- sion 8 on each relation is used as paired data.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6.2">On Obtaining Negative Evidence</head><p>One important practical issue for most uses of PRA is the selection of negative examples for training a model. Typically a knowledge base only contains positive examples of a relation, and it is not clear a priori what the best method is for ob- taining negative evidence. Prior work with PRA makes a closed world assumption, treating any (s, t) pair not seen in the knowledge base as a negative example. Negative instances are selected when performing the second step of PRA-if a random walk from a source ends at a target that is not a known correct target for that source, that source- target pair is used as a negative example.</p><p>SFE only scores (source, target) pairs; it has no mechanism similar to PRA's that will find poten- tial targets given a source node. We thus need a new way of finding negative examples, both at training time and at test time. We used a simple technique to find negative examples from a graph given a set of positive examples, and we used this to obtain the training and testing data used in the experiments below. Our technique takes each source and target node in the given positive exam- ples and finds other nodes in the same category that are close in terms of personalized page rank (PPR). We then sample new (source, target) pairs from these lists of similar nodes, weighted by their PPR score (while also allowing the original source and target to be sampled). These become our neg- ative examples, both at training and at testing time.</p><p>Because this is changing the negative evidence available to PRA at training time, we wanted to be sure we were not unfairly hindering PRA in our comparisons. If it is in fact better to let PRA find its own negative examples at training time, instead of the ones sampled based on personalized page rank, then we should let PRA get its own nega-Method MAP PRA's random walks .359 PPR-based sampling .363 <ref type="table">Table 4</ref>: Comparing methods for obtaining nega- tive evidence available at training time. The differ- ence seen is not statistically significant (p = .77).</p><p>tive evidence. We thus ran an experiment to see under which training regime PRA performs bet- ter. We created a test set with both positive and negative examples as described in the paragraph above, and at training time we compared two tech- niques: (1) letting PRA find its own negative ex- amples through its random walks, and (2) only using the negative examples selected by PPR. As can be seen in <ref type="table">Table 4</ref>, the difference between the two training conditions is very small, and it is not statistically significant. Because there is no sig- nificant difference between the two conditions, in the experiments that follow we give both PRA and SFE the same training data, created through the PPR-based sampling technique described above.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6.3">Results</head><p>We first examine the effect of each of the fea- ture types introduced in Section 5.1. The results are shown in <ref type="table" target="#tab_7">Table 5</ref>. We can see that, for this data, the comparisons and one-sided features did not improve performance (and the decreases are not statistically significant). Bigram features do appear to improve performance, though the im- provement was not consistent enough across rela- tions to achieve statistical significance. The vector similarity features do improve performance, with p-values hovering right at 0.05 when comparing against only PRA features and PRA + bigram fea- tures. The any rel features, however, do statisti- cally improve over all other methods (p &lt;= 0.01) except the PRA + vec sim result (p = .21).</p><p>Finally, we present a comparison between PRA, PRA with vector space random walks, and the best SFE result from the ablation study. This is shown in <ref type="table">Table 6</ref>. SFE significantly outperforms PRA, both with and without the vector space random walks presented by <ref type="bibr" target="#b9">Gardner et al. (2014)</ref>.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6.4">Discussion</head><p>When using only PRA-style features with SFE, the highest weighted features were almost always those of the form -ALIAS-[some textual relation]- ALIAS -1 -. For example, for the relation WRITER-   .528 .933 <ref type="table">Table 6</ref>: Results of final comparison between SFE and PRA, with and without vector space similarity features. SFE is statistically better than both PRA methods (p &lt; 0.005).</p><p>WROTEBOOK, the textual relations used in this feature might be "wrote", "describes in", "writes in", and "expresses in". These are the same fea- ture types that PRA itself finds to have the high- est weight, also, though SFE finds many more of them than PRA does, as PRA has to do aggres- sive feature selection. For this particular dataset, where the graph consists of edges from a formal KB mixed with edges from extracted textual rela- tions, these kinds of features are by far the most useful, and most of the improvements seen by the additional feature types we used with SFE come from more compactly encoding these features. For example, the path bigram features can en- code the fact that there exists a path from the source to the target that begins or ends with an ALIAS edge. This captures in just two features all path types of the form -ALIAS-[some textual relation]-ALIAS -1 -, and those two bigram features are almost always the highest weighted features in models where they are used.</p><p>However, the bigram features do not capture those path types exactly. The Any-Rel features were designed in part specifically for this path type, and they capture it exactly with a single fea- ture. For all 10 relations, the feature "ANYREL:- ALIAS-@ANY REL@-ALIAS -1 " is the highest weighted feature. This is because, for the relations we experimented with, knowing that some rela- tionship is expressed in text between a particular pair of KB entities is a very strong indication of a single KB relation. There are only so many possi- ble relationships between cities and countries, for instance. These features are much less informative between entity types where more than one relation is possible, such as between people.</p><p>While the bigram and any-rel features capture succintly whether textual relations are present be- tween two entities, the one-sided features are more useful for determining whether an entity fits into the domain or range of a particular relation. We saw a few features that did this, capturing fine- grained entity types. Most of the features, how- ever, tended towards memorizing (and thus over- fitting) the training data, as these features con- tained the names of the training entities. We be- lieve this overfitting to be the main reason these features did not improve performance, along with the fact that the relations we tested do not need much domain or range modeling (as opposed to, e.g., SPOUSEOF or CITYCAPITALOFCOUNTRY).</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="7">Conclusion</head><p>We have explored several practical issues that arise when using the path ranking algorithm for knowledge base completion. An analysis of sev- eral of these issues led us to propose a sim- pler algorithm, which we called subgraph fea- ture extraction, which characterizes the subgraph around node pairs and extracts features from that subgraph. SFE is both significantly faster and performs better than PRA on this task. We showed experimentally that we can reduce run- ning time by an order of magnitude, while at the same time improving mean average preci- sion from .432 to .528 and mean reciprocal rank from .850 to .933. This thus constitutes the best published results for knowledge base com- pletion on NELL data. The code and data used in the experiments in this paper are available at http://rtw.ml.cmu.edu/emnlp2015 sfe/.</p></div><figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_0"><head>Method</head><label></label><figDesc></figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_1"><head>Figure 1 :</head><label>1</label><figDesc>Figure 1: An example graph, with subgraphs extracted for two nodes.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_2"><head>Feature</head><label></label><figDesc></figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_2" validated="false"><head>Table 2 : Comparison of PRA and SFE on 10 NELL relations. The difference shown is not sta- tistically significant.</head><label>2</label><figDesc></figDesc><table></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_4" validated="false"><head>Table 3 : Comparison of PRA and SFE (with PRA</head><label>3</label><figDesc></figDesc><table>-
+style features) on 10 NELL relations. SFE-RW is 
+not statistically better than PRA, but SFE-BFS is 
+(p &lt; 0.05). 
+
+</table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_6" validated="false"><head>Types</head><label></label><figDesc></figDesc><table>MAP MRR Features 
+
+PRA-style features 
+
+.431 
+.806 
+240k 
+
++ Comparisons 
+
+.405 
+.833 
+558k 
+
++ One-sided 
+
+.389 
+.800 
+1,227k 
+
++ One-sided + Comps. 
+
+.387 
+.817 
+1,544k 
+
++ Bigrams 
+
+.483 
+1.00 
+320k 
+
++ Vector similarity 
+
+.514 
+.910 
+3,993k 
+
++ Bigrams + vec sim. 
+
+.490 
+.950 
+4,073k 
+
++ Any Rel 
+
+.528 
+.933 
+649k 
+
+</table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_7" validated="false"><head>Table 5 :</head><label>5</label><figDesc></figDesc><table>SFE feature ablation study. All rows use 
+PRA features. PRA + any rel is statistically better 
+than all other methods except PRA + vec sim, and 
+most of the other differences are not significant. 
+
+Method 
+MAP MRR 
+PRA 
+.362 
+.717 
+Vector space PRA 
+.432 
+.850 
+SFE (PRA + any rel features) 
+</table></figure>
+
+			<note place="foot" n="2"> A deterministic algorithm, such as a breadth-first search, could obviously be used here instead of random walks, and indeed Lao&apos;s original work did use a more exhaustive search. However, when moving to the larger graphs corresponding to the NELL and Freebase KBs, Lao (2011) (and all future work) switched to using random walks, because the graph was too large.</note>
+
+			<note place="foot" n="3"> The NELL data and experimental protocol is described in Section 6.1. The Freebase data consists of 24 relations from the Freebase KB; we used the same data used by Gardner et al. (2014).</note>
+
+			<note place="foot" n="4"> Note that while Neelakantan et al. called the baseline they were comparing to &quot;PRA&quot;, they only used the first step of the algorithm to produce path types, and thus did not really compare against PRA per se. It is their version of &quot;PRA&quot; that we formalize and expand as SFE in this work.</note>
+
+			<note place="foot" n="6"> One should not read too much into the decrease in running time between SFE-RW and SFE-BFS, however, as it was mostly an implementation detail.</note>
+
+			<note place="foot" n="7"> Replacing all surface edges with a single dummy relation gives performance close to vector space PRA. The vector space walks do statistically outperform this, but the extra gain is small.</note>
+
+			<note place="foot" n="8"> Average precision is equivalent to the area under a precision/recall curve.</note>
+		</body>
+		<back>
+
+			<div type="acknowledgement">
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Acknowledgements</head><p>This work was supported in part by NSF grant IIS1247489, in part by support as a Ya-hoo! Fellow, and in part by DARPA contract FA87501320005.</p></div>
+			</div>
+
+			<div type="references">
+
+				<listBibl>
+
+<biblStruct xml:id="b0">
+	<analytic>
+		<title level="a" type="main">Semantic parsing on freebase from question-answer pairs</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jonathan</forename><surname>Berant</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Andrew</forename><surname>Chou</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Roy</forename><surname>Frostig</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Percy</forename><surname>Liang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">EMNLP</title>
+		<imprint>
+			<date type="published" when="2013" />
+			<biblScope unit="page" from="1533" to="1544" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b1">
+	<analytic>
+		<title level="a" type="main">Freebase: a collaboratively created graph database for structuring human knowledge</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kurt</forename><surname>Bollacker</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Colin</forename><surname>Evans</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Praveen</forename><surname>Paritosh</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Tim</forename><surname>Sturge</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jamie</forename><surname>Taylor</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of SIGMOD</title>
+		<meeting>SIGMOD</meeting>
+		<imprint>
+			<date type="published" when="2008" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b2">
+	<analytic>
+		<title level="a" type="main">Learning structured embeddings of knowledge bases</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Antoine</forename><surname>Bordes</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jason</forename><surname>Weston</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ronan</forename><surname>Collobert</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yoshua</forename><surname>Bengio</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">AAAI</title>
+		<imprint>
+			<date type="published" when="2011" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b3">
+	<analytic>
+		<title level="a" type="main">Translating embeddings for modeling multirelational data</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Antoine</forename><surname>Bordes</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Nicolas</forename><surname>Usunier</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Alberto</forename><surname>Garciaduran</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jason</forename><surname>Weston</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Oksana</forename><surname>Yakhnenko</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Advances in Neural Information Processing Systems</title>
+		<imprint>
+			<date type="published" when="2013" />
+			<biblScope unit="page" from="2787" to="2795" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b4">
+	<analytic>
+		<title level="a" type="main">Typed tensor decomposition of knowledge bases for relation extraction</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kai-Wei</forename><surname>Chang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Wen-Tau</forename><surname>Yih</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Bishan</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Christopher</forename><surname>Meek</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2014 Conference on Empirical Methods in Natural Language Processing (EMNLP)</title>
+		<meeting>the 2014 Conference on Empirical Methods in Natural Language Processing (EMNLP)</meeting>
+		<imprint>
+			<date type="published" when="2014" />
+			<biblScope unit="page" from="1568" to="1579" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b5">
+	<analytic>
+		<title level="a" type="main">Scalable semantic parsing with partial ontologies</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Eunsol</forename><surname>Choi</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Tom</forename><surname>Kwiatkowski</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Luke</forename><surname>Zettlemoyer</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of ACL</title>
+		<meeting>ACL</meeting>
+		<imprint>
+			<date type="published" when="2015" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b6">
+	<analytic>
+		<title level="a" type="main">Knowledge vault: A web-scale approach to probabilistic knowledge fusion</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Xin</forename><surname>Dong</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Evgeniy</forename><surname>Gabrilovich</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Geremy</forename><surname>Heitz</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Wilko</forename><surname>Horn</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ni</forename><surname>Lao</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kevin</forename><surname>Murphy</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Thomas</forename><surname>Strohmann</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Shaohua</forename><surname>Sun</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Wei</forename><surname>Zhang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 20th ACM SIGKDD international conference on Knowledge discovery and data mining</title>
+		<meeting>the 20th ACM SIGKDD international conference on Knowledge discovery and data mining</meeting>
+		<imprint>
+			<publisher>ACM</publisher>
+			<date type="published" when="2014" />
+			<biblScope unit="page" from="601" to="610" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b7">
+	<analytic>
+		<title level="a" type="main">Effective blending of two and threeway interactions for modeling multi-relational data</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Alberto</forename><surname>García-Durán</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Antoine</forename><surname>Bordes</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Nicolas</forename><surname>Usunier</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Machine Learning and Knowledge Discovery in Databases</title>
+		<imprint>
+			<publisher>Springer</publisher>
+			<date type="published" when="2014" />
+			<biblScope unit="page" from="434" to="449" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b8">
+	<analytic>
+		<title level="a" type="main">Improving learning and inference in a large knowledge-base using latent syntactic cues</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Matt</forename><surname>Gardner</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Partha</forename><surname>Talukdar</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Bryan</forename><surname>Kisiel</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Tom</forename><surname>Mitchell</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of EMNLP</title>
+		<meeting>EMNLP</meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2013" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b9">
+	<analytic>
+		<title level="a" type="main">Incorporating vector space similarity in random walk inference over knowledge bases</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Matt</forename><surname>Gardner</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Partha</forename><surname>Talukdar</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jayant</forename><surname>Krishnamurthy</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Tom</forename><surname>Mitchell</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of EMNLP</title>
+		<meeting>EMNLP</meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2014" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b10">
+	<analytic>
+		<title level="a" type="main">Combining vector space embeddings with symbolic logical inference over open-domain text</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Matt</forename><surname>Gardner</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Partha</forename><surname>Talukdar</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Tom</forename><surname>Mitchell</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">2015 AAAI Spring Symposium Series</title>
+		<imprint>
+			<date type="published" when="2015" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b11">
+	<analytic>
+		<title level="a" type="main">Knowledgebased weak supervision for information extraction of overlapping relations</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Raphael</forename><surname>Hoffmann</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Congle</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Xiao</forename><surname>Ling</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Luke</forename><surname>Zettlemoyer</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Weld</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 49th Annual Meeting of the Association for Computational Linguistics: Human Language Technologies</title>
+		<meeting>the 49th Annual Meeting of the Association for Computational Linguistics: Human Language Technologies</meeting>
+		<imprint>
+			<date type="published" when="2011" />
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="541" to="550" />
+		</imprint>
+	</monogr>
+	<note>Association for Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b12">
+	<analytic>
+		<title level="a" type="main">Weakly supervised training of semantic parsers</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jayant</forename><surname>Krishnamurthy</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Tom</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Mitchell</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2012 Joint Conference on Empirical Methods in Natural Language Processing and Computational Natural Language Learning</title>
+		<meeting>the 2012 Joint Conference on Empirical Methods in Natural Language Processing and Computational Natural Language Learning</meeting>
+		<imprint>
+			<date type="published" when="2012" />
+			<biblScope unit="page" from="754" to="765" />
+		</imprint>
+	</monogr>
+	<note>Association for Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b13">
+	<analytic>
+		<title level="a" type="main">Relational retrieval using a combination of path-constrained random walks</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ni</forename><surname>Lao</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>William W Cohen</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Machine learning</title>
+		<imprint>
+			<biblScope unit="volume">81</biblScope>
+			<biblScope unit="issue">1</biblScope>
+			<biblScope unit="page" from="53" to="67" />
+			<date type="published" when="2010" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b14">
+	<analytic>
+		<title level="a" type="main">Random walk inference and learning in a large scale knowledge base</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ni</forename><surname>Lao</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Tom</forename><surname>Mitchell</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">William W</forename><surname>Cohen</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of EMNLP. Association for Computational Linguistics</title>
+		<meeting>EMNLP. Association for Computational Linguistics</meeting>
+		<imprint>
+			<date type="published" when="2011" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b15">
+	<analytic>
+		<title level="a" type="main">Reading the web with learned syntactic-semantic inference rules</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ni</forename><surname>Lao</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Amarnag</forename><surname>Subramanya</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Fernando</forename><surname>Pereira</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">William W</forename><surname>Cohen</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of EMNLP-CoNLL</title>
+		<meeting>EMNLP-CoNLL</meeting>
+		<imprint>
+			<date type="published" when="2012" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b16">
+	<monogr>
+		<title level="m" type="main">Efficient Random Walk Inference with Knowledge Bases</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ni</forename><surname>Lao</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2012" />
+		</imprint>
+		<respStmt>
+			<orgName>Carnegie Mellon University</orgName>
+		</respStmt>
+	</monogr>
+<note type="report_type">Ph.D. thesis</note>
+</biblStruct>
+
+<biblStruct xml:id="b17">
+	<analytic>
+		<title level="a" type="main">Dbpedia for nlp: A multilingual cross-domain knowledge base</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Pablo</forename><forename type="middle">N</forename><surname>Mendes</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Max</forename><surname>Jakob</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Christian</forename><surname>Bizer</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Eighth International Conference on Language Resources and Evaluation (LREC&apos;12)</title>
+		<meeting>the Eighth International Conference on Language Resources and Evaluation (LREC&apos;12)</meeting>
+		<imprint>
+			<date type="published" when="2012" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b18">
+	<analytic>
+		<title level="a" type="main">Distant supervision for relation extraction without labeled data</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Mike</forename><surname>Mintz</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Steven</forename><surname>Bills</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Rion</forename><surname>Snow</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Dan</forename><surname>Jurafsky</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Joint Conference of the 47th Annual Meeting of the ACL and the 4th International Joint Conference on Natural Language Processing of the AFNLP</title>
+		<meeting>the Joint Conference of the 47th Annual Meeting of the ACL and the 4th International Joint Conference on Natural Language Processing of the AFNLP</meeting>
+		<imprint>
+			<date type="published" when="2009" />
+			<biblScope unit="page" from="1003" to="1011" />
+		</imprint>
+	</monogr>
+	<note>Association for Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b19">
+	<analytic>
+		<title level="a" type="main">Neverending learning</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Tom</forename><forename type="middle">M</forename><surname>Mitchell</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">William</forename><surname>Cohen</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Estevam</forename><surname>Hruschka</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Partha</forename><surname>Talukdar</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Justin</forename><surname>Betteridge</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Andrew</forename><surname>Carlson</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Bhavana</forename><surname>Dalvi</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Matthew</forename><surname>Gardner</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Bryan</forename><surname>Kisiel</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jayant</forename><surname>Krishnamurthy</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ni</forename><surname>Lao</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kathryn</forename><surname>Mazaitis</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">AAAI 2015. Association for the Advancement of Artificial Intelligence</title>
+		<editor>Thahir Mohamed, Ndapa Nakashole, Emmanouil Antonios Platanios, Alan Ritter, Mehdi Samadi, Burr Settles, Richard Wang, Derry Wijaya, Abhinav Gupta, Xinlei Chen, Abulhair Saparov, Malcolm Greaves, and Joel Welling</editor>
+		<imprint>
+			<date type="published" when="2015" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b20">
+	<analytic>
+		<title level="a" type="main">Compositional vector space models for knowledge base completion</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Arvind</forename><surname>Neelakantan</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Benjamin</forename><surname>Roth</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Andrew</forename><surname>Mccallum</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">ACL 2015. Association for Computational Linguistics</title>
+		<imprint>
+			<date type="published" when="2015" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b21">
+	<analytic>
+		<title level="a" type="main">A three-way model for collective learning on multi-relational data</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Maximilian</forename><surname>Nickel</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Hans-Peter</forename><surname>Volker Tresp</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Kriegel</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 28th international conference on machine learning (ICML-11)</title>
+		<meeting>the 28th international conference on machine learning (ICML-11)</meeting>
+		<imprint>
+			<date type="published" when="2011" />
+			<biblScope unit="page" from="809" to="816" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b22">
+	<analytic>
+		<title level="a" type="main">Reducing the rank in relational factorization models by including observable patterns</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Maximilian</forename><surname>Nickel</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Xueyan</forename><surname>Jiang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Volker</forename><surname>Tresp</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Advances in Neural Information Processing Systems</title>
+		<imprint>
+			<date type="published" when="2014" />
+			<biblScope unit="page" from="1179" to="1187" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b23">
+	<analytic>
+		<title level="a" type="main">Markov logic networks</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Matthew</forename><surname>Richardson</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Pedro</forename><surname>Domingos</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Machine learning</title>
+		<imprint>
+			<biblScope unit="volume">62</biblScope>
+			<biblScope unit="issue">12</biblScope>
+			<biblScope unit="page" from="107" to="136" />
+			<date type="published" when="2006" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b24">
+	<analytic>
+		<title level="a" type="main">Relation extraction with matrix factorization and universal schemas</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Sebastian</forename><surname>Riedel</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Limin</forename><surname>Yao</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Andrew</forename><surname>Mccallum</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Benjamin M</forename><surname>Marlin</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of NAACL-HLT</title>
+		<meeting>NAACL-HLT</meeting>
+		<imprint>
+			<date type="published" when="2013" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b25">
+	<analytic>
+		<title level="a" type="main">Reasoning with neural tensor networks for knowledge base completion</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Richard</forename><surname>Socher</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Danqi</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">D</forename><surname>Christopher</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Andrew</forename><surname>Manning</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Ng</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Advances in Neural Information Processing Systems</title>
+		<imprint>
+			<date type="published" when="2013" />
+			<biblScope unit="page" from="926" to="934" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b26">
+	<monogr>
+				<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Fabian</forename><surname>Suchanek</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">James</forename><surname>Fan</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Raphael</forename><surname>Hoffmann</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Sebastian</forename><surname>Riedel</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Partha</forename><forename type="middle">Pratim</forename><surname>Talukdar</surname></persName>
+		</author>
+		<title level="m">Advances in automated knowledge base construction. SIGMOD Records journal</title>
+		<imprint>
+			<date type="published" when="2013-03" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b27">
+	<analytic>
+		<title level="a" type="main">Multi-instance multi-label learning for relation extraction</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Mihai</forename><surname>Surdeanu</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Julie</forename><surname>Tibshirani</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ramesh</forename><surname>Nallapati</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Christopher D</forename><surname>Manning</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2012 Joint Conference on Empirical Methods in Natural Language Processing and Computational Natural Language Learning</title>
+		<meeting>the 2012 Joint Conference on Empirical Methods in Natural Language Processing and Computational Natural Language Learning</meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2012" />
+			<biblScope unit="page" from="455" to="465" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b28">
+	<analytic>
+		<title level="a" type="main">Programming with personalized pagerank: A locally groundable first-order probabilistic logic</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">William Yang</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kathryn</forename><surname>Mazaitis</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">William</forename><forename type="middle">W</forename><surname>Cohen</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 22Nd ACM International Conference on Conference on Information &amp;#38; Knowledge Management, CIKM &apos;13</title>
+		<meeting>the 22Nd ACM International Conference on Conference on Information &amp;#38; Knowledge Management, CIKM &apos;13<address><addrLine>New York, NY, USA</addrLine></address></meeting>
+		<imprint>
+			<publisher>ACM</publisher>
+			<date type="published" when="2013" />
+			<biblScope unit="page" from="2129" to="2138" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b29">
+	<analytic>
+		<title level="a" type="main">Knowledge graph embedding by translating on hyperplanes</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Zhen</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jianwen</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jianlin</forename><surname>Feng</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Zheng</forename><surname>Chen</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the TwentyEighth AAAI Conference on Artificial Intelligence</title>
+		<meeting>the TwentyEighth AAAI Conference on Artificial Intelligence</meeting>
+		<imprint>
+			<date type="published" when="2014" />
+			<biblScope unit="page" from="1112" to="1119" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b30">
+	<analytic>
+		<title level="a" type="main">Knowledge base completion via search-based question answering</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Robert</forename><surname>West</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Evgeniy</forename><surname>Gabrilovich</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kevin</forename><surname>Murphy</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Shaohua</forename><surname>Sun</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Rahul</forename><surname>Gupta</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Dekang</forename><surname>Lin</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">WWW</title>
+		<imprint>
+			<date type="published" when="2014" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b31">
+	<analytic>
+		<title level="a" type="main">Connecting language and knowledge bases with embedding models for relation extraction</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jason</forename><surname>Weston</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Antoine</forename><surname>Bordes</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Oksana</forename><surname>Yakhnenko</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Nicolas</forename><surname>Usunier</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of EMNLP</title>
+		<meeting>EMNLP</meeting>
+		<imprint>
+			<date type="published" when="2013" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+				</listBibl>
+			</div>
+		</back>
+	</text>
+</TEI>

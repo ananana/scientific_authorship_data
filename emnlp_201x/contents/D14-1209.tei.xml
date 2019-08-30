@@ -1,0 +1,999 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<TEI xmlns="http://www.tei-c.org/ns/1.0" 
+xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+xsi:schemaLocation="http://www.tei-c.org/ns/1.0 /home/ana/installs/grobid/grobid-0.5.1/grobid-home/schemas/xsd/Grobid.xsd"
+ xmlns:xlink="http://www.w3.org/1999/xlink">
+	<teiHeader xml:lang="en">
+		<encodingDesc>
+			<appInfo>
+				<application version="0.5.1-SNAPSHOT" ident="GROBID" when="2019-04-18T11:54+0000">
+					<ref target="https://github.com/kermitt2/grobid">GROBID - A machine learning software for extracting information from scholarly documents</ref>
+				</application>
+			</appInfo>
+		</encodingDesc>
+		<fileDesc>
+			<titleStmt>
+				<title level="a" type="main">Search-Aware Tuning for Machine Translation</title>
+			</titleStmt>
+			<publicationStmt>
+				<publisher/>
+				<availability status="unknown"><licence/></availability>
+				<date>October 25-29, 2014</date>
+			</publicationStmt>
+			<sourceDesc>
+				<biblStruct>
+					<analytic>
+						<author>
+							<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Lemao</forename><surname>Liu</surname></persName>
+							<email>lemaoliu@gmail.com</email>
+							<affiliation key="aff0">
+								<orgName type="laboratory">Queens College and Graduate Center City University of New York</orgName>
+								<orgName type="institution">Queens College City University of New York</orgName>
+							</affiliation>
+						</author>
+						<author>
+							<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Liang</forename><surname>Huang</surname></persName>
+							<email>liang.huang.sh@gmail.com</email>
+							<affiliation key="aff0">
+								<orgName type="laboratory">Queens College and Graduate Center City University of New York</orgName>
+								<orgName type="institution">Queens College City University of New York</orgName>
+							</affiliation>
+						</author>
+						<title level="a" type="main">Search-Aware Tuning for Machine Translation</title>
+					</analytic>
+					<monogr>
+						<title level="m">Proceedings of the 2014 Conference on Empirical Methods in Natural Language Processing (EMNLP)</title>
+						<meeting>the 2014 Conference on Empirical Methods in Natural Language Processing (EMNLP) <address><addrLine>Doha, Qatar. c</addrLine></address>
+						</meeting>
+						<imprint>
+							<biblScope unit="page" from="1942" to="1952"/>
+							<date type="published">October 25-29, 2014</date>
+						</imprint>
+					</monogr>
+				</biblStruct>
+			</sourceDesc>
+		</fileDesc>
+		<profileDesc>
+			<abstract>
+				<p>Parameter tuning is an important problem in statistical machine translation, but surprisingly , most existing methods such as MERT, MIRA and PRO are agnostic about search, while search errors could severely degrade translation quality. We propose a search-aware framework to promote promising partial translations, preventing them from being pruned. To do so we develop two met-rics to evaluate partial derivations. Our technique can be applied to all of the three above-mentioned tuning methods, and extensive experiments on Chinese-to-English and English-to-Chinese translation show up to +2.6 BLEU gains over search-agnostic baselines.</p>
+			</abstract>
+		</profileDesc>
+	</teiHeader>
+	<text xml:lang="en">
+		<body>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="1">Introduction</head><p>Parameter tuning has been a key problem for ma- chine translation since the statistical revolution. However, most existing tuning algorithms treat the decoder as a black box <ref type="bibr" target="#b28">(Och, 2003;</ref><ref type="bibr" target="#b15">Hopkins and May, 2011;</ref><ref type="bibr" target="#b2">Chiang, 2012)</ref>, ignoring the fact that many potentially promising partial translations are pruned by the decoder due to the prohibitively large search space. For example, the popular beam-search decoding algorithm for phrase-based MT <ref type="bibr" target="#b22">(Koehn, 2004</ref>) only explores O(nb) items for a sentence of n words (with a beam width of b), while the full search space is O(2 n n 2 ) or worse <ref type="bibr" target="#b20">(Knight, 1999)</ref>.</p><p>As one of the very few exceptions to the "search-agnostic" majority, <ref type="bibr" target="#b35">Yu et al. (2013)</ref> and <ref type="bibr" target="#b37">Zhao et al. (2014)</ref> propose a variant of the per- ceptron algorithm that learns to keep the refer- ence translations in the beam or chart. How- ever, there are several obstacles that prevent their method from becoming popular: First of all, they rely on "forced decoding" to track gold derivations that lead to the reference translation, but in practice only a small portion of (mostly very short) sen- tence pairs have at least one such derivation. Sec- ondly, they learn the model on the training set, and while this does enable a sparse feature set, it is or- ders of magnitude slower compared to MERT and PRO.</p><p>We instead propose a very simple framework, search-aware tuning, which does not depend on forced decoding, and thus can be trained on all sen- tence pairs of any dataset. The key idea is that, besides caring about the rankings of the complete translations, we also promote potentially promis- ing partial translations so that they are more likely to survive throughout the search, see <ref type="figure" target="#fig_0">Figure 1</ref> for illustration. We make the following contributions:</p><p>• Our idea of search-aware tuning can be ap- plied (as a patch) to all of the three most popular tuning methods (MERT, PRO, and MIRA) by defining a modified objective func- tion (Section 4).</p><p>• To measure the "promise" or "potential" of a partial translation, we define a new concept "potential BLEU" inspired by future cost in MT decoding <ref type="bibr" target="#b22">(Koehn, 2004</ref>) and heuristics in A* search <ref type="bibr" target="#b14">(Hart et al., 1968</ref>) <ref type="bibr">(Section 3.2)</ref>. This work is the first study of evaluating met- rics for partial translations.</p><p>• Our method obtains substantial and consistent improvements on both the large-scale NIST Chinese-to-English and English-to-Chinese translation tasks on top of MERT, MIRA, and PRO baselines. This is the first time that con- sistent improvements can be achieved with a new learning algorithm under dense feature settings (Section 5).</p><p>For simplicity reasons, in this paper we use phrase-based translation, but our work has the po- tential to be applied to other translation paradigms.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2">Review: Beam Search for PBMT Decoding</head><p>We review beam search for phrase-based decoding in our notations which will facilitate the discussion of search-aware tuning in Section 4. Following <ref type="bibr" target="#b35">Yu et al. (2013)</ref>, let x, y be a Chinese-English sen- tence pair in the tuning set D, and</p><formula xml:id="formula_0">d = r 1 • r 2 • . . . • r |d|</formula><p>be a (partial) derivation, where each r i = c(r i ), e(r i ) is a rule, i.e., a phrase-pair. Let |c(r)| be the number of Chinese words in rule r, and</p><formula xml:id="formula_1">e(d) ∆ = e(r 1 ) • e(r 2 ) . . .</formula><p>• e(r |d| ) be the English prefix (i.e., partial translation) generated so far.</p><p>In beam search, each bin B i (x) contains the best k derivations covering exactly i Chinese words, based on items in previous bins (see Figures 1 and 2):</p><formula xml:id="formula_2">B 0 (x) = {} B i (x) = top k w 0 ( j=1..i {d • r | d ∈ B i−j (x), |c(r)| = j})</formula><p>where r is a rule covering j Chinese words, and top k w 0 (·) returns the top k derivations according to the current model w 0 . As a special case, note that top 1 </p><formula xml:id="formula_3">w 0 (S) = argmax d∈S w 0 · Φ(d), so top 1 w 0 (B |x| (x)) is</formula></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3">Challenge: Evaluating Partial Derivations</head><p>As mentioned in Section 1, the current mainstream tuning methods such as MERT, MIRA, and PRO are all search-agnostic: they only care about the com- plete translations from the last bin, B |x| (x), ignor- ing all partial ones, i.e., B i (x) for all i &lt; |x|. As a result, many potentially promising partial deriva- tions never reach the final bin (See <ref type="figure" target="#fig_0">Figure 1)</ref>.</p><formula xml:id="formula_4">0 1 2 3 4 B 0 (x) B 1 (x) B 2 (x) B 3 (x) B 4 (x)</formula><p>To address this problem, our new "search-aware tuning" aims to promote not only the accurate translations in the final bin, but more importantly those potentially promising partial derivations in non-final bins. The key challenge, however, is how to evaluate the "promise" or "potential" of a partial derivation. In this Section, we develop two such measures, a simple "partial BLEU" (Sec- tion 3.1) and a more principled "potential BLEU" (Section 3.2). In Section 4, we will then adapt tra- ditional tuning methods to their search-aware ver- sions using these partial evaluation metrics.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.1">Solution 1: Simple and Naive Partial BLEU</head><p>Inspired by a trick in ( <ref type="bibr" target="#b24">Li and Khudanpur, 2009)</ref> and <ref type="bibr" target="#b2">(Chiang, 2012)</ref> for oracle or hope extraction, we use a very simple metric to evaluate partial translations for tuning. For a given derivation d, the basic idea is to evaluate the (short) partial trans- lation e(d) against the (full) reference y, but using a "prorated" reference length proportional to c(d) which is the number of Chinese words covered so far in d:</p><formula xml:id="formula_5">|y| · |c(d)|/|x|</formula><p>For example, if d has covered 2 words on a 8- word Chinese sentence with a 12-word English reference, then the "effective reference length" is 12 × 2/8 = 3. We call this method "partial BLEU" since it does not complete the translation, and de- note it by</p><formula xml:id="formula_6">¯ δ |x| y (d) = −δ y, e(d); reflen = |y| · |c(d)|/|x| .<label>(1)</label></formula><p>δ(y, y ) = −Bleu +1 (y, y ) string distance metric where reflen is the effective length of reference translations, see (Papineni et al., <ref type="bibr">2002</ref>) for details.</p><formula xml:id="formula_7">δ y (d) = δ(y, e(d)) full derivations eval δ x y (d) = ¯ δ |x| y (d) partial bleu (Sec. 3.1) δ(y, ¯ e x (d)) potential bleu (Sec. 3.2)</formula></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.1.1">Problem with Partial BLEU</head><p>Simple as it is, this method does not work well in practice because comparison of partial derivations might be unfair for different derivations covering different set of Chinese words, as it will naturally favor those covering "easier" portions of the in- put sentence (which we do observe empirically). For instance, consider the following Chinese-to- English example which involves a reordering of the Chinese PP:</p><formula xml:id="formula_8">(2) wˇowˇo I cóng from ShànghˇShànghˇai Shanghai f¯ ei fly d` ao to Běij¯ ıng Beijing "I flew from Shanghai to Beijing"</formula><p>Partial BLEU will prefer subtranslation "I from" to "I fly" in bin 2 (covering 2 Chinese words) because the former has 2 unigram mathces while the latter only 1, even though the latter is almost identical to the reference and will eventually lead to a com- plete translation with substantially higher Bleu +1 score (matching a 4-gram "from Shanghai to Bei- jing"). Similarly, it will prefer "I from Shanghai" to "I fly from" in bin 3, without knowing that the former will eventually pay the price of word-order difference. This example suggests that we need a more "global" or less greedy metric (see below).</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.2">Solution 2: Potential BLEU via Extension</head><p>Inspired by future cost computation in MT decod- ing <ref type="bibr" target="#b22">(Koehn, 2004</ref>), we define a very simple fu- ture string by simply concatenating the best model- score translation (with no reorderings) in each un- covered span. Let best w (x <ref type="bibr">[i:j]</ref> ) denote the best monotonic derivation for span <ref type="bibr">[i : j]</ref>, then</p><formula xml:id="formula_9">future(d, x) = • [i:j]∈uncov (d,x) e(best w (x [i:j] ))</formula><p>where • is the concatenation operator and uncov <ref type="bibr">(d, x)</ref> returns an ordered list of uncovered spans of x. See <ref type="figure" target="#fig_3">Figure 3</ref> for an example. This fu- ture string resembles (inadmissible) heuristic func- tion ( <ref type="bibr" target="#b14">Hart et al., 1968)</ref>. Now the "extended trans- lation" is simply a concatenation of the exist- ing partial translation e(d) and the future string future <ref type="bibr">(d, x)</ref>:</p><formula xml:id="formula_10">e(d) future(d, x) x = ¯ e x (d) = monotonic reordering</formula><formula xml:id="formula_11">¯ e x (d) = e(d) • future(d, x).<label>(3)</label></formula><p>Instead of calculating best w (x <ref type="bibr">[i:j]</ref> ) on-the-fly for each derivation d, we can precompute it for each span [i : j] during future-cost computa- tion, since the score of best w (x <ref type="bibr">[i:j]</ref> ) is context- free <ref type="bibr" target="#b22">(Koehn, 2004</ref>). Algorithm 1 shows the pseudo-code of computing best w (x <ref type="bibr">[i:j]</ref> ). In prac- tice, since future-cost precomputation already solves the best (monotonic) model-score for each span, is the only extra work for potential BLEU is to record (for each span) the subtranslation that achieves that best score. Therefore, the extra time for potential BLEU is negligible (the time com- plexity is O(n 2 ), but just as in future cost, the con- stant is much smaller than real decoding). The im- plementation should require minimal hacking on a phrase-based decoder (such as Moses).</p><p>To summarize the notation, we use δ x y (d) to denote a generic evaluation function for par- tial derivation d, which could be instantiated in two ways, partial bleu ( ¯ δ <ref type="table" target="#tab_0">Table 1</ref> for details. The next Section will only use the generic notation δ x y (d). Finally, it is important to note that although both partial and potential metrics are not BLEU- specific, the latter is much easier to adapt to other metrics such as TER since it does not change the original Bleu +1 definition. By contrast, it is not clear to us at all how to generalize partial BLEU to partial TER.</p><formula xml:id="formula_12">|x| y (d)) or potential bleu (δ(y, ¯ e x (d))). See</formula></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Algorithm 1 Computation of best Translations for Potential BLEU.</head><p>Input: Source sentence x, a rule set for x, and w.</p><formula xml:id="formula_13">Output: Best translations e(best w (x[i : j])) for all spans [i : j]. 1: for l in (0..|x|) do 2: for i in (0..|x| − l) do 3: j = i + l + 1 4: best score = −∞ 5: if [i : j] = ∅ then [i : j] is a subset of rules for span [i : j]. 6: best w (x[i : j]) = argmax r∈∈[i:j] w · Φ({r})</formula><p>{r} is a derivation consisting of one rule r.</p><p>7:</p><formula xml:id="formula_14">best score = w · Φ(best w (x[i : j])) 8:</formula><p>for k in (i + 1 .. i + p) do p is the phrase length limit 9:</p><formula xml:id="formula_15">if best score &lt; w · Φ best w (x[i : k]) • best w (x[k : j]) then 10: best w (x[i : j]) = best w (x[i : k]) • best w (x[k : j]) 11: best score = w · Φ(best w (x[i : j]))</formula><p>on some translation metric (such as BLEU ( <ref type="bibr" target="#b29">Papineni et al., 2002)</ref>). In other words, for a train- ing sentence pair x, y, if a pair of its trans- lations</p><formula xml:id="formula_16">y 1 = e(d 1 ) and y 2 = e(d 2 ) satisfies BLEU(y, y 1 ) &gt; BLEU(y, y 2 ), then we expect w · Φ(d 1 ) &gt; w · Φ(d 2 )</formula><p>to hold after tuning.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.1">From MERT to Search-Aware MERT</head><p>Suppose D is a tuning set of x, y pairs. Tra- ditional MERT learns the weight by iteratively reranking the complete translations towards those with higher BLEU in the final bin B |x| (x) for each x in D. Formally, it tries to minimize the document-level error of 1-best translations:</p><formula xml:id="formula_17">MERT (D, w) = x,y∈D δ y top 1 w (B |x| (x)) ,<label>(4)</label></formula><p>where top 1 w (S) is the best derivation in S under model w, and δ · (·) is the full derivation metric as defined in <ref type="table" target="#tab_0">Table 1</ref>; in this paper we use δ y (y ) = −BLEU(y, y ). Here we follow <ref type="bibr" target="#b28">Och (2003)</ref> and <ref type="bibr" target="#b25">Lopez (2008)</ref> to simplify the notations, where the ⊕ operator (similar to ) is an over-simplification for BLEU which, as a document-level metric, is ac- tually not factorizable across sentences.</p><p>Besides reranking the complete translations as traditional MERT, our search-aware MERT (SA- MERT) also reranks the partial translations such that potential translations may survive in the mid- dle bins during search. Formally, its objective function is defined as follows:</p><formula xml:id="formula_18">SA-MERT (D, w) = x,y∈D i=1..|x| δ x y top 1 w ( B i (x))<label>(5)</label></formula><p>where top 1 w (·) is defined in Eq. <ref type="formula" target="#formula_17">(4)</ref>, and δ x y (d), defined in <ref type="table" target="#tab_0">Table 1</ref>, is the generic metric for eval- uating a partial derivation d which has two imple- mentations (partial bleu or potential bleu). In or- der words we can obtain two implementations of search-aware MERT methods, SA-MERT par and SA-MERT pot .</p><p>Notice that the traditional MERT is a special case of SA-MERT where i is fixed to |x|.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.2">From MIRA to Search-Aware MIRA</head><p>MIRA is another popular tuning method for SMT. It firstly introduced in ( <ref type="bibr" target="#b33">Watanabe et al., 2007)</ref>, and then was improved in ( <ref type="bibr" target="#b1">Chiang et al., 2008;</ref><ref type="bibr" target="#b2">Chiang, 2012;</ref><ref type="bibr" target="#b0">Cherry and Foster, 2012)</ref>. Its main idea is to optimize a weight such that the model score dif- ference of a pair of derivations is greater than their loss difference.</p><p>In this paper, we follow the objective function in <ref type="bibr" target="#b2">(Chiang, 2012;</ref><ref type="bibr" target="#b0">Cherry and Foster, 2012)</ref>, where only the violation between hope and fear deriva- tions is concerned. Formally, we define d + (x, y) and d − (x, y) as the hope and fear derivations in the final bin (i.e., complete derivations):</p><formula xml:id="formula_19">d + (x, y) = argmax d∈B |x| (x) w 0 · Φ(d) − δ y (d) (10) d − (x, y) = argmax d∈B |x| (x) w 0 · Φ(d) + δ y (d) (11)</formula><p>where w 0 is the current model. The loss function of MIRA is in <ref type="figure" target="#fig_4">Figure 4</ref>. The update will be be- tween d + (x, y) and d − (x, y).</p><p>To adapt MIRA to search-aware MIRA (SA- MIRA), we need to extend the definitions of hope </p><formula xml:id="formula_20">1 2C w−w 0 2 + x,y∈D ∆δ y d + (x, y), d − (x, y) −w·∆Φ d + (x, y), d − (x, y) + (6) SA-MIRA (D, w) = 1 2C w−w 0 2 + x,y∈D |x| i=1 ∆δ x y d + i (x, y), d − i (x, y) −w·∆Φ d + i (x, y), d − i (x, y) + (7) PRO (D, w) = x,y∈D d1,d2∈B |x| (x), ∆δy(d1,d2)&gt;0 log 1 + exp(−w·∆Φ(d 1 , d 2 )) (8) SA-PRO (D, w) = x,y∈D |x| i=1 d1,d2∈ B i (x), ∆δ x y (d1,d2)&gt;0 log 1 + exp(−w·∆Φ(d 1 , d 2 ))<label>(9)</label></formula><formula xml:id="formula_21">(d 1 , d 2 ) = δ y (d 1 ) − δ y (d 2 )</formula><p>, and</p><formula xml:id="formula_22">∆δ x y (d 1 , d 2 ) = δ x y (d 1 ) − δ x y (d 2 ). In addition, [θ] + = max{θ, 0}.</formula><p>and fear derivations from the final bin to all bins:</p><formula xml:id="formula_23">d + i (x, y) = argmax d∈ B i (x) w 0 · Φ(d) − δ y (d) (12) d − i (x, y) = argmax d∈ B i (x) w 0 · Φ(d) + δ y (d)<label>(13)</label></formula><p>The new loss function for SA-MIRA is Eq. 7 in <ref type="figure" target="#fig_4">Figure 4</ref>. Now instead of one update per sentence, we will perform |x| updates, each based on a pair d + i (x, y) and d − i (x, y).</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.3">From PRO to Search-Aware PRO</head><p>Finally, the PRO algorithm ( <ref type="bibr" target="#b15">Hopkins and May, 2011;</ref><ref type="bibr" target="#b13">Green et al., 2013</ref>) aims to correlate the ranking under model score and the ranking un- der BLEU score, among all complete derivations in the final bin. For each preference-pair</p><formula xml:id="formula_24">d 1 , d 2 ∈ B |x| (x) such that d 1 has a higher BLEU score than d 2 (i.e., δ y (d 1 ) &lt; δ y (d 2 )), we add one positive ex- ample Φ(d 1 ) − Φ(d 2 ) and one negative example Φ(d 2 ) − Φ(d 1 )</formula><p>. Now to adapt it to search-aware PRO (SA- PRO), we will have many more examples to con- sider: besides the final bin, we will include all preference-pairs in the non-final bins as well. For each bin B i (x), for each preference-pairs </p><formula xml:id="formula_25">d 1 , d 2 ∈ B i (x) such that d 1 has a higher partial or potential BLEU score than d 2 (i.e., δ x y (d 1 ) &lt; δ x y (d 2 )),</formula></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5">Experiments</head><p>We evaluate our new tuning methods on two large scale NIST translation tasks: Chinese-to-English (CH-EN) and English-to-Chinese (EN-CH) tasks.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.1">System Preparation and Data</head><p>We base our experiments on Cubit 2 <ref type="bibr" target="#b17">(Huang and Chiang, 2007)</ref>, a state-of-art phrase-based system in Python. We set phrase-limit to 7, beam size to 30 and distortion limit 6. We use the 11 dense features from Moses ( <ref type="bibr" target="#b21">Koehn et al., 2007)</ref>, which can lead to good performance and are widely used in almost all SMT systems. The baseline tuning methods MERT <ref type="bibr" target="#b28">(Och, 2003)</ref>   fault settings following Moses toolkit: for MERT and SA-MERT, the stop condition is defined by the weight difference threshold; for MIRA, SA-MIRA, PRO and SA-PRO, their stop condition is defined by max iteration set to 25; for all tuning methods, we use the final weight for testing. The training data for both CH-EN and EN-CH tasks is the same, and it is collected from the NIST2008 Open Machine Translation Campaign. It consists of about 1.8M sentence pairs, including about 40M/48M words in Chinese/English sides. For CH-EN task, the tuning set is nist02 (878 sents), and test sets are nist03 (919 sents), nist04 (1788 sents), nist05 (1082 sents), nist06 (616 sents from news portion) and nist08 (691 from news por- tion). For EN-CH task, the tuning set is ssmt07 (995 sents) <ref type="bibr">3</ref> , and the test set is nist08 (1859 sents). For both tasks, all the tuning and test sets contain 4 references.</p><note type="other">nist03 nist04 nist05 nist06 nist08 avg MERT 33.6 35.1 33.4 31.6 27.</note><formula xml:id="formula_26">9 - SA-MERT par -0.2 +0.0 +0.1 -0.1 -0.1 - SA-MERT pot +0.8 +1.1 +0.9 +1.7 +1.5 +1.2</formula><note type="other">MIRA 33.5 35.2 33.5 31.6 27.6 - SA-MIRA par +0.3 +0.3 +0.4 +0.4 +0.6 - SA-MIRA pot +1.3 +1.6 +1.4 +2.2 +2.6 +1.8 PRO 33.3 35.1 33.3 31.1 27.5 - * SA-PRO par -2.0 -2.7 -2.2 -1.0 -1.7 - * SA-PRO pot +0.8 +0.5 +1.0 +1.6 +1.6 +1.1</note><p>We use GIZA++ (Och and Ney, 2003) for word alignment, and SRILM <ref type="bibr" target="#b31">(Stolcke, 2002</ref>) for 4-gram language models with the Kneser-Ney smoothing option. The LM for EN-CH is trained on its target side; and that for CH-EN is trained on the Xin- hua portion of Gigaword. We use BLEU-4 ( <ref type="bibr" target="#b29">Papineni et al., 2002</ref>) with "average ref-len" to evalu- ate the translation performance for all experiments. In particular, the character-based BLEU-4 is em- ployed for EN-CH task. Since all tuning meth- ods involve randomness, all scores reported are av- erage of three runs, as suggested by Clark et al. (2011) for fairer comparisons. <ref type="table" target="#tab_1">Task   Table 2</ref> depicts the main results of our methods on CH-EN translation task. On all five test sets, our methods consistently achieve substantial improve- ments with two pruning options: SA-MERT pot gains +1.2 BLEU points over MERT on average; and SA-MIRA pot gains +1.8 BLEU points over MIRA on average as well. SA-PRO pot , however, does not work out of the box when we use the en- tire nist02 as the tuning set, which might be at- tributed to the "Monster" behavior ( <ref type="bibr" target="#b26">Nakov et al., 2013)</ref>. To alleviate this problem, we only use the 109 short sentences with less than 10 words from nist02 as our new tuning data. To our supurise, this trick works really well (despite using much less data), and also made SA-PRO pot an order of magnitude faster. This further confirms that our search-aware tuning is consistent across all tuning methods and datasets.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.2">Main Results on CH-EN</head><p>As discussed in Section 3, evaluation metrics of partial derivations are crucial for search-aware tuning. Besides the principled "potential BLEU" version of search-aware tuning (i.e. SA-MERT pot , SA-MIRA pot , and SA-PRO pot ), we also run the simple "partial BLEU" version of search-aware tuning (i.e. SA-MERT par , SA-MIRA par , and SA-  PRO par ). In <ref type="table" target="#tab_1">Table 2</ref>, we can see that they may achieve slight improvements over tradition tuning on some datasets, but SA-MERT pot , SA-MIRA pot , and SA-PRO pot using potential BLEU consistently outperform them on all the datasets. Even though our search-aware tuning gains sub- stantially on all test sets, it does not gain signif- icantly on nist02 tuning set. The main reason is that, search-aware tuning optimizes an objective (i.e. BLEU for all bins) which is different from the objective for evaluation (i.e. BLEU for the final bin), and thus it is not quite fair to evaluate the complete translations for search-aware tuning as the same done for traditional tuning on the tuning set. Actally, if we evaluate the potential BLEU for all partial translations, we find that search-aware tuning gains about 3.0 BLEU on nist02 tuning set, as shown in <ref type="table" target="#tab_2">Table 3</ref>.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.3">Analysis on CH-EN Task</head><p>Different beam size. Since our search-aware tun- ing considers the rankings of partial derivations in the middle bins besides complete ones in the last bin, ideally, if the weight learned by search- aware tuning can exactly evaluate partial deriva- Diversity nist02 nist05 MERT 0.216 0.204 SA-MERT 0.227 0.213 <ref type="table">Table 5</ref>: The diversity comparison based on the k-best list in the final bin on both tuning and nist05 test sets by tuning methods. The higher the metric is, the more diverse the k-best list is.</p><p>tions, then accurate partial derivations will rank higher according to model score. In this way, even with small beam size, these accurate partial deriva- tions may still survive in the bins. Therefore, it is expected that search-aware tuning can achieve good performance with smaller beam size. To justify our conjecture, we run SA-MERT pot with different beam size <ref type="bibr">(2,</ref><ref type="bibr">4,</ref><ref type="bibr">8,</ref><ref type="bibr">16,</ref><ref type="bibr">30,</ref><ref type="bibr">100)</ref>, its testing results on nist05 are depicted in <ref type="figure" target="#fig_7">Figure 5</ref>. our mehtods achieve better trade-off between perfor- mance and efficiey. <ref type="figure" target="#fig_7">Figure 5</ref> shows that search- aware tuning is consistent with all beam sizes, and as a by-product, search-aware MERT with a beam of 4 can achieve almost identical BLEU scores to MERT with beam of 16.</p><p>Oracle BLEU. In addition, we examine the BLEU ponits of oracle for MERT and SA-MERT. We use the weight tuned by MERT and SA-MERT for k-best decoding on nist05 test set, and calculate the oracle over these two k-best lists. The oracle BLEU comparison is shown in <ref type="table" target="#tab_3">Table 4</ref>. On nist05 test set, for MERT the oracle BLEU is 41.1; while for SA-MERT its oracle BLEU is 42.7, i.e. with 1.6 BLEU improvements. Although search-aware tun- ing employs the objective different from the objec- tive of evaluation on nist02 tuning set, it still gains 0.5 BLEU improvements.</p><p>Diversity. A k-best list with higher diversity can better represent the entire decoding space, and thus tuning on such a k-best list may lead to better tesing performance ( <ref type="bibr" target="#b11">Gimpel et al., 2013)</ref>. Intu- itively, tuning with all bins will encourage the di- versity in prefix, infix and suffix of complete trans- lations in the final bin. To testify this, we need a diversity metric.</p><p>Indeed, <ref type="bibr" target="#b11">Gimpel et al. (2013)</ref> define a diversity metric based on the n-gram matches between two sentences y and y as follows: </p><formula xml:id="formula_27">d(y, y ) = − |y|−q i=1 |y |−q j=1 [[y i:i+q = y j:j+q ]]</formula><note type="other">nist02-r 1 92 1173 31.6 32.7 31.3 29.3 25.9 SA-MERT pot nist02-r 1 92 1173 33.5 35.0 33.4 31.5</note><p>28.0 <ref type="table">Table 6</ref>: Comparisons with MAXFORCE in terms of BLEU. nist02-px is the non-trivial reachable prefix-data from nist02 via forced decoding; nist02-r is a subset of nist02-px consisting of the fully reachable data; train-r is a subset of fully reachable data from training data that is comparable in size to nist02. All experiments use only dense features.</p><p>where q = n − 1, and <ref type="bibr">[[x]</ref>] equals to 1 if x is true, 0 otherwise. This metric, however, has the following critical problems:</p><p>• it is not length-normalized: longer strings will look as if they are more different.</p><p>• it suffers from duplicates in n-grams. Af- ter normalization, d(y, y) will exceed -1 for any y. In the extreme case, consider y 1 = "the the the the" and y 2 = "the ... the" with 10 the's then will be considered identical af- ter normalization by length.</p><p>So we define a balanced metric based on their met- ric</p><formula xml:id="formula_28">d (y, y ) = 1 − 2 × d(y, y ) d(y, y) + d(y , y )</formula><p>which satisfies the following nice properties:</p><p>• d (y, y) = 0 for all y;</p><p>• 0 ≤ d (y, y ) ≤ 1 for all y, y ;</p><p>• d (y, y ) = 1 if y and y is completely dis- joint.</p><p>• it does not suffer from duplicates, and can dif- ferentiate y 1 and y 2 defined above.</p><p>With this new metric, we evaluate the diversity of k-best lists for both MERT and SA-MERT. As shown in <ref type="table">Table 5</ref>, on both tuning and test sets the k-best list generated by SA-MERT is more diverse.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.4">Comparison with Max-Violation Perceptron</head><p>Our method considers the rankings of partial derivations, which is simlar to MAXFORCE B` ushí yˇuyˇu Sh¯ alóng jˇuxíngjˇuxínghù ıtán Bush and Sharon held a meeting Bush held talks with Sharon qi¯ angshˇouangshˇou b` ei jˇıngf¯jˇıngf¯ ang j¯ ıb`ıb`ı police killed the gunman the gunman was shot dead ⇓ B` ushí yˇuyˇu Sh¯ alóng jˇuxíngjˇuxínghù ıtán Bush and Sharon held a meeting B` ushí yˇuyˇu Sh¯ alóng jˇuxíngjˇuxínghù ıtán Bush held talks with Sharon qi¯ angshˇouangshˇou b` ei jˇıngf¯jˇıngf¯ ang j¯ ıb`ıb`ı police killed the gunman qi¯ angshˇouangshˇou b` ei jˇıngf¯jˇıngf¯ ang j¯ ıb`ıb`ı the gunman was shot dead <ref type="figure">Figure 6</ref>: Transformation of a tuning set in forced de- coding for MAXFORCE: the original tuning set (on the top) contains 2 source sentences with 2 references for each; while the transformed set (on the bottom) con- tains 4 source sentences with one reference for each.</p><p>method ( <ref type="bibr" target="#b35">Yu et al., 2013)</ref>, and thus we re- implement MAXFORCE method. Since the nist02 tuning set contains 4 references and forced decod- ing is performed for only one reference, we enlarge the nist02 set to a variant set following the trans- formation in <ref type="figure">Figure 6</ref>, and obtain a variant tun- ing set denoted as nist02-px, which consists of 4- times sentence-pairs. On nist02-px, the non-trivial reachable prefix-data only accounts for 12% sen- tences and 7% words. Both these sentence-level and the word-level percentages are much lower than those on the training data as shown in Ta- ble 3 from ( <ref type="bibr" target="#b35">Yu et al., 2013)</ref>. This is because there are many OOV words on a tuning set. We run the MAXFORCE with dense feature setting on nist02- px and its testing results are shown in <ref type="table">Table 6</ref>. We can see that on all the test sets, its testing perfor- mance is lower than that of SA-MERT pot tuning on nist02 with about 5 BLEU points. For more direct comparisons, we run MERT and SA-MERT pot on a data set similar to nist02-px. We pick up the fully reachable sentences from nist02- px, remove the sentence pairs with the same source side, and get a new tuning set denoted as nist02-r. When tuning on nist02-r, we find that MERT is bet-Methods tuning-set nist08 MERT ssmt07 31.3 MAXFORCE train-r-part 29.9 SA-MERT par ssmt07 31.3 SA-MERT pot ssmt07 31.7 ter than MAXFORCE, 4 and SA-MERT pot are much better than MERT on all the test sets. In addition, we select about 1.2k fully reachable sentence pairs from training data, and run the forced decoding on this new tuning data (denoted as train-r-part), which is with similar size to nist02. 5 With more tuning data, the performance of max-violation is improved largely, but it is still underperformed by SA-MERT pot .</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.5">Results on EN-CH Translation Task</head><p>We also run our search-aware tuning method on EN-CH task. We use SA-MERT as the representa- tive of search-aware tuning methods, and compare its two versions with other tuning methods MERT, MAXFORCE. For MAXFORCE, we first run forced decoding on the training data and then select about 1.2k fully reachable sentence pairs as its tuning set (denoted as train-r-part). For MERT, SA- MERT pot , and SA-MERT par , their tuning set is ssmt07. <ref type="table" target="#tab_5">Table 7</ref> shows that SA-MERT pot is much better than MAXFORCE, i.e. it achieves 0.4 BLEU improvements over MERT. Finally, comparison between SA-MERT pot and SA-MERT par shows that the potential BLEU is better for evaluation of partial derivations.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.6">Discussions on Tuning Efficiency</head><p>As shown in <ref type="figure" target="#fig_2">Figure 2</ref>, search-aware tuning consid- ers all partial translations in the middle bins beside all complete translations in the last bin, and thus its total number of training examples is much greater than that of the traditional tuning. In details, sup- 4 Under the dense feature setting, MAXFORCE is worse than standard MERT. This result is consistent with that in <ref type="figure" target="#fig_0">Figure 12</ref> of ( <ref type="bibr" target="#b35">Yu et al., 2013)</ref>. <ref type="bibr">5</ref> We run MAXFORCE on train-r-part, i.e. a part of reach- able data instead of the entire reachable data, as we found that more tuning data does not necessarily lead to better test- ing performance under dense feature setting in our internal experiments.</p><p>Optimization <ref type="table" target="#tab_1">time MERT MIRA PRO  basline  3  2  2  search-aware  50  7  6   Table 8</ref>: Search-aware tuning slows down MERT sig- nificantly, and MIRA and PRO moderately. The time (in minutes) is for optimization only (excluding decoding) and measured at the last iteration during the entire tun- ing (search aware tuning does not increase the number of iterations in our experiments). The decoding time is 20 min. on a single CPU but can be parallelized.</p><p>pose the tuning data consists of two sentences with length 10 and 30, respectively. Then, for tradi- tional tuning its number of training examples is 2; but for search-aware tuning, the total number is 40. More training examples makes our search-aware tuning slower than the traditional tuning. <ref type="table">Table 8</ref> shows the training time comparisons between search-aware tuning and the traditional tuning. From this <ref type="table">Table,</ref> one can see that both SA-MIRA and SA-PRO are with the same order of magtitude as MIRA and PRO; but SA-MERT is much slower than MERT. The main reason is that, as the training examples increase dramati- cally, the envelope calculation for exact line search (see <ref type="bibr" target="#b28">(Och, 2003)</ref>) in MERT is less efficient than the update based on (sub-)gradient with inexact line search in MIRA and PRO.</p><p>One possible solution to speed up SA-MERT is the parallelization but we leave it for future work.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6">Related Work</head><p>Many tuning methods have been proposed for SMT so far. These methods differ by the ob- jective function or training mode: their objective functions are based on either evaluation-directed loss <ref type="bibr" target="#b28">(Och, 2003;</ref><ref type="bibr" target="#b7">Galley and Quirk, 2011;</ref><ref type="bibr" target="#b8">Galley et al., 2013</ref>) or surrogate loss ( <ref type="bibr" target="#b15">Hopkins and May, 2011;</ref><ref type="bibr" target="#b10">Gimpel and Smith, 2012;</ref><ref type="bibr" target="#b5">Eidelman et al., 2013)</ref>; they are either batch <ref type="bibr" target="#b28">(Och, 2003;</ref><ref type="bibr" target="#b15">Hopkins and May, 2011;</ref><ref type="bibr" target="#b0">Cherry and Foster, 2012)</ref> or online mode <ref type="bibr" target="#b34">(Watanabe, 2012;</ref><ref type="bibr" target="#b30">Simianer et al., 2012;</ref><ref type="bibr" target="#b6">Flanigan et al., 2013;</ref><ref type="bibr" target="#b13">Green et al., 2013)</ref>. These methods share a common characteristic: they learn a weight by iteratively reranking a set of complete translations represented by k-best <ref type="bibr" target="#b28">(Och, 2003;</ref><ref type="bibr" target="#b33">Watanabe et al., 2007;</ref><ref type="bibr" target="#b1">Chiang et al., 2008)</ref> or lattice (hypergraph) ( <ref type="bibr" target="#b32">Tromble et al., 2008;</ref><ref type="bibr" target="#b23">Kumar et al., 2009</ref>), and they do not care about search errors that potential partial translations may be pruned during decoding, even if they agree with that their decoders are built on the beam pruning based search.</p><p>On the other hand, it is well-known that search errors can undermine the standard training for many beam search based NLP systems <ref type="bibr" target="#b19">(Huang et al., 2012)</ref>. As a result, <ref type="bibr" target="#b4">Collins and Roark (2004)</ref> and <ref type="bibr" target="#b19">Huang et al. (2012)</ref> propose the early-update and max-violation update to deal with the search errors. Their idea is to update on prefix or par- tial hypotheses when the correct solution falls out of the beam. This idea has been successfully used in many NLP tasks and improves the perfor- mance over the state-of-art NLP systems <ref type="bibr" target="#b18">(Huang and Sagae, 2010;</ref><ref type="bibr" target="#b19">Huang et al., 2012;</ref><ref type="bibr" target="#b36">Zhang et al., 2013)</ref>. <ref type="bibr" target="#b12">Goldberg and Nivre (2012)</ref> propose the concept of "dynamic oracle" which is the absolute best po- tential of a partial derivation, and is more akin to a strictly admissible heuristic. This idea inspired and is closely related to our potential BLEU, except that in our case, computing an admissible heuristic is too costly, so our potential BLEU is more like an average potential. <ref type="bibr" target="#b9">Gesmundo and Henderson (2014)</ref> also consider the rankings between partial translation pairs as well. However, they evaluate a partial translation through extending it to a complete translation by re-decoding, and thus they need many passes of decoding for many partial translations, while ours only need one pass of decoding for all partial trans- lations and thus is much more efficient. In sum- mary, our tuning framework is more general and has potential to be employed over all the state-of- art tuning methods mentioned above, even though ours is only tested on three popular methods.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="7">Conclusions and Future Work</head><p>We have presented a simple yet powerful approach of "search-aware tuning" by promoting promising partial derivations, and this idea can be applied to all three popular tuning methods. To solve the key challenge of evaluating partial derivations, we de- velop a concept of "potential BLEU" inspired by future cost in MT decoding. Extensive experi- ments confirmed substantial BLEU gains with only dense features. We believe our framework can be applied to sparse feature settings and other transla- tion paradigms, and potentially to other structured prediction problems (such as incremental parsing) as well.</p></div><figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_0"><head>Figure 1 :</head><label>1</label><figDesc>Figure 1: (a) Some potentially promising partial translations (in red) fall out of the beam (bin 2); (b) We identify such partial translations and assign them higher model scores so that they are more likely to survive the search.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_1"><head></head><label></label><figDesc>the final 1-best result. 1 See Fig- ure 2 for an illustration.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_2"><head>Figure 2 :</head><label>2</label><figDesc>Figure 2: Beam search for phrase-based decoding. The item in red is top 1 w0 (B 4 (x)), i.e., the 1-best result. Traditional tuning only uses the final bin B 4 (x) while search-aware tuning considers all bins B i (x) (i = 1..4).</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_3"><head>Figure 3 :</head><label>3</label><figDesc>Figure 3: Example of the extension function ¯ e x (·) (and future string) on an incomplete derivation d.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_4"><head>Figure 4 :</head><label>4</label><figDesc>Figure 4: Loss functions of MIRA, SA-MIRA, PRO, and SA-PRO. The differences between traditional and searchaware versions are highlighted in gray. The hope and fear derivations are defined in Equations 10-13, and we define ∆δ y (d 1 , d 2 ) = δ y (d 1 ) − δ y (d 2 ), and ∆δ x y (d 1 , d 2 ) = δ x y (d 1 ) − δ x y (d 2 ). In addition, [θ] + = max{θ, 0}.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_5"><head></head><label></label><figDesc>we add one positive example Φ(d 1 ) − Φ(d 2 ) and one negative example Φ(d 2 ) − Φ(d 1 ). In sum, search- aware PRO has |x| times more examples than tradi- tional PRO. The loss functions of PRO and search- aware PRO are defined in Figure 4.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_6"><head></head><label></label><figDesc>, MIRA (Cherry and Foster, 2012), and PRO (Hopkins and May, 2011) are from the Moses toolkit, which are batch tuning methods based on k-best translations. The search- aware tuning methods are called SA-MERT, SA- MIRA, and SA-PRO, respectively. Their partial BLEU versions are marked with superscript 1 and their potential BLEU versions are marked with su- perscript 2 , as explained in Section 3. All these search-aware tuning methods are implemented on the basis of Moses toolkit. They employ the de-Methods</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_7"><head>Figure 5 :</head><label>5</label><figDesc>Figure 5: BLEU scores against beam size on nist05. Our search-aware tuning can achieve (almost) the same BLEU scores with much smaller beam size (beam of 4 vs. 16). methods nist02 nist05 1-best MERT 35.5 33.4 SA-MERT-0.1 +0.9 Oracle MERT 44.3 41.1 SA-MERT +0.5 +1.6</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_0" validated="false"><head>Table 1 :</head><label>1</label><figDesc></figDesc><table>Notations for evaluating full and partial deriva-
+tions. Functions ¯ 
+δ 
+
+|x| 
+
+y (·) and ¯ 
+e x (·) are defined by Equa-
+tions 1 and 3, respectively. 
+
+</table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_1" validated="false"><head>Table 2 :</head><label>2</label><figDesc></figDesc><table>CH-EN task: BLEU scores on test sets (nist03, nist04, nist05, nist06, and nist08). par : partial BLEU; pot : 
+potential BLEU.  *  : SA-PRO tunes on only 109 short sentences (with less than 10 words) from nist02. 
+
+Final bin All bins 
+MERT 
+35.5 
+28.2 
+SA-MERT 
+-0.1 
++3.1 
+
+</table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_2" validated="false"><head>Table 3 :</head><label>3</label><figDesc>Evaluation on nist02 tuning set using two methods: BLEU is used to evaluate 1-best complete translations in the final bin; while potential BLEU is used to evaluate 1-best partial translations in all bins. The search-aware objective cares about (the potential of) all bins, not just the final bin, which can explain this result.</figDesc><table></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_3" validated="false"><head>Table 4 :</head><label>4</label><figDesc></figDesc><table>The k-best oracle BLEU comparison between 
+MERT and SA-MERT. 
+
+</table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_5" validated="false"><head>Table 7 : EN-CH task: BLEU scores on nist08 test set for</head><label>7</label><figDesc></figDesc><table>MERT, SA-MERT, and MAXFORCE on different tun-
+ing sets. train-r-part is a part of fully reachable data 
+from training data via forced decoding. All the tuning 
+methods run with dense feature set. 
+
+</table></figure>
+
+			<note place="foot" n="1"> Actually B |x| (x) is an approximation to the k-best list since some derivations are merged by dynamic programming; to recover those we can use Alg. 3 of Huang and Chiang (2005).</note>
+
+			<note place="foot" n="4"> Search-Aware MERT, MIRA, and PRO Parameter tuning aims to optimize the weight vector w so that the rankings based on model score defined by w is positively correlated with those based</note>
+
+			<note place="foot" n="2"> http://www.cis.upenn.edu/ ˜ lhuang3/cubit/</note>
+
+			<note place="foot" n="3"> On EN-CH task, there is only one test set available for us, and thus we use ssmt07 as the tuning set, which is provided at the Third Symposium on Statistical Machine Translation (http://mitlab.hit.edu.cn/ssmt2007.html).</note>
+		</body>
+		<back>
+
+			<div type="acknowledgement">
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Acknowledgements</head><p>We thank the three anonymous reviewers for sug-gestions, and Kai Zhao and Feifei Zhai for dis-cussions. In particular, we thank reviewer #3 and Chin-Yew Lin for pushing us to think about di-versity. This project was supported by DARPA FA8750-13-2-0041 (DEFT), NSF IIS-1449278, a Google Faculty Research Award, and a PSC-CUNY Award.</p></div>
+			</div>
+
+			<div type="references">
+
+				<listBibl>
+
+<biblStruct xml:id="b0">
+	<analytic>
+		<title level="a" type="main">Batch tuning strategies for statistical machine translation</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Colin</forename><surname>Cherry</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">George</forename><surname>Foster</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of NAACL-HLT</title>
+		<meeting>NAACL-HLT<address><addrLine>Montréal, Canada</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2012-06" />
+			<biblScope unit="page" from="427" to="436" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b1">
+	<analytic>
+		<title level="a" type="main">Online large-margin training of syntactic and structural translation features</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">David</forename><surname>Chiang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yuval</forename><surname>Marton</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Philip</forename><surname>Resnik</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of EMNLP</title>
+		<meeting>EMNLP</meeting>
+		<imprint>
+			<date type="published" when="2008" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b2">
+	<analytic>
+		<title level="a" type="main">Hope and fear for discriminative training of statistical translation models</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">David</forename><surname>Chiang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">J. Machine Learning Research</title>
+		<imprint>
+			<biblScope unit="volume">13</biblScope>
+			<biblScope unit="page" from="1159" to="1187" />
+			<date type="published" when="2012" />
+			<publisher>JMLR</publisher>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b3">
+	<analytic>
+		<title level="a" type="main">Better hypothesis testing for statistical machine translation: Controlling for optimizer instability</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jonathan</forename><forename type="middle">H</forename><surname>Clark</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Chris</forename><surname>Dyer</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Alon</forename><surname>Lavie</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Noah</forename><forename type="middle">A</forename><surname>Smith</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. of ACL</title>
+		<meeting>of ACL</meeting>
+		<imprint>
+			<date type="published" when="2011" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b4">
+	<analytic>
+		<title level="a" type="main">Incremental parsing with the perceptron algorithm</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Michael</forename><surname>Collins</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Brian</forename><surname>Roark</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of ACL</title>
+		<meeting>ACL</meeting>
+		<imprint>
+			<date type="published" when="2004" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b5">
+	<analytic>
+		<title level="a" type="main">Online relative margin maximization for statistical machine translation</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Vladimir</forename><surname>Eidelman</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yuval</forename><surname>Marton</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Philip</forename><surname>Resnik</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of ACL</title>
+		<meeting>ACL<address><addrLine>Sofia, Bulgaria</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2013-08" />
+			<biblScope unit="page" from="1116" to="1126" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b6">
+	<analytic>
+		<title level="a" type="main">Large-scale discriminative training for statistical machine translation using held-out line search</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jeffrey</forename><surname>Flanigan</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Chris</forename><surname>Dyer</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jaime</forename><surname>Carbonell</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of NAACL-HLT</title>
+		<meeting>NAACL-HLT<address><addrLine>Georgia</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2013-06" />
+			<biblScope unit="page" from="248" to="258" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b7">
+	<analytic>
+		<title level="a" type="main">Optimal search for minimum error rate training</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Michel</forename><surname>Galley</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Chris</forename><surname>Quirk</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of EMNLP</title>
+		<meeting>EMNLP<address><addrLine>Edinburgh, Scotland, UK.</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2011-07" />
+			<biblScope unit="page" from="38" to="49" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b8">
+	<analytic>
+		<title level="a" type="main">Regularized minimum error rate training</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Michel</forename><surname>Galley</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Chris</forename><surname>Quirk</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Colin</forename><surname>Cherry</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kristina</forename><surname>Toutanova</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of EMNLP</title>
+		<meeting>EMNLP<address><addrLine>Seattle, Washington, USA</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2013-10" />
+			<biblScope unit="page" from="1948" to="1959" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b9">
+	<analytic>
+		<title level="a" type="main">Undirected machine translation with discriminative reinforcement learning</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Andrea</forename><surname>Gesmundo</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">James</forename><surname>Henderson</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 14th Conference of the European Chapter</title>
+		<meeting>the 14th Conference of the European Chapter</meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2014-04" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b10">
+	<analytic>
+		<title level="a" type="main">Structured ramp loss minimization for machine translation</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kevin</forename><surname>Gimpel</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Noah</forename><forename type="middle">A</forename><surname>Smith</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of NAACL-HLT</title>
+		<meeting>NAACL-HLT<address><addrLine>Montréal, Canada</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2012-06" />
+			<biblScope unit="page" from="221" to="231" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b11">
+	<analytic>
+		<title level="a" type="main">A systematic exploration of diversity in machine translation</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kevin</forename><surname>Gimpel</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Dhruv</forename><surname>Batra</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Chris</forename><surname>Dyer</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Gregory</forename><surname>Shakhnarovich</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2013 Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>the 2013 Conference on Empirical Methods in Natural Language Processing</meeting>
+		<imprint>
+			<date type="published" when="2013-10" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b12">
+	<analytic>
+		<title level="a" type="main">Training deterministic parsers with non-deterministic oracles</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yoav</forename><surname>Goldberg</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Joakim</forename><surname>Nivre</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of COLING 2012</title>
+		<meeting>COLING 2012</meeting>
+		<imprint>
+			<date type="published" when="2012" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b13">
+	<analytic>
+		<title level="a" type="main">Fast and adaptive online training of feature-rich translation models</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Spence</forename><surname>Green</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Sida</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Daniel</forename><surname>Cer</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Christopher</forename><surname>Manning</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. of ACL</title>
+		<meeting>of ACL</meeting>
+		<imprint>
+			<date type="published" when="2013" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b14">
+	<analytic>
+		<title level="a" type="main">A formal basis for the heuristic determination of minimum cost paths</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">P</forename><forename type="middle">E</forename><surname>Hart</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">N</forename><forename type="middle">J</forename><surname>Nilsson</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">B</forename><surname>Raphael</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">IEEE Transactions on Systems Science and Cybernetics</title>
+		<imprint>
+			<biblScope unit="volume">4</biblScope>
+			<biblScope unit="issue">2</biblScope>
+			<biblScope unit="page" from="100" to="107" />
+			<date type="published" when="1968" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b15">
+	<analytic>
+		<title level="a" type="main">Tuning as ranking</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Mark</forename><surname>Hopkins</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jonathan</forename></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of EMNLP</title>
+		<meeting>EMNLP</meeting>
+		<imprint>
+			<date type="published" when="2011-05" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b16">
+	<analytic>
+		<title level="a" type="main">Better k-best Parsing</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Liang</forename><surname>Huang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">David</forename><surname>Chiang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Ninth International Workshop on Parsing Technologies (IWPT-2005)</title>
+		<meeting>the Ninth International Workshop on Parsing Technologies (IWPT-2005)</meeting>
+		<imprint>
+			<date type="published" when="2005" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b17">
+	<analytic>
+		<title level="a" type="main">Forest rescoring: Fast decoding with integrated language models</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Liang</forename><surname>Huang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">David</forename><surname>Chiang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of ACL</title>
+		<meeting>ACL<address><addrLine>Prague, Czech Rep</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2007-06" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b18">
+	<analytic>
+		<title level="a" type="main">Dynamic programming for linear-time incremental parsing</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Liang</forename><surname>Huang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kenji</forename><surname>Sagae</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of ACL 2010</title>
+		<meeting>ACL 2010</meeting>
+		<imprint>
+			<date type="published" when="2010" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b19">
+	<analytic>
+		<title level="a" type="main">Structured perceptron with inexact search</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Liang</forename><surname>Huang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Suphan</forename><surname>Fayong</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yang</forename><surname>Guo</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of NAACL</title>
+		<meeting>NAACL</meeting>
+		<imprint>
+			<date type="published" when="2012" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b20">
+	<analytic>
+		<title level="a" type="main">Decoding complexity in wordreplacement translation models</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kevin</forename><surname>Knight</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Computational Linguistics</title>
+		<imprint>
+			<biblScope unit="volume">25</biblScope>
+			<biblScope unit="issue">4</biblScope>
+			<biblScope unit="page" from="607" to="615" />
+			<date type="published" when="1999" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b21">
+	<analytic>
+		<title level="a" type="main">Moses: open source toolkit for statistical machine translation</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">P</forename><surname>Koehn</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">H</forename><surname>Hoang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">A</forename><surname>Birch</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">C</forename><surname>Callison-Burch</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">M</forename><surname>Federico</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">N</forename><surname>Bertoldi</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">B</forename><surname>Cowan</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">W</forename><surname>Shen</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">C</forename><surname>Moran</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">R</forename><surname>Zens</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">C</forename><surname>Dyer</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">O</forename><surname>Bojar</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">A</forename><surname>Constantin</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">E</forename><surname>Herbst</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of ACL: Demonstrations</title>
+		<meeting>ACL: Demonstrations</meeting>
+		<imprint>
+			<date type="published" when="2007" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b22">
+	<analytic>
+		<title level="a" type="main">Pharaoh: a beam search decoder for phrase-based statistical machine translation models</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Philipp</forename><surname>Koehn</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of AMTA</title>
+		<meeting>AMTA</meeting>
+		<imprint>
+			<date type="published" when="2004" />
+			<biblScope unit="page" from="115" to="124" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b23">
+	<analytic>
+		<title level="a" type="main">Efficient minimum error rate training and minimum bayes-risk decoding for translation hypergraphs and lattices</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Shankar</forename><surname>Kumar</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Wolfgang</forename><surname>Macherey</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Chris</forename><surname>Dyer</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Franz</forename><surname>Och</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of ACL-IJCNLP</title>
+		<meeting>ACL-IJCNLP<address><addrLine>Suntec, Singapore</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2009-08" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b24">
+	<analytic>
+		<title level="a" type="main">Efficient extraction of oracle-best translations from hypergraphs</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Zhifei</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Sanjeev</forename><surname>Khudanpur</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of HLT-NAACL</title>
+		<meeting>HLT-NAACL<address><addrLine>Short Papers</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2009" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b25">
+	<analytic>
+		<title level="a" type="main">Statistical machine translation</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Adam</forename><surname>Lopez</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">ACM Comput. Surv</title>
+		<imprint>
+			<biblScope unit="volume">40</biblScope>
+			<biblScope unit="issue">3</biblScope>
+			<date type="published" when="2008" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b26">
+	<analytic>
+		<title level="a" type="main">A tale about pro and monsters</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Preslav</forename><surname>Nakov</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Francisco</forename><surname>Guzmn</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Stephan</forename><surname>Voge</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of ACL Short Papers</title>
+		<meeting>ACL Short Papers</meeting>
+		<imprint>
+			<date type="published" when="2013" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b27">
+	<analytic>
+		<title level="a" type="main">A systematic comparison of various statistical alignment models</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Josef</forename><surname>Franz</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Hermann</forename><surname>Och</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Ney</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Comput. Linguist</title>
+		<imprint>
+			<biblScope unit="volume">29</biblScope>
+			<biblScope unit="issue">1</biblScope>
+			<biblScope unit="page" from="19" to="51" />
+			<date type="published" when="2003-03" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b28">
+	<analytic>
+		<title level="a" type="main">Minimum error rate training in statistical machine translation</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Franz Joseph</forename><surname>Och</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of ACL</title>
+		<meeting>ACL</meeting>
+		<imprint>
+			<date type="published" when="2003" />
+			<biblScope unit="page" from="160" to="167" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b29">
+	<analytic>
+		<title level="a" type="main">Bleu: a method for automatic evaluation of machine translation</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kishore</forename><surname>Papineni</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Salim</forename><surname>Roukos</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Todd</forename><surname>Ward</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Weijing</forename><surname>Zhu</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of ACL</title>
+		<meeting>ACL<address><addrLine>Philadephia, USA</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2002-07" />
+			<biblScope unit="page" from="311" to="318" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b30">
+	<analytic>
+		<title level="a" type="main">Joint feature selection in distributed stochastic learning for large-scale discriminative training in smt</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Patrick</forename><surname>Simianer</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Stefan</forename><surname>Riezler</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Chris</forename><surname>Dyer</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of ACL</title>
+		<meeting>ACL<address><addrLine>Jeju Island</addrLine></address></meeting>
+		<imprint>
+			<publisher>Korea</publisher>
+			<date type="published" when="2012-07" />
+			<biblScope unit="page" from="11" to="21" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b31">
+	<analytic>
+		<title level="a" type="main">Srilm-an extensible language modeling toolkit</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Andreas</forename><surname>Stolcke</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of ICSLP</title>
+		<meeting>ICSLP</meeting>
+		<imprint>
+			<date type="published" when="2002" />
+			<biblScope unit="volume">30</biblScope>
+			<biblScope unit="page" from="901" to="904" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b32">
+	<analytic>
+		<title level="a" type="main">Lattice Minimum BayesRisk decoding for statistical machine translation</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Roy</forename><surname>Tromble</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Shankar</forename><surname>Kumar</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Franz</forename><surname>Och</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Wolfgang</forename><surname>Macherey</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of EMNLP</title>
+		<meeting>EMNLP<address><addrLine>Honolulu, Hawaii</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2008-10" />
+			<biblScope unit="page" from="620" to="629" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b33">
+	<analytic>
+		<title level="a" type="main">Online large-margin training for statistical machine translation</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Taro</forename><surname>Watanabe</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jun</forename><surname>Suzuki</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Hajime</forename><surname>Tsukada</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Hideki</forename><surname>Isozaki</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of EMNLP-CoNLL</title>
+		<meeting>EMNLP-CoNLL</meeting>
+		<imprint>
+			<date type="published" when="2007" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b34">
+	<analytic>
+		<title level="a" type="main">Optimized online rank learning for machine translation</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Taro</forename><surname>Watanabe</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of NAACLHLT</title>
+		<meeting>NAACLHLT<address><addrLine>Montréal, Canada</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2012-06" />
+			<biblScope unit="page" from="253" to="262" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b35">
+	<analytic>
+		<title level="a" type="main">Max-violation perceptron and forced decoding for scalable mt training</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Heng</forename><surname>Yu</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Liang</forename><surname>Huang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Haitao</forename><surname>Mi</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kai</forename><surname>Zhao</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of EMNLP 2013</title>
+		<meeting>EMNLP 2013</meeting>
+		<imprint>
+			<date type="published" when="2013" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b36">
+	<analytic>
+		<title level="a" type="main">Online learning with inexact hypergraph search</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Hao</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Liang</forename><surname>Huang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kai</forename><surname>Zhao</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ryan</forename><surname>Mcdonald</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of EMNLP 2013</title>
+		<meeting>EMNLP 2013</meeting>
+		<imprint>
+			<date type="published" when="2013" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b37">
+	<analytic>
+		<title level="a" type="main">Hierarchical mt training using maxviolation perceptron</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kai</forename><surname>Zhao</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Liang</forename><surname>Huang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Haitao</forename><surname>Mi</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Abe</forename><surname>Ittycheriah</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of ACL</title>
+		<meeting>ACL<address><addrLine>Baltimore, Maryland</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2014-06" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+				</listBibl>
+			</div>
+		</back>
+	</text>
+</TEI>

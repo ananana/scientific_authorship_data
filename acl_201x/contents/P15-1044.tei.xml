@@ -1,0 +1,1080 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<TEI xmlns="http://www.tei-c.org/ns/1.0" 
+xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+xsi:schemaLocation="http://www.tei-c.org/ns/1.0 /home/ana/installs/grobid/grobid-0.5.1/grobid-home/schemas/xsd/Grobid.xsd"
+ xmlns:xlink="http://www.w3.org/1999/xlink">
+	<teiHeader xml:lang="en">
+		<encodingDesc>
+			<appInfo>
+				<application version="0.5.1-SNAPSHOT" ident="GROBID" when="2019-04-18T12:20+0000">
+					<ref target="https://github.com/kermitt2/grobid">GROBID - A machine learning software for extracting information from scholarly documents</ref>
+				</application>
+			</appInfo>
+		</encodingDesc>
+		<fileDesc>
+			<titleStmt>
+				<title level="a" type="main">Training a Natural Language Generator From Unaligned Data</title>
+			</titleStmt>
+			<publicationStmt>
+				<publisher>Association for Computational Linguistics</publisher>
+				<availability status="unknown"><p>Copyright Association for Computational Linguistics</p>
+				</availability>
+				<date>July 26-31, 2015. 2015</date>
+			</publicationStmt>
+			<sourceDesc>
+				<biblStruct>
+					<analytic>
+						<author>
+							<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ondřej</forename><surname>Dušek</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="department">Faculty of Mathematics and Physics Institute of Formal and Applied Linguistics</orgName>
+								<orgName type="institution">Charles University</orgName>
+								<address>
+									<addrLine>Malostranské náměstí 25</addrLine>
+									<postCode>CZ-11800</postCode>
+									<settlement>Prague, Prague</settlement>
+									<country key="CZ">Czech Republic</country>
+								</address>
+							</affiliation>
+						</author>
+						<author>
+							<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Filip</forename><surname>Jurčíček</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="department">Faculty of Mathematics and Physics Institute of Formal and Applied Linguistics</orgName>
+								<orgName type="institution">Charles University</orgName>
+								<address>
+									<addrLine>Malostranské náměstí 25</addrLine>
+									<postCode>CZ-11800</postCode>
+									<settlement>Prague, Prague</settlement>
+									<country key="CZ">Czech Republic</country>
+								</address>
+							</affiliation>
+						</author>
+						<title level="a" type="main">Training a Natural Language Generator From Unaligned Data</title>
+					</analytic>
+					<monogr>
+						<title level="m">Proceedings of the 53rd Annual Meeting of the Association for Computational Linguistics and the 7th International Joint Conference on Natural Language Processing</title>
+						<meeting>the 53rd Annual Meeting of the Association for Computational Linguistics and the 7th International Joint Conference on Natural Language Processing <address><addrLine>Beijing, China</addrLine></address>
+						</meeting>
+						<imprint>
+							<publisher>Association for Computational Linguistics</publisher>
+							<biblScope unit="page" from="451" to="461"/>
+							<date type="published">July 26-31, 2015. 2015</date>
+						</imprint>
+					</monogr>
+				</biblStruct>
+			</sourceDesc>
+		</fileDesc>
+		<profileDesc>
+			<abstract>
+				<p>We present a novel syntax-based natural language generation system that is train-able from unaligned pairs of input meaning representations and output sentences. It is divided into sentence planning, which incrementally builds deep-syntactic dependency trees, and surface realization. Sentence planner is based on A* search with a perceptron ranker that uses novel differing subtree updates and a simple future promise estimation; surface realization uses a rule-based pipeline from the Treex NLP toolkit. Our first results show that training from unaligned data is feasible, the outputs of our generator are mostly fluent and relevant .</p>
+			</abstract>
+		</profileDesc>
+	</teiHeader>
+	<text xml:lang="en">
+		<body>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="1">Introduction</head><p>We present a novel approach to natural lan- guage generation (NLG) that does not require fine- grained alignment in training data and uses deep dependency syntax for sentence plans. We include our first results on the BAGEL restaurant recom- mendation data set of <ref type="bibr" target="#b24">Mairesse et al. (2010)</ref>.</p><p>In our setting, the task of a natural language generator is that of converting an abstract meaning representation (MR) into a natural language utter- ance. This corresponds to the sentence planning and surface realization NLG stages as described by <ref type="bibr" target="#b34">Reiter and Dale (2000)</ref>. It also reflects the in- tended usage in a spoken dialogue system (SDS), where the NLG component is supposed to trans- late a system output action into a sentence. While the content planning NLG stage has been used in SDS (e.g., <ref type="bibr" target="#b35">Rieser and Lemon (2010)</ref>), we believe that deciding upon the contents of the system's ut- terance is generally a task for the dialogue man- ager. We focus mainly on the sentence planning part in this work, and reuse an existing rule-based surface realizer to test the capabilities of the gen- erator in an end-to-end setting.</p><p>Current NLG systems usually require a sepa- rate training data alignment step ( <ref type="bibr" target="#b24">Mairesse et al., 2010;</ref><ref type="bibr" target="#b19">Konstas and Lapata, 2013</ref>). Many of them use a CFG or operate in a phrase-based fashion ( <ref type="bibr" target="#b4">Angeli et al., 2010;</ref><ref type="bibr" target="#b24">Mairesse et al., 2010</ref>), which limits their ability to capture long-range syntactic dependencies. Our generator includes alignment learning into sentence planner training and uses deep-syntactic trees with a rule-based surface re- alization step, which ensures grammatical correct- ness of the outputs. Unlike previous approaches to trainable sentence planning (e.g., <ref type="bibr" target="#b39">Walker et al. (2001)</ref>; <ref type="bibr" target="#b38">Stent et al. (2004)</ref>), our generator does not require a handcrafted base sentence planner.</p><p>This paper is structured as follows: in Section 2, we describe the architecture of our generator. Sec- tions 3 and 4 then provide further details on its main components. In Section 5, we describe our experiments on the BAGEL data set, followed by an analysis of the results in Section 6. Section 7 compares our generator to previous related works and Section 8 concludes the paper.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2">Generator Architecture</head><p>Our generator (see <ref type="figure" target="#fig_1">Figure 1</ref>) operates in two stages that roughly correspond to the traditional NLG stages of sentence planning and surface realiza- tion. In the first stage, a statistical sentence planner generates deep-syntactic dependency trees from the input meaning representation. These are converted into plain text sentences in the second stage by the (mostly rule-based) surface realizer.</p><p>We use deep-syntax dependency trees to repre- sent the sentence plan, i.e. the intermediate data structure between the two aforementioned stages. These are ordered dependency trees that only con- tain nodes for content words (nouns, full verbs, ad- jectives, adverbs) and coordinating conjunctions.   Each node has a lemma and a formeme -a concise description of its surface morphosyntactic form, which may include prepositions and/or subordi- nate conjunctions <ref type="bibr" target="#b13">(Dušek et al., 2012)</ref>. This struc- ture is based on the deep-syntax trees of the Func- tional Generative Description ( <ref type="bibr" target="#b36">Sgall et al., 1986)</ref>, but it has been simplified to fit our purposes (see <ref type="figure" target="#fig_1">Figure 1</ref> in the middle). There are several reasons for taking the tra- ditional two-step approach to generation (as op- posed to joint approaches, see Section 7) and us- ing deep syntax trees as the sentence plan format: First, generating into deep syntax simplifies the task for the statistical sentence planner -the plan- ner does not need to handle surface morphology and auxiliary words. Second, a rule-based syntac- tic realizer allows us to ensure grammatical cor- rectness of the output sentences, which would be more difficult in a sequence-based and/or statisti- cal approach. 1 And third, a rule-based surface re- alizer from our sentence plan format is relatively easy to implement and can be reused for any do- main within the same language. As in our case, it is also possible to reuse and/or adapt an existing surface realizer (see Section 4).</p><p>Deep-syntax annotation of sentences in the training set is needed to train the sentence plan- ner, but we assume automatic annotation and reuse an existing deep-syntactic analyzer from the Treex NLP framework <ref type="bibr" target="#b32">(Popel and Žabokrtský, 2010)</ref>. <ref type="bibr">2</ref> We use dialogue acts (DA) as defined in the BAGEL restaurant data set of <ref type="bibr" target="#b24">Mairesse et al. (2010)</ref> as a MR in our experiments throughout this paper. Here, a DA consists of a dialogue act type, which is always "inform" in the set, and a list of slot-value pairs (SVPs) that contain information about a restaurant, such as food type or location (see the top of <ref type="figure" target="#fig_1">Figure 1</ref>). Our generator can be easily adapted to a different MR, though.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3">Sentence Planner</head><p>The sentence planner is based on a variant of the A* algorithm <ref type="bibr" target="#b14">(Hart et al., 1968;</ref><ref type="bibr" target="#b29">Och et al., 2001;</ref><ref type="bibr" target="#b17">Koehn et al., 2003)</ref>. It starts from an empty sen- tence plan tree and tries to find a path to the opti- mal sentence plan by iteratively adding nodes. It keeps two sets of hypotheses, i.e., candidate sen- tence plan trees, sorted by their score -hypotheses to expand (open set) and already expanded (closed set). It uses the following two subcomponents to guide the search:</p><p>• a candidate generator that is able to incre- mentally generate candidate sentence plan trees (see Section 3.1),</p><p>• a scorer/ranker that scores the appropriate- ness of these trees for the input MR (see Sec- tion 3.2). Original sentence plan tree:</p><p>Its successors (selection):</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Figure 2: Candidate generator example inputs and outputs</head><p>The basic workflow of the sentence planner al- gorithm then looks as follows:</p><p>Init: Start from an open set with a single empty sentence plan tree and an empty closed set.</p><p>Loop: 1. Select the best-scoring candidate C from the open set. Add C to closed set.</p><p>2. The candidate generator generates C, a set of possible successors to C. These are trees that have more nodes than C and are deemed viable. Note that C may be empty.</p><p>3. The scorer scores all successors in C and if they are not already in the closed set, it adds them to the open set.</p><p>4. Check if the best successor in the open set scores better than the best candidate in the closed set.</p><p>Stop: The algorithm finishes if the top score in the open set is lower than the top score in the closed set for d consecutive iterations, or if there are no more candidates in the open set. It returns the best-scoring candi- date from both sets.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.1">Generating Sentence Plan Candidates</head><p>Given a sentence plan tree, which is typically in- complete and may be even empty, the candidate generator generates its successors by adding one new node in all possible positions and with all pos- sible lemmas and formemes (see <ref type="figure">Figure 2</ref>). While a naive implementation -trying out any combina- tion of lemmas and formemes found in the training data -works in principle, it leads to an unman- ageable number of candidate trees even for a very small domain. Therefore, we include several rules that limit the number of trees generated:</p><p>1. Lemma-formeme compatibility -only nodes with a combination of lemma and formeme seen in the training data are generated.</p><p>2. Syntactic viability -the new node must be compatible with its parent node (i.e., this combination, including the dependency left/right direction, must be seen in the train- ing data).</p><p>3. Number of children -no node can have more children than the maximum for this lemma- formeme combination seen in the training data.</p><p>4. Tree size -the generated tree cannot have more nodes than trees seen in the training data. The same limitation applies to the in- dividual depth levels -the training data limit the number of nodes on the n-th depth level as well as the maximum depth of any tree.</p><p>This is further conditioned on the input SVPs -the maximums are only taken from training examples that contain the same SVPs that ap- pear on the current input.</p><p>5. Weak semantic compatibility -we only in- clude nodes that appear in the training data alongside the elements of the input DA, i.e., nodes that appear in training examples con- taining SVPs from the current input,</p><p>6. Strong semantic compatibility -for each node (lemma and formeme), we make a "compatibility list" of SVPs and slots that are present in all training data examples contain- ing this node. We then only allow generating this node if all of them are present in the cur- rent input DA. To allow for more generaliza- tion, this rule can be applied just to lemmas (disregarding formemes), and a certain num- ber of SVPs/slots from the compatibility list may be required at maximum.</p><p>Only Rules 4 (partly), 5, and 6 depend on the format of the input meaning representation. Using a different MR would require changing these rules to work with atomic substructures of the new MR instead of SVPs.</p><p>While especially Rules 5 and 6 exclude a vast number of potential candidate trees, this limitation is still much weaker than using hard alignment links between the elements of the MR and the out- put words or phrases. It leaves enough room to generate many combinations unseen in the train- ing data (cf. Section 6) while keeping the search space manageable. To limit the space of potential tree candidates even further, one could also use au- tomatic alignment scores between the elements of the input MR and the tree nodes (obtained using a tool such as GIZA++ ( <ref type="bibr" target="#b28">Och and Ney, 2003)</ref>).</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.2">Scoring Sentence Plan Trees</head><p>The scorer for the individual sentence plan tree candidates is a function that maps global features from the whole sentence plan tree t and the input MR m to a real-valued score that describes the fit- ness of t in the context of m.</p><p>We first describe the basic version of the scorer and then our two improvements -differing subtree updates and future promise estimation.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Basic perceptron scorer</head><p>The basic scorer is based on the linear percep- tron ranker of <ref type="bibr" target="#b8">Collins and Duffy (2002)</ref>, where the score is computed as a simple dot product of the features and the corresponding weight vector:</p><formula xml:id="formula_0">score(t, m) = w · feat(t, m)</formula><p>In the training phase, the weights w are ini- tialized to one. For each input MR, the system tries to generate the best sentence plan tree given current weights, t top . The score of this tree is then compared to the score of the correct gold- standard tree t gold . 3 If t top = t gold and the gold-standard tree ranks worse than the generated one (score(t top , m) &gt; score(t gold , m)), the weight vector is updated by the feature value difference of the generated and the gold-standard tree:</p><formula xml:id="formula_1">w = w + α · (feat(t gold , m) − feat(t top , m))</formula><p>where α is a predefined learning rate.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Differing subtree updates</head><p>In the basic version described above, the scorer is trained to score full sentence plan trees. However, it is also used to score incomplete sentence plans during the decoding. This leads to a bias towards bigger trees regardless of their fitness for the input MR. Therefore, we introduced a novel modifica- tion of the perceptron updates to improve scoring of incomplete sentence plans: In addition to up- dating the weights using the top-scoring candidate t top and the gold-standard tree t gold (see above), we also use their differing subtrees t i top , t i gold for additional updates.</p><p>Starting from the common subtree t c of t top and t gold , pairs of differing subtrees t i top , t i gold are cre- ated by gradually adding nodes from t top into t i top and from t gold into t i gold (see <ref type="figure">Figure 3</ref>). To main- tain the symmetry of the updates in case that the sizes of t top and t gold differ, more nodes may be added in one step. <ref type="bibr">4</ref> The additional updates then look as follows:</p><formula xml:id="formula_2">t 0 top = t 0 gold = t c for i in 1, . . . min{|t top | − |t c |, |t gold | − |t c |} − 1 : t i top = t i−1 top + node(s) from t top t i gold = t i−1 gold + node(s) from t gold w = w + α · (feat(t i gold , m) − feat(t i top , m))</formula></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Future promise estimation</head><p>To further improve scoring of incomplete sentence plan trees, we incorporate a simple future promise estimation for the A* search intended to boost scores of sentence plans that are expected to fur- ther grow. <ref type="bibr">5</ref> It is based on the expected number of children E c (n) of different node types (lemma- formeme pairs). 6 Given all nodes n 1 . . . n |t| in a  <ref type="figure">Figure 3</ref>: An example of differing subtrees</p><p>The gold standard tree t gold has three more nodes than the common subtree tc, while the top generated tree ttop has two more.</p><p>Only one pair of differing subtrees t 1 gold , t 1 top is built, where two nodes are added into t 1 gold and one node into t 1 top .</p><p>sentence plan tree t, the future promise is com- puted in the following way:</p><formula xml:id="formula_3">fp = λ · w · |t| i=1 max{0, E c (n i ) − c(n i )}</formula><p>where c(n i ) is the current number of children of node n i , λ is a preset weight parameter, and w is the sum of the current perceptron weights. Mul- tiplying by the weights sum makes future promise values comparable to trees scores. Future promise is added to tree scores through- out the tree generation process, but it is disre- garded for the termination criterion in the Stop step of the generation algorithm and in perceptron weight updates.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Averaging weights and parallel training</head><p>To speed up training using parallel processing, we use the iterative parameter mixing approach of <ref type="bibr" target="#b26">McDonald et al. (2010)</ref>, where training data are split into several parts and weight updates are av- eraged after each pass through the training data. Following <ref type="bibr" target="#b9">Collins (2002)</ref>, we record the weights after each training pass, take an average at the end, and use this as the final weights for prediction.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4">Surface Realizer</head><p>We use the English surface realizer from the Treex NLP toolkit (cf. Section 2 and <ref type="bibr" target="#b33">(Ptáček, 2008)</ref>). It is a simple pipeline of mostly rule-based blocks that gradually change the deep-syntactic trees into surface dependency trees, which are then lin- earized to sentences. It includes the following steps:</p><p>• Agreement -morphological attributes of some nodes are deduced based on agreement with other nodes (such as in subject-predicate agreement).</p><p>• Word ordering -the input trees are already ordered, so only a few rules for grammatical words are applied.</p><p>• Compound verb forms -additional verbal nodes are added for verbal particles (infini- tive or phrasal verbs) and for compound ex- pressions of tense, mood, and modality.</p><p>• Grammatical words -prepositions, subordi- nating conjunctions, negation particles, arti- cles, and other grammatical words are added into the sentence.</p><p>• Punctuation -nodes for commas, final punc- tuation, quotes, and brackets are introduced.</p><p>• Word Inflection -words are inflected accord- ing to the information from formemes and agreement.</p><p>• Phonetic changes -English "a" becomes "an" based on the following word.</p><p>The realizer is designed as domain-independent and handles most English grammatical phenom- ena. A simple "round-trip" test -using au- tomatic analysis with subsequent generation - reached a BLEU score ( <ref type="bibr" target="#b31">Papineni et al., 2002</ref>) of 89.79% against the original sentences on the whole BAGEL data set, showing only minor dif- ferences between the input sentence and genera- tion output (mostly in punctuation). </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5">Experimental Setup</head><p>Here we describe the data set used in our experi- ments, the needed preprocessing steps, and the set- tings of our generator specific to the data set.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.1">Data set</head><p>We performed our experiments on the BAGEL data set of <ref type="bibr" target="#b24">Mairesse et al. (2010)</ref>, which fits our usage scenario in a spoken dialogue sys- tem and is freely available. <ref type="bibr">7</ref> It contains a to- tal of 404 sentences from a restaurant informa- tion domain (describing the restaurant location, food type, etc.), which correspond to 202 dia- logue acts, i.e., each dialogue act has two para- phrases. Restaurant names, phone numbers, and other "non-enumerable" properties are abstracted -replaced by an "X" symbol -throughout the gen- eration process. Note that while the data set con- tains alignment of source SVPs to target phrases, we do not use it in our experiments. For sentence planner training, we automatically annotate all the sentences using the Treex deep syntactic analyzer (see Section 2). The annotation obtained from the Treex analyzer is further simpli- fied for the sentence planner in two ways:</p><p>• Only lemmas and formemes are used in the sentence planner. Other node attributes are added in the surface realization step (see Sec- tion 5.2).</p><p>• We convert the representation of coordination structures into a format inspired by Universal Dependencies. 8 In the original Treex anno- tation style, the conjunction heads both con- juncts, whereas in our modification, the first conjunct is at the top, heading the coordina- tion and the second conjunct (see <ref type="figure" target="#fig_2">Figure 4</ref>).</p><p>The coordinations can be easily converted back for the surface realizer, and the change makes the task easier for the sentence planner: it may first gener- ate one node and then decide whether it will add a conjunction and a second conjunct.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.2">Generator settings</head><p>In our candidate generator, we use all the limita- tion heuristics described in Section 3.1. For strong semantic compatibility (Rule 6), we use just lem- mas and require at most 5 SVPs/slots from the lemma's compatibility list in the input DA. We use the following feature types for our sen- tence planner scorer:</p><p>• current tree properties -tree depth, total number of nodes, number of repeated nodes</p><p>• tree and input DA -number of nodes per SVP and number of repeated nodes per repeated SVP,</p><p>• node features -lemma, formeme, and num- ber of children of all nodes in the current tree, and combinations thereof,</p><p>• input features -whole SVPs (slot + value), just slots, and pairs of slots in the DA,</p><p>• combinations of node and input features,</p><p>• repeat features -occurrence of repeated lem- mas and/or formemes in the current tree com- bined with repeated slots in the input DA,</p><p>• dependency features -parent-child pairs for lemmas and/or formemes, including and ex- cluding their left-right order,</p><p>• sibling features -sibling pairs for lemmas and/or formemes, also combined with SVPs,</p><p>• bigram features -pairs of lemmas and/or formemes adjacent in the tree's left-right or- der, also combined with SVPs.</p><p>All feature values are normalized to have a mean of 0 and a standard deviation of 1, with normaliza- tion coefficients estimated from training data. The feature set can be adapted for a different MR format -it only must capture all important parts of the MR, e.g., for a tree-like MR, the nodes and edges, and possibly combinations thereof. <ref type="table" target="#tab_3">BLEU for training portion  NIST for training portion  10%  20%  30%  50% 100%  10%  20%  30%  50% 100%  Basic perc.</ref> 46.90 52.81 55.43 54.53 54.24 4.295 4.652 4.669 4.758 4.643 + Diff-tree upd.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Setup</head><p>44.16 50.86 53.61 55.71 58.70 3.846 4.406 4.532 4.674 4.876 + Future promise 37.25 53.57 53.80 58.15 59.89 3.331 4.549 4.607 5.071 5.231 <ref type="table">Table 1</ref>: Evaluation on the BAGEL data set (averaged over all ten cross-validation folds) "Training portion" denotes the percentage of the training data used in the experiment. "Basic perc." = basic perceptron updates, "+ Diff-tree upd." = with differing subtree perceptron updates, "+ Future promise" = with future promise estimation. BLEU scores are shown as percentages.</p><p>Based on our preliminary experiments, we use 100 passes over the training data and limit the number of iterations d that do not improve score to 3 for training and 4 for testing. We use a hard maximum of 200 sentence planner iterations per input DA. The learning rate α is set to 0.1. We use training data parts of 36 or 37 training examples (1/10th of the full training set) in parallel training. If future promise is used, its weight λ is set to 0.3.</p><p>The Treex English realizer expects not only lemmas and formemes, but also additional gram- matical attributes for all nodes. In our experi- ments, we simply use the most common values found in the training data for the particular nodes as this is sufficient for our domain. In larger do- mains, some of these attributes may have to be also included in sentence plans.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6">Results</head><p>Same as <ref type="bibr" target="#b24">Mairesse et al. (2010)</ref>, we use 10-fold cross-validation where DAs seen at training time are never used for testing, i.e., both paraphrases or none of them are present in the full training set. We evaluate using BLEU and NIST scores <ref type="bibr" target="#b31">(Papineni et al., 2002;</ref><ref type="bibr" target="#b12">Doddington, 2002</ref>) against both reference paraphrases for a given test DA.</p><p>The results of our generator are shown in Ta- ble 1, both for standard perceptron updates and our improvements -differing subtree updates and fu- ture promise estimation (see Section 3.2).</p><p>Our generator did not achieve the same perfor- mance as that of <ref type="bibr" target="#b24">Mairesse et al. (2010)</ref> (ca. 67%). <ref type="bibr">9</ref> However, our task is substantially harder since the generator also needs to learn the alignment of phrases to SVPs and determine whether all re- quired information is present on the output (see also Section 7). Our differing tree updates clearly bring a substantial improvement over standard per-ceptron updates, and scores keep increasing with bigger amounts of training data used, whereas with plain perceptron updates, the scores stay flat. The increase with 100% is smaller since all train- ing DAs are in fact used twice, each time with a different paraphrase. 10 A larger training set with different DAs should bring a bigger improvement. Using future promise estimation boosts the scores even further, by a smaller amount for BLEU but noticeably for NIST. Both improvements on the full training set are considered statistically signif- icant at 95% confidence level by the paired boot- strap resampling test <ref type="bibr" target="#b18">(Koehn, 2004)</ref>. A manual in- spection of a small sample of the results confirmed that the automatic scores reflect the quality of the generated sentences well.</p><p>If we look closer at the generated sentences (see <ref type="table" target="#tab_3">Table 2</ref>), it becomes clear that the generator learns to produce meaningful utterances which mostly correspond well to the input DA. It is able to pro- duce original paraphrases and generalizes to pre- viously unseen DAs.</p><p>On the other hand, not all required information is always present, and some facts are sometimes repeated or irrelevant information appears. This mostly happens with input slot-value pairs that oc- cur only rarely in the training data; we believe that a larger training set will solve this problem. Alter- natively, one could introduce additional scorer fea- tures to discourage conflicting information. An- other problem is posed by repeated slots in the in- put DA, which are sometimes not reflected prop- erly in the generated sentence. This suggests that a further refinement of the scorer feature set may be needed. Sentences generated when training on the full set and using differing subtree updates and future promise estimation.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="7">Related Work</head><p>Previous trainable methods in sentence planning use in principle two techniques: First, in the over- generation and ranking approach ( <ref type="bibr" target="#b39">Walker et al., 2001;</ref><ref type="bibr" target="#b38">Stent et al., 2004</ref>), many sentence plans are generated using a rule-based planner and then the best one is selected by a statistical ranker. Second, parameter optimization trains adjustable parame- ters of a handcrafted generator to produce outputs with desired properties <ref type="bibr" target="#b30">(Paiva and Evans, 2005;</ref><ref type="bibr" target="#b22">Mairesse and Walker, 2008)</ref>. As opposed to our approach, both methods require an existing hand- crafted sentence planner.</p><p>Other previous works combine sentence plan- ning and surface realization into a single step and do not require a handcrafted base module. <ref type="bibr" target="#b40">Wong and Mooney (2007)</ref> experiment with a phrase- based machine translation system, comparing and combining it with an inverted semantic parser based on synchronous context-free grammars. <ref type="bibr" target="#b21">Lu et al. (2009)</ref> use tree conditional random fields over hybrid trees that combine natural language phrases with formal semantic expressions. <ref type="bibr" target="#b4">Angeli et al. (2010)</ref> generate text from database records through a sequence of classifiers, gradually se- lecting database records, fields, and correspond- ing textual realizations to describe them. <ref type="bibr" target="#b19">Konstas and Lapata (2013)</ref> recast the whole NLG problem as parsing over a probabilistic context-free gram- mar estimated from database records and their de- scriptions. <ref type="bibr" target="#b24">Mairesse et al. (2010)</ref> convert input DAs into "semantic stacks", which correspond to natural language phrases and contain slots and their values on top of each other. Their genera- tion model uses two dynamic Bayesian networks: the first one performs an ordering of the input se- mantic stacks, inserting intermediary stacks which correspond to grammatical phrases, the second one then produces a concrete surface realization. <ref type="bibr" target="#b11">Dethlefs et al. (2013)</ref> approach generation as a sequence labeling task and use a conditional ran- dom field classifier, assigning a word or a phrase to each input MR element.</p><p>Unlike our work, the joint approaches typi- cally include the alignment of input MR elements to output words in a separate preprocessing step <ref type="bibr" target="#b40">(Wong and Mooney, 2007;</ref><ref type="bibr" target="#b4">Angeli et al., 2010)</ref>, or require pre-aligned training data ( <ref type="bibr" target="#b24">Mairesse et al., 2010;</ref><ref type="bibr" target="#b11">Dethlefs et al., 2013</ref>). In addition, their ba- sic algorithm often requires a specific input MR format, e.g., a tree ( <ref type="bibr" target="#b40">Wong and Mooney, 2007;</ref><ref type="bibr" target="#b21">Lu et al., 2009</ref>) or a flat database ( <ref type="bibr" target="#b4">Angeli et al., 2010;</ref><ref type="bibr" target="#b19">Konstas and Lapata, 2013;</ref><ref type="bibr" target="#b24">Mairesse et al., 2010</ref>).</p><p>While dependency-based deep syntax has been used previously in statistical NLG, the approaches known to us <ref type="bibr" target="#b7">(Bohnet et al., 2010;</ref><ref type="bibr" target="#b6">Belz et al., 2012;</ref><ref type="bibr" target="#b5">Ballesteros et al., 2014</ref>) focus only on the surface realization step and do not include a sentence plan-ner, whereas our work is mainly focused on statis- tical sentence planning and uses a rule-based real- izer.</p><p>Our approach to sentence planning is most sim- ilar to <ref type="bibr" target="#b41">Zettlemoyer and Collins (2007)</ref>, which use a candidate generator and a perceptron ranker for CCG parsing. Apart from proceeding in the in- verse direction and using dependency trees, we use only very generic rules in our candidate generator instead of language-specific ones, and we incorpo- rate differing subtree updates and future promise estimation into our ranker.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="8">Conclusions and Further Work</head><p>We have presented a novel natural language gen- erator, capable of learning from unaligned pairs of input meaning representation and output utter- ances. It consists of a novel, A*-search-based sen- tence planner and a largely rule-based surface re- alizer from the Treex NLP toolkit. The sentence planner is, to our knowledge, first to use depen- dency syntax and learn alignment of semantic el- ements to words or phrases jointly with sentence planning.</p><p>We tested our generator on the BAGEL restau- rant information data set of <ref type="bibr" target="#b24">Mairesse et al. (2010)</ref>. We have achieved very promising results, the ut- terances produced by our generator are mostly flu- ent and relevant. They did not surpass the BLEU score of the original authors; however, our task is substantially harder as our generator does not re- quire fine-grained alignments on the input. Our novel feature of the sentence planner ranker -us- ing differing subtrees for perceptron weight up- dates -has brought a significant performance im- provement.</p><p>The generator source code, along with config- uration files for experiments on the BAGEL data set, is available for download on <ref type="bibr">Github. 11</ref> In future work, we plan to evaluate our genera- tor on further domains, such as geographic infor- mation ( <ref type="bibr" target="#b15">Kate et al., 2005</ref>), weather reports ( <ref type="bibr" target="#b20">Liang et al., 2009)</ref>, or flight information ( <ref type="bibr" target="#b10">Dahl et al., 1994)</ref>. In order to improve the performance of our generator and remove the dependency on domain- specific features, we plan to replace the percep- tron ranker with a neural network. We also want to experiment with removing the dependency on the Treex surface realizer by generating directly into dependency trees or structures into which de-</p></div><figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_1"><head>Figure 1 :</head><label>1</label><figDesc>Figure 1: Overall structure of our generator</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_2"><head>Figure 4 :</head><label>4</label><figDesc>Figure 4: Coordination structures conversion: original (left) and our format (right).</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_0" validated="false"><head>representation (dialogue acts)</head><label></label><figDesc></figDesc><table>Sentence 
+planner 
+A* search 
+candidate 
+generator 
+
+scorer 
+
+expand candidate 
+sentence plan tree 
+into new candidates 
+
+score candidates 
+to select next one 
+to be expanded 
+
+sentence plan 
+(deep syntax tree) 
+
+plain text sentence 
+
+Surface 
+realizer 
+
+mostly 
+rule-based 
+pipeline 
+(from Treex 
+NLP toolkit) 
+
+Word ordering 
+
+Agreement 
+
+Compound 
+verb forms 
+
+Grammatical 
+words 
+
+Punctuation 
+
+Word Inflection 
+
+Phonetic changes 
+
+inform(name=X, type=placetoeat, 
+eattype=restaurant, area=riverside, 
+food=Italian) 
+
+t-tree 
+
+X-name 
+n:subj 
+
+be 
+v:fin 
+
+italian 
+adj:attr 
+
+restaurant 
+n:obj 
+
+river 
+n:by+X 
+
+X is an italian restaurant by the river. 
+
+</table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_3" validated="false"><head>Table 2 : Example generated sentences</head><label>2</label><figDesc></figDesc><table></table></figure>
+
+			<note place="foot" n="1"> This issue would become more pressing in languages with richer morphology than English. 2 See http://ufal.mff.cuni.cz/treex. Domainindependent deep syntax analysis for several languages is included in this framework; the English pipeline used here involves a statistical part-of-speech tagger (Spoustová et al., 2007) and a dependency parser (McDonald et al., 2005), followed by a rule-based conversion to deep syntax trees.</note>
+
+			<note place="foot" n="3"> Note that the &quot;gold-standard&quot; sentence plan trees are actually produced by automatic annotation. For the purposes of scoring, they are, however, treated as gold standard.</note>
+
+			<note place="foot" n="4"> For example, if t gold has 6 more nodes than tc and ttop has 4 more, there will be 3 pairs of differing subtrees, with t i gold having 2, 4, and 5 more nodes than tc and t i top having 1, 2, and 3 more nodes than tc. We have also evaluated a variant where both sets of subtrees t i gold , t i top were not equal in size, but this resulted in degraded performance. 5 Note that this is not the same as future path cost in the original A* path search, but it plays an analogous role: weighing hypotheses of different size. 6 Ec(n) is measured as the average number of children over all occurrences of the given node type in the training data. It is expected to be domain-specific.</note>
+
+			<note place="foot" n="7"> Available for download at: http://farm2.user. srcf.net/research/bagel/. 8 http://universaldependencies.github.io</note>
+
+			<note place="foot" n="9"> Mairesse et al. (2010) do not give a precise BLEU score number in their paper, they only show the values in a graph.</note>
+
+			<note place="foot" n="10"> We used the two paraphrases that come with each DA as independent training instances. While having two different gold-standard outputs for a single input is admittedly not ideal for a discriminative learner, it still brings an improvement in our case.</note>
+
+			<note place="foot" n="11"> https://github.com/UFAL-DSG/tgen pendency trees can be converted in a languageindependent way.</note>
+		</body>
+		<back>
+
+			<div type="acknowledgement">
+			</div>
+
+			<div type="references">
+
+				<listBibl>
+
+<biblStruct xml:id="b0">
+	<monogr>
+		<title level="m" type="main">Input DA inform(name=X-name, type=placetoeat, area=riverside, near=X-near, eattype=restaurant) DA inform(name=X-name, type=placetoeat, area=X-area, pricerange=moderate, eattype=restaurant) DA inform(name=X-name, type=placetoeat, eattype=restaurant, area=riverside, food=French) Reference X is a French restaurant on the riverside</title>
+		<imprint/>
+	</monogr>
+	<note>Generated X is a French and continental restaurant near X</note>
+</biblStruct>
+
+<biblStruct xml:id="b1">
+	<monogr>
+		<title level="m" type="main">Generated X is a French restaurant in the riverside area which serves French food</title>
+		<imprint/>
+	</monogr>
+	<note>Input DA inform(name=X-name, type=placetoeat, eattype=restaurant, pricerange=moderate, area=X-area, food=Contemporary, food=English</note>
+</biblStruct>
+
+<biblStruct xml:id="b2">
+	<monogr>
+		<title level="m" type="main">Reference X is a moderately priced English contemporary restaurant in X</title>
+		<imprint/>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b3">
+	<monogr>
+		<title level="m" type="main">Generated X is an English restaurant in the X area which serves expensive food in the moderate price range located in X</title>
+		<imprint/>
+	</monogr>
+	<note>Input DA inform(name=X-name, type=placetoeat, eattype=restaurant, area=citycentre, near=X-near, food=&quot;Chinese takeaway. food=Japanese</note>
+</biblStruct>
+
+<biblStruct xml:id="b4">
+	<analytic>
+		<title level="a" type="main">A simple domain-independent probabilistic approach to generation</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">G</forename><surname>Angeli</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">P</forename><surname>Liang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">D</forename><surname>Klein</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. of the 2010 Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>of the 2010 Conference on Empirical Methods in Natural Language essing</meeting>
+		<imprint>
+			<date type="published" when="2010" />
+			<biblScope unit="page" from="502" to="512" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b5">
+	<analytic>
+		<title level="a" type="main">Classifiers for data-driven deep sentence generation</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">M</forename><surname>Ballesteros</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">S</forename><surname>Mille</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">L</forename><surname>Wanner</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 8th International Natural Language Generation Conference</title>
+		<meeting>the 8th International Natural Language Generation Conference<address><addrLine>Philadelphia</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2014" />
+			<biblScope unit="page" from="108" to="112" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b6">
+	<analytic>
+		<title level="a" type="main">The Surface Realisation Task: Recent Developments and Future Plans</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">A</forename><surname>Belz</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">B</forename><surname>Bohnet</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">S</forename><surname>Mille</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">L</forename><surname>Wanner</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">M</forename><surname>White</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">INLG 2012</title>
+		<imprint>
+			<date type="published" when="2012" />
+			<biblScope unit="page" from="136" to="140" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b7">
+	<analytic>
+		<title level="a" type="main">Broad coverage multilingual deep sentence generation with a stochastic multi-level realizer</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">B</forename><surname>Bohnet</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">L</forename><surname>Wanner</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">S</forename><surname>Mille</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">A</forename><surname>Burga</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. of the 23rd International Conference on Computational Linguistics</title>
+		<meeting>of the 23rd International Conference on Computational Linguistics</meeting>
+		<imprint>
+			<date type="published" when="2010" />
+			<biblScope unit="page" from="98" to="106" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b8">
+	<analytic>
+		<title level="a" type="main">New ranking algorithms for parsing and tagging: Kernels over discrete structures, and the voted perceptron</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">M</forename><surname>Collins</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">N</forename><surname>Duffy</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 40th Annual Meeting on Association for Computational Linguistics</title>
+		<meeting>the 40th Annual Meeting on Association for Computational Linguistics<address><addrLine>Stroudsburg, PA, USA</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2002" />
+			<biblScope unit="page" from="263" to="270" />
+		</imprint>
+	</monogr>
+	<note>Association for Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b9">
+	<analytic>
+		<title level="a" type="main">Discriminative training methods for hidden Markov models: Theory and experiments with perceptron algorithms</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">M</forename><surname>Collins</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the ACL-02 conference on Empirical methods in natural language processing</title>
+		<meeting>the ACL-02 conference on Empirical methods in natural language processing</meeting>
+		<imprint>
+			<date type="published" when="2002" />
+			<biblScope unit="volume">10</biblScope>
+			<biblScope unit="page" from="1" to="8" />
+		</imprint>
+	</monogr>
+	<note>Association for Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b10">
+	<analytic>
+		<title level="a" type="main">Expanding the scope of the ATIS task: the ATIS-3 corpus</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">D</forename><forename type="middle">A</forename><surname>Dahl</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">M</forename><surname>Bates</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">M</forename><surname>Brown</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">W</forename><surname>Fisher</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">K</forename><surname>Hunicke-Smith</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">D</forename><surname>Pallett</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">E</forename><surname>Rudnicky</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">E</forename><surname>Shriberg</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. ARPA Human Language Technology Workshop &apos;92</title>
+		<meeting>ARPA Human Language Technology Workshop &apos;92<address><addrLine>Plainsboro, NJ</addrLine></address></meeting>
+		<imprint>
+			<publisher>Morgan Kaufmann</publisher>
+			<date type="published" when="1994" />
+			<biblScope unit="page" from="43" to="48" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b11">
+	<analytic>
+		<title level="a" type="main">Conditional Random Fields for Responsive Surface Realisation using Global Features</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">N</forename><surname>Dethlefs</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">H</forename><surname>Hastie</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">H</forename><surname>Cuayáhuitl</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">O</forename><surname>Lemon</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of ACL</title>
+		<meeting>ACL<address><addrLine>Sofia</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2013" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b12">
+	<analytic>
+		<title level="a" type="main">Automatic evaluation of machine translation quality using N-gram cooccurrence statistics</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">G</forename><surname>Doddington</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Second International Conference on Human Language Technology Research</title>
+		<meeting>the Second International Conference on Human Language Technology Research<address><addrLine>San Francisco, CA, USA</addrLine></address></meeting>
+		<imprint>
+			<publisher>Morgan Kaufmann Publishers Inc</publisher>
+			<date type="published" when="2002" />
+			<biblScope unit="page" from="138" to="145" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b13">
+	<analytic>
+		<title level="a" type="main">Formemes in English-Czech deep syntactic MT</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">O</forename><surname>Dušek</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Z</forename><surname>Žabokrtský</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">M</forename><surname>Popel</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">M</forename><surname>Majliš</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">M</forename><surname>Novák</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">D</forename><surname>Mareček</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Seventh Workshop on Statistical Machine Translation</title>
+		<meeting>the Seventh Workshop on Statistical Machine Translation</meeting>
+		<imprint>
+			<publisher>Montreal</publisher>
+			<date type="published" when="2012" />
+			<biblScope unit="page" from="267" to="274" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b14">
+	<analytic>
+		<title level="a" type="main">A formal basis for the heuristic determination of minimum cost paths</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">P</forename><forename type="middle">E</forename><surname>Hart</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">N</forename><forename type="middle">J</forename><surname>Nilsson</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">B</forename><surname>Raphael</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">IEEE Transactions on Systems Science and Cybernetics</title>
+		<imprint>
+			<biblScope unit="volume">4</biblScope>
+			<biblScope unit="issue">2</biblScope>
+			<biblScope unit="page" from="100" to="107" />
+			<date type="published" when="1968" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b15">
+	<analytic>
+		<title level="a" type="main">Learning to transform natural to formal languages</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">R</forename><forename type="middle">J</forename><surname>Kate</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Y</forename><forename type="middle">W</forename><surname>Wong</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">R</forename><forename type="middle">J</forename><surname>Mooney</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the National Conference on Artificial Intelligence</title>
+		<meeting>the National Conference on Artificial Intelligence<address><addrLine>Menlo Park, CA</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2005" />
+			<biblScope unit="volume">20</biblScope>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b16">
+	<monogr>
+		<title/>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ma;</forename><surname>Cambridge</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>London</surname></persName>
+		</author>
+		<imprint>
+			<publisher>MIT Press</publisher>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b17">
+	<analytic>
+		<title level="a" type="main">Statistical phrase-based translation</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">P</forename><surname>Koehn</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">F</forename><forename type="middle">J</forename><surname>Och</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">D</forename><surname>Marcu</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of NAACL-HLT</title>
+		<meeting>NAACL-HLT<address><addrLine>Stroudsburg, PA, USA</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2003" />
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="48" to="54" />
+		</imprint>
+	</monogr>
+	<note>Association for Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b18">
+	<analytic>
+		<title level="a" type="main">Statistical significance tests for machine translation evaluation</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">P</forename><surname>Koehn</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of EMNLP</title>
+		<meeting>EMNLP</meeting>
+		<imprint>
+			<date type="published" when="2004" />
+			<biblScope unit="page" from="388" to="395" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b19">
+	<analytic>
+		<title level="a" type="main">A global model for concept-to-text generation</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">I</forename><surname>Konstas</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">M</forename><surname>Lapata</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Journal of Artificial Intelligence Research</title>
+		<imprint>
+			<biblScope unit="volume">48</biblScope>
+			<biblScope unit="page" from="305" to="346" />
+			<date type="published" when="2013" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b20">
+	<analytic>
+		<title level="a" type="main">Learning semantic correspondences with less supervision</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">P</forename><surname>Liang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">M</forename><forename type="middle">I</forename><surname>Jordan</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">D</forename><surname>Klein</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Joint Conference of the 47th Annual Meeting of the ACL and the 4th International Joint Conference on Natural Language Processing of the AFNLP</title>
+		<meeting>the Joint Conference of the 47th Annual Meeting of the ACL and the 4th International Joint Conference on Natural Language Processing of the AFNLP</meeting>
+		<imprint>
+			<date type="published" when="2009" />
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="91" to="99" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b21">
+	<analytic>
+		<title level="a" type="main">Natural language generation with tree conditional random fields</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">W</forename><surname>Lu</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">H</forename><forename type="middle">T</forename><surname>Ng</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">W</forename><forename type="middle">S</forename><surname>Lee</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. of the 2009 Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>of the 2009 Conference on Empirical Methods in Natural Language essing</meeting>
+		<imprint>
+			<date type="published" when="2009" />
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="400" to="409" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b22">
+	<analytic>
+		<title level="a" type="main">Trainable generation of big-five personality styles through datadriven parameter estimation</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">F</forename><surname>Mairesse</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">M</forename><surname>Walker</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. of the</title>
+		<meeting>of the</meeting>
+		<imprint>
+			<date type="published" when="2008" />
+			<biblScope unit="page">46</biblScope>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b23">
+	<monogr>
+				<title level="m">Annual Meeting of the ACL (ACL)</title>
+		<imprint>
+			<biblScope unit="page" from="165" to="173" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b24">
+	<analytic>
+		<title level="a" type="main">Phrase-based statistical language generation using graphical models and active learning</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">F</forename><surname>Mairesse</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">M</forename><surname>Gaši´cgaši´c</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">F</forename><surname>Jurčíček</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">S</forename><surname>Keizer</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">B</forename><surname>Thomson</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">K</forename><surname>Yu</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">S</forename><surname>Young</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. of the 48th Annual Meeting of the ACL</title>
+		<meeting>of the 48th Annual Meeting of the ACL</meeting>
+		<imprint>
+			<date type="published" when="2010" />
+			<biblScope unit="page" from="1552" to="1561" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b25">
+	<analytic>
+		<title level="a" type="main">Non-projective dependency parsing using spanning tree algorithms</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">R</forename><surname>Mcdonald</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">F</forename><surname>Pereira</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">K</forename><surname>Ribarov</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">J</forename><surname>Hajič</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the conference on Human Language Technology and Empirical Methods in Natural Language Processing</title>
+		<meeting>the conference on Human Language Technology and Empirical Methods in Natural Language Processing</meeting>
+		<imprint>
+			<date type="published" when="2005" />
+			<biblScope unit="page" from="523" to="530" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b26">
+	<analytic>
+		<title level="a" type="main">Distributed training strategies for the structured perceptron</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">R</forename><surname>Mcdonald</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">K</forename><surname>Hall</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">G</forename><surname>Mann</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Human Language Technologies: The</title>
+		<imprint>
+			<date type="published" when="2010" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b27">
+	<monogr>
+				<title level="m">Annual Conference of the North American Chapter of the Association for Computational Linguistics</title>
+		<imprint>
+			<biblScope unit="page" from="456" to="464" />
+		</imprint>
+	</monogr>
+	<note>Association for Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b28">
+	<analytic>
+		<title level="a" type="main">A systematic comparison of various statistical alignment models</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">F</forename><forename type="middle">J</forename><surname>Och</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">H</forename><surname>Ney</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Computational Linguistics</title>
+		<imprint>
+			<biblScope unit="volume">29</biblScope>
+			<biblScope unit="issue">1</biblScope>
+			<biblScope unit="page" from="19" to="51" />
+			<date type="published" when="2003" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b29">
+	<analytic>
+		<title level="a" type="main">An efficient A* search algorithm for statistical machine translation</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">F</forename><forename type="middle">J</forename><surname>Och</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">N</forename><surname>Ueffing</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">H</forename><surname>Ney</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Workshop on Datadriven Methods in Machine Translation</title>
+		<meeting>the Workshop on Datadriven Methods in Machine Translation<address><addrLine>Stroudsburg, PA, USA</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2001" />
+			<biblScope unit="volume">14</biblScope>
+			<biblScope unit="page" from="1" to="8" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b30">
+	<analytic>
+		<title level="a" type="main">Empirically-based control of natural language generation</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">D</forename><forename type="middle">S</forename><surname>Paiva</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">R</forename><surname>Evans</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. of the 43rd Annual Meeting of ACL</title>
+		<meeting>of the 43rd Annual Meeting of ACL<address><addrLine>Stroudsburg, PA, USA. ACL</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2005" />
+			<biblScope unit="page" from="58" to="65" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b31">
+	<analytic>
+		<title level="a" type="main">BLEU: a method for automatic evaluation of machine translation</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">K</forename><surname>Papineni</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">S</forename><surname>Roukos</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">T</forename><surname>Ward</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">W.-J</forename><surname>Zhu</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 40th annual meeting of the Association for Computational Linguistics</title>
+		<meeting>the 40th annual meeting of the Association for Computational Linguistics</meeting>
+		<imprint>
+			<date type="published" when="2002" />
+			<biblScope unit="page" from="311" to="318" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b32">
+	<analytic>
+		<title level="a" type="main">TectoMT: modular NLP framework</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">M</forename><surname>Popel</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Z</forename><surname>Žabokrtský</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of IceTAL, 7th International Conference on Natural Language Processing</title>
+		<meeting>IceTAL, 7th International Conference on Natural Language Processing<address><addrLine>Reykjavík</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2010" />
+			<biblScope unit="page" from="293" to="304" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b33">
+	<analytic>
+		<title level="a" type="main">Two tectogrammatical realizers side by side: Case of English and Czech</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">J</forename><surname>Ptáček</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Fourth International Workshop on Human-Computer Conversation</title>
+		<meeting><address><addrLine>Bellagio, Italy</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2008" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b34">
+	<monogr>
+		<title level="m" type="main">Building Natural Language Generation Systems</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">E</forename><surname>Reiter</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">R</forename><surname>Dale</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2000" />
+			<publisher>Cambridge Univ. Press</publisher>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b35">
+	<analytic>
+		<title level="a" type="main">Natural language generation as planning under uncertainty for spoken dialogue systems</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">V</forename><surname>Rieser</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">O</forename><surname>Lemon</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Empirical methods in natural language generation</title>
+		<imprint>
+			<date type="published" when="2010" />
+			<biblScope unit="page" from="105" to="120" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b36">
+	<monogr>
+		<title level="m" type="main">The meaning of the sentence in its semantic and pragmatic aspects</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">P</forename><surname>Sgall</surname></persName>
+			<affiliation>
+				<orgName type="collaboration">D. Reidel</orgName>
+			</affiliation>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">E</forename><surname>Hajičová</surname></persName>
+			<affiliation>
+				<orgName type="collaboration">D. Reidel</orgName>
+			</affiliation>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">J</forename><surname>Panevová</surname></persName>
+			<affiliation>
+				<orgName type="collaboration">D. Reidel</orgName>
+			</affiliation>
+		</author>
+		<imprint>
+			<date type="published" when="1986" />
+			<pubPlace>Dordrecht</pubPlace>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b37">
+	<analytic>
+		<title level="a" type="main">The Best of Two Worlds: Cooperation of Statistical and Rule-based Taggers for Czech</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">D</forename><forename type="middle">J</forename><surname>Spoustová</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">J</forename><surname>Hajič</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">J</forename><surname>Votrubec</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">P</forename><surname>Krbec</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">P</forename><surname>Květoň</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Workshop on BaltoSlavonic Natural Language Processing: Information Extraction and Enabling Technologies</title>
+		<meeting>the Workshop on BaltoSlavonic Natural Language Processing: Information Extraction and Enabling Technologies</meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2007" />
+			<biblScope unit="page" from="67" to="74" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b38">
+	<analytic>
+		<title level="a" type="main">Trainable sentence planning for complex information presentation in spoken dialog systems</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">A</forename><surname>Stent</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">R</forename><surname>Prasad</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">M</forename><surname>Walker</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 42nd Annual Meeting on Association for Computational Linguistics</title>
+		<meeting>the 42nd Annual Meeting on Association for Computational Linguistics</meeting>
+		<imprint>
+			<date type="published" when="2004" />
+			<biblScope unit="page" from="79" to="86" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b39">
+	<analytic>
+		<title level="a" type="main">SPoT: a trainable sentence planner</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">M</forename><forename type="middle">A</forename><surname>Walker</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">O</forename><surname>Rambow</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">M</forename><surname>Rogati</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. of 2nd meeting of NAACL</title>
+		<meeting>of 2nd meeting of NAACL<address><addrLine>Stroudsburg, PA, USA. ACL</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2001" />
+			<biblScope unit="page" from="1" to="8" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b40">
+	<analytic>
+		<title level="a" type="main">Generation by inverting a semantic parser that uses statistical machine translation</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Y</forename><forename type="middle">W</forename><surname>Wong</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">R</forename><forename type="middle">J</forename><surname>Mooney</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. of Human Language Technologies: The Conference of the North American Chapter of the ACL (NAACL-HLT-07)</title>
+		<meeting>of Human Language Technologies: The Conference of the North American Chapter of the ACL (NAACL-HLT-07)</meeting>
+		<imprint>
+			<date type="published" when="2007" />
+			<biblScope unit="page" from="172" to="179" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b41">
+	<analytic>
+		<title level="a" type="main">Online learning of relaxed CCG grammars for parsing to logical form</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">L</forename><forename type="middle">S</forename><surname>Zettlemoyer</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">M</forename><surname>Collins</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2007 Joint Conference on Empirical Methods in Natural Language Processing and Computational Natural Language Learning</title>
+		<meeting>the 2007 Joint Conference on Empirical Methods in Natural Language Processing and Computational Natural Language Learning<address><addrLine>Prague</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2007" />
+			<biblScope unit="page" from="678" to="687" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+				</listBibl>
+			</div>
+		</back>
+	</text>
+</TEI>

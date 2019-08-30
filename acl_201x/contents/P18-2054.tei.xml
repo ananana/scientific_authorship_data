@@ -1,0 +1,545 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<TEI xmlns="http://www.tei-c.org/ns/1.0" 
+xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+xsi:schemaLocation="http://www.tei-c.org/ns/1.0 /home/ana/installs/grobid/grobid-0.5.1/grobid-home/schemas/xsd/Grobid.xsd"
+ xmlns:xlink="http://www.w3.org/1999/xlink">
+	<teiHeader xml:lang="en">
+		<encodingDesc>
+			<appInfo>
+				<application version="0.5.1-SNAPSHOT" ident="GROBID" when="2019-04-18T10:39+0000">
+					<ref target="https://github.com/kermitt2/grobid">GROBID - A machine learning software for extracting information from scholarly documents</ref>
+				</application>
+			</appInfo>
+		</encodingDesc>
+		<fileDesc>
+			<titleStmt>
+				<title level="a" type="main">Improving Beam Search by Removing Monotonic Constraint for Neural Machine Translation</title>
+			</titleStmt>
+			<publicationStmt>
+				<publisher/>
+				<availability status="unknown"><licence/></availability>
+				<date>July 15-20, 2018</date>
+			</publicationStmt>
+			<sourceDesc>
+				<biblStruct>
+					<analytic>
+						<author>
+							<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Raphael</forename><surname>Shu</surname></persName>
+							<email>shu@nlab.ci.i.u-tokyo.ac.jp</email>
+							<affiliation key="aff0">
+								<orgName type="institution" key="instit1">The University of Tokyo</orgName>
+								<orgName type="institution" key="instit2">The University of Tokyo</orgName>
+							</affiliation>
+						</author>
+						<author>
+							<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Hideki</forename><surname>Nakayama</surname></persName>
+							<email>nakayama@ci.i.u-tokyo.ac.jp</email>
+							<affiliation key="aff0">
+								<orgName type="institution" key="instit1">The University of Tokyo</orgName>
+								<orgName type="institution" key="instit2">The University of Tokyo</orgName>
+							</affiliation>
+						</author>
+						<title level="a" type="main">Improving Beam Search by Removing Monotonic Constraint for Neural Machine Translation</title>
+					</analytic>
+					<monogr>
+						<title level="m">Proceedings of the 56th Annual Meeting of the Association for Computational Linguistics (Short Papers)</title>
+						<meeting>the 56th Annual Meeting of the Association for Computational Linguistics (Short Papers) <address><addrLine>Melbourne, Australia</addrLine></address>
+						</meeting>
+						<imprint>
+							<biblScope unit="page" from="339" to="344"/>
+							<date type="published">July 15-20, 2018</date>
+						</imprint>
+					</monogr>
+					<note>339</note>
+				</biblStruct>
+			</sourceDesc>
+		</fileDesc>
+		<profileDesc>
+			<abstract>
+				<p>To achieve high translation performance, neural machine translation models usually rely on the beam search algorithm for decoding sentences. The beam search finds good candidate translations by considering multiple hypotheses of translations simultaneously. However, as the algorithm searches in a monotonic left-to-right order, a hypothesis can not be revisited once it is discarded. We found such monotonicity forces the algorithm to sacrifice some decoding paths to explore new paths. As a result, the overall quality of the hypotheses selected by the algorithm is lower than expected. To mitigate this problem, we relax the monotonic constraint of the beam search by maintaining all found hypotheses in a single priority queue and using a universal score function for hypothesis selection. The proposed algorithm allows discarded hypotheses to be recovered in a later step. Despite its simplicity, we show that the proposed decoding algorithm enhances the quality of selected hypotheses and improve the translations even for high-performance models in English-Japanese translation task.</p>
+			</abstract>
+		</profileDesc>
+	</teiHeader>
+	<text xml:lang="en">
+		<body>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="1">Introduction</head><p>Machine translation models composed of end- to-end neural networks ( <ref type="bibr" target="#b0">Bahdanau et al., 2014;</ref><ref type="bibr" target="#b13">Shazeer et al., 2017;</ref><ref type="bibr" target="#b1">Gehring et al., 2017)</ref> are starting to become main- stream. Essentially, neural machine translation (NMT) models define a probabilistic distribution p(y t |y 1 , ..., y t−1 , X) to generate translations. Dur- ing translation phase, new words are sampled from this distribution.</p><p>As the search space of possible outputs is in- credibly large, we can only afford to explore a limited number of search paths. In practice, NMT models use the beam search algorithm to generate output sequences in a limited time budget <ref type="bibr" target="#b2">(Graves, 2012;</ref>). Beam search limits the search space by considering only a fixed num- ber of hypotheses (i.e., partial translations) in each step, and predicting next output words only for the selected hypotheses. The fixed number B is re- ferred to as beam size. Beam search keeps decod- ing until B finished translations that end with an end-of-sequence token "/s" are found.</p><p>Comparing to the greedy search that only con- siders the best hypothesis in each step, beam search can find a good candidate translation that suffers in a middle step. Generally, using beam search can improve the quality of outputs over the greedy search. However, we found that the hard restriction of hypothesis selection imposed by the beam search affects the quality of the decoding paths negatively.</p><p>We can think the decoding process of an NMT model as solving a pathfinding problem, where we search for an optimal path starts from "s" and ends at "/s". For any pathfinding algorithm, a certain amount of exploration is crucial for making sure that the algorithm is following a right path. For beam search, since the beam size is fixed, it must give up some currently searching paths in or- der to explore new paths. The problem has a sim- ilar flavor as the exploration-exploitation dilemma in reinforcement learning. As the beam search de- codes in left-to-right order monotonically, a dis- carded decoding path can not be recovered later.</p><p>As the decoding algorithm is essentially driven by a language model, an output with high proba- bility (local score) is not guaranteed to have high scores for future predictions. Beam search can be trapped by such a high-confidence output. This is <ref type="table">-an   there  is  a   apple   an   tree   fruit   apple   &lt;s&gt;   here  tree   apricot  fruit   1  2   2   3   4   4   was   3   5   an   there  is  a   apple   an   tree   fruit   apple   &lt;s&gt;   here  tree   1   1   2   3  4   was   2  3   5   is  5  4</ref> there 6 tree 5 1 fruit here (a) beam search (b) SQD <ref type="figure">Figure 1</ref>: An intuitive comparison between beam search and single-queue decoding (SQD) with a beam size of 2. In each step, two selected hypotheses (solid boxes) and one immediately discarded hypothesis (dashed boxes) are shown in the <ref type="figure">figure.</ref> In the top right of selected hypotheses, the step numbers when they are selected are marked. The hypothesis "an apple tree" is discarded in step 3 in both algorithms.</p><p>Comparing to beam search, SQD is able to recover this hypothesis in step 4 when other hypotheses have worse scores.</p><p>sue is more severe for language pairs that are not well aligned. One solution is to predict the ex- pected future scores, which is considerably diffi- cult. Another workaround for this problem is to enable the algorithm to revisit a previous hypothe- sis when the quality of current ones degrades.</p><p>In this work, we extend the beam search to in- troduce more flexibility. We manage all found hy- potheses in a single priority queue so that they can be selected later when necessary. Based on a uni- versal score function, the hypotheses with highest scores are selected to be expanded. The proposed algorithm is referred to as single-queue decoding (SQD) in this paper.</p><p>As the priority queue can contain massive hy- potheses, we design two auxiliary score functions to help the algorithm select proper candidates. Ex- periments show that the proposed algorithm is able to improve the quality of selected hypotheses and thus results in better performance in English- Japanese translation task.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2">Related Work</head><p>To improve the quality of the score function in beam search, <ref type="bibr" target="#b17">Wiseman and Rush (2016)</ref> propose to run beam search in the forward pass of train- ing, then apply a new objective function to ensure the gold output does not fall outside the beam. An alternative approach is to correct the scores with reinforcement learning ( <ref type="bibr" target="#b7">Li et al., 2017</ref>). Diverse decoding (  modifies the score function for increase the diver- sity of hypotheses. In contrast, this work focuses on removing the constraint of beam search rather than improving the score function. <ref type="bibr" target="#b5">Hu et al. (2015)</ref> also describes a priority queue integrated with the standard beam search but has a different mechanism and purpose. The prior- ity queue in their work contains top-1 hypothe- ses from different hypothesis stacks. In each step, only one hypothesis from the queue is allowed to be considered. Their purpose is to use the priority queue to speed up beam search at the cost of slight performance loss, which is different to this work.</p><p>As the proposed algorithm is a best-first search- ing algorithm, which has a flavor similar to A * search <ref type="bibr" target="#b3">(Hart et al., 1968)</ref>. Typical implementa- tions of A * search also use a priority queue (heap) to maintain visited paths.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3">Deficiency of Beam Search</head><p>Since the beam size is fixed, when the algorithm attempts to explore multiple new decoding paths for a hypothesis, it has to discard some existing decoding paths. However, the new decoding paths may lead to bad hypotheses in the near future. As past hypotheses can not be revisited again, the beam search has to decode the hypotheses with de- graded qualities continually. This phenomenon is illustrated in <ref type="figure">Fig. 1 (a)</ref>, where the graph depicts the decoding process of a sentence. The correct output is supposed to be "an apple tree is there" or "there is an apple tree". In step 3, as the algorithm ex- plores two new hypotheses in the bottom branch, the hypothesis "an apple tree" is discarded. In the next step, it realized that the hypothesis "there is a" leads to a wrong path. However, as the algo- rithm can not return to a discarded hypothesis, the beam search has to keep searching in the hopeless path. In this case, the candidate "an apple tree is there" can never be reached.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Algorithm 1 Single-queue decoding</head><p>Initialize:</p><p>B ← beam size H ← empty hypothesis queue T ← max steps for t ← 1 to T do S ← pop best B unfinished hyps from H S ← expand S to get B × K new hyps Evaluate scores of hyps in S with Eq. 1 Push S into H if #(finished hyps in H) ≥ B then breakˆy breakˆ breakˆy ← best finished hyp in H outputˆyoutputˆ outputˆy</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4">Single-Queue Decoding</head><p>In this section, we introduce an extended decod- ing algorithm of the beam search, which main- tains a single priority queue that contains all vis- ited hypotheses. In contrast to the standard beam search, which only considers hypotheses with the same length in each step, the proposed algorithm selected arbitrary hypotheses from the queue that may differ in length. Therefore, a hypothesis dis- carded in one step can be recovered in a later step.</p><p>An intuitive illustration of the proposed algo- rithm can be found in <ref type="figure">Fig. 1 (b)</ref>. In step 4, the pro- posed algorithm is able to recover the hypothesis "an apple tree" from the queue which is discarded a previous step.</p><p>The pseudo code of the single-queue decod- ing algorithm is given in Alg. 1. Let B be the beam size. The algorithm will keep decoding un- til finding B finished translation candidates. The proposed decoding algorithm relies on a universal score function score(y) to evaluate a hypothesis y. In each step, the hypotheses with highest scores are removed from the queue to predict next words for them. New expanded hypotheses are pushed back into the queue after scoring.</p><p>In hypothesis expansion, we collect B × K (but not B × |V |) hypotheses that have highest local scores (word probability). This simple filtering is essential to avoid spending to much time comput- ing the score function. In practice, we set K = B.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.1">Universal Score Function</head><p>In the proposed algorithm, a score function is re- quired to fairly evaluate hypotheses with different lengths, which has the following form: score(y) = 1 |y| λ log p(y|X)+α PG(y)+β LMP(y).</p><p>(1) The first part of the equation is the log probabil- ity with length-normalization, where λ is a hyper- parameter that is similar to the definition of length penalty in <ref type="bibr" target="#b18">Wu et al. (2016)</ref>. We found simply uti- lizing this score function will sometimes cause the algorithm decode for infinite steps. To help the algorithm select proper candidates from the large queue, we designed two auxiliary penalties.</p><p>Progress Penalty: The second part of Eq. 1 is a progress penalty, which encourages the algorithm to select longer hypotheses:</p><formula xml:id="formula_0">PG(y) = 0 if y finished |y| γ |X| γ otherwise (2)</formula><p>where γ are is weight that control the strength of this function. The progress penalty encourages the algorithm to select longer hypotheses. Length Matching Penalty: The last part of Eq. 1 is a length matching penalty. It filters out the hypotheses that tend to produce a final transla- tion much shorter or longer than expected.</p><p>To achieve this, we predict two Gaussian distri- butions. One distribution p l x predicts the expected length of a correct translation. Another Gaussian p l y predicts the expected final length if decoding a particular hypothesis. The parameters of the dis- tributions (µ x , σ x and µ y , σ y ) are predicted by an additional simple neural network, which is trained separately from the NMT model. Then we com- pute the cross-entropy of the two Gaussians to measure whether the expected length of transla- tion tends to match the correct length as:</p><formula xml:id="formula_1">H(p l x , p l y ) = 1 2 log(2πσ y 2 ) + σ x 2 + (µ y − µ x ) 2 2σ y 2 .<label>(3)</label></formula><p>We penalize a hypothesis if the cross entropy exceeds a threshold τ as:</p><formula xml:id="formula_2">LMP(y) = 0 if y finished I(H(p l x , p l y ) &gt; τ ) otherwise<label>(4)</label></formula><p>where I(·) is an indicator function.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5">Experiments</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.1">Experimental Settings</head><p>We evaluate the proposed decoding algorithm mainly with an off-the-shelf NMT model <ref type="bibr" target="#b0">(Bahdanau et al., 2014</ref>), which has a bi-directional LSTM encoder and a single-layer LSTM decoder. The embeddings and LSTM layers have a size of 1000. We evaluate the algorithms on AS- PEC English-Japanese translation task ( <ref type="bibr" target="#b10">Nakazawa et al., 2016</ref>). The vocabulary contains 80k words for English side and 40k words for the Japanese side. We report BLEU score based on a standard post-processing procedure <ref type="bibr">1</ref> . All NMT models in this work are trained with Nesterov's accelerated gradient <ref type="bibr" target="#b11">(Nesterov, 1983)</ref> with an initial learning rate of 0.25. The learn- ing rate is decreased by a factor of 10 if no im- provement is observed in 20k iterations. The train- ing ends after the learning rate is annealed for three times. The models are trained on 4 GPUs; each GPU computes the gradient of a mini-batch. The gradients are averaged and distributed to each GPU using the nccl framework.</p><p>The hyperparameters of the decoding algo- rithms are tuned by Bayesian optimization <ref type="bibr" target="#b14">(Snoek et al., 2012</ref>) on a small validation set composed of 500 sentences. We utilize the "bayes opt" pack- age for Bayesian optimization. We use the default acquisition function "ucb" with a κ value of 5. We first explore 50 initial points, then optimize for an- other 50 iterations.</p><p>We allow the decoding algorithms to run for a maximum of 150 steps. If the algorithm fails to find a finished translation in the limited steps, an empty translation is outputted.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.2">Main Results</head><p>The main evaluation results are shown in <ref type="table">Table  1</ref>, which uses a beam size of 5 as such a small beam size is more useful in a production system. The results show that the proposed single-queue decoding (SQD) algorithm significantly improves the quality of translations. With the length match- ing penalty (LMP), SQD outperforms the beam search with length-normalization by 1.14 BLEU on the test set. Without the progress penalty (PG), the scores are much worse.</p><p>Since SQD computes B hypotheses in batch mode at each step just like beam search, the com- <ref type="bibr">1</ref> We use Kytea to re-tokenize results in evaluation.   putational cost inside the loop of Alg. 1 remains the same. The factor affecting the decoding time is the actual number of time steps. To clarify that SQD does not improve the performance by signif- icantly increasing the number of steps, we also re- port the average number of steps and the decoding time for translating one sentence. We can see that it is effective applying length matching penaltiy. However, it slows down the algorithm as extra computation is required.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.3">Experiments with a Large NMT Model</head><p>In order to see whether the performance gain can be generalized to deeper models, we train a large NMT model with two layers of LSTM decoders. We apply residual connection ( <ref type="bibr" target="#b4">He et al., 2016)</ref> to the decoder states. Before the softmax layer, an additional fully-connected layer with 600 hid- den units is applied. For the attention mechanism, we use a variant of the key-value attention <ref type="bibr">(Miller et al., 2016)</ref>, where the keys are computed by a linear transformation of the encoder states, the queries of the attention are the sum of the feedback word embeddings and the LSTM states of the first decoder. Dropout ( <ref type="bibr" target="#b15">Srivastava et al., 2014</ref>) is ap- plied everywhere after non-recurrent layers with a dropping rate of 0.2. To further enhance the model performance, we use byte pair encoding <ref type="bibr" target="#b12">(Sennrich et al., 2016</ref>) with a coding size of 40k to segment the sentences of the training data into subwords. The experiment results are shown in <ref type="table">Table 2</ref>.</p><p>By applying various techniques, the NMT model achieves high single-model BLEU scores. The results indicate that SQD is still effective with a high-performance NMT model. The proposed algorithm is more effective with a small beam size. For this model, the contribution of length match- ing penalty is only beneficial when the beam size is smaller than 8, which may be a side-effect of applying byte pair encoding (BPE). As it is more difficult to correctly predict the number of output tokens in sub-word level.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6">Discussion</head><p>The proposed algorithm requires a block of GPU memory for storing the states of LSTM decoders for all stored hypotheses in the priority queue. The increased memory usage does not cause a problem unless a large beam size is used.</p><p>Although all hypotheses are expected to be evaluated fairly, we found only averagely 2 dis- carded hypotheses are recovered when decoding each sentence. The reason is that longer hypothe- ses tend to have higher local scores in general, which makes it difficult for the algorithm to select a short hypothesis. As a future work, a better score function is required to fully exploit the flexibility of the proposed algorithm.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="7">Conclusion</head><p>In this paper, we present a novel decoding algo- rithm that removes the constraint imposed by the monotonicity of beam search, so that a discarded hypothesis can be revisited in a later step.</p><p>The proposed algorithm maintains all reusable hypotheses in a single priority queue. In each step, the algorithm selects hypotheses from the queue with highest scores evaluated by a universal score function. We design two auxiliary scores to help selecting proper hypotheses from a large queue.</p></div><figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_0"><head>2 :</head><label>2</label><figDesc>Evaluation results using a large NMT model with different beam sizes (BS). The scores of the beam search with length-normalization (LN) are reported as the baselines.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_1" validated="false"><head>Table</head><label></label><figDesc></figDesc><table></table></figure>
+		</body>
+		<back>
+
+			<div type="acknowledgement">
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Acknowledgments</head><p>This work is supported by JSPS KAKENHI Grant Number 16H05872.</p></div>
+			</div>
+
+			<div type="references">
+
+				<listBibl>
+
+<biblStruct xml:id="b0">
+	<monogr>
+		<title level="m" type="main">Neural machine translation by jointly learning to align and translate</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Dzmitry</forename><surname>Bahdanau</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kyunghyun</forename><surname>Cho</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yoshua</forename><surname>Bengio</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1409.0473</idno>
+		<imprint>
+			<date type="published" when="2014" />
+		</imprint>
+	</monogr>
+<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b1">
+	<monogr>
+		<title level="m" type="main">Convolutional sequence to sequence learning</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jonas</forename><surname>Gehring</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Michael</forename><surname>Auli</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">David</forename><surname>Grangier</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Denis</forename><surname>Yarats</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yann</forename><surname>Dauphin</surname></persName>
+		</author>
+		<idno>abs/1705.03122</idno>
+		<imprint>
+			<date type="published" when="2017" />
+			<publisher>CoRR</publisher>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b2">
+	<monogr>
+		<title level="m" type="main">Sequence transduction with recurrent neural networks</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Alex</forename><surname>Graves</surname></persName>
+		</author>
+		<idno>abs/1211.3711</idno>
+		<imprint>
+			<date type="published" when="2012" />
+			<publisher>CoRR</publisher>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b3">
+	<analytic>
+		<title level="a" type="main">Correction to &quot;a formal basis for the heuristic determination of minimum cost paths</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Peter</forename><forename type="middle">E</forename><surname>Hart</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Nils</forename><forename type="middle">J</forename><surname>Nilsson</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Bertram</forename><surname>Raphael</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">SIGART Newsletter</title>
+		<imprint>
+			<biblScope unit="volume">37</biblScope>
+			<biblScope unit="page" from="28" to="29" />
+			<date type="published" when="1968" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b4">
+	<analytic>
+		<title level="a" type="main">Deep residual learning for image recognition</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kaiming</forename><surname>He</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Xiangyu</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Shaoqing</forename><surname>Ren</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jian</forename><surname>Sun</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">IEEE Conference on Computer Vision and Pattern Recognition (CVPR)</title>
+		<imprint>
+			<date type="published" when="2016" />
+			<biblScope unit="page" from="770" to="778" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b5">
+	<analytic>
+		<title level="a" type="main">Improved beam search with constrained softmax for nmt</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Xiaoguang</forename><surname>Hu</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Wei</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Xiang</forename><surname>Lan</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Hua</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Haifeng</forename><surname>Wang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of MT Summit XV</title>
+		<meeting>MT Summit XV</meeting>
+		<imprint>
+			<date type="published" when="2015" />
+			<biblScope unit="page">297</biblScope>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b6">
+	<monogr>
+		<title level="m" type="main">Mutual information and diverse decoding improve neural machine translation</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jiwei</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Daniel</forename><surname>Jurafsky</surname></persName>
+		</author>
+		<idno>abs/1601.00372</idno>
+		<imprint>
+			<date type="published" when="2016" />
+			<publisher>CoRR</publisher>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b7">
+	<monogr>
+		<title level="m" type="main">Learning to decode for future success</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jiwei</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Will</forename><surname>Monroe</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Dan</forename><surname>Jurafsky</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1701.06549</idno>
+		<imprint>
+			<date type="published" when="2017" />
+		</imprint>
+	</monogr>
+<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b8">
+	<monogr>
+		<title level="m" type="main">A simple, fast diverse decoding algorithm for neural generation</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jiwei</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Will</forename><surname>Monroe</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Daniel</forename><surname>Jurafsky</surname></persName>
+		</author>
+		<idno>abs/1611.08562</idno>
+		<imprint>
+			<date type="published" when="2016" />
+			<publisher>CoRR</publisher>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b9">
+	<analytic>
+		<title level="a" type="main">AmirHossein Karimi, Antoine Bordes, and Jason Weston. 2016. Key-value memory networks for directly reading documents</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Alexander</forename><forename type="middle">H</forename><surname>Miller</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Adam</forename><surname>Fisch</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jesse</forename><surname>Dodge</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">EMNLP</title>
+		<imprint/>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b10">
+	<analytic>
+		<title level="a" type="main">Aspec: Asian scientific paper excerpt corpus</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Toshiaki</forename><surname>Nakazawa</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Manabu</forename><surname>Yaguchi</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kiyotaka</forename><surname>Uchimoto</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Masao</forename><surname>Utiyama</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Eiichiro</forename><surname>Sumita</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Sadao</forename><surname>Kurohashi</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Hitoshi</forename><surname>Isahara</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">LREC</title>
+		<imprint>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b11">
+	<analytic>
+		<title level="a" type="main">A method for unconstrained convex minimization problem with the rate of convergence o (1/k2)</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yurii</forename><surname>Nesterov</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Doklady an SSSR</title>
+		<imprint>
+			<date type="published" when="1983" />
+			<biblScope unit="volume">269</biblScope>
+			<biblScope unit="page" from="543" to="547" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b12">
+	<monogr>
+		<title level="m" type="main">Neural machine translation of rare words with subword units</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Rico</forename><surname>Sennrich</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Barry</forename><surname>Haddow</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Alexandra</forename><surname>Birch</surname></persName>
+		</author>
+		<idno>abs/1508.07909</idno>
+		<imprint>
+			<date type="published" when="2016" />
+			<publisher>CoRR</publisher>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b13">
+	<monogr>
+		<title level="m" type="main">Outrageously large neural networks: The sparsely-gated mixture-of-experts layer</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Noam</forename><surname>Shazeer</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Azalia</forename><surname>Mirhoseini</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Krzysztof</forename><surname>Maziarz</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Andy</forename><surname>Davis</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Quoc</forename><forename type="middle">V</forename><surname>Le</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Geoffrey</forename><forename type="middle">E</forename><surname>Hinton</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jeff</forename><surname>Dean</surname></persName>
+		</author>
+		<idno>abs/1701.06538</idno>
+		<imprint>
+			<date type="published" when="2017" />
+			<publisher>CoRR</publisher>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b14">
+	<analytic>
+		<title level="a" type="main">Practical bayesian optimization of machine learning algorithms</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jasper</forename><surname>Snoek</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Hugo</forename><surname>Larochelle</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ryan</forename><forename type="middle">P</forename><surname>Adams</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">NIPS</title>
+		<imprint>
+			<date type="published" when="2012" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b15">
+	<analytic>
+		<title level="a" type="main">Dropout: a simple way to prevent neural networks from overfitting</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Nitish</forename><surname>Srivastava</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Geoffrey</forename><forename type="middle">E</forename><surname>Hinton</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Alex</forename><surname>Krizhevsky</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ilya</forename><surname>Sutskever</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ruslan</forename><surname>Salakhutdinov</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Journal of Machine Learning Research</title>
+		<imprint>
+			<biblScope unit="volume">15</biblScope>
+			<biblScope unit="page" from="1929" to="1958" />
+			<date type="published" when="2014" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b16">
+	<analytic>
+		<title level="a" type="main">Sequence to sequence learning with neural networks</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ilya</forename><surname>Sutskever</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Oriol</forename><surname>Vinyals</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Quoc</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Le</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">NIPS</title>
+		<imprint>
+			<date type="published" when="2014" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b17">
+	<monogr>
+		<title level="m" type="main">Sequence-to-sequence learning as beam-search optimization</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Sam</forename><surname>Wiseman</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Alexander</forename><forename type="middle">M</forename><surname>Rush</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+	<note>In EMNLP</note>
+</biblStruct>
+
+<biblStruct xml:id="b18">
+	<analytic>
+		<title level="a" type="main">Google&apos;s neural machine translation system</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yonghui</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Mike</forename><surname>Schuster</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Zhifeng</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">V</forename><surname>Quoc</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Mohammad</forename><surname>Le</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Wolfgang</forename><surname>Norouzi</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Maxim</forename><surname>Macherey</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yuan</forename><surname>Krikun</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Qin</forename><surname>Cao</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Klaus</forename><surname>Gao</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Macherey</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1609.08144</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Bridging the gap between human and machine translation</title>
+		<imprint>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+				</listBibl>
+			</div>
+		</back>
+	</text>
+</TEI>

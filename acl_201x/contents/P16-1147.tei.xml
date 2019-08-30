@@ -1,0 +1,718 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<TEI xmlns="http://www.tei-c.org/ns/1.0" 
+xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+xsi:schemaLocation="http://www.tei-c.org/ns/1.0 /home/ana/installs/grobid/grobid-0.5.1/grobid-home/schemas/xsd/Grobid.xsd"
+ xmlns:xlink="http://www.w3.org/1999/xlink">
+	<teiHeader xml:lang="en">
+		<encodingDesc>
+			<appInfo>
+				<application version="0.5.1-SNAPSHOT" ident="GROBID" when="2019-04-18T10:58+0000">
+					<ref target="https://github.com/kermitt2/grobid">GROBID - A machine learning software for extracting information from scholarly documents</ref>
+				</application>
+			</appInfo>
+		</encodingDesc>
+		<fileDesc>
+			<titleStmt>
+				<title level="a" type="main">Stack-propagation: Improved Representation Learning for Syntax</title>
+			</titleStmt>
+			<publicationStmt>
+				<publisher/>
+				<availability status="unknown"><licence/></availability>
+				<date>August 7-12, 2016</date>
+			</publicationStmt>
+			<sourceDesc>
+				<biblStruct>
+					<analytic>
+						<author>
+							<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yuan</forename><surname>Zhang</surname></persName>
+							<email>yuanzh@csail.mit.edu</email>
+							<affiliation key="aff0">
+								<orgName type="institution" key="instit1">CSAIL</orgName>
+								<orgName type="institution" key="instit2">MIT Cambridge</orgName>
+								<address>
+									<postCode>02139</postCode>
+									<region>MA</region>
+									<country key="US">USA</country>
+								</address>
+							</affiliation>
+						</author>
+						<author>
+							<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">David</forename><surname>Weiss</surname></persName>
+							<email>djweiss@google.com</email>
+							<affiliation key="aff1">
+								<orgName type="institution">Google Inc New York</orgName>
+								<address>
+									<postCode>10027</postCode>
+									<region>NY</region>
+									<country key="US">USA</country>
+								</address>
+							</affiliation>
+						</author>
+						<title level="a" type="main">Stack-propagation: Improved Representation Learning for Syntax</title>
+					</analytic>
+					<monogr>
+						<title level="m">Proceedings of the 54th Annual Meeting of the Association for Computational Linguistics</title>
+						<meeting>the 54th Annual Meeting of the Association for Computational Linguistics <address><addrLine>Berlin, Germany</addrLine></address>
+						</meeting>
+						<imprint>
+							<biblScope unit="page" from="1557" to="1566"/>
+							<date type="published">August 7-12, 2016</date>
+						</imprint>
+					</monogr>
+				</biblStruct>
+			</sourceDesc>
+		</fileDesc>
+		<profileDesc>
+			<abstract>
+				<p>Traditional syntax models typically leverage part-of-speech (POS) information by constructing features from hand-tuned templates. We demonstrate that a better approach is to utilize POS tags as a reg-ularizer of learned representations. We propose a simple method for learning a stacked pipeline of models which we call &quot;stack-propagation&quot;. We apply this to dependency parsing and tagging, where we use the hidden layer of the tagger network as a representation of the input tokens for the parser. At test time, our parser does not require predicted POS tags. On 19 languages from the Universal Dependencies, our method is 1.3% (absolute) more accurate than a state-of-the-art graph-based approach and 2.7% more accurate than the most comparable greedy model.</p>
+			</abstract>
+		</profileDesc>
+	</teiHeader>
+	<text xml:lang="en">
+		<body>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="1">Introduction</head><p>In recent years, transition-based dependency parsers powered by neural network scoring func- tions have dramatically increased the state-of-the- art in terms of both speed and accuracy <ref type="bibr" target="#b4">(Chen and Manning, 2014;</ref>. Similar approaches also achieve state-of- the-art in other NLP tasks, such as constituency parsing <ref type="bibr" target="#b7">(Durrett and Klein, 2015)</ref> or semantic role labeling ( <ref type="bibr" target="#b9">FitzGerald et al., 2015</ref>). These approaches all share a common principle: re- place hand-tuned conjunctions of traditional NLP feature templates with continuous approximations learned by the hidden layer of a feed-forward net- work. * Research conducted at Google.</p><p>However, state-of-the-art dependency parsers depend crucially on the use of predicted part-of- speech (POS) tags. In the pipeline or stacking (Wolpert, 1992) method, these are predicted from an independently trained tagger and used as fea- tures in the parser. However, there are two main disadvantages of a pipeline: (1) errors from the POS tagger cascade into parsing errors, and (2) POS taggers often make mistakes precisely be- cause they cannot take into account the syntactic context of a parse tree. The POS tags may also contain only coarse information, such as when us- ing the universal tagset of <ref type="bibr" target="#b20">Petrov et al. (2011)</ref>.</p><p>One approach to solve these issues has been to avoid using POS tags during parsing, e.g. either using semi-supervised clustering instead of POS tags ( <ref type="bibr" target="#b12">Koo et al., 2008)</ref> or building recurrent repre- sentations of words using neural networks . However, the best accuracy for these approaches is still achieved by running a POS tagger over the data first and combining the predicted POS tags with additional representations. As an alternative, a wide range of prior work has investigated jointly modeling both POS and parse trees ( <ref type="bibr" target="#b14">Li et al., 2011;</ref><ref type="bibr" target="#b10">Hatori et al., 2011;</ref><ref type="bibr" target="#b2">Bohnet and Nivre, 2012;</ref><ref type="bibr" target="#b21">Qian and Liu, 2012</ref>; <ref type="bibr" target="#b22">Wang and Xue, 2014;</ref><ref type="bibr" target="#b15">Li et al., 2014;</ref><ref type="bibr" target="#b25">Zhang et al., 2015;</ref>. However, these approaches typically require sacrificing either ef- ficiency or accuracy compared to the best pipeline model, and often they simply re-rank the predic- tions of a pipelined POS tagger.</p><p>In this work, we show how to improve accuracy for both POS tagging and parsing by incorporat- ing stacking into the architecture of a feed-forward network. We propose a continuous form of stack- ing that allows for easy backpropagation down the pipeline across multiple tasks, a process we call </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Traditional Stacking</head><p>Stack-propagation Stack-propagation uses a continuous and differentiable link between Task A and Task B, allowing for backpropagation from Task B into Task A's model. Updates to Task A act as regularization on the model for Task B, ensuring the shared component is useful for both tasks.</p><p>"stack-propagation" <ref type="figure" target="#fig_1">(Figure 1</ref>). At the core of this idea is that we use POS tags as regularization in- stead of features.</p><p>Our model design for parsing is very simple: we use the hidden layer of a window-based POS tagging network as the representation of tokens in a greedy, transition-based neural network parser. Both networks are implemented with a refined ver- sion of the feed-forward network <ref type="figure">(Figure 3</ref>) from <ref type="bibr" target="#b4">Chen and Manning (2014)</ref>, as described in . We link the tagger network to the parser by translating traditional feature templates for parsing into feed-forward connections from the tagger to the parser <ref type="figure" target="#fig_3">(Figure 2)</ref>. At training time, we unroll the parser decisions and apply stack- propagation by alternating between stochastic up- dates to the parsing or tagging objectives ( <ref type="figure" target="#fig_5">Figure  4</ref>). The parser's representations of tokens are thus regularized to be individually predictive of POS tags, even as they are trained to be useful for pars- ing when concatenated and fed into the parser net- work. This model is similar to the multi-task net- work structure of <ref type="bibr" target="#b5">Collobert et al. (2011)</ref>, where Collobert et al. (2011) shares a hidden layer be- tween multiple tagging tasks. The primary differ- ence here is that we show how to unroll parser transitions to apply the same principle to tasks with fundamentally different structure.</p><p>The key advantage of our approach is that at test time, we do not require predicted POS tags for parsing. Instead, we run the tagger network up to the hidden layer over the entire sentence, and then dynamically connect the parser network to the tagger network based upon the discrete parser configurations as parsing unfolds. In this way, we avoid cascading POS tagging errors to the parser. As we show in Section 5, our approach can be used in conjunction with joint transition systems in the parser to improve both POS tagging as well as parsing. In addition, because the parser re-uses the representation from the tagger, we can drop all lexicalized features from the parser network, lead- ing to a compact, faster model. The rest of the paper is organized as follows. In Section 2, we describe the layout of our combined architecture. In Section 3, we introduce stack- propagation and show how we train our model. We evaluate our approach on 19 languages from the Universal Dependencies treebank in Section 4. We observe a &gt;2% absolute gain in labeled ac- curacy compared to state-of-the-art, LSTM-based greedy parsers ( ) and a &gt;1% gain compared to a state-of-the-art, graph- based method ( <ref type="bibr" target="#b13">Lei et al., 2014</ref>). We also evaluate our method on the Wall Street Journal, where we find that our architecture outperforms other greedy models, especially when only coarse POS tags from the universal tagset are provided during train- ing. In Section 5, we systematically evaluate the different components of our approach to demon- strate the effectiveness of stack-propagation com- pared to traditional types of joint modeling. We also show that our approach leads to large reduc- tions in cascaded errors from the POS tagger.</p><p>We hope that this work will motivate fur- ther research in combining traditional pipelined structured prediction models with deep neural architectures that learn intermediate representa- tions in a task-driven manner. One important finding of this work is that, even without POS tags, our architecture outperforms recurrent ap- proaches that build custom word representations using character-based LSTMs ( . These results suggest that learning rich embeddings of words may not be as important as building an intermediate representation that takes multiple features of the surrounding context into account. Our results also suggest that deep mod- els for dependency parsing may not discover POS classes when trained solely for parsing, even when it is fully within the capacity of the model. De- signing architectures to apply stack-propagation in other coupled NLP tasks might yield significant accuracy improvements for deep learning.   In this example, the parser has three templates, stack:0, stack:1, and input:0. Bottom: The feature templates create many-to-many connections from the hidden layer of the tagger to the input layer of the parser. For example, the predicted root of the sentence ("ate") is connected to the input of most parse decisions. At test time, the above structure is constructed dynamically as a function of the parser output. Note also that the predicted POS tags are not directly used by the parser.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2">Continuous Stacking Model</head><p>In this section, we introduce a novel neural net- work model for parsing and tagging that incorpo- rates POS tags as a regularization of learned im- plicit representations. The basic unit of our model ( <ref type="figure">Figure 3</ref>) is a simple, feed-forward network that has been shown to work very well for parsing tasks <ref type="bibr" target="#b4">(Chen and Manning, 2014;</ref>. The inputs to this unit are feature matrices which are embedded and passed as input to a hidden layer. The final layer is a softmax prediction. We use two such networks in this work: a window-based version for tagging and a transition-based version for dependency parsing. In a traditional stacking (pipeline) approach, we would use the discrete predicted POS tags from the tagger as features in the parser <ref type="bibr" target="#b4">(Chen and Manning, 2014</ref>). In our model, we instead feed the continuous hidden layer activations of the tag- ger network as input to the parser. The primary strength of our approach is that the parser has ac- cess to all of the features and information used by the POS tagger during training time, but it is al- lowed to make its own decisions at test time.</p><p>To implement this, we show how we can re- use feature templates from <ref type="bibr" target="#b4">Chen and Manning (2014)</ref> to specify the feed-forward connections from the tagger network to the parser network. An interesting consequence is that because this structure is a function of the derivation produced by the parser, the final feed-forward structure of the stacked model is not known until run-time.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Prefixes</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Words</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>eature traction</head><p>Suffixes Clusters edding n (Relu) ftmax Words Suffixes</p><formula xml:id="formula_0">X &gt; 0 E 0 X &gt; 1 E 1 X &gt; G E G … P (y) / exp{ &gt; y h 0 + b y } h 0 = max{0, W &gt; hX &gt; g E g i + b 0 }</formula></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Embedding Layer</head><p>Hidden Layer</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Softmax Layer</head><p>Feature templates</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>D=64 D=16</head><p>Figure 3: Elementary NN unit used in our model. Feature matrices from multiple channels are embedded, concatenated together, and fed into a rectified linear hidden layer. In the parser network, the feature inputs are continuous representa- tions from the tagger network's hidden layer.</p><p>However, because the connections for any specific parsing decision are fixed given the derivation, we can still extract examples for training off-line by unrolling the network structure from gold deriva- tions. In other words, we can utilize our approach with the same simple stochastic optimization tech- niques used in prior works. <ref type="figure" target="#fig_3">Figure 2</ref> shows a fully unrolled architecture on a simple example.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.1">The Tagger Network</head><p>As described above, our POS tagger follows the basic structure from prior work with embedding, hidden, and softmax layers. Like the "window- approach" network of <ref type="bibr" target="#b5">Collobert et al. (2011)</ref>, the tagger is evaluated per-token, with features ex- tracted from a window of tokens surrounding the target. The input consists of a rich set of fea-   (b) Forward and backward schema for (a).</p><formula xml:id="formula_1">x implicit bu↵er0 x implicit stack0 x implicit bu↵er0 implicit stack0 implicit bu↵er0</formula><p>tures for POS tagging that are deterministically ex- tracted from the training data. As in prior work, the features are divided into groups of different sizes that share an embedding matrix E. Features for each group g are represented as a sparse ma- trix X g with dimension F g × V g , where F g is the number of feature templates in the group, and V g is the vocabulary size of the feature templates. Each row of X g is a one-hot vector indicating the appearance of each feature. The network first looks up the learned embed- ding vectors for each feature and then concate- nates them to form the embedding layer. This em- bedding layer can be written as:</p><formula xml:id="formula_2">h 0 = [X g E g | ∀g]<label>(1)</label></formula><p>where E g is a learned V g × D g embedding ma- trix for feature group. Thus, the final size |h 0 | = g F g D g is the sum of all embedded feature sizes. The specific features and their dimensions used in the tagger are listed in <ref type="table" target="#tab_2">Table 1</ref>. Note that for all features, we create additional null value that triggers when features are extracted outside the scope of the sentence. We use a single hidden layer in our model and apply rectified linear unit (ReLU) activation function over the hidden layer outputs. A final softmax layer reads in the acti- vations and outputs probabilities for each possible POS tag.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.2">The Parser Network</head><p>The parser component follows the same design as the POS tagger with the exception of the fea- tures and the output space. Instead of a window- based classifier, features are extracted from an arc- standard parser configuration 1 c consisting of the stack s, the buffer b and the so far constructed de- pendencies <ref type="bibr" target="#b18">(Nivre, 2004)</ref>. Prior implementations of this model used up to four groups of discrete features: words, labels (from previous decisions), POS tags, and morphological attributes <ref type="bibr" target="#b4">(Chen and Manning, 2014;</ref>. In this work, we apply the same design princi- ple but we use an implicitly learned intermediate representation in the parser to replace traditional discrete features. We only retain discrete features over the labels in the incrementally constructed tree <ref type="figure" target="#fig_5">(Figure 4)</ref>. Specifically, for any token of inter- est, we feed the hidden layer of the tagger network evaluated for that token as input to the parser. We implement this idea by re-using the feature tem- plates from prior work as indexing functions.</p><formula xml:id="formula_3">Features (g) Window D Symbols 1 8 Capitalization +/-1 4 Prefixes/Suffixes (n = 2, 3) +/-1 16 Words +/-3 64</formula><p>We define this process formally as follows. Let f i (c) be a function mapping from parser config- urations c to indices in the sentence, where i de- notes each of our feature templates. For example, in <ref type="figure" target="#fig_5">Figure 4(a)</ref>, when i =stack 0 , f i (c) is the in-dex of "fox" in the sentence. Let h tagger 1 (j) be the hidden layer activation of the tagger network evaluated at token j. We define the input X implicit by concatenating these tagger activations accord- ing to our feature templates:</p><formula xml:id="formula_4">x implicit i h tagger 1 (f i (c)).<label>(2)</label></formula><p>Thus, the feature group X implicit is the row- concatenation of the hidden layer activations of the tagger, as indexed by the feature templates. We have that F implicit is the number of feature templates, and V implicit = H tagger , the num- ber of possible values is the number of hidden units in the tagger. Just as for other features, we learn an embedding matrix E implicit of size H implicit × F implicit . Note that as in the POS tag- ger network, we reserve an additional null value for out of scope feature templates. A full exam- ple of this lookup process, and the resulting feed- forward network connections created, is shown for a simple three-feature template consisting of the top two tokens on the stack and the first on the buffer in <ref type="figure" target="#fig_3">Figure 2</ref>. See <ref type="table" target="#tab_2">Table 1</ref> for the full list of 20 tokens that we extract for each state.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3">Learning with Stack-propagation</head><p>In this section we describe how we train our stack- ing architecture. At a high level, we simply apply backpropagation to our proposed continuous form of stacking (hence "stack-propagation.") There are two major issues to address: (1) how to handle the dynamic many-to-many connections between the tagger network and the parser network, and <ref type="formula" target="#formula_4">(2)</ref> how to incorporate the POS tag labels during train- ing.</p><p>Addressing the first point turns out to be fairly easy in practice: we simply unroll the gold trees into a derivation of (state, action) pairs that pro- duce the tree. The key property of our pars- ing model is that the connections of the feed- forward network are constructed incrementally as the parser state is updated. This is different than a generic recurrent model such as an LSTM, which passes activation vectors from one step to the next. The important implication at training time is that, unlike a recurrent network, the parser decisions are conditionally independent given a fixed his- tory. In other words, if we unroll the network structure ahead of time given the gold derivation, we do not need to perform inference when training with respect to these examples. Thus, the overall training procedure is similar to that introduced in <ref type="bibr" target="#b4">Chen and Manning (2014)</ref>.</p><p>To incorporate the POS tags as a regularization during learning, we take a fairly standard approach from multi-task learning. The objective of learn- ing is to find parameters Θ that maximize the data log-likelihood with a regularization on Θ for both parsing and tagging:</p><formula xml:id="formula_5">max Θ λ x,y∈T log(P Θ (y | x))+ c,a∈P log (P Θ (a | c)) , (3)</formula><p>where {x, y} are POS tagging examples extracted from individual tokens and {c, a} are parser (con- figuration, action) pairs extracted from the un- rolled gold parse tree derivations, and λ is a trade- off parameter.</p><p>We optimize this objective stochastically by al- ternating between two updates:</p><p>• TAGGER: Pick a POS tagging example and update the tagger network with backpropaga- tion.</p><p>• PARSER: <ref type="figure" target="#fig_5">(Figure 4</ref>) Given a parser con- figuration c from the set of gold contexts, compute both tagger and parser activations. Backpropagate the parsing loss through the stacked architecture to update both parser and tagger, ignoring the tagger's softmax layer parameters.</p><p>While the learning procedure is inspired from multi-task learning-we only update each step with regards one of the two likelihoods-there are subtle differences that are important. While a tra- ditional multi-task learning approach would use the final layer of the parser network to predict both POS tags and parse trees, we predict POS tags from the first hidden layer of our model (the "tag- ger" network) only. We treat the POS labels as regularization of our parser and simply discard the softmax layer of the tagger network at test time.</p><p>As we will show in Section 4, this regularization leads to dramatic gains in parsing accuracy. Note that in Section 5, we also show experimentally that stack-propagation is more powerful than the traditional multi-task approach, and by combining them together, we can achieve better accuracy on both POS and parsing tasks.    , while "Ours (window)" is our window-based architecture variant without stackprop. Bottom: Comparison against state-of-the-art baselines utilizing the POS tags. Paired t-tests show that the gain of Stackprop over all other approaches is significant (p &lt; 10 −5 for all but RBGParser, which is p &lt; 0.02).</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.1">Implementation details</head><p>Following , we use mini- batched averaged stochastic gradient descent (ASGD) (Bottou, 2010) with momentum <ref type="bibr" target="#b11">(Hinton, 2012)</ref> to learn the parameters Θ of the network. We use a separate learning rate, moving average, and velocity for the tagger network and the parser; the PARSER updates all averages, velocities, and learning rates, while the TAGGER updates only the tagging factors. We tuned the hyperparameters of momentum rate µ, the initial learning rate η 0 and the learning rate decay step γ using held-out data. The training data for parsing and tagging can be extracted from either the same corpus or different corpora; in our experiments they were always the same.</p><p>To trade-off the two objectives, we used a ran- dom sampling scheme to perform 10 epochs of PARSER updates and 5 epochs of TAGGER up- dates. In our experiments, we found that pre- training with TAGGER updates for one epoch be- fore interleaving PARSER updates yielded faster training with better results. We also experimented using the TAGGER updates solely for initializing the parser and found that interleaving updates was crucial to obtain improvements over the baseline.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4">Experiments</head><p>In this section, we evaluate our approach on sev- eral dependency parsing tasks across a wide vari- ety of languages.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.1">Experimental Setup</head><p>We first investigated our model on 19 lan- guages from the Universal Dependencies Tree- banks v1.2. <ref type="bibr">2</ref> We selected the 19 largest cur- 2 http://universaldependencies.org rently spoken languages for which the full data was freely available. We used the coarse universal tagset in our experiments with no explicit morpho- logical annotations. To measure parsing accuracy, we report unlabeled attachment score (UAS) and labeled attachment score (LAS) computed on all tokens (including punctuation), as is standard for non-English datasets.</p><p>For simplicity, we use the arc-standard (Nivre, 2004) transition system with greedy decoding. Be- cause this transition system only produces projec- tive trees, we first apply a projectivization step to all treebanks before unrolling the gold derivations during training. We make an exception for Dutch, where we observed a significant gain on develop- ment data by introducing the SWAP action <ref type="bibr" target="#b19">(Nivre, 2009)</ref> and allowing non-projective trees.</p><p>For models that required predicted POS tags, we trained a window-based tagger using the same features as the tagger component of our stacking model. We used 5-fold jackknifing to produce pre- dicted tags on the training set. We found that the window-based tagger was comparable to a state- of-the-art CRF tagger for most languages. For ev- ery network we trained, we used the development data to evaluate a small range of hyperparameters, stopping training early when UAS no longer im- proved on the held-out data. We use H = 1024 hidden units in the parser, and H = 128 hidden units in the tagger. The parser embeds the tag- ger activations with D = 64. Note that following , we did not use any aux- iliary data beyond that in the treebanks, such as pre-trained word embeddings.</p><p>For a final set of experiments, we evaluated on the standard Wall Street Journal (WSJ) part of the Penn Treebank <ref type="figure" target="#fig_1">(Marcus et al., 1993)</ref>  converter <ref type="bibr" target="#b6">(De Marneffe et al., 2006</ref>). We followed standard practice and used sections 2-21 for train- ing, section 22 for development, and section 23 for testing. Following , we used section 24 to tune any hyperparameters of the model to avoid overfitting to the development set.</p><p>As is common practice, we use pretrained word embeddings from the word2vec package when training on this dataset.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.2">Results</head><p>We present our main results on the Universal Tree- banks in <ref type="table" target="#tab_4">Table 2</ref>. We directly compare our ap- proach to other baselines in two primary ways. First, we compare the effectiveness of our learned continuous representations with those of , who use the predicted distribution over POS tags concatenated with word embeddings as input to the parser. Because they also incorpo- rate beam search into training, we re-implement a greedy version of their method to allow for direct comparisons of token representations. We refer to this as the "Pipeline (P tag )" baseline. Second, we also compare our architecture trained without POS tags as regularization, which we refer to as "Ours (window-based)". This model has the same archi- tecture as our full model but with no POS supervi- sion and updates. Since this model never observes POS tags in any way, we compare against a re- current character-based parser (Ballesteros et al.,</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Model Variant UAS LAS POS</head><p>Arc-standard transition system Pipeline (P tag ) 81.56 76.55 <ref type="bibr">95.14 Ours (window-based)</ref>   2015) which is state-of-the-art when no POS tags are provided. 3 Finally, we compare to RGBParser ( <ref type="bibr" target="#b13">Lei et al., 2014</ref>), a state-of-the art graph-based (non-greedy) approach. Our greedy stackprop model outperforms all other methods, including the graph-based RBG- Parser, by a significant margin on the test set (78.9% vs 77.6%). This is despite the limitations of greedy parsing. Stackprop also yields a 2.3% absolute improvement in accuracy compared to using POS tag confidences as features (Pipeline P tag ). Finally, we also note that adding stack- prop to our window-based model improves accu- racy in every language, while incorporating pre- dicted POS tags into the LSTM baseline leads to occasional drops in accuracy (most likely due to cascaded errors.)</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5">Discussion</head><p>Stackprop vs. other representations. One un- expected result was that, even without the POS tag labels at training time, our stackprop archi- tecture achieves better accuracy than either the character-based LSTM or the pipelined baselines <ref type="table" target="#tab_4">(Table 2</ref>). This suggests that adding window- based representations-which aggregate over many features of the word and surrounding context- is more effective than increasing the expressive- ness of individual word representations by using character-based recurrent models. In future work we will explore combining these two complemen- tary approaches.</p><p>We hypothesized that stackprop might provide larger gains over the pipelined model when the Token married by a judge.</p><p>Don't judge a book by and walked away satisfied when I walk in the door Neighbors mesmerizing as a rat. doesn't change the company's tried, and tried hard upset when I went to A staple! won't charge your phone and incorporated into I mean besides me day at a bar, then go don't waste your money and belonged to the I felt as if I  POS tags are very coarse. We tested this latter hy- pothesis on the WSJ corpus by training our model using the coarse universal tagsets instead of the fine tagset <ref type="table" target="#tab_6">(Table 3)</ref>. We found that stackprop achieves similar accuracy using coarse tagsets as the fine tagset, while the pipelined baseline's per- formance drops dramatically. And while stack- prop doesn't achieve the highest reported accura- cies on the WSJ, it does achieve competitive ac- curacies and outperforms prior state-of-the-art for greedy methods ).</p><p>Stackprop vs. joint modeling. An alternative to stackprop would be to train the final layer of our architecture to predict both POS tags and dependency arcs. To evaluate this, we trained our window-based architecture with the integrated transition system of Bohnet and Nivre (2012), which augments the SHIFT transition to predict POS tags. Note that if we also apply stackprop, the network learns from POS annotations twice: once in the TAGGER updates, and again the PARSER up- dates. We therefore evaluated our window-based model both with and without stack-propagation, and with and without the joint transition system. We compare these variants along with our re- implementation of the pipelined model of  in <ref type="table" target="#tab_8">Table 4</ref>. We find that stackprop is always better, even when it leads to "double count- ing" the POS annotations; in this case, the result is a model that is significantly better at POS tagging while marginally worse at parsing than stackprop alone.</p><p>Reducing cascaded errors. As expected, we observe a significant reduction in cascaded POS tagging errors. An example from the English UD treebank is given in <ref type="figure" target="#fig_8">Figure 5</ref>. Across the 19 lan- guages in our test set, we observed a 10.9% gain (34.1% vs. 45.0%) in LAS on tokens where the pipelined POS tagger makes a mistake, compared to a 1.8% gain on the rest of the corpora.   Decreased model size. Previous neural parsers that use POS tags require learning embeddings for words and other features on top of the parameters used in the POS tagger <ref type="bibr" target="#b4">(Chen and Manning, 2014;</ref>. In contrast, the number of to- tal parameters for the combined parser and tag- ger in the Stackprop model is reduced almost by half compared to the Pipeline model, because the parser and tagger share parameters. Furthermore, compared to our implementation of the pipeline model, we observed that this more compact parser model was also roughly twice as fast.</p><p>Contextual embeddings. Finally, we also ex- plored the significance of the representations learned by the tagger. Unlike word embedding models, the representations used in our parser are constructed for each token based on its surround- ing context. We demonstrate a few interesting trends we observed in <ref type="table" target="#tab_10">Table 5</ref>, where we show the nearest neighbors to sample tokens in this contex- tual embedding space. These representations tend to represent syntactic patterns rather than individ- ual words, distinguishing between the form (e.g. "judge" as a noun vs. a verb') and context of to- kens (e.g. preceded by a personal pronoun).</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6">Conclusions</head><p>We present a stacking neural network model for dependency parsing and tagging. Through a sim- ple learning method we call "stack-propagation," our model learns effective intermediate represen- tations for parsing by using POS tags as regular- ization of implicit representations. Our model out- performs all state-of-the-art parsers when evalu- ated on 19 languages of the Universal Dependen- cies treebank and outperforms other greedy mod- els on the Wall Street Journal. We observe that the ideas presented in this work can also be as a principled way to optimize up- stream NLP components for down-stream appli- cations. In future work, we will extend this idea beyond sequence modeling to improve models in NLP that utilize parse trees as features. The basic tenet of stack-propagation is that the hidden lay- ers of neural models used to generate annotations can be used instead of the annotations themselves. This suggests a new methodology to building deep neural models for NLP: we can design them from the ground up to incorporate multiple sources of annotation and learn far more effective intermedi- ate representations.</p></div><figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_1"><head>Figure 1 :</head><label>1</label><figDesc>Figure 1: Traditional stacking (left) vs. Stack-propagation (right). Stacking uses the output of Task A as features in Task B, and does not allow backpropagation between tasks. Stack-propagation uses a continuous and differentiable link between Task A and Task B, allowing for backpropagation from Task B into Task A's model. Updates to Task A act as regularization on the model for Task B, ensuring the shared component is useful for both tasks.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_2"><head>I</head><label></label><figDesc></figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_3"><head>Figure 2 :</head><label>2</label><figDesc>Figure 2: Detailed example of the stacked parsing model. Top: The discrete parser state, consisting of the stack and the buffer, is updated by the output of the parser network. In turn, the feature templates used by the parser are a function of the state. In this example, the parser has three templates, stack:0, stack:1, and input:0. Bottom: The feature templates create many-to-many connections from the hidden layer of the tagger to the input layer of the parser. For example, the predicted root of the sentence ("ate") is connected to the input of most parse decisions. At test time, the above structure is constructed dynamically as a function of the parser output. Note also that the predicted POS tags are not directly used by the parser.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_4"><head></head><label></label><figDesc>The fox jumps . stack buffer det (a) Parser configuration c.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_5"><head>Figure 4 :</head><label>4</label><figDesc>Figure 4: A schematic for the PARSER stack-propagation update. a: Example parser configuration c with corresponding stack and buffer. b: Forward and backward stages for the given single example. During the forward phase, the tagger networks compute hidden activations for each feature template (e.g. stack0 and buffer0), and activations are fed as features into the parser network. For the backward update, we backpropagate training signals from the parser network into each linked tagging example.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_6"><head>Method</head><label></label><figDesc></figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_8"><head>Figure 5 :</head><label>5</label><figDesc>Figure 5: Example comparison between predictions by a pipeline model and a joint model. While both models predict a wrong POS tag for the word "back" (ADV rather than VERB), the joint model is robust to this POS error and predict the correct parse tree.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_2" validated="false"><head>Table 1 :</head><label>1</label><figDesc></figDesc><table>Window-based tagger feature spaces. "Symbols" 
+indicates whether the word contains a hyphen, a digit or a 
+punctuation. 
+
+</table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_4" validated="false"><head>Table 2 :</head><label>2</label><figDesc></figDesc><table>Labeled Attachment Score (LAS) on Universal Dependencies Treebank. Top: Results without any POS tag observa-
+tions. "B'15 LSTM" is the character-based LSTM model (</table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_6" validated="false"><head>Table 3 :</head><label>3</label><figDesc></figDesc><table>WSJ Test set results for greedy and state-of-the-art 
+methods. For reference, we show the most accurate models 
+from Alberti et al. (2015) and Weiss et al. (2015), which use 
+a deeper model and beam search for inference. 
+
+</table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_8" validated="false"><head>Table 4 :</head><label>4</label><figDesc></figDesc><table>Averaged parsing and POS tagging results on the UD 
+treebanks for joint variants of stackprop. Given the window-
+based architecture, stackprop leads to higher parsing accura-
+cies than joint modeling (83.38% vs. 82.58%). 
+
+</table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_10" validated="false"><head>Table 5 : Four of examples of tokens in context, along with the three most similar tokens according to the tagger network'</head><label>5</label><figDesc></figDesc><table>s 
+</table></figure>
+
+			<note place="foot" n="1"> Note that the &quot;stack&quot; in the parse configuration is separate from the &quot;stacking&quot; of the POS tagging network and the parser network (Figure 1).</note>
+
+			<note place="foot" n="3"> We thank Ballesteros et al. (2015) for their assistance running their code on the treebanks.</note>
+		</body>
+		<back>
+
+			<div type="acknowledgement">
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Acknowledgments</head><p>We would like to thank Ryan McDonald, Emily Pitler, Chris Alberti, Michael Collins, and Slav Petrov for their repeated discussions, suggestions, and feedback, as well all members of the Google NLP Parsing Team. We would also like to thank Miguel Ballesteros for assistance running the character-based LSTM.</p></div>
+			</div>
+
+			<div type="references">
+
+				<listBibl>
+
+<biblStruct xml:id="b0">
+	<analytic>
+		<title level="a" type="main">Improved transition-based parsing and tagging with neural networks</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Chris</forename><surname>Alberti</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">David</forename><surname>Weiss</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Greg</forename><surname>Coppola</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Slav</forename><surname>Petrov</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of EMNLP</title>
+		<meeting>EMNLP</meeting>
+		<imprint>
+			<date type="published" when="2015" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b1">
+	<analytic>
+		<title level="a" type="main">Improved transition-based parsing by modeling characters instead of words with lstms</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Miguel</forename><surname>Ballesteros</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Chris</forename><surname>Dyer</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Noah</forename><forename type="middle">A</forename><surname>Smith</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceddings of EMNLP</title>
+		<meeting>eddings of EMNLP</meeting>
+		<imprint>
+			<date type="published" when="2015" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b2">
+	<analytic>
+		<title level="a" type="main">A transitionbased system for joint part-of-speech tagging and labeled non-projective dependency parsing</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Bernd</forename><surname>Bohnet</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Joakim</forename><surname>Nivre</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2012 Joint Conference on Empirical Methods in Natural Language Processing and Computational Natural Language Learning</title>
+		<meeting>the 2012 Joint Conference on Empirical Methods in Natural Language Processing and Computational Natural Language Learning</meeting>
+		<imprint>
+			<date type="published" when="2012" />
+			<biblScope unit="page" from="1455" to="1465" />
+		</imprint>
+	</monogr>
+	<note>Association for Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b3">
+	<analytic>
+		<title level="a" type="main">Large-scale machine learning with stochastic gradient descent</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Léon</forename><surname>Bottou</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of COMPSTAT&apos;2010</title>
+		<meeting>COMPSTAT&apos;2010</meeting>
+		<imprint>
+			<publisher>Springer</publisher>
+			<date type="published" when="2010" />
+			<biblScope unit="page" from="177" to="186" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b4">
+	<analytic>
+		<title level="a" type="main">A fast and accurate dependency parser using neural networks</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Danqi</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Christopher</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Manning</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2014 Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>the 2014 Conference on Empirical Methods in Natural Language Processing</meeting>
+		<imprint>
+			<date type="published" when="2014" />
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="740" to="750" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b5">
+	<monogr>
+		<title level="m" type="main">Natural language processing (almost) from scratch</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ronan</forename><surname>Collobert</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jason</forename><surname>Weston</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Léon</forename><surname>Bottou</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Michael</forename><surname>Karlen</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Koray</forename><surname>Kavukcuoglu</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Pavel</forename><forename type="middle">P</forename><surname>Kuksa</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2011" />
+			<publisher>JMLR</publisher>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b6">
+	<analytic>
+		<title level="a" type="main">Generating typed dependency parses from phrase structure parses</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Marie-Catherine De</forename><surname>Marneffe</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Bill</forename><surname>Maccartney</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Christopher</forename><forename type="middle">D</forename><surname>Manning</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of Fifth International Conference on Language Resources and Evaluation</title>
+		<meeting>Fifth International Conference on Language Resources and Evaluation</meeting>
+		<imprint>
+			<date type="published" when="2006" />
+			<biblScope unit="page" from="449" to="454" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b7">
+	<analytic>
+		<title level="a" type="main">Neural crf parsing</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Greg</forename><surname>Durrett</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Dan</forename><surname>Klein</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Association for Computational Linguistics. Association for Computational Linguistics</title>
+		<meeting>the Association for Computational Linguistics. Association for Computational Linguistics</meeting>
+		<imprint>
+			<date type="published" when="2015" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b8">
+	<monogr>
+		<title level="m" type="main">Transitionbased dependency parsing with stack long shortterm memory</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Chris</forename><surname>Dyer</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Miguel</forename><surname>Ballesteros</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Wang</forename><surname>Ling</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Austin</forename><surname>Matthews</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Noah A</forename><surname>Smith</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2015" />
+			<publisher>ACL</publisher>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b9">
+	<analytic>
+		<title level="a" type="main">Semantic role labeling with neural network factors</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Nicholas</forename><surname>Fitzgerald</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Oscar</forename><surname>Tckstrm</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kuzman</forename><surname>Ganchev</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Dipanjan</forename><surname>Das</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2015 Conference on Empirical Methods in Natural Language Processing (EMNLP &apos;15)</title>
+		<meeting>the 2015 Conference on Empirical Methods in Natural Language Processing (EMNLP &apos;15)</meeting>
+		<imprint>
+			<date type="published" when="2015" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b10">
+	<analytic>
+		<title level="a" type="main">Incremental joint pos tagging and dependency parsing in chinese</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jun</forename><surname>Hatori</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Takuya</forename><surname>Matsuzaki</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yusuke</forename><surname>Miyao</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jun&amp;apos;ichi</forename><surname>Tsujii</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">IJCNLP</title>
+		<imprint>
+			<publisher>Citeseer</publisher>
+			<date type="published" when="2011" />
+			<biblScope unit="page" from="1216" to="1224" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b11">
+	<analytic>
+		<title level="a" type="main">A practical guide to training restricted boltzmann machines</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Geoffrey E Hinton</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Neural Networks: Tricks of the Trade</title>
+		<imprint>
+			<publisher>Springer</publisher>
+			<date type="published" when="2012" />
+			<biblScope unit="page" from="599" to="619" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b12">
+	<analytic>
+		<title level="a" type="main">Simple semi-supervised dependency parsing</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Terry</forename><surname>Koo</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Xavier</forename><forename type="middle">Carreras</forename><surname>Pérez</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Michael</forename><surname>Collins</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">46th Annual Meeting of the Association for Computational Linguistics</title>
+		<imprint>
+			<date type="published" when="2008" />
+			<biblScope unit="page" from="595" to="603" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b13">
+	<analytic>
+		<title level="a" type="main">Low-rank tensors for scoring dependency structures</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Tao</forename><surname>Lei</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yu</forename><surname>Xin</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yuan</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Regina</forename><surname>Barzilay</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Tommi</forename><surname>Jaakkola</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 52nd Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 52nd Annual Meeting of the Association for Computational Linguistics</meeting>
+		<imprint>
+			<date type="published" when="2014" />
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="1381" to="1391" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b14">
+	<analytic>
+		<title level="a" type="main">Joint models for chinese pos tagging and dependency parsing</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Zhenghua</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Min</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Wanxiang</forename><surname>Che</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ting</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Wenliang</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Haizhou</forename><surname>Li</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>the Conference on Empirical Methods in Natural Language Processing</meeting>
+		<imprint>
+			<date type="published" when="2011" />
+			<biblScope unit="page" from="1180" to="1191" />
+		</imprint>
+	</monogr>
+	<note>Association for Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b15">
+	<monogr>
+		<title level="m" type="main">Joint optimization for chinese POS tagging and dependency parsing</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Zhenghua</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Min</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Wanxiang</forename><surname>Che</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ting</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Wenliang</forename><surname>Chen</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2014" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b16">
+	<analytic>
+			</analytic>
+	<monogr>
+		<title level="m">Speech &amp; Language Processing</title>
+		<imprint>
+			<biblScope unit="page" from="274" to="286" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b17">
+	<analytic>
+		<title level="a" type="main">Building a large annotated corpus of English: The Penn Treebank</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Mitchell</forename><forename type="middle">P</forename><surname>Marcus</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Beatrice</forename><surname>Santorini</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Mary</forename><forename type="middle">Ann</forename><surname>Marcinkiewicz</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Computational Linguistics</title>
+		<imprint>
+			<biblScope unit="volume">19</biblScope>
+			<biblScope unit="issue">2</biblScope>
+			<biblScope unit="page" from="313" to="330" />
+			<date type="published" when="1993" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b18">
+	<analytic>
+		<title level="a" type="main">Incrementality in deterministic dependency parsing</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Joakim</forename><surname>Nivre</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Workshop on Incremental Parsing: Bringing Engineering and Cognition Together, IncrementParsing &apos;04</title>
+		<meeting>the Workshop on Incremental Parsing: Bringing Engineering and Cognition Together, IncrementParsing &apos;04<address><addrLine>Stroudsburg, PA, USA</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2004" />
+			<biblScope unit="page" from="50" to="57" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b19">
+	<analytic>
+		<title level="a" type="main">Non-projective dependency parsing in expected linear time</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Joakim</forename><surname>Nivre</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Joint Conference of the 47th Annual Meeting of the ACL and the 4th International Joint Conference on Natural Language Processing of the AFNLP</title>
+		<meeting>the Joint Conference of the 47th Annual Meeting of the ACL and the 4th International Joint Conference on Natural Language Processing of the AFNLP</meeting>
+		<imprint>
+			<date type="published" when="2009" />
+			<biblScope unit="page" from="351" to="359" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b20">
+	<monogr>
+		<title level="m" type="main">A universal part-of-speech tagset</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Slav</forename><surname>Petrov</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Dipanjan</forename><surname>Das</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ryan</forename><surname>Mcdonald</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1104.2086</idno>
+		<imprint>
+			<date type="published" when="2011" />
+		</imprint>
+	</monogr>
+<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b21">
+	<analytic>
+		<title level="a" type="main">Joint chinese word segmentation, pos tagging and parsing</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Xian</forename><surname>Qian</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yang</forename><surname>Liu</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2012 Joint Conference on Empirical Methods in Natural Language Processing and Computational Natural Language Learning</title>
+		<meeting>the 2012 Joint Conference on Empirical Methods in Natural Language Processing and Computational Natural Language Learning</meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2012" />
+			<biblScope unit="page" from="501" to="511" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b22">
+	<analytic>
+		<title level="a" type="main">Joint pos tagging and transition-based constituent parsing in chinese with non-local features</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Zhiguo</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Nianwen</forename><surname>Xue</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 52nd Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 52nd Annual Meeting of the Association for Computational Linguistics</meeting>
+		<imprint>
+			<date type="published" when="2014" />
+			<biblScope unit="page" from="733" to="742" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b23">
+	<analytic>
+		<title level="a" type="main">Structured training for neural network transition-based parsing</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">David</forename><surname>Weiss</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Chris</forename><surname>Alberti</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Michael</forename><surname>Collins</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Slav</forename><surname>Petrov</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of ACL 2015</title>
+		<meeting>ACL 2015</meeting>
+		<imprint>
+			<date type="published" when="2015" />
+			<biblScope unit="page" from="323" to="333" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b24">
+	<monogr>
+		<title level="m" type="main">Stacked generalization. Neural networks</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">H</forename><surname>David</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Wolpert</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="1992" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b25">
+	<analytic>
+		<title level="a" type="main">Randomized greedy inference for joint segmentation, POS tagging and dependency parsing</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yuan</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Chengtao</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Regina</forename><surname>Barzilay</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kareem</forename><surname>Darwish</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2015 Conference of the North American Chapter of the Association for Computational Linguistics</title>
+		<meeting>the 2015 Conference of the North American Chapter of the Association for Computational Linguistics</meeting>
+		<imprint>
+			<date type="published" when="2015" />
+			<biblScope unit="page" from="42" to="52" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+				</listBibl>
+			</div>
+		</back>
+	</text>
+</TEI>

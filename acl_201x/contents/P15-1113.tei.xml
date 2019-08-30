@@ -1,0 +1,1275 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<TEI xmlns="http://www.tei-c.org/ns/1.0" 
+xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+xsi:schemaLocation="http://www.tei-c.org/ns/1.0 /home/ana/installs/grobid/grobid-0.5.1/grobid-home/schemas/xsd/Grobid.xsd"
+ xmlns:xlink="http://www.w3.org/1999/xlink">
+	<teiHeader xml:lang="en">
+		<encodingDesc>
+			<appInfo>
+				<application version="0.5.1-SNAPSHOT" ident="GROBID" when="2019-04-18T12:27+0000">
+					<ref target="https://github.com/kermitt2/grobid">GROBID - A machine learning software for extracting information from scholarly documents</ref>
+				</application>
+			</appInfo>
+		</encodingDesc>
+		<fileDesc>
+			<titleStmt>
+				<title level="a" type="main">Transition-based Neural Constituent Parsing</title>
+			</titleStmt>
+			<publicationStmt>
+				<publisher/>
+				<availability status="unknown"><licence/></availability>
+				<date>July 26-31, 2015</date>
+			</publicationStmt>
+			<sourceDesc>
+				<biblStruct>
+					<analytic>
+						<author role="corresp">
+							<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Taro</forename><surname>Watanabe</surname></persName>
+							<email>tarow@google.com, eiichiro.sumita@nict.go.jp</email>
+							<affiliation key="aff0">
+								<orgName type="institution">National Institute of Information and Communications Technology</orgName>
+								<address>
+									<addrLine>3-5 Hikaridai, Seika-cho, Soraku-gun</addrLine>
+									<postCode>619-0289</postCode>
+									<settlement>Kyoto</settlement>
+									<country key="JP">JAPAN</country>
+								</address>
+							</affiliation>
+						</author>
+						<author>
+							<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Eiichiro</forename><surname>Sumita</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="institution">National Institute of Information and Communications Technology</orgName>
+								<address>
+									<addrLine>3-5 Hikaridai, Seika-cho, Soraku-gun</addrLine>
+									<postCode>619-0289</postCode>
+									<settlement>Kyoto</settlement>
+									<country key="JP">JAPAN</country>
+								</address>
+							</affiliation>
+						</author>
+						<title level="a" type="main">Transition-based Neural Constituent Parsing</title>
+					</analytic>
+					<monogr>
+						<title level="m">Proceedings of the 53rd Annual Meeting of the Association for Computational Linguistics and the 7th International Joint Conference on Natural Language Processing</title>
+						<meeting>the 53rd Annual Meeting of the Association for Computational Linguistics and the 7th International Joint Conference on Natural Language Processing <address><addrLine>Beijing, China</addrLine></address>
+						</meeting>
+						<imprint>
+							<biblScope unit="page" from="1169" to="1179"/>
+							<date type="published">July 26-31, 2015</date>
+						</imprint>
+					</monogr>
+				</biblStruct>
+			</sourceDesc>
+		</fileDesc>
+		<profileDesc>
+			<abstract>
+				<p>Constituent parsing is typically modeled by a chart-based algorithm under prob-abilistic context-free grammars or by a transition-based algorithm with rich features. Previous models rely heavily on richer syntactic information through lex-icalizing rules, splitting categories, or memorizing long histories. However enriched models incur numerous parameters and sparsity issues, and are insufficient for capturing various syntactic phenomena. We propose a neural network structure that explicitly models the unbounded history of actions performed on the stack and queue employed in transition-based parsing, in addition to the representations of partially parsed tree structure. Our transition-based neural constituent parsing achieves performance comparable to the state-of-the-art parsers, demonstrating F1 score of 90.68% for English and 84.33% for Chinese, without reranking, feature templates or additional data to train model parameters.</p>
+			</abstract>
+		</profileDesc>
+	</teiHeader>
+	<text xml:lang="en">
+		<body>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="1">Introduction</head><p>A popular parsing algorithm is a cubic time chart- based dynamic programming algorithm that uses probabilistic context-free grammars (PCFGs). However, PCFGs learned from treebanks are too coarse to represent the syntactic structures of texts. To address this problem, various contexts are in- corporated into the grammars through lexicaliza- tion <ref type="bibr" target="#b8">(Collins, 2003;</ref><ref type="bibr" target="#b3">Charniak, 2000</ref>) or cate- gory splitting either manually ) or automatically ( <ref type="bibr">Matsuzaki et al., 2005;</ref><ref type="bibr" target="#b33">Petrov et al., 2006</ref>). Recently a rich feature set was introduced to capture the lexical contexts * The first author is now affiliated with <ref type="bibr">Google, Japan.</ref> in each span without extra annotations in gram- mars ( <ref type="bibr" target="#b17">Hall et al., 2014</ref>).</p><p>Alternatively, transition-based algorithms run in linear time by taking a series of shift-reduce ac- tions with richer lexicalized features considering histories; however, the accuracies did not match with the state-of-the-art methods until recently <ref type="bibr" target="#b35">(Sagae and Lavie, 2005;</ref><ref type="bibr" target="#b45">Zhang and Clark, 2009)</ref>. <ref type="bibr" target="#b46">Zhu et al. (2013)</ref> show that the use of better transi- tion actions considering unaries and a set of non- local features can compete with the accuracies of chart-based parsing. The features employed in a transition-based algorithm usually require part of speech (POS) annotation in the input, but the de- layed feature technique allows joint POS inference ( <ref type="bibr" target="#b43">Wang and Xue, 2014</ref>).</p><p>In both frameworks, the richer models require that more parameters be estimated during train- ing which can easily result in the data sparseness problems. Furthermore, the enriched models are still insufficient to capture various syntactic rela- tions in texts due to the limited contexts repre- sented in latent annotations or non-local features. Recently <ref type="bibr" target="#b37">Socher et al. (2013)</ref> introduced composi- tional vector grammar (CVG) to address the above limitations. However, they employ reranking over a forest generated by a baseline parser for efficient search, because CVG is built on cubic time chart- based parsing.</p><p>In this paper, we propose a neural network- based parser -transition-based neural con- stituent parsing (TNCP) -which can guarantee efficient search naturally. TNCP explicitly models the actions performed on the stack and queue em- ployed in transition-based parsing. More specif- ically, the queue is modeled by recurrent neural network (RNN) or Elman network <ref type="bibr" target="#b14">(Elman, 1990)</ref> in backward direction <ref type="bibr" target="#b20">(Henderson, 2004</ref>). The stack structure is also modeled similarly to RNNs, and its top item is updated using the previously constructed hidden representations saved in the stack. The representations from both the stack and queue are combined with the representations prop- agated from the partially parsed tree structure in- spired by the recursive neural networks of CVGs. Parameters are estimated efficiently by a variant of max-violation ( <ref type="bibr" target="#b22">Huang et al., 2012</ref>) which con- siders the worst mistakes found during search and updates parameters based on the expected mistake.</p><p>Under similar settings, TCNP performs compa- rably to state-of-the-art parsers. Experimental re- sults obtained using the Wall Street Journal corpus of the English Penn Treebank achieved a labeled F1 score of 90.68%, and the result for the Penn Chinese Treebank was 84.33%. Our parser per- forms no reranking with computationally expen- sive models, employs no templates for feature en- gineering, and requires no additional monolingual data for reliable parameter estimation. The source code and models will be made public 1 .</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2">Related Work</head><p>Our study is largely inspired by recursive neural networks for parsing, first pioneered by <ref type="bibr" target="#b9">Costa et al. (2003)</ref>, in which parsing is treated as a ranking problem of finding phrasal attachment. Such net- work structures have been used successfully as a reranker for k-best parses from a baseline parser ( <ref type="bibr" target="#b29">Menchetti et al., 2005</ref>) or parse forests <ref type="bibr" target="#b37">(Socher et al., 2013)</ref>, and have achieved gains on large data. <ref type="bibr" target="#b38">Stenetorp (2013)</ref> showed that the recursive neu- ral networks are comparable to the state-of-the-art system with a rich feature set under dependency parsing. Our model is not a reranking model, but a discriminative parsing model, which incorpo- rates the representations of stacks and queues em- ployed in the transition-based parsing framework, in addition to the representations of the tree struc- tures. The use of representations outside of the partial parsed trees is very similar to the recently proposed inside-outside recursive neural networks ( <ref type="bibr" target="#b25">Le and Zuidema, 2014</ref>) which can assign proba- bilities in a top-down manner, in the same way as PCFGs. <ref type="bibr" target="#b19">Henderson (2003)</ref> was the first to demonstrate the successful use of neural networks to represent derivation histories under large-scale parsing ex- periments. He employed synchrony networks, i.e., feed-forward style networks, to assign a probabil- ity for each step in the left-corner parsing condi- tioning on all parsing steps. <ref type="bibr" target="#b20">Henderson (2004)</ref> 1 http://github.com/tarowatanabe/trance later employed a discriminative model and showed further gains by conditioning on the representa- tion of the future input in addition to the history of parsing steps. Similar feed-forward style net- works are successfully applied for transition-based dependency parsing in which limited contexts are considered in the feature representation <ref type="bibr" target="#b4">(Chen and Manning, 2014</ref>). Our model is very similar in that the score of each action is computed by condition- ing on all previous actions and future input in the queue.</p><p>The use of neural networks for transition-based shift-reduce parsing was first presented by <ref type="bibr" target="#b29">Mayberry and Miikkulainen (1999)</ref> in which the stack representation was treated as a hidden state of an RNN. In their study, the hidden state is updated recurrently by either a shift or reduce action, and its corresponding parse tree is decoded recursively from the hidden state <ref type="bibr" target="#b0">(Berg, 1992</ref>) using recursive auto-associative memories <ref type="bibr" target="#b34">(Pollack, 1990)</ref>. We apply the idea of representing a stack in a contin- uous vector; however, our method differs in that it memorizes all hidden states pushed to the stack and performs push/pop operations. In this man- ner, we can represent the local contexts saved in the stack explicitly and use them to construct new hidden states.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3">Transition-based Constituent Parsing</head><p>Our transition-based parser is based on a study by <ref type="bibr" target="#b46">Zhu et al. (2013)</ref>, which adopts the shift-reduce parsing of <ref type="bibr" target="#b35">Sagae and Lavie (2005)</ref> and <ref type="bibr" target="#b45">Zhang and Clark (2009)</ref>. However, our parser differs in that we do not differentiate left or right head words. In addition, POS tags are jointly induced during parsing in the same manner as <ref type="bibr" target="#b43">Wang and Xue (2014)</ref>. Given an input sentence w 0 , · · · , w n−1 , the transition-based parser employs a stack of par- tially constructed constituent tree structures and a queue of input words. In each step, a transition action is applied to a state i, f, S, where i is the next input word position in the queue w i , f is a flag indicating the completion of parsing, i.e., whether the ROOT of a constituent tree covering all the input words is reached, and S represents a stack of tree elements, s 0 , s 1 , · · · .</p><p>The parser consists of five actions:</p><p>shift-X consumes the next input word, w i , from the queue and pushes a non-terminal symbol (or a POS label) as a tree of X → w i . axiom 0 : 0, false, eps : 0 goal (2 + u)n : n, true, S : ρ shift-X j : i, false, S : ρ j + 1 : i + 1, false, S|X : ρ + ρ sh reduce-X j : i, false, S|s 1 |s 0 : ρ j + 1 : i, false, S|X : ρ + ρ re unary-X j : i, false, S|s 0 : ρ j + 1 : i, false, S|X : ρ + ρ un finish j : n, false, S : ρ j + 1 : n, true, S : ρ + ρ fi idle j : n, true, S : ρ j + 1 : n, true, S : ρ + ρ id <ref type="figure">Figure 1</ref>: Deduction system for shift-reduce pars- ing, where j is a step size and ρ is a score.</p><p>reduce-X pops the top two items s 0 and s 1 out of the stack and combines them as a partial tree with the constituent label X as its root, and with s 0 and s 1 as right and left antecedents, respectively (X → s 1 s 0 ). The newly created tree is then pushed into the stack.</p><p>unary-X is similar to reduce-X; however, it con- sumes only the top most item s 0 from the stack and pushes a new tree of X → s 0 .</p><p>finish indicates the completion of parsing, i.e., reaching the ROOT .</p><p>idle preserves completion until the goal is reached.</p><p>The whole procedure is summarized as a deduc- tion system in <ref type="figure">Figure 1</ref>. We employ beam search which starts from an axiom consisting of a stack with a special symbol eps, and ends when we reach a goal item ( <ref type="bibr" target="#b45">Zhang and Clark, 2009)</ref>. A set of agenda B = B 0 , B 1 , · · · maintains the k-best states for each step j at B j , which is first initial- ized by inserting the axiom in B 0 . Then, at each step j = 0, 1, · · · , every state in the agenda B j is extended by applying one of the actions and the new states are inserted into the agenda B j+1 for the next step, which retains only the k-best states. We limit the maximum number of consecutive unary actions to u (Sagae and <ref type="bibr" target="#b35">Lavie, 2005;</ref><ref type="bibr" target="#b45">Zhang and Clark, 2009</ref>) and the maximum number of unary actions in a single derivation to u × n. Thus, the process is repeated until we reach the final step of (2+u)n, which keeps the completed states. The idle action is inspired by the padding method of <ref type="bibr" target="#b46">Zhu et al. (2013)</ref>, such that the states in an agenda are comparable in terms of score even if differ- ences exist in the number of unary actions. Un- like <ref type="bibr" target="#b46">Zhu et al. (2013)</ref> we do not terminate parsing even if all the states in an agenda are completed (f = true).</p><p>The score of a state is computed by summing the scores of all the actions leading to the state. In <ref type="figure">Figure 1</ref>, ρ sh , ρ re , ρ un , ρ fi and ρ id are the scores of shift-X, reduce-X, unary-X, finish and idle ac- tions, respectively, which are computed on the ba- sis of the history of actions.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4">Neural Constituent Parsing</head><p>The score of a state is defined formally as the total score of transition actions, or a (partial) derivation d = d 0 , d 1 , · · · leading to the state as follows:</p><formula xml:id="formula_0">ρ(d) = |d|−1 j=0 ρ(d j |d j−1 0 ).<label>(1)</label></formula><p>Note that the score of each action is dependent on all previous actions. In previous studies, the score is computed by a linear model, i.e., a weighted sum of feature values derived from limited histo- ries, such as those that consider two adjacent con- stituent trees in a stack ( <ref type="bibr" target="#b35">Sagae and Lavie, 2005;</ref><ref type="bibr" target="#b45">Zhang and Clark, 2009;</ref><ref type="bibr" target="#b46">Zhu et al., 2013</ref>). Our method employs an RNN or Elman network <ref type="bibr" target="#b14">(Elman, 1990</ref>) to represent an unlimited stack and queue history. Formally, we use an m-dimensional vector for each hidden state unless otherwise stated. Here, let x i ∈ R m ×1 be an m -dimensional vector repre- senting the input word w i and the dimension may not match with the hidden state size m. q i ∈ R m×1 denotes the hidden state for the input word w i in a queue. Following the RNN in backward direction <ref type="bibr" target="#b20">(Henderson, 2004</ref>), the hidden state for each word w i is computed right-to-left, q n−1 to q 0 , beginning from a constant q n :</p><formula xml:id="formula_1">q i = τ (H qu q i+1 + W qu x i + b qu ) ,<label>(2)</label></formula><p>where Shift: Now, let h l j ∈ R m×1 represent a hidden state associated with the lth stack item for the jth action. We define the score of a shift action:</p><formula xml:id="formula_2">H qu ∈ R m×m , W qu ∈ R m×m , b qu ∈ R m×1 and τ (x) is hard-tanh applied element- wise 2 . h 1 j h 0 j xi xi+1 qi qi+1 h 2 j+1 h 1 j+1 h 0 j+1 current stack next stack queue input H sh Q sh W sh (a) shift-X action h 3 j h 2 j h 1 j h 0 j qi qi+1 h 2 j+1 h 1 j+1 h 0 j+1 current stack next stack queue Wre Qre Hre (b) reduce-X action h 2 j h 1 j h 0 j qi qi+1 h 2 j+1 h 1 j+1 h 0</formula><formula xml:id="formula_3">h 0 j+1 = τ H X sh h 0 j + Q X sh q i + W X sh x i + b X sh (3) ρ(d j = shift-X|d j−1 0 ) = V X sh h 0 j+1 + v X sh (4)</formula><p>where <ref type="figure" target="#fig_0">Figure 2</ref>(a) shows the network structure for Equation 3. H X sh represents an RNN-style architecture that propagates the pre- vious context in the stack. Q X sh can reflect the queue context q i , or the future input sequence from w i through w n−1 , while W X sh directly expresses the leaf of a tree structure using the shifted input word representation x i for w i . The hidden state h 0 j+1 is used to compute the score of a derivation ρ(d j |d j−1 0 ) in Equation 4, which is based on the matrix V X sh ∈ R 1×m and the bias term v X sh ∈ R. Note that h l j+1 = h l−1 j for l = 1, 2, · · · because the stack is updated by the newly created partial tree label X associated with the new hidden state h 0 j+1 . Inspired by CVG ( <ref type="bibr" target="#b37">Socher et al., 2013)</ref>, we dif- ferentiate the matrices for each non-terminal (or POS) label X rather than using shared parameters. However, our model differs in that the parameters are untied on the basis of the left hand side of a rule, rather than the right hand side, because our model assigns a score discriminatively for each ac- tion with the left hand side label X unlike a gen- erative model derived from PCFGs.</p><formula xml:id="formula_4">H X sh ∈ R m×m , Q X sh ∈ R m×m , W X sh ∈ R m×m and b X sh ∈ R m×1 .</formula><p>Reduce: Similarly, the score for a reduce action is obtained as follows:</p><formula xml:id="formula_5">h 0 j+1 = τ H X re h 2 j + Q X re q i + W X re h [0:1] j + b X re (5) ρ(d j = reduce-X|d j−1 0 ) = V X re h 0 j+1 + v X re ,<label>(6)</label></formula><p>where</p><formula xml:id="formula_6">H X re ∈ R m×m , Q X re ∈ R m×m , W X re ∈ R m×2m , b X re ∈ R m×1</formula><p>, and h [l:l ] denotes the verti- cal matrix concatenation of hidden states from h l to h l .</p><p>Note that the reduce-X action pops top two items in the stack that correspond to the two hid- den states of h By pushing a newly created tree with the con- stituent X, its corresponding hidden state h 0 j+1 is pushed to the stack with each remaining hidden state h l j+1 = h l+1 j for l = 1, 2, · · · . The hid- den state of the top stack item h 0 j is a represen- tation of the right antecedent of a newly created binary tree with h 0 j+1 as a root, while the hidden state of the next top stack item h 1 j corresponds to the left antecedent of the binary tree. Thus, the two hidden states capture the recursive neural network-like structure ( <ref type="bibr" target="#b9">Costa et al., 2003)</ref>, while h 2 j = h 1 j+1 represents the RNN-like linear history in the stack.</p><p>Unary: In the same manner as the reduce action, the unary action is defined by simply reducing a single item from a stack and by pushing a new item <ref type="figure" target="#fig_0">(Figure 2(c)</ref>):</p><formula xml:id="formula_7">h 0 j+1 = τ H X un h 1 j + Q X un q i + W X un h 0 j + b X un (7) ρ(d j = unary-X|d j−1 0 ) = V X un h 0 j+1 + v X un ,<label>(8)</label></formula><p>where</p><formula xml:id="formula_8">H X un ∈ R m×m , Q X un ∈ R m×m , W X un ∈ R m×m and b X un ∈ R m×1 . Note that h l j+1 = h l j</formula><p>for l = 1, 2, · · · , because only the top item is up- dated in the stack by creating a partial tree with h 0 j together with the stack history h 1 j . In summary, the number of model parameters for the three actions is 9×m 2 +m×m +6×m+3 for each non-terminal label X. The scores for a finish action and an idle action are defined analo- gous to the unary-X action with special labels for X, finish and idle, respectively 3 .</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5">Parameter Estimation</head><formula xml:id="formula_9">Let θ = H X sh , Q X sh , · · · ∈ R M be an M -</formula><p>dimensional vector of all model parameters. The parameters are initialized randomly by following <ref type="bibr" target="#b15">Glorot and Bengio (2010)</ref>, in which the random value range is determined by the size of the in- put/output layers. The bias parameters are initial- ized to zeros. We employ a variant of max-violation (Huang et al., 2012) as our training objective, in which pa- rameters are updated based on the worst mistake found during search, rather than the first mistake as performed in the early update perceptron al- gorithm <ref type="bibr" target="#b6">(Collins and Roark, 2004</ref>). Specifically, given a training instance (w, y) where w is an in- put sentence and y is its gold derivation, i.e., a se- quence of actions representing the gold parse tree for w, we seek for the step j * where the difference of the scores is the largest:</p><formula xml:id="formula_10">j * = arg min j ρ θ (y j 0 ) − max d∈B j ρ θ (d) .<label>(9)</label></formula><p>Then, we define the following hinge-loss function:</p><formula xml:id="formula_11">L(w, y; B, θ) = max 0, 1 − ρ θ (y j * 0 ) + E ˜ B j * [ρ θ ] ,<label>(10)</label></formula><p>wherein we consider the subset of sub-derivations˜B derivations˜ derivations˜B j * ⊂ B j * consisting of those scored higher than ρ θ (y j * 0 ):  <ref type="bibr">3</ref> Since h 1 j and qn are constants for the finish and idle ac- tions, we enforce H X un = 0 and Q X un = 0 for those special actions. <ref type="bibr">4</ref> We can use all the sub-derivations in Bj * ; however, our preliminary studies indicated that the use of˜Bjof˜ of˜Bj * was better. 10 can be intuitively considered an expected mis- take suffered at the maximum violated step j * , which is measured by the Viterbi violation in Equation 9. Note that if we replace E ˜ B j * [ρ θ ] with max d∈B j * ρ θ (d) in Equation 10, it is exactly the same as the max-violation objective ( <ref type="bibr" target="#b22">Huang et al., 2012)</ref>  <ref type="bibr">5</ref> .</p><formula xml:id="formula_12">˜ B j * = d ∈ B j * ρ θ (d) &gt; ρ θ (y j * 0 )<label>(11)</label></formula><formula xml:id="formula_13">p θ (d) = exp(ρ θ (d)) d ∈ ˜ B j * exp(ρ θ (d ))<label>(12)</label></formula><formula xml:id="formula_14">E ˜ B j * [ρ θ ] = d∈˜Bd∈˜ d∈˜B j * p θ (d)ρ θ (d).<label>(13)</label></formula><p>To minimize the loss function, we use a di- agonal version of AdaDec ( <ref type="bibr" target="#b36">Senior et al., 2013</ref>) -a variant of diagonal AdaGrad <ref type="bibr" target="#b13">(Duchi et al., 2011</ref>) -under mini-batch settings. Given the sub-gradient g t ∈ R M of Equation 10 at time t computed by the back-propagation through struc- ture <ref type="bibr" target="#b16">(Goller and Küchler, 1996)</ref>, we maintain ad- ditional parameters G t ∈ R M :</p><formula xml:id="formula_15">G t ← γG t−1 + g t g t ,<label>(14)</label></formula><p>where is the Hadamard product (or the element- wise product). θ t−1 is updated using the element specific learning rate η t ∈ R M derived from G t and a constant η 0 &gt; 0:</p><formula xml:id="formula_16">η t ← η 0 (G t + ) − 1 2<label>(15)</label></formula><formula xml:id="formula_17">θ t− 1 2 ← θ t−1 − η t g t<label>(16)</label></formula><formula xml:id="formula_18">θ t ← arg min θ 1 2 θ − θ t− 1 2 2 2 + λη t abs(θ).<label>(17)</label></formula><p>Compared with AdaGrad, the squared sum of the sub-gradients decays over time using a constant 0 &lt; γ ≤ 1 in Equation 14. The learning rate in Equation 15 is computed element-wise and bounded by a constant ≥ 0, and if we set ≥ η 2 0 , it is always decayed <ref type="bibr">6</ref> . In our preliminary stud- ies, AdaGrad eventually becomes very conserva- tive to update parameters when training longer it- erations. AdaDec fixes the problem by ignoring older histories of sub-gradients in G, which is re- flected in the learning rate η. In each update, we employ 1 regularization through FOBOS ( <ref type="bibr" target="#b12">Duchi and Singer, 2009</ref>) using a hyperparameter λ ≥ 0 to control the fitness in Equation 16 and 17. For testing, we found that taking the average of the pa- rameters over period 1 T +1 T t=0 θ t under training iterations T was very effective as demonstrated by <ref type="bibr" target="#b18">Hashimoto et al. (2013)</ref>.</p><p>Parameter estimation is performed in parallel by distributing training instances asynchronously in each shard and by updating locally copied pa- rameters using the sub-gradients computed from the distributed mini-batches <ref type="bibr" target="#b10">(Dean et al., 2012</ref>). The sub-gradients are broadcast asynchronously to other shards to reflect the updates in one shard. Unlike <ref type="bibr" target="#b10">Dean et al. (2012)</ref>, we do not keep a cen- tral storage for model parameters; the replicated parameters are synchronized in each iteration by choosing the model parameters from one of the shards with respect to the minimum of 1 norm 7 . Note that we synchronize θ, but G is maintained as shard local parameters.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6">Experiments</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6.1">Settings</head><p>We conducted experiments for transition-based neural constituent parsing (TNCP) for two lan- guages -English and Chinese. English data were derived from the Wall Street Journal (WSJ) of the Penn Treebank ( <ref type="bibr" target="#b26">Marcus et al., 1993)</ref>, from which sections 2-21 were used for training, 22 for de- velopment and 23 for testing. Chinese data were extracted from the Penn Chinese Treebank (CTB) ( <ref type="bibr" target="#b44">Xue et al., 2005</ref>); articles 001-270 and 440- 1151 were used for training, 301-325 for develop- ment, and 271-300 for testing. Inspired by jack- knifing ( <ref type="bibr" target="#b5">Collins and Koo, 2005</ref>), we reassigned POS tags for training data using the Stanford tag- ger ( <ref type="bibr" target="#b40">Toutanova et al., 2003)</ref>  <ref type="bibr">8</ref> . The treebank trees were normalized by removing empty nodes and unary rules with X over X (or X → X), then binarized in a left-branched manner.</p><p>The possible actions taken for our shift-reduce parsing, e.g., X → w in shift-X, were learned from the normalized treebank trees. The words that occurred twice or less were handled differ- ently in order to consider OOVs for testing: They were simply mapped to a special token unk when looking up their corresponding word representa- tion vector. Similarly, when assigning possible POS tags in shift actions, they fell back to their corresponding "word signature" in the same man- ner as the Berkeley parser <ref type="bibr">9</ref> . A maximum number of consecutive unary actions was set to u = 3 for WSJ and u = 4 for CTB, as determined by the  treebanks.</p><p>Parameter estimation was performed on 16 cores of a Xeon E5-2680 2.7GHz CPU. It took approximately one day for 100 training iterations with m = 32 and m = 128 under a mini- batch size of 4 and a beam size of 32. Dou- bling either one of m or m incurred approxi- mately double training time. We chose the fol- lowing hyperparameters by tuning toward the de- velopment data in our preliminary experiments 10 : η 0 = 10 −2 , γ = 0.9, = 1. The choice of λ from {10 −5 , 10 −6 , 10 −7 } and the number of training it- erations were very important for different training objectives and models in order to avoid overfitting. Thus, they were determined by the performance on the development data for each different train- ing objective and/or network configuration, e.g., the dimension for a hidden state. The word rep- resentations were initialized by a tool developed in-house for an RNN language model ( <ref type="bibr" target="#b30">Mikolov et al., 2010</ref>) trained by noise contrastive estimation <ref type="bibr" target="#b31">(Mnih and Teh, 2012)</ref>. Note that the word repre- sentations for initialization were learned from the given training data, not from additional unanno- tated data as done by <ref type="bibr" target="#b4">Chen and Manning (2014)</ref>.</p><p>Testing was performed using a beam size of 64 with a Xeon X5550 2.67GHz CPU. All results were measured by the labeled bracketing metric PARSEVAL ( <ref type="bibr" target="#b1">Black et al., 1991</ref>) using EVALB 11 after debinarization.  den vector size m = {32, 64} and the word representation (embedding) vector size m = {32, 64, 128, 256, 512, 1024} 12 . As can be seen, the greater word representation dimensions are generally helpful for both WSJ and CTB on the closed development data (dev), which may match with our intuition that the richer syntactic and se- mantic knowledge representation for each word is required for parsing. However, overfitting was ob- served when using a 32-dimension hidden vector in both tasks, i.e., drops of performance on the open test data (test) when m = 1024, probably caused by the limited generalization capability in the smaller hidden state size. In the rest of this pa- per, we show the results with m = 64 and m = 1024 as determined by the performance on the development data, wherein we achieved 91.11% and 85.77% labeled F1 for WSJ and CTB, respec- tively. The total number of parameters were ap- proximately 28.3M and 22.0M for WSJ and CTB, respectively, among which 17.8M and 13.4M were occupied for word representations, respectively. <ref type="table" target="#tab_4">Table 2</ref> differentiated the network structure. The tree model computes the new hidden state h 0 j+1 using only the recursively constructed net- work by ignoring parameters from the stack and queue, e.g., by enforcing H X sh = 0 and Q X sh = 0 in Equation 3, which is essentially similar to the CVG approach <ref type="bibr" target="#b37">(Socher et al., 2013)</ref>. Adding the context from the stack in +stack boosts the per- formance significantly. Further gains are observed when the queue context +queue is incorporated in the model. These results clearly indicate that ex- plicit representations of the stack and queue are very important when applying a recursive neural network model for transition-based parsing.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6.2">Results</head><p>We then compared the expected mistake with the Viterbi mistake ( <ref type="bibr" target="#b22">Huang et al., 2012</ref>) as our training objective by replacing <ref type="table" target="#tab_6">Table 3</ref> shows that the use of the expected mistake (expected) as a loss function is significantly better than that <ref type="bibr">12</ref> We experimented larger dimensions in Appendix A.   of the Viterbi mistake (Viterbi) by considering all the incorrect sub-derivations at maximum violated steps during search. <ref type="figure" target="#fig_2">Figure 3</ref> and 4 plot the train- ing curves for WSJ and CTB, respectively. The plots clearly demonstrate that the use of the ex- pected mistake is faster in convergence and stabler in learning when compared with that of the Viterbi mistake <ref type="bibr">13</ref> . Next, we compare our parser, TNCP, with other parsers listed in <ref type="table" target="#tab_7">Table 4</ref> for WSJ and <ref type="table" target="#tab_9">Table 5</ref> for CTB on the test data. The Collins parser <ref type="bibr" target="#b7">(Collins, 1997)</ref> and the Berkeley parser <ref type="bibr" target="#b32">(Petrov and Klein, 2007)</ref> are chart-based parsers with rich states, ei- ther through lexicalization or latent annotation. SSN is a left-corner parser <ref type="bibr" target="#b20">(Henderson, 2004)</ref>, and CVG is a compositional vector grammar-based parser <ref type="bibr" target="#b37">(Socher et al., 2013)</ref>  <ref type="bibr">14</ref> . Both parsers rely on neural networks to represent rich contexts, similar to our work; however they differ in that they es- sentially perform reranking from either the k-best parses or parse forests <ref type="bibr">15</ref> . The word representa- <ref type="bibr">13</ref> The labeled F1 on those plots are slightly different from EVALB in that all the syntactic labels are considered when computing bracket matching. Further, the scores on the train- ing data are approximation since they were obtained as a by- product of online learning.</p><formula xml:id="formula_19">E ˜ B j * [ρ θ ] with max d∈B j * ρ θ (d) in Equation 10.</formula><p>14 http://nlp.stanford.edu/software/ lex-parser.shtml 15 Strictly speaking, SSN can work as a standalone parser; <ref type="table" target="#tab_7">Table 4</ref> shows the result after reranking <ref type="bibr" target="#b20">(Henderson, 2004</ref>). parser test <ref type="bibr" target="#b7">Collins (Collins, 1997)</ref> 87.8 Berkeley ( <ref type="bibr" target="#b32">Petrov and Klein, 2007)</ref> 90.1 SSN <ref type="bibr" target="#b20">(Henderson, 2004)</ref> 90.1 ZPar ( <ref type="bibr" target="#b46">Zhu et al., 2013)</ref> 90.4 CVG ( <ref type="bibr" target="#b37">Socher et al., 2013)</ref> 90.  tion in CVG was learned from large monolingual data ( <ref type="bibr" target="#b42">Turian et al., 2010</ref>), but our parser learns word representation from only the provided train- ing data. Charniak-R is a discriminative rerank- ing parser with non-local features <ref type="bibr" target="#b2">(Charniak and Johnson, 2005</ref>). ZPar is a transition-based shift- reduce parser ( <ref type="bibr" target="#b46">Zhu et al., 2013)</ref> 16 that influences the deduction system in <ref type="figure">Figure 1</ref>, but differs in that scores are computed by a large number of features and POS tagging is performed separately. The re- sults shown in <ref type="table" target="#tab_7">Table 4</ref> and 5 come from the feature set without extra data, i.e., semi-supervised fea- tures. Joint is the joint POS tagging and transition- based parsing with non-local features ( <ref type="bibr" target="#b43">Wang and Xue, 2014</ref>  <ref type="bibr" target="#b43">Wang and Xue, 2014)</ref> 84.9 This work: TNCP 84.3  Although it is more difficult to compare with other parsers, our parser implemented in C++ is on par with Java implementations of Berkeley and CVG. The large run time difference with the C++ imple- mented ZPar may come from the network compu- tation and joint POS inference in our model which impact parsing speed significantly.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6.3">Error Analysis</head><p>To assess parser error types, we used the tool pro- posed by <ref type="bibr" target="#b24">Kummerfeld et al. (2012)</ref>  <ref type="bibr">17</ref> . The average number of errors per sentence is listed in <ref type="table" target="#tab_12">Table 7</ref> for each error type on the WSJ test data. Gener- ally, our parser results in errors that are compara- ble to the state-of-the-art parsers; however, greater reductions are observed for various attachments errors. One of the largest gains comes from the clause attachment, i.e., 0.12 reduction in average errors from Berkeley and 0.05 from CVG. The av- erage number of errors is also reduced by 0.09 from Berkeley and 0.06 from CVG for the PP at- tachment. We also observed large reductions in coordination and unary rule errors.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="7">Conclusion</head><p>We have introduced transition-based neural con- stituent parsing -a neural network architecture that encodes each state explicitly -as a con- tinuous vector by considering the recurrent se-  quences of the stack and queue in the transition- based parsing framework in addition to recursively constructed partial trees. Our parser works in a standalone fashion without reranking and does not rely on an external POS tagger or additional monolingual data for reliable estimates of syntac- tic and/or semantic representations of words. The parser achieves performance that is comparable to state-of-the-art systems.</p><p>In the future, we plan to apply our neural net- work structure to dependency parsing. We are also interested in using long short-term memory neu- ral networks <ref type="bibr" target="#b21">(Hochreiter and Schmidhuber, 1997)</ref> to better model the locality of propagated infor- mation from the stack and queue. The parameter estimation under semi-supervised setting will be investigated further.</p></div><figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_0"><head>Figure 2 :</head><label>2</label><figDesc>Figure 2: Example neural network for constituent parsing. The thick arrows indicate the context of tree structures, and the gray arrows represent interactions from the stack and queue. The dotted arrows denote popped states.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_2"><head>Figure 3 :</head><label>3</label><figDesc>Figure 3: Plots for training iterations and labeled F1(%) on WSJ.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_3"><head>Figure 4 :</head><label>4</label><figDesc>Figure 4: Plots for training iterations and labeled F1(%) on CTB.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_1" validated="false"><head></head><label></label><figDesc>rep. size 32 64 128 256 512 1024 dev WSJ-32 89.91 90.15 90.48 90.70 90.75 90.87 64 90.37 90.73 90.81 90.62 90.71 91.11 CTB-32 79.25 81.59 82.80 82.68 84.17 85.12 64 84.04 83.29 82.92 85.12 85.24 85.77</figDesc><table>test 
+
+WSJ-32 89.03 89.49 89.75 90.45 90.37 90.01 
+64 89.74 90.16 90.48 90.06 89.91 90.68 
+CTB-32 75.19 78.29 80.46 81.87 83.16 82.64 
+64 80.11 81.35 81.67 82.91 83.76 84.33 
+
+</table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_2" validated="false"><head>Table 1 :</head><label>1</label><figDesc></figDesc><table>Comparison of various state/word rep-
+resentation dimension size measured by labeled 
+F1(%). "-32" denotes the hidden state size m = 
+32. The numbers in bold indicate the best results 
+for each hidden state dimension. 
+
+</table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_3" validated="false"><head>Table 1 shows the impact of dimensions on the parsing performance. We varied the hid-</head><label>1</label><figDesc></figDesc><table>model 
+
+tree 
++stack +queue 
+
+dev 
+WSJ 77.70 
+90.54 
+91.11 
+CTB 69.74 
+84.70 
+85.77 
+
+test 
+WSJ 76.48 
+90.00 
+90.68 
+CTB 66.03 
+82.85 
+84.33 
+
+</table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_4" validated="false"><head>Table 2 : Comparison of network structures mea- sured by labeled F1(%).</head><label>2</label><figDesc></figDesc><table></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_6" validated="false"><head>Table 3 :</head><label>3</label><figDesc></figDesc><table>Comparison of loss functions measured 
+by labeled F1(%). 
+
+</table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_7" validated="false"><head>Table 4 :</head><label>4</label><figDesc></figDesc><table>Comparison of different parsers on the 
+WSJ test data measured by labeled F1(%). 
+
+</table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_9" validated="true"><head>Table 5 : Comparison of different parsers on the CTB test data measured by labeled F1(%).</head><label>5</label><figDesc></figDesc><table>beam 
+32 
+64 
+128 
+WSJ-32 15.42/89.95 7.90/90.01 3.97/90.04 
+64 
+7.31/90.56 3.56/90.68 1.76/90.73 
+CTB-32 13.67/82.35 6.95/82.64 3.68/82.84 
+64 
+6.15/84.12 3.11/84.33 1.53/83.83 
+
+</table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_10" validated="false"><head>Table 6 :</head><label>6</label><figDesc></figDesc><table>Comparison of parsing speed by varying 
+beam size and hidden dimension; each cell shows 
+the number of sentences per second/labeled F1(%) 
+measured on the test data. 
+
+formance by trading off run time in most cases. 
+Note that Berkeley, CVG and ZPar took 4.74, 1.54 
+and 37.92 sentences/sec, respectively, with WSJ. 
+</table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_12" validated="false"><head>Table 7 :</head><label>7</label><figDesc></figDesc><table>Comparison of different parsers on the 
+WSJ test data measured by average number of er-
+rors per sentence; the numbers in bold indicate the 
+least errors in each error type. 
+
+</table></figure>
+
+			<note place="foot" n="2"> τ (x) = −1 for x &lt; 1, 1 for x &gt; 1 otherwise x.</note>
+
+			<note place="foot" n="5"> Or, setting p θ (d * ) = 1 for the Viterbi derivation d * = arg max d∈B j * ρ θ (d) and zero otherwise. 6 Note that AdaGrad is a special case of AdaDec with γ = 1 and = 0.</note>
+
+			<note place="foot" n="7"> We also tried averaging among shards. However we observed no gains likely because we performed averaging for testing. 8 http://nlp.stanford.edu/software/ tagger.shtml 9 https://code.google.com/p/ berkeleyparser/</note>
+
+			<note place="foot" n="10"> We confirmed that this hyperparameter setting was appropriate for different models experimented in Section 6.2 through our preliminary studies. 11 http://nlp.cs.nyu.edu/evalb/</note>
+
+			<note place="foot" n="17"> https://code.google.com/p/ berkeley-parser-analyser/</note>
+		</body>
+		<back>
+
+			<div type="acknowledgement">
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Acknowledgments</head><p>We would like to thank Lemao Liu for suggestions while drafting this paper. We are also grateful for various comments from anonymous reviewers.</p></div>
+			</div>
+
+			<div type="annex">
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>A Additional Results</head><p>We conducted additional experiments by enlarg- ing the word representation vector size m in Ta- ble 8. In general, we observed further gains with richer word representation, but suffered overfit- ting effects when setting m = 4096. The re- sults with m = 64 and m = 4096 achieved the best performance on the development data, 91.36% and 86.94% labeled F1 for WSJ and CTB, respectively, wherein we observed the accuracies of 90.94% and 84.38% on the test data, respec- tively. Note that it took approximately one week to train the model when m = 4096 under WSJ, which was impractical to analyze the results fur- ther, e.g. comparison with other training objec- tives.</p></div>			</div>
+			<div type="references">
+
+				<listBibl>
+
+<biblStruct xml:id="b0">
+	<analytic>
+		<title level="a" type="main">A connectionist parser with recursive sentence structure and lexical disambiguation</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">George</forename><surname>Berg</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. of AAAI &apos;92</title>
+		<meeting>of AAAI &apos;92</meeting>
+		<imprint>
+			<date type="published" when="1992" />
+			<biblScope unit="page" from="32" to="37" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b1">
+	<analytic>
+		<title level="a" type="main">Procedure for quantitatively comparing the syntactic coverage of english grammars</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ezra</forename><surname>Black</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Steve</forename><surname>Abney</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Dan</forename><surname>Flickinger</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Claudia</forename><surname>Gdaniec</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ralph</forename><surname>Grishman</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Phil</forename><surname>Harrison</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Don</forename><surname>Hindle</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Robert</forename><surname>Ingria</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Fred</forename><surname>Jelinek</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Judith</forename><surname>Klavans</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Mark</forename><surname>Liberman</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Mitchell</forename><surname>Marcus</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Salim</forename><surname>Roukos</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Beatrice</forename><surname>Santorini</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Tomek</forename><surname>Strzalkowski</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. of the Workshop on Speech and Natural Language</title>
+		<meeting>of the Workshop on Speech and Natural Language<address><addrLine>Stroudsburg, PA, USA</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="1991" />
+			<biblScope unit="page" from="306" to="311" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b2">
+	<analytic>
+		<title level="a" type="main">Coarseto-fine n-best parsing and maxent discriminative reranking</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Eugene</forename><surname>Charniak</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Mark</forename><surname>Johnson</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. of ACL 2005</title>
+		<meeting>of ACL 2005<address><addrLine>Ann Arbor, Michigan</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2005-06" />
+			<biblScope unit="page" from="173" to="180" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b3">
+	<analytic>
+		<title level="a" type="main">A maximum-entropyinspired parser</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Eugene</forename><surname>Charniak</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. of NAACL 2000</title>
+		<meeting>of NAACL 2000<address><addrLine>Stroudsburg, PA, USA</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2000" />
+			<biblScope unit="page" from="132" to="139" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b4">
+	<analytic>
+		<title level="a" type="main">A fast and accurate dependency parser using neural networks</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Danqi</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Christopher</forename><surname>Manning</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. of EMNLP 2014</title>
+		<meeting>of EMNLP 2014<address><addrLine>Doha, Qatar</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2014-10" />
+			<biblScope unit="page" from="740" to="750" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b5">
+	<analytic>
+		<title level="a" type="main">Discriminative reranking for natural language parsing</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Michael</forename><surname>Collins</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Terry</forename><surname>Koo</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Computational Linguistics</title>
+		<imprint>
+			<biblScope unit="volume">31</biblScope>
+			<biblScope unit="issue">1</biblScope>
+			<biblScope unit="page" from="25" to="70" />
+			<date type="published" when="2005-03" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b6">
+	<analytic>
+		<title level="a" type="main">Incremental parsing with the perceptron algorithm</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Michael</forename><surname>Collins</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Brian</forename><surname>Roark</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. of ACL</title>
+		<meeting>of ACL<address><addrLine>Barcelona, Spain</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2004-07" />
+			<biblScope unit="page" from="111" to="118" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b7">
+	<analytic>
+		<title level="a" type="main">Three generative, lexicalised models for statistical parsing</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Michael</forename><surname>Collins</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. of ACL &apos;97</title>
+		<meeting>of ACL &apos;97<address><addrLine>Madrid, Spain</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="1997-07" />
+			<biblScope unit="page" from="16" to="23" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b8">
+	<analytic>
+		<title level="a" type="main">Head-driven statistical models for natural language parsing</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Michael</forename><surname>Collins</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Computational Linguistics</title>
+		<imprint>
+			<biblScope unit="volume">29</biblScope>
+			<biblScope unit="issue">4</biblScope>
+			<biblScope unit="page" from="589" to="637" />
+			<date type="published" when="2003-12" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b9">
+	<analytic>
+		<title level="a" type="main">Towards incremental parsing of natural language using recursive neural networks</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Fabrizio</forename><surname>Costa</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Paolo</forename><surname>Frasconi</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Vincenzo</forename><surname>Lombardo</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Giovanni</forename><surname>Soda</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Applied Intelligence</title>
+		<imprint>
+			<biblScope unit="volume">19</biblScope>
+			<biblScope unit="issue">1-2</biblScope>
+			<biblScope unit="page" from="9" to="25" />
+			<date type="published" when="2003-05" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b10">
+	<analytic>
+		<title level="a" type="main">Large scale distributed deep networks</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jeffrey</forename><surname>Dean</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Greg</forename><surname>Corrado</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Rajat</forename><surname>Monga</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kai</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Matthieu</forename><surname>Devin</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Mark</forename><surname>Mao</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Marc</forename><surname>Ranzato</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Andrew</forename><surname>Senior</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Paul</forename><surname>Tucker</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ke</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Quoc</forename><forename type="middle">V</forename><surname>Le</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Andrew</forename><forename type="middle">Y</forename><surname>Ng</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Advances in Neural Information Processing Systems</title>
+		<imprint>
+			<publisher>Curran Associates, Inc</publisher>
+			<date type="published" when="2012" />
+			<biblScope unit="volume">25</biblScope>
+			<biblScope unit="page" from="1223" to="1231" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b11">
+	<analytic>
+		<title level="a" type="main">Fast and robust neural network joint models for statistical machine translation</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jacob</forename><surname>Devlin</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Rabih</forename><surname>Zbib</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Zhongqiang</forename><surname>Huang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Thomas</forename><surname>Lamar</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Richard</forename><surname>Schwartz</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">John</forename><surname>Makhoul</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. of ACL</title>
+		<meeting>of ACL<address><addrLine>Baltimore, Maryland</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2014-06" />
+			<biblScope unit="page" from="1370" to="1380" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b12">
+	<analytic>
+		<title level="a" type="main">Efficient online and batch learning using forward backward splitting</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">John</forename><surname>Duchi</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yoram</forename><surname>Singer</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Journal of Machine Learning Research</title>
+		<imprint>
+			<biblScope unit="volume">10</biblScope>
+			<biblScope unit="page" from="2899" to="2934" />
+			<date type="published" when="2009-12" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b13">
+	<analytic>
+		<title level="a" type="main">Adaptive subgradient methods for online learning and stochastic optimization</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">John</forename><surname>Duchi</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Elad</forename><surname>Hazan</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yoram</forename><surname>Singer</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Journal of Machine Learning Research</title>
+		<imprint>
+			<biblScope unit="volume">12</biblScope>
+			<biblScope unit="page" from="2121" to="2159" />
+			<date type="published" when="2011-07" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b14">
+	<analytic>
+		<title level="a" type="main">Finding structure in time</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jeffrey</forename><forename type="middle">L</forename><surname>Elman</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Cognitive Science</title>
+		<imprint>
+			<biblScope unit="volume">14</biblScope>
+			<biblScope unit="issue">2</biblScope>
+			<biblScope unit="page" from="179" to="211" />
+			<date type="published" when="1990" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b15">
+	<analytic>
+		<title level="a" type="main">Understanding the difficulty of training deep feedforward neural networks</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Xavier</forename><surname>Glorot</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yoshua</forename><surname>Bengio</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. of the Thirteenth International Conference on Artificial Intelligence and Statistics (AISTATS-10)</title>
+		<meeting>of the Thirteenth International Conference on Artificial Intelligence and Statistics (AISTATS-10)</meeting>
+		<imprint>
+			<date type="published" when="2010" />
+			<biblScope unit="volume">9</biblScope>
+			<biblScope unit="page" from="249" to="256" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b16">
+	<analytic>
+		<title level="a" type="main">Learning task-dependent distributed representations by backpropagation through structure</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Christoph</forename><surname>Goller</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Andreas</forename><surname>Küchler</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. of IEEE International Conference on Neural Networks</title>
+		<meeting>of IEEE International Conference on Neural Networks</meeting>
+		<imprint>
+			<date type="published" when="1996-06" />
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="347" to="352" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b17">
+	<analytic>
+		<title level="a" type="main">Less grammar, more features</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">David</forename><surname>Hall</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Greg</forename><surname>Durrett</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Dan</forename><surname>Klein</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. of ACL 2014</title>
+		<meeting>of ACL 2014<address><addrLine>Baltimore, Maryland</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2014-06" />
+			<biblScope unit="page" from="228" to="237" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b18">
+	<analytic>
+		<title level="a" type="main">Simple customization of recursive neural networks for semantic relation classification</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kazuma</forename><surname>Hashimoto</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Makoto</forename><surname>Miwa</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yoshimasa</forename><surname>Tsuruoka</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Takashi</forename><surname>Chikayama</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. of EMNLP 2013</title>
+		<meeting>of EMNLP 2013<address><addrLine>Seattle, Washington, USA, October</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2013" />
+			<biblScope unit="page" from="1372" to="1376" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b19">
+	<analytic>
+		<title level="a" type="main">Inducing history representations for broad coverage statistical parsing</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">James</forename><surname>Henderson</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. of HLT-NAACL 2003</title>
+		<meeting>of HLT-NAACL 2003<address><addrLine>Stroudsburg, PA, USA</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2003" />
+			<biblScope unit="page" from="24" to="31" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b20">
+	<analytic>
+		<title level="a" type="main">Discriminative training of a neural network statistical parser</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">James</forename><surname>Henderson</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. of ACL</title>
+		<meeting>of ACL<address><addrLine>Barcelona, Spain</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2004-07" />
+			<biblScope unit="page" from="95" to="102" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b21">
+	<analytic>
+		<title level="a" type="main">Long short-term memory</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Sepp</forename><surname>Hochreiter</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jürgen</forename><surname>Schmidhuber</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Neural Computation</title>
+		<imprint>
+			<biblScope unit="volume">9</biblScope>
+			<biblScope unit="issue">8</biblScope>
+			<biblScope unit="page" from="1735" to="1780" />
+			<date type="published" when="1997-11" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b22">
+	<analytic>
+		<title level="a" type="main">Structured perceptron with inexact search</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Liang</forename><surname>Huang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Suphan</forename><surname>Fayong</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yang</forename><surname>Guo</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. of NAACL-HLT 2012</title>
+		<meeting>of NAACL-HLT 2012<address><addrLine>Montréal, Canada</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2012-06" />
+			<biblScope unit="page" from="142" to="151" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b23">
+	<analytic>
+		<title level="a" type="main">Accurate unlexicalized parsing</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Dan</forename><surname>Klein</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Christopher</forename><forename type="middle">D</forename><surname>Manning</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. of ACL 2003</title>
+		<meeting>of ACL 2003<address><addrLine>Sapporo, Japan</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2003-07" />
+			<biblScope unit="page" from="423" to="430" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b24">
+	<analytic>
+		<title level="a" type="main">Parser showdown at the wall street corral: An empirical investigation of error types in parser output</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jonathan</forename><forename type="middle">K</forename><surname>Kummerfeld</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">David</forename><surname>Hall</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">James</forename><forename type="middle">R</forename><surname>Curran</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Dan</forename><surname>Klein</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. of EMNLP-CoNLL</title>
+		<meeting>of EMNLP-CoNLL<address><addrLine>Jeju Island, Korea</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2012-07" />
+			<biblScope unit="page" from="1048" to="1059" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b25">
+	<analytic>
+		<title level="a" type="main">The insideoutside recursive neural network model for dependency parsing</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Phong</forename><surname>Le</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Willem</forename><surname>Zuidema</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. of EMNLP 2014</title>
+		<meeting>of EMNLP 2014<address><addrLine>Doha, Qatar</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2014-10" />
+			<biblScope unit="page" from="729" to="739" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b26">
+	<analytic>
+		<title level="a" type="main">Building a large annotated corpus of english: The penn treebank</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Mitchell</forename><forename type="middle">P</forename><surname>Marcus</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Mary</forename><forename type="middle">Ann</forename><surname>Marcinkiewicz</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Beatrice</forename><surname>Santorini</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Computational Linguistics</title>
+		<imprint>
+			<biblScope unit="volume">19</biblScope>
+			<biblScope unit="issue">2</biblScope>
+			<biblScope unit="page" from="313" to="330" />
+			<date type="published" when="1993-06" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b27">
+	<monogr>
+		<title/>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Takuya</forename><surname>Matsuzaki</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yusuke</forename><surname>Miyao</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jun&amp;apos;ichi</forename><surname>Tsujii</surname></persName>
+		</author>
+		<imprint/>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b28">
+	<analytic>
+		<title level="a" type="main">Probabilistic CFG with latent annotations</title>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. of ACL 2005</title>
+		<meeting>of ACL 2005<address><addrLine>Ann Arbor, Michigan</addrLine></address></meeting>
+		<imprint>
+			<biblScope unit="page" from="75" to="82" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b29">
+	<analytic>
+		<title level="a" type="main">Wide coverage natural language processing using kernel methods and neural networks for structured data</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">R</forename><surname>Marshall</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Risto</forename><surname>Mayberry</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">;</forename><surname>Miikkulainen</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Usa</forename><surname>Sauro</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Fabrizio</forename><surname>Menchetti</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Paolo</forename><surname>Costa</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Massimiliano</forename><surname>Frasconi</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Pontil</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. of IJCAI &apos;99</title>
+		<meeting>of IJCAI &apos;99<address><addrLine>San Francisco, CA</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="1999" />
+			<biblScope unit="volume">26</biblScope>
+			<biblScope unit="page" from="1896" to="1906" />
+		</imprint>
+	</monogr>
+	<note>Sardsrn: A neural network shift-reduce parser</note>
+</biblStruct>
+
+<biblStruct xml:id="b30">
+	<analytic>
+		<title level="a" type="main">Recurrent neural network based language model</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Tomáš</forename><surname>Mikolov</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Martin</forename><surname>Karafiát</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Lukáš</forename><surname>Burget</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jaňjaň</forename><surname>Cernock´ycernock´y</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Sanjeev</forename><surname>Khudanpur</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. of INTERSPEECH 2010</title>
+		<meeting>of INTERSPEECH 2010</meeting>
+		<imprint>
+			<date type="published" when="2010" />
+			<biblScope unit="page" from="1045" to="1048" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b31">
+	<analytic>
+		<title level="a" type="main">A fast and simple algorithm for training neural probabilistic language models</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Andriy</forename><surname>Mnih</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yee</forename><forename type="middle">W</forename><surname>Teh</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. of ICML-2012</title>
+		<editor>John Langford and Joelle Pineau</editor>
+		<meeting>of ICML-2012<address><addrLine>New York, NY, USA</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2012" />
+			<biblScope unit="page" from="1751" to="1758" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b32">
+	<analytic>
+		<title level="a" type="main">Improved inference for unlexicalized parsing</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Slav</forename><surname>Petrov</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Dan</forename><surname>Klein</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. of NAACL-HLT 2007</title>
+		<meeting>of NAACL-HLT 2007<address><addrLine>Rochester, New York</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2007-04" />
+			<biblScope unit="page" from="404" to="411" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b33">
+	<analytic>
+		<title level="a" type="main">Learning accurate, compact, and interpretable tree annotation</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Slav</forename><surname>Petrov</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Leon</forename><surname>Barrett</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Romain</forename><surname>Thibaux</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Dan</forename><surname>Klein</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. of COLING-ACL 2006</title>
+		<meeting>of COLING-ACL 2006<address><addrLine>Sydney, Australia</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2006-07" />
+			<biblScope unit="page" from="433" to="440" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b34">
+	<analytic>
+		<title level="a" type="main">Recursive distributed representations</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jordan</forename><forename type="middle">B</forename><surname>Pollack</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Artificial Intelligence</title>
+		<imprint>
+			<biblScope unit="volume">46</biblScope>
+			<biblScope unit="issue">1-2</biblScope>
+			<biblScope unit="page" from="77" to="105" />
+			<date type="published" when="1990-11" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b35">
+	<analytic>
+		<title level="a" type="main">A classifierbased parser with linear run-time complexity</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kenji</forename><surname>Sagae</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Alon</forename><surname>Lavie</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. of the Ninth International Workshop on Parsing Technology</title>
+		<meeting>of the Ninth International Workshop on Parsing Technology<address><addrLine>Vancouver, British Columbia</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2005-10" />
+			<biblScope unit="page" from="125" to="132" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b36">
+	<analytic>
+		<title level="a" type="main">An empirical study of learning rates in deep neural networks for speech recognition</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Andrew</forename><surname>Senior</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Georg</forename><surname>Heigold</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ke</forename><surname>Marc&amp;apos;aurelio Ranzato</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Yang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. of ICASSP 2013</title>
+		<meeting>of ICASSP 2013</meeting>
+		<imprint>
+			<date type="published" when="2013-05" />
+			<biblScope unit="page" from="6724" to="6728" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b37">
+	<analytic>
+		<title level="a" type="main">Parsing with compositional vector grammars</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Richard</forename><surname>Socher</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">John</forename><surname>Bauer</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Christopher</forename><forename type="middle">D</forename><surname>Manning</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ng</forename><surname>Andrew</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Y</forename></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. of ACL 2013</title>
+		<meeting>of ACL 2013<address><addrLine>Sofia, Bulgaria</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2013-08" />
+			<biblScope unit="page" from="455" to="465" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b38">
+	<analytic>
+		<title level="a" type="main">Transition-based dependency parsing using recursive neural networks</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Pontus</forename><surname>Stenetorp</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. of Deep Learning Workshop at the 2013 Conference on Neural Information Processing Systems (NIPS)</title>
+		<meeting>of Deep Learning Workshop at the 2013 Conference on Neural Information essing Systems (NIPS)<address><addrLine>Lake Tahoe, Nevada, USA</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2013-12" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b39">
+	<analytic>
+		<title level="a" type="main">Recurrent neural networks for word alignment model</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Akihiro</forename><surname>Tamura</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Taro</forename><surname>Watanabe</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Eiichiro</forename><surname>Sumita</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. of ACL 2014</title>
+		<meeting>of ACL 2014<address><addrLine>Baltimore, Maryland</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2014-06" />
+			<biblScope unit="page" from="1470" to="1480" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b40">
+	<analytic>
+		<title level="a" type="main">Feature-rich partof-speech tagging with a cyclic dependency network</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kristina</forename><surname>Toutanova</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Dan</forename><surname>Klein</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Christopher</forename><forename type="middle">D</forename><surname>Manning</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yoram</forename><surname>Singer</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. of HLT-NAACL 2003</title>
+		<meeting>of HLT-NAACL 2003<address><addrLine>Stroudsburg, PA, USA</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2003" />
+			<biblScope unit="page" from="173" to="180" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b41">
+	<monogr>
+		<title level="m" type="main">Comparison of various state/word representation dimension size measured by labeled F1(%). &quot;-32&quot; denotes the hidden state size m = 32. The numbers in bold indicate the best results for each hidden state dimension</title>
+		<imprint>
+			<biblScope unit="volume">8</biblScope>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b42">
+	<analytic>
+		<title level="a" type="main">Word representations: A simple and general method for semi-supervised learning</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Joseph</forename><surname>Turian</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Lev-Arie</forename><surname>Ratinov</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yoshua</forename><surname>Bengio</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. of ACL 2010</title>
+		<meeting>of ACL 2010<address><addrLine>Uppsala, Sweden</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2010-07" />
+			<biblScope unit="page" from="384" to="394" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b43">
+	<analytic>
+		<title level="a" type="main">Joint pos tagging and transition-based constituent parsing in chinese with non-local features</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Zhiguo</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Nianwen</forename><surname>Xue</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. of ACL 2014</title>
+		<meeting>of ACL 2014<address><addrLine>Baltimore, Maryland</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2014-06" />
+			<biblScope unit="page" from="733" to="742" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b44">
+	<analytic>
+		<title level="a" type="main">The penn chinese treebank: Phrase structure annotation of a large corpus</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Naiwen</forename><surname>Xue</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Fei</forename><surname>Xia</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Fu-Dong</forename><surname>Chiou</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Marta</forename><surname>Palmer</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Natural Language Engineering</title>
+		<imprint>
+			<biblScope unit="volume">11</biblScope>
+			<biblScope unit="issue">2</biblScope>
+			<biblScope unit="page" from="207" to="238" />
+			<date type="published" when="2005-06" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b45">
+	<analytic>
+		<title level="a" type="main">Transition-based parsing of the chinese treebank using a global discriminative model</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yue</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Stephen</forename><surname>Clark</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. of the 11th International Conference on Parsing Technologies (IWPT&apos;09)</title>
+		<meeting>of the 11th International Conference on Parsing Technologies (IWPT&apos;09)<address><addrLine>Paris, France</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2009-10" />
+			<biblScope unit="page" from="162" to="171" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b46">
+	<analytic>
+		<title level="a" type="main">Fast and accurate shiftreduce constituent parsing</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Muhua</forename><surname>Zhu</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yue</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Wenliang</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Min</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jingbo</forename><surname>Zhu</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. of ACL 2013</title>
+		<meeting>of ACL 2013<address><addrLine>Sofia, Bulgaria</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2013-08" />
+			<biblScope unit="page" from="434" to="443" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+				</listBibl>
+			</div>
+		</back>
+	</text>
+</TEI>

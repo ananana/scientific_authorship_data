@@ -1,0 +1,1413 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<TEI xmlns="http://www.tei-c.org/ns/1.0" 
+xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+xsi:schemaLocation="http://www.tei-c.org/ns/1.0 /home/ana/installs/grobid/grobid-0.5.1/grobid-home/schemas/xsd/Grobid.xsd"
+ xmlns:xlink="http://www.w3.org/1999/xlink">
+	<teiHeader xml:lang="en">
+		<encodingDesc>
+			<appInfo>
+				<application version="0.5.1-SNAPSHOT" ident="GROBID" when="2019-04-18T12:06+0000">
+					<ref target="https://github.com/kermitt2/grobid">GROBID - A machine learning software for extracting information from scholarly documents</ref>
+				</application>
+			</appInfo>
+		</encodingDesc>
+		<fileDesc>
+			<titleStmt>
+				<title level="a" type="main">A Syntactic Neural Model for General-Purpose Code Generation</title>
+			</titleStmt>
+			<publicationStmt>
+				<publisher>Association for Computational Linguistics</publisher>
+				<availability status="unknown"><p>Copyright Association for Computational Linguistics</p>
+				</availability>
+				<date>July 30-August 4, 2017. July 30-August 4, 2017</date>
+			</publicationStmt>
+			<sourceDesc>
+				<biblStruct>
+					<analytic>
+						<author>
+							<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Pengcheng</forename><surname>Yin</surname></persName>
+						</author>
+						<author>
+							<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Graham</forename><surname>Neubig</surname></persName>
+						</author>
+						<title level="a" type="main">A Syntactic Neural Model for General-Purpose Code Generation</title>
+					</analytic>
+					<monogr>
+						<title level="m">Proceedings of the 55th Annual Meeting of the Association for Computational Linguistics (Volume 1: Long Papers)</title>
+						<meeting>the 55th Annual Meeting of the Association for Computational Linguistics (Volume 1: Long Papers) <address><addrLine>Vancouver, Canada; Vancouver, Canada</addrLine></address>
+						</meeting>
+						<imprint>
+							<publisher>Association for Computational Linguistics</publisher>
+							<biblScope unit="page" from="440" to="450"/>
+							<date type="published">July 30-August 4, 2017. July 30-August 4, 2017</date>
+						</imprint>
+					</monogr>
+					<idno type="DOI">10.18653/v1/p17-1041</idno>
+				</biblStruct>
+			</sourceDesc>
+		</fileDesc>
+		<profileDesc>
+			<abstract>
+				<p>We consider the problem of parsing natural language descriptions into source code written in a general-purpose programming language like Python. Existing data-driven methods treat this problem as a language generation task without considering the underlying syntax of the target programming language. Informed by previous work in semantic parsing, in this paper we propose a novel neural architecture powered by a grammar model to explicitly capture the target syntax as prior knowledge. Experiments find this an effective way to scale up to generation of complex programs from natural language descriptions , achieving state-of-the-art results that well outperform previous code generation and semantic parsing approaches.</p>
+			</abstract>
+		</profileDesc>
+	</teiHeader>
+	<text xml:lang="en">
+		<body>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="1">Introduction</head><p>Every programmer has experienced the situation where they know what they want to do, but do not have the ability to turn it into a concrete im- plementation. For example, a Python programmer may want to "sort my list in descending order," but not be able to come up with the proper syn- tax sorted(my list, reverse=True) to real- ize his intention. To resolve this impasse, it is common for programmers to search the web in natural language (NL), find an answer, and mod- ify it into the desired form ( <ref type="bibr" target="#b11">Brandt et al., 2009</ref><ref type="bibr" target="#b10">Brandt et al., , 2010</ref>. However, this is time-consuming, and thus the software engineering literature is ripe with methods to directly generate code from NL descriptions, mostly with hand-engineered meth- ods highly tailored to specific programming lan- guages <ref type="bibr" target="#b6">(Balzer, 1985;</ref><ref type="bibr" target="#b29">Little and Miller, 2009;</ref><ref type="bibr" target="#b17">Gvero and Kuncak, 2015)</ref>.</p><p>In parallel, the NLP community has developed methods for data-driven semantic parsing, which attempt to map NL to structured logical forms ex- ecutable by computers. These logical forms can be general-purpose meaning representations <ref type="bibr" target="#b12">(Clark and Curran, 2007;</ref><ref type="bibr" target="#b7">Banarescu et al., 2013)</ref>, for- malisms for querying knowledge bases <ref type="bibr" target="#b47">(Tang and Mooney, 2001;</ref><ref type="bibr" target="#b53">Zettlemoyer and Collins, 2005;</ref><ref type="bibr" target="#b9">Berant et al., 2013</ref>) and instructions for robots or personal assistants <ref type="bibr" target="#b44">Quirk et al., 2015;</ref><ref type="bibr" target="#b36">Misra et al., 2015</ref>), among oth- ers. While these methods have the advantage of being learnable from data, compared to the pro- gramming languages (PLs) in use by program- mers, the domain-specific languages targeted by these works have a schema and syntax that is rela- tively simple.</p><p>Recently,  have proposed a data-driven code generation method for high-level, general-purpose PLs like Python and Java. This work treats code generation as a sequence-to- sequence modeling problem, and introduce meth- ods to generate words from character-level mod- els, and copy variable names from input descrip- tions. However, unlike most work in semantic parsing, it does not consider the fact that code has to be well-defined programs in the target syntax.</p><p>In this work, we propose a data-driven syntax- based neural network model tailored for genera- tion of general-purpose PLs like Python. In or- der to capture the strong underlying syntax of the PL, we define a model that transduces an NL state- ment into an Abstract Syntax Tree (AST; <ref type="figure" target="#fig_1">Fig. 1(a)</ref>, § 2) for the target PL. ASTs can be deterministi- cally generated for all well-formed programs us- ing standard parsers provided by the PL, and thus give us a way to obtain syntax information with minimal engineering. Once we generate an AST, we can use deterministic generation tools to con- vert the AST into surface code. We hypothesize  <ref type="table">Table 1</ref>: Example production rules for common Python statements <ref type="bibr">(Python Software Foundation, 2016)</ref> that such a structured approach has two benefits.</p><p>First, we hypothesize that structure can be used to constrain our search space, ensuring generation of well-formed code. To this end, we propose a syntax-driven neural code generation model. The backbone of our approach is a grammar model ( § 3) which formalizes the generation story of a derivation AST into sequential application of ac- tions that either apply production rules ( § 3.1), or emit terminal tokens ( § 3.2). The underlying syn- tax of the PL is therefore encoded in the grammar model a priori as the set of possible actions. Our approach frees the model from recovering the un- derlying grammar from limited training data, and instead enables the system to focus on learning the compositionality among existing grammar rules. <ref type="bibr" target="#b50">Xiao et al. (2016)</ref> have noted that this imposition of structure on neural models is useful for seman- tic parsing, and we expect this to be even more im- portant for general-purpose PLs where the syntax trees are larger and more complex.</p><p>Second, we hypothesize that structural informa- tion helps to model information flow within the neural network, which naturally reflects the recur- sive structure of PLs. To test this, we extend a standard recurrent neural network (RNN) decoder to allow for additional neural connections which reflect the recursive structure of an AST <ref type="bibr">( § 4.2)</ref>. As an example, when expanding the node ? in <ref type="figure" target="#fig_1">Fig. 1(a)</ref>, we make use of the information from both its parent and left sibling (the dashed rectan- gle). This enables us to locally pass information of relevant code segments via neural network con- nections, resulting in more confident predictions.</p><p>Experiments ( § 5) on two Python code gener- ation tasks show 11.7% and 9.3% absolute im- provements in accuracy against the state-of-the-art system ( . Our model also gives competitive performance on a standard semantic parsing benchmark 1 .</p><p>1 Implementation available at https://github. com/neulab/NL2code</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2">The Code Generation Problem</head><p>Given an NL description x, our task is to generate the code snippet c in a modern PL based on the in- tent of x. We attack this problem by first generat- ing the underlying AST. We define a probabilistic grammar model of generating an AST y given x: p(y|x). The best-possible ASTˆyASTˆ ASTˆy is then given byˆy byˆ byˆy = arg max</p><formula xml:id="formula_0">y p(y|x).<label>(1)</label></formula><p>ˆ y is then deterministically converted to the corre- sponding surface code c. 2 While this paper uses examples from Python code, our method is PL- agnostic. Before detailing our approach, we first present a brief introduction of the Python AST and its underlying grammar. The Python abstract gram- mar contains a set of production rules, and an AST is generated by applying several production rules composed of a head node and multiple child nodes. For instance, the first rule in Tab. 1 is used to generate the function call sorted(·) in <ref type="figure" target="#fig_1">Fig. 1(a)</ref>. It consists of a head node of type Call, and three child nodes of type expr, expr* and keyword*, respectively. Labels of each node are noted within brackets. In an AST, non-terminal nodes sketch the general structure of the target code, while terminal nodes can be categorized into two types: operation terminals and variable ter- minals. Operation terminals correspond to basic arithmetic operations like AddOp.Variable termi- nal nodes store values for variables and constants of built-in data types 3 . For instance, all terminal nodes in <ref type="figure" target="#fig_1">Fig. 1(a)</ref> are variable terminal nodes.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3">Grammar Model</head><p>Before detailing our neural code generation method, we first introduce the grammar model at its core. Our probabilistic grammar model defines the generative story of a derivation AST. We fac-  torize the generation process of an AST into se- quential application of actions of two types:</p><p>• APPLYRULE[r] applies a production rule r to the current derivation tree;</p><p>• GENTOKEN <ref type="bibr">[v]</ref> populates a variable terminal node by appending a terminal token v. Formally, under our grammar model, the prob- ability of generating an AST y is factorized as:</p><formula xml:id="formula_1">p(y|x) = T Y t=1 p(a t |x, a &lt;t ),<label>(2)</label></formula><p>where a t is the action taken at time step t, and a &lt;t is the sequence of actions before t. We will explain how to compute the action probabilities p(a t |·) in Eq. (2) in § 4. Put simply, the gen- eration process begins from a root node at t 0 , and proceeds by the model choosing APPLYRULE actions to generate the overall program structure from a closed set of grammar rules, then at leaves of the tree corresponding to variable terminals, the model switches to GENTOKEN actions to gener- ate variables or constants from the open set. We describe this process in detail below.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.1">APPLYRULE Actions</head><p>APPLYRULE actions generate program structure, expanding the current node (the frontier node at time step t: n ft ) in a depth-first, left-to-right traversal of the tree. Given a fixed set of produc- tion rules, APPLYRULE chooses a rule r from the subset that has a head matching the type of n ft , and uses r to expand n ft by appending all child nodes specified by the selected production. As an example, in <ref type="figure" target="#fig_1">Fig. 1</ref>(b), the rule Call 7 ! expr. . . expands the frontier node Call at time step t 4 , and its three child nodes expr, expr* and keyword* are added to the derivation. APPLYRULE actions grow the derivation AST by appending nodes. When a variable terminal node (e.g., str) is added to the derivation and be- comes the frontier node, the grammar model then switches to GENTOKEN actions to populate the variable terminal with tokens.</p><p>Unary Closure Sometimes, generating an AST requires applying a chain of unary productions. For instance, it takes three time steps (t 9 t 11 ) to generate the sub-structure expr* 7 ! expr 7 ! Name 7 ! str in <ref type="figure" target="#fig_1">Fig. 1(a)</ref>. This can be effectively reduced to one step of APPLYRULE action by tak- ing the closure of the chain of unary productions and merging them into a single rule: expr* 7 ! ⇤ str. Unary closures reduce the number of actions needed, but would potentially increase the size of the grammar. In our experiments we tested our model both with and without unary closures ( § 5).</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.2">GENTOKEN Actions</head><p>Once we reach a frontier node n ft that corresponds to a variable type (e.g., str), GENTOKEN actions are used to fill this node with values. For general- purpose PLs like Python, variables and constants have values with one or multiple tokens. For in-stance, a node that stores the name of a function (e.g., sorted) has a single token, while a node that denotes a string constant (e.g., a='hello world') could have multiple tokens. Our model copes with both scenarios by firing GENTOKEN actions at one or more time steps. At each time step, GENTOKEN appends one terminal token to the current frontier variable node. A special &lt;/n&gt; token is used to "close" the node. The grammar model then proceeds to the new frontier node.</p><p>Terminal tokens can be generated from a pre- defined vocabulary, or be directly copied from the input NL. This is motivated by the observation that the input description often contains out-of- vocabulary (OOV) variable names or literal values that are directly used in the target code. For in- stance, in our running example the variable name my list can be directly copied from the the input at t 12 . We give implementation details in § 4.2.2.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4">Estimating Action Probabilities</head><p>We estimate action probabilities in Eq. (2) using attentional neural encoder-decoder models with an information flow structured by the syntax trees.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.1">Encoder</head><p>For an NL description x consisting of n words {w i } n i=1 , the encoder computes a context sen- sitive embedding h i for each w i using a bidi- rectional Long Short-Term Memory (LSTM) net- work <ref type="bibr" target="#b18">(Hochreiter and Schmidhuber, 1997)</ref>, simi- lar to the setting in ( <ref type="bibr" target="#b4">Bahdanau et al., 2014)</ref>. See supplementary materials for detailed equations.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.2">Decoder</head><p>The decoder uses an RNN to model the sequential generation process of an AST defined as Eq. <ref type="formula" target="#formula_1">(2)</ref>. Each action step in the grammar model naturally grounds to a time step in the decoder RNN. There- fore, the action sequence in <ref type="figure" target="#fig_1">Fig. 1(b)</ref> can be in- terpreted as unrolling RNN time steps, with solid arrows indicating RNN connections. The RNN maintains an internal state to track the generation process ( § 4.2.1), which will then be used to com- pute action probabilities p(a t |x, a &lt;t ) ( § 4.2.2).</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.2.1">Tracking Generation States</head><p>Our implementation of the decoder resembles a vanilla LSTM, with additional neural connections (parent feeding, <ref type="figure" target="#fig_1">Fig. 1(b)</ref>) to reflect the topological structure of an AST. The decoder's internal hidden state at time step t, s t , is given by:  where f LSTM (·) is the LSTM update function.</p><formula xml:id="formula_2">s t = f LSTM ([a t1 : c t : p t : n ft ], s t1 ),<label>(</label></formula><p>[:] denotes vector concatenation. s t will then be used to compute action probabilities p(a t |x, a &lt;t ) in Eq. <ref type="formula" target="#formula_1">(2)</ref>. Here, a t1 is the embedding of the pre- vious action. c t is a context vector retrieved from input encodings {h i } via soft attention. p t is a vector that encodes the information of the parent action. n ft denotes the node type embedding of the current frontier node n ft 4 . Intuitively, feeding the decoder the information of n ft helps the model to keep track of the frontier node to expand. Action Embedding a t We maintain two action embedding matrices, W R and W G . Each row in W R (W G ) corresponds to an embedding vector for an action APPLYRULE[r] (GENTOKEN <ref type="bibr">[v]</ref>). Context Vector c t The decoder RNN uses soft at- tention to retrieve a context vector c t from the in- put encodings {h i } pertain to the prediction of the current action. We follow <ref type="bibr" target="#b4">Bahdanau et al. (2014)</ref> and use a Deep Neural Network (DNN) with a sin- gle hidden layer to compute attention weights. Parent Feeding p t Our decoder RNN uses ad- ditional neural connections to directly pass infor- mation from parent actions. For instance, when computing s 9 , the information from its parent ac- tion step t 4 will be used. Formally, we define the parent action step p t as the time step at which the frontier node n ft is generated. As an exam- ple, for t 9 , its parent action step p 9 is t 4 , since n f 9 is the node ?, which is generated at t 4 by the APPLYRULE[Call7 !. . .] action.</p><p>We model parent information p t from two sources: (1) the hidden state of parent action s pt , and (2) the embedding of parent action a pt . p t is the concatenation. The parent feeding schema en-ables the model to utilize the information of par- ent code segments to make more confident predic- tions. Similar approaches of injecting parent in- formation were also explored in the SEQ2TREE model in <ref type="bibr" target="#b14">Dong and Lapata (2016)</ref>  <ref type="bibr">5</ref> .</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.2.2">Calculating Action Probabilities</head><p>In this section we explain how action probabilities p(a t |x, a &lt;t ) are computed based on s t . APPLYRULE The probability of applying rule r as the current action a t is given by a softmax <ref type="bibr">6</ref> :</p><formula xml:id="formula_3">p(a t = APPLYRULE[r]|x, a &lt;t ) = softmax(W R · g(s t )) | · e(r) (4)</formula><p>where g(·) is a non-linearity tanh(W·s t +b), and e(r) the one-hot vector for rule r. GENTOKEN As in § 3.2, a token v can be gener- ated from a predefined vocabulary or copied from the input, defined as the marginal probability:</p><formula xml:id="formula_4">p(a t = GENTOKEN[v]|x, a &lt;t ) = p(gen|x, a &lt;t )p(v|gen, x, a &lt;t ) + p(copy|x, a &lt;t )p(v|copy, x, a &lt;t ).</formula><p>The selection probabilities p(gen|·) and p(copy|·) are given by softmax(W S · s t ). The prob- ability of generating v from the vocabulary, p(v|gen, x, a &lt;t ), is defined similarly as Eq. <ref type="formula" target="#formula_2">(4)</ref>, except that we use the GENTOKEN embedding matrix W G , and we concatenate the context vector c t with s t as input. To model the copy probability, we follow recent advances in modeling copying mechanism in neural networks ( <ref type="bibr" target="#b16">Gu et al., 2016;</ref><ref type="bibr" target="#b20">Jia and Liang, 2016;</ref>, and use a pointer network ( ) to compute the probability of copying the i-th word from the input by attending to input representations {h i }:</p><formula xml:id="formula_5">p(w i |copy, x, a &lt;t ) = exp(!(h i , s t , c t )) P n i 0 =1 exp(!(h i 0 , s t , c t ))</formula><p>, where !(·) is a DNN with a single hidden layer. Specifically, if w i is an OOV word (e.g., the vari- able name my list), which is represented by a special &lt;unk&gt; token during encoding, we then di- rectly copy the actual word w i from the input de- scription to the derivation.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.3">Training and Inference</head><p>Given a dataset of pairs of NL descriptions x i and code snippets c i , we parse c i into its AST y i and 5 SEQ2TREE generates tree-structured outputs by condi- tioning on the hidden states of parent non-terminals, while our parent feeding uses the states of parent actions. <ref type="bibr">6</ref> We do not show bias terms for all softmax equations. <ref type="table" target="#tab_5">Train  533  16,000  77,495  Development  66  1,000  5,171  Test  66  1,</ref>  App. Users of the App write simple instruc- tions (e.g., If Instagram.AnyNewPhotoByYou Then Dropbox.AddFileFromURL) with NL de- scriptions (e.g., "Autosave your Instagram photos to Dropbox"). Each statement inside the If or Then clause consists of a channel (e.g., Dropbox) and a function (e.g., AddFileFromURL) <ref type="bibr">7</ref> . This simple structure results in much more concise ASTs (7 nodes on average). Because all examples are created by ordinary Apps users, the dataset is highly noisy, with input NL very loosely con- nected to target ASTs. The authors thus provide a high-quality filtered test set, where each example is verified by at least three annotators. We use this set for evaluation. Also note IFTTT's grammar has more productions (Tab. 2), but this does not imply that its grammar is more complex. This is because for HS and DJANGO terminal tokens are generated by GENTOKEN actions, but for IFTTT, all the code is generated directly by APPLYRULE actions.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Dataset</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>HS DJANGO IFTTT</head><p>Metrics As is standard in semantic parsing, we measure accuracy, the fraction of correctly gen- erated examples. However, because generating an exact match for complex code structures is non- trivial, we follow , and use token- level BLEU-4 with as a secondary metric, defined as the averaged BLEU scores over all examples. <ref type="bibr">8</ref> </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.2">Setup</head><p>Preprocessing All input descriptions are tok- enized using NLTK. We perform simple canoni- calization for DJANGO, such as replacing quoted strings in the inputs with place holders. See sup- plementary materials for details. We extract unary closures whose frequency is larger than a thresh- old k (k = 30 for HS and 50 for DJANGO).</p><p>Configuration The size of all embeddings is 128, except for node type embeddings, which is 64. The dimensions of RNN states and hidden layers are 256 and 50, respectively. Since our datasets are relatively small for a data-hungry neural model, we impose strong regularization using recurrent <ref type="bibr">7</ref> Like <ref type="bibr" target="#b8">Beltagy and Quirk (2016)</ref>, we strip function param- eters since they are mostly specific to users.</p><p>8 These two metrics are not ideal: accuracy only measures exact match and thus lacks the ability to give credit to seman- tically correct code that is different from the reference, while it is not clear whether BLEU provides an appropriate proxy for measuring semantics in the code generation task. A more intriguing metric would be directly measuring semantic/func- tional code equivalence, for which we present a pilot study at the end of this section (cf. Error Analysis). We leave ex- ploring more sophisticated metrics (e.g. based on static code analysis) as future work.  dropouts ( <ref type="bibr" target="#b15">Gal and Ghahramani, 2016</ref>) for all re- current networks, together with standard dropout layers added to the inputs and outputs of the de- coder RNN. We validate the dropout probability from {0, 0.2, 0.3, 0.4}. For decoding, we use a beam size of 15.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.3">Results</head><p>Evaluation results for Python code generation tasks are listed in Tab. 3. Numbers for our sys- tems are averaged over three runs. We compare primarily with two approaches: (1) Latent Pre- dictor Network (LPN), a state-of-the-art sequence- to-sequence code generation model ( , and (2) SEQ2TREE, a neural semantic pars- ing model <ref type="bibr" target="#b14">(Dong and Lapata, 2016)</ref>. SEQ2TREE generates trees one node at a time, and the tar- get grammar is not explicitly modeled a priori, but implicitly learned from data. We test both the original SEQ2TREE model released by the au- thors and our revised one (SEQ2TREE-UNK) that uses unknown word replacement to handle rare words ( <ref type="bibr" target="#b31">Luong et al., 2015</ref>). For completeness, we also compare with a strong neural machine translation (NMT) system (Neubig, 2015) using a standard encoder-decoder architecture with atten- tion and unknown word replacement 9 , and include numbers from other baselines used in . On the HS dataset, which has relatively large ASTs, we use unary closure for our model and SEQ2TREE, and for DJANGO we do not. For the baselines, we find LPN outperforms NMT and SEQ2TREE in most cases. We also note that SEQ2TREE achieves a decent accuracy of 13.6% on HS, which is due to the effect of unknown word replacement, since we only achieved 1.5% with- out it. A closer comparison with SEQ2TREE is insightful for understanding the advantage of our syntax-driven approach, since both SEQ2TREE and our system output ASTs: (1) SEQ2TREE pre- dicts one node each time step, and requires addi- tional "dummy" nodes to mark the boundary of a subtree. The sheer number of nodes in target ASTs makes the prediction process error-prone. In contrast, the APPLYRULE actions of our grammar model allows for generating multiple nodes at a single time step. Empirically, we found that in HS, SEQ2TREE takes more than 300 time steps on av- erage to generate a target AST, while our model takes only 170 steps. (2) SEQ2TREE does not di- rectly use productions in the grammar, which pos- sibly leads to grammatically incorrect ASTs and thus empty code outputs. We observe that the ra- tio of grammatically incorrect ASTs predicted by SEQ2TREE on HS and DJANGO are 21.2% and 10.9%, respectively, while our system guarantees grammaticality.</p><p>Ablation Study We also ablated our best- performing models to analyze the contribution of each component. "-frontier embed." removes the frontier node embedding n ft from the decoder RNN inputs (Eq. <ref type="formula" target="#formula_2">(3)</ref>). This yields worse results on DJANGO while gives slight improvements in ac-</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>CHANNEL FULL TREE</head><p>Classical Methods posclass ( <ref type="bibr" target="#b44">Quirk et al., 2015)</ref> 81.4 71.0 LR ( <ref type="bibr" target="#b8">Beltagy and Quirk, 2016)</ref> 88.8 82.5</p><p>Neural Network Methods NMT 87.7 77.7 NN ( <ref type="bibr" target="#b8">Beltagy and Quirk, 2016)</ref> 88.0 74.3 SEQ2TREE ( <ref type="bibr" target="#b14">Dong and Lapata, 2016)</ref> 89.7 78.4 Doubly-Recurrent NN 90.1 78.2 (Alvarez-Melis and Jaakkola, 2017)</p><p>Our system 90.0 82.0 -parent feed.</p><p>89.9 81.1 -frontier embed.</p><p>90.1 78.7 <ref type="table">Table 4</ref>: Results on the noise-filtered IFTTT test set of "&gt;3 agree with gold annotations" (averaged over three runs), our model performs competitively among neural models.</p><p>curacy on HS. This is probably because that the grammar of HS has fewer node types, and thus the RNN is able to keep track of n ft without de- pending on its embedding. Next, "-parent feed." removes the parent feeding mechanism. The ac- curacy drops significantly on HS, with a marginal deterioration on DJANGO. This result is interest- ing because it suggests that parent feeding is more important when the ASTs are larger, which will be the case when handling more complicated code generation tasks like HS. Finally, removing the pointer network ("-copy terminals") in GENTO- KEN actions gives poor results, indicating that it is important to directly copy variable names and values from the input.</p><p>The results with and without unary closure demonstrate that, interestingly, it is effective on HS but not on DJANGO. We conjecture that this is because on HS it significantly reduces the number of actions from 173 to 142 (c.f., Tab. 2), with the number of productions in the grammar remaining unchanged. In contrast, DJANGO has a broader domain, and thus unary closure results in more productions in the grammar (237 for DJANGO vs. 100 for HS), increasing sparsity. Performance by the size of AST We further in- vestigate our model's performance w.r.t. the size of the gold-standard ASTs in <ref type="figure" target="#fig_4">Figs. 3 and 4</ref>. Not surprisingly, the performance drops when the size of the reference ASTs increases. Additionally, on the HS dataset, the BLEU score still remains at around 50 even when the size of ASTs grows to 200, indicating that our proposed syntax-driven approach is robust for long code segments. Domain Specific Code Generation Although this is not the focus of our work, evaluation on IFTTT brings us closer to a standard semantic parsing set-input &lt;name&gt; Brawl &lt;/name&gt; &lt;cost&gt; 5 &lt;/cost&gt; &lt;desc&gt; Destroy all minions except one (chosen randomly) &lt;/desc&gt; &lt;rarity&gt; Epic &lt;/rarity&gt; ...  B input join app config.path and string 'locale' into a file path, substitute it for localedir. pred. localedir = os.path.join( app config.path, 'locale') 3 input self.plural is an lambda function with an argument n, which returns result of boolean expression n not equal to integer 1 pred. self.plural = lambda n: len(n) 7 ref. self.plural = lambda n: int(n!=1) ting, which helps to investigate similarities and differences between generation of more compli- cated general-purpose code and and more limited- domain simpler code. Tab. 4 shows the results, following the evaluation protocol in <ref type="bibr" target="#b8">(Beltagy and Quirk, 2016</ref>) for accuracies at both channel and full parse tree (channel + function) levels. Our full model performs on par with existing neu- ral network-based methods, while outperforming other neural models in full tree accuracy (82.0%). This score is close to the best classical method (LR), which is based on a logistic regression model with rich hand-engineered features (e.g., brown clusters and paraphrase). Also note that the performance between NMT and other neural mod- els is much closer compared with the results in Tab. 3. This suggests that general-purpose code generation is more challenging than the simpler IFTTT setting, and therefore modeling structural information is more helpful. Case Studies We present output examples in Tab. 5. On HS, we observe that most of the time our model gives correct predictions by fill- ing learned code templates from training data with arguments (e.g., cost) copied from input. This is in line with the findings in . How- ever, we do find interesting examples indicating that the model learns to generalize beyond trivial copying. For instance, the first example is one that our model predicted wrong -it generated code block A instead of the gold B (it also missed a function definition not shown here). However, we find that the block A actually conveys part of the input intent by destroying all, not some, of the minions. Since we are unable to find code block A in the training data, it is clear that the model has learned to generalize to some extent from multiple training card examples with similar semantics or structure.</p><p>The next two examples are from DJANGO. The first one shows that the model learns the usage of common API calls (e.g., os.path.join), and how to populate the arguments by copying from inputs. The second example illustrates the dif- ficulty of generating code with complex nested structures like lambda functions, a scenario worth further investigation in future studies. More exam- ples are attached in supplementary materials. Error Analysis To understand the sources of er- rors and how good our evaluation metric (exact match) is, we randomly sampled and labeled 100 and 50 failed examples (with accuracy=0) from DJANGO and HS, respectively. We found that around 2% of these examples in the two datasets are actually semantically equivalent. These exam- ples include: (1) using different parameter names when defining a function; (2) omitting (or adding) default values of parameters in function calls. While the rarity of such examples suggests that our exact match metric is reasonable, more advanced evaluation metrics based on statistical code analy- sis are definitely intriguing future work.</p><p>For DJANGO, we found that 30% of failed cases were due to errors where the pointer network failed to appropriately copy a variable name into the correct position. 25% were because the gener- ated code only partially implemented the required functionality. 10% and 5% of errors were due to malformed English inputs and pre-processing er- rors, respectively. The remaining 30% of exam- ples were errors stemming from multiple sources, or errors that could not be easily categorized into the above. For HS, we found that all failed card examples were due to partial implementation er- rors, such as the one shown in <ref type="table" target="#tab_7">Table 5</ref>.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6">Related Work</head><p>Code Generation and Analysis Most works on code generation focus on generating code for do- main specific languages (DSLs) <ref type="bibr" target="#b23">(Kushman and Barzilay, 2013;</ref><ref type="bibr" target="#b46">Raza et al., 2015;</ref><ref type="bibr" target="#b33">Manshadi et al., 2013)</ref>, with neural network-based approaches re- cently explored ( <ref type="bibr">Liu et al., 2016;</ref><ref type="bibr" target="#b41">Parisotto et al., 2016;</ref><ref type="bibr" target="#b5">Balog et al., 2016)</ref>. For general-purpose code generation, besides the general framework of , existing methods often use language and task-specific rules and strate- gies ( <ref type="bibr" target="#b25">Lei et al., 2013;</ref><ref type="bibr" target="#b45">Raghothaman et al., 2016)</ref>. A similar line is to use NL queries for code re- trieval ( <ref type="bibr" target="#b0">Allamanis et al., 2015)</ref>. The reverse task of generating NL summaries from source code has also been explored ( <ref type="bibr" target="#b40">Oda et al., 2015;</ref><ref type="bibr" target="#b19">Iyer et al., 2016)</ref>. Finally, our work falls into the broad field of probabilistic modeling of source code <ref type="bibr" target="#b32">(Maddison and Tarlow, 2014;</ref><ref type="bibr" target="#b39">Nguyen et al., 2013)</ref>. Our approach of factoring an AST using probabilistic models is closely related to <ref type="bibr" target="#b0">Allamanis et al. (2015)</ref>, which uses a factorized model to measure the semantic relatedness between NL and ASTs for code retrieval, while our model tackles the more challenging generation task.</p><p>Semantic Parsing Our work is related to the gen- eral topic of semantic parsing, which aims to transform NL descriptions into executable logical forms. The target logical forms can be viewed as DSLs. The parsing process is often guided by grammatical formalisms like combinatory cate- gorical grammars ( <ref type="bibr" target="#b24">Kwiatkowski et al., 2013;</ref><ref type="bibr" target="#b2">Artzi et al., 2015)</ref>, dependency-based syntax <ref type="bibr" target="#b27">(Liang et al., 2011;</ref><ref type="bibr" target="#b42">Pasupat and Liang, 2015)</ref> or task- specific formalisms <ref type="bibr" target="#b13">(Clarke et al., 2010;</ref><ref type="bibr" target="#b51">Yih et al., 2015;</ref><ref type="bibr" target="#b22">Krishnamurthy et al., 2016;</ref><ref type="bibr" target="#b34">Mei et al., 2016)</ref>. Recently, there are efforts in designing neural network-based semantic parsers <ref type="bibr" target="#b35">(Misra and Artzi, 2016;</ref><ref type="bibr" target="#b14">Dong and Lapata, 2016;</ref><ref type="bibr" target="#b37">Neelakantan et al., 2016;</ref><ref type="bibr" target="#b52">Yin et al., 2016)</ref>. Several approaches have be proposed to utilize grammar knowledge in a neural parser, such as augmenting the training data by generating examples guided by the gram- mar <ref type="bibr" target="#b20">Jia and Liang, 2016)</ref>.  used a neural decoder which constrains the space of next valid tokens in the query language for question answering. Finally, the structured prediction approach proposed by <ref type="bibr" target="#b50">Xiao et al. (2016)</ref> is closely related to our model in using the underlying grammar as prior knowledge to constrain the generation process of derivation trees, while our method is based on a unified gram- mar model which jointly captures production rule application and terminal symbol generation, and scales to general purpose code generation tasks.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="7">Conclusion</head><p>This paper proposes a syntax-driven neural code generation approach that generates an abstract syntax tree by sequentially applying actions from a grammar model. Experiments on both code gen- eration and semantic parsing tasks demonstrate the effectiveness of our proposed approach.</p></div><figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_1"><head>Figure 1 :</head><label>1</label><figDesc>Figure 1: (a) the Abstract Syntax Tree (AST) for the given example code. Dashed nodes denote terminals. Nodes are labeled with time steps during which they are generated. (b) the action sequence (up to t14) used to generate the AST in (a)</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_2"><head>Fig. 1 (</head><label>1</label><figDesc>Fig. 1(b) shows the generation process of the target AST in Fig. 1(a). Each node in Fig. 1(b) indicates an action. Action nodes are connected by solid arrows which depict the chronological order of the action flow. The generation proceeds in depth-first, left-to-right order (dotted arrows represent parent feeding, explained in § 4.2.1). Formally, under our grammar model, the probability of generating an AST y is factorized as:</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_3"><head>Figure 2 :</head><label>2</label><figDesc>Figure 2: Illustration of a decoder time step (t = 9)</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_4"><head>Figure 3 :</head><label>3</label><figDesc>Figure 3: Performance w.r.t reference AST size on DJANGO</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_0" validated="false"><head>expr[func] expr*[args] keyword*[keywords] Function Call . func: the function to be invoked . args: arguments list . keywords: keyword arguments list If 7 ! expr[test] stmt*[body] stmt*[orelse]</head><label></label><figDesc></figDesc><table>Production Rule 
+
+Role 
+Explanation 
+Call 7 ! If Statement 
+. test: condition expression . body: statements in-
+side the If clause . orelse: elif or else statements 
+For 7 ! expr[target] expr*[iter] stmt*[body] 
+For Loop 
+. target: iteration variable . iter: enumerable to iter-
+ate over . body: loop body . orelse: else statements 
+stmt*[orelse] 
+FunctionDef 7 ! identifier[name] arguments*[args] Function Def. . name: function name . args: function arguments 
+. body: function body 
+stmt*[body] 
+
+</table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_3" validated="false"><head>Table 2 :</head><label>2</label><figDesc></figDesc><table>Statistics of datasets and associated grammars 
+
+decompose y i into a sequence of oracle actions, 
+which explains the generation story of y i under the 
+grammar model. The model is then optimized by 
+maximizing the log-likelihood of the oracle action 
+sequence. At inference time, given an NL descrip-
+tion, we use beam search to approximate the best 
+ASTˆyASTˆ ASTˆy in Eq. (1). See supplementary materials for 
+the pseudo-code of the inference algorithm. 
+
+5 Experimental Evaluation 
+
+5.1 Datasets and Metrics 
+
+HEARTHSTONE (HS) dataset (Ling et al., 2016) 
+is a collection of Python classes that implement 
+cards for the card game HearthStone. Each card 
+comes with a set of fields (e.g., name, cost, and 
+description), which we concatenate to create the 
+input sequence. This dataset is relatively difficult: 
+input descriptions are short, while the target code 
+is in complex class structures, with each AST hav-
+ing 137 nodes on average. 
+DJANGO dataset (Oda et al., 2015) is a collection 
+of lines of code from the Django web framework, 
+each with a manually annotated NL description. 
+Compared with the HS dataset where card imple-
+mentations are somewhat homogenous, examples 
+in DJANGO are more diverse, spanning a wide va-
+riety of real-world use cases like string manipula-
+tion, IO operations, and exception handling. 
+IFTTT dataset (Quirk et al., 2015) is a domain-
+specific benchmark that provides an interest-
+ing side comparison. Different from HS and 
+DJANGO which are in a general-purpose PL, pro-
+grams in IFTTT are written in a domain-specific 
+language used by the IFTTT task automation </table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_5" validated="false"><head>Table 3 :</head><label>3</label><figDesc></figDesc><table>Results on two Python code generation tasks. 
+ † Results previously reported in Ling et al. (2016). 
+
+</table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_6" validated="false"><head>. class Brawl(SpellCard):</head><label></label><figDesc></figDesc><table>def init (self): 
+super(). init ('Brawl', 5, CHARACTER CLASS. 
+WARRIOR, CARD RARITY.EPIC) 
+def use(self, player, game): 
+super().use(player, game) 
+targets = copy.copy(game.other player.minions) 
+targets.extend(player.minions) 
+for minion in targets: 
+minion.die(self) 
+
+A 
+
+ref. minions = copy.copy(player.minions) 
+
+minions.extend(game.other player.minions) 
+if len(minions) &gt; 1: 
+survivor = game.random choice(minions) 
+for minion in minions: 
+if minion is not survivor: minion.die(self) 
+
+</table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_7" validated="false"><head>Table 5 :</head><label>5</label><figDesc></figDesc><table>Predicted examples from HS (1st) and DJANGO. 
+Copied contents (copy probability &gt; 0.9) are highlighted. 
+
+</table></figure>
+
+			<note place="foot" n="2"> We use astor library to convert ASTs into Python code. 3 bool, float, int, str.</note>
+
+			<note place="foot" n="4"> We maintain an embedding for each node type.</note>
+
+			<note place="foot" n="9"> For NMT, we also attempted to find the best-scoring syntactically correct predictions in the size-5 beam, but this did not yield a significant improvement over the NMT results in Tab. 3.</note>
+		</body>
+		<back>
+
+			<div type="acknowledgement">
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Acknowledgment</head><p>We are grateful to Wang Ling for his generous help with LPN and setting up the benchmark. We thank I. Beltagy for providing the IFTTT dataset. We also thank Li Dong for helping with SEQ2TREE and insightful discussions.</p></div>
+			</div>
+
+			<div type="references">
+
+				<listBibl>
+
+<biblStruct xml:id="b0">
+	<analytic>
+		<title level="a" type="main">Bimodal modelling of source code and natural language</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Miltiadis</forename><surname>Allamanis</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Daniel</forename><surname>Tarlow</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Andrew</forename><forename type="middle">D</forename><surname>Gordon</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yi</forename><surname>Wei</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of ICML</title>
+		<meeting>ICML</meeting>
+		<imprint>
+			<date type="published" when="2015" />
+			<biblScope unit="volume">37</biblScope>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b1">
+	<analytic>
+		<title level="a" type="main">Tree-structured decoding with doubly recurrent neural networks</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">David</forename><surname>Alvarez</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">-Melis</forename></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Tommi</forename><forename type="middle">S</forename><surname>Jaakkola</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of ICLR</title>
+		<meeting>ICLR</meeting>
+		<imprint>
+			<date type="published" when="2017" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b2">
+	<analytic>
+		<title level="a" type="main">Broad-coverage CCG semantic parsing with AMR</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yoav</forename><surname>Artzi</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kenton</forename><surname>Lee</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Luke</forename><surname>Zettlemoyer</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of EMNLP</title>
+		<meeting>EMNLP</meeting>
+		<imprint>
+			<date type="published" when="2015" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b3">
+	<analytic>
+		<title level="a" type="main">Weakly supervised learning of semantic parsers for mapping instructions to actions</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yoav</forename><surname>Artzi</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Luke</forename><surname>Zettlemoyer</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Transaction of ACL</title>
+		<imprint>
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="issue">1</biblScope>
+			<date type="published" when="2013" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b4">
+	<monogr>
+		<title level="m" type="main">Neural machine translation by jointly learning to align and translate</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Dzmitry</forename><surname>Bahdanau</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kyunghyun</forename><surname>Cho</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yoshua</forename><surname>Bengio</surname></persName>
+		</author>
+		<idno>CoRR abs/1409.0473</idno>
+		<imprint>
+			<date type="published" when="2014" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b5">
+	<monogr>
+		<title level="m" type="main">Deepcoder: Learning to write programs</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Matej</forename><surname>Balog</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Alexander</forename><forename type="middle">L</forename><surname>Gaunt</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Marc</forename><surname>Brockschmidt</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Sebastian</forename><surname>Nowozin</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Daniel</forename><surname>Tarlow</surname></persName>
+		</author>
+		<idno>CoRR abs/1611.01989</idno>
+		<imprint>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b6">
+	<analytic>
+		<title level="a" type="main">A 15 year perspective on automatic programming</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Robert</forename><surname>Balzer</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">IEEE Trans. Software Eng</title>
+		<imprint>
+			<biblScope unit="volume">11</biblScope>
+			<biblScope unit="issue">11</biblScope>
+			<date type="published" when="1985" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b7">
+	<analytic>
+		<title level="a" type="main">Abstract meaning representation for sembanking</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Laura</forename><surname>Banarescu</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Claire</forename><surname>Bonial</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Shu</forename><surname>Cai</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Madalina</forename><surname>Georgescu</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kira</forename><surname>Griffitt</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ulf</forename><surname>Hermjakob</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of LAW-ID@ACL</title>
+		<meeting>LAW-ID@ACL<address><addrLine>Kevin Knight, Philipp Koehn, Martha Palmer, and Nathan Schneider</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2013" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b8">
+	<analytic>
+		<title level="a" type="main">Improved semantic parsers for if-then statements</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">I</forename><surname>Beltagy</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Chris</forename><surname>Quirk</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of ACL</title>
+		<meeting>ACL</meeting>
+		<imprint>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b9">
+	<analytic>
+		<title level="a" type="main">Semantic parsing on freebase from question-answer pairs</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jonathan</forename><surname>Berant</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Andrew</forename><surname>Chou</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Roy</forename><surname>Frostig</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Percy</forename><surname>Liang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of EMNLP</title>
+		<meeting>EMNLP</meeting>
+		<imprint>
+			<date type="published" when="2013" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b10">
+	<analytic>
+		<title level="a" type="main">Example-centric programming: integrating web search into the development environment</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Joel</forename><surname>Brandt</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Mira</forename><surname>Dontcheva</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Marcos</forename><surname>Weskamp</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Scott</forename><forename type="middle">R</forename><surname>Klemmer</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of CHI</title>
+		<meeting>CHI</meeting>
+		<imprint>
+			<date type="published" when="2010" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b11">
+	<analytic>
+		<title level="a" type="main">Two studies of opportunistic programming: interleaving web foraging, learning, and writing code</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Joel</forename><surname>Brandt</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Philip</forename><forename type="middle">J</forename><surname>Guo</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Joel</forename><surname>Lewenstein</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Mira</forename><surname>Dontcheva</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Scott</forename><forename type="middle">R</forename><surname>Klemmer</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of CHI</title>
+		<meeting>CHI</meeting>
+		<imprint>
+			<date type="published" when="2009" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b12">
+	<analytic>
+		<title level="a" type="main">Widecoverage efficient statistical parsing with CCG and log-linear models</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Stephen</forename><surname>Clark</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">James</forename><forename type="middle">R</forename><surname>Curran</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Computational Linguistics</title>
+		<imprint>
+			<biblScope unit="volume">33</biblScope>
+			<biblScope unit="issue">4</biblScope>
+			<date type="published" when="2007" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b13">
+	<analytic>
+		<title level="a" type="main">Driving semantic parsing from the world&apos;s response</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">James</forename><surname>Clarke</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Dan</forename><surname>Goldwasser</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ming-Wei</forename><surname>Chang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Dan</forename><forename type="middle">Roth</forename></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of CoNLL</title>
+		<meeting>CoNLL</meeting>
+		<imprint>
+			<date type="published" when="2010" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b14">
+	<analytic>
+		<title level="a" type="main">Language to logical form with neural attention</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Li</forename><surname>Dong</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Mirella</forename><surname>Lapata</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of ACL</title>
+		<meeting>ACL</meeting>
+		<imprint>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b15">
+	<analytic>
+		<title level="a" type="main">A theoretically grounded application of dropout in recurrent neural networks</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yarin</forename><surname>Gal</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Zoubin</forename><surname>Ghahramani</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of NIPS</title>
+		<meeting>NIPS</meeting>
+		<imprint>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b16">
+	<analytic>
+		<title level="a" type="main">Incorporating copying mechanism in sequence-to-sequence learning</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jiatao</forename><surname>Gu</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Zhengdong</forename><surname>Lu</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Hang</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Victor</forename><forename type="middle">O K</forename><surname>Li</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of ACL</title>
+		<meeting>ACL</meeting>
+		<imprint>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b17">
+	<analytic>
+		<title level="a" type="main">Interactive synthesis using free-form queries</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Tihomir</forename><surname>Gvero</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Viktor</forename><surname>Kuncak</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of ICSE</title>
+		<meeting>ICSE</meeting>
+		<imprint>
+			<date type="published" when="2015" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b18">
+	<analytic>
+		<title level="a" type="main">Long short-term memory</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Sepp</forename><surname>Hochreiter</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jürgen</forename><surname>Schmidhuber</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Neural Computation</title>
+		<imprint>
+			<biblScope unit="volume">9</biblScope>
+			<biblScope unit="issue">8</biblScope>
+			<date type="published" when="1997" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b19">
+	<analytic>
+		<title level="a" type="main">Summarizing source code using a neural attention model</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Srinivasan</forename><surname>Iyer</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ioannis</forename><surname>Konstas</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Alvin</forename><surname>Cheung</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Luke</forename><surname>Zettlemoyer</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of ACL</title>
+		<meeting>ACL</meeting>
+		<imprint>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b20">
+	<analytic>
+		<title level="a" type="main">Data recombination for neural semantic parsing</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Robin</forename><surname>Jia</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Percy</forename><surname>Liang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of ACL</title>
+		<meeting>ACL</meeting>
+		<imprint>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b21">
+	<analytic>
+		<title level="a" type="main">Semantic parsing with semi-supervised sequential autoencoders</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Tomás</forename><surname>Kocisk´ykocisk´y</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Gábor</forename><surname>Melis</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Edward</forename><surname>Grefenstette</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Chris</forename><surname>Dyer</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Wang</forename><surname>Ling</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Phil</forename><surname>Blunsom</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Karl Moritz</forename><surname>Hermann</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of EMNLP</title>
+		<meeting>EMNLP</meeting>
+		<imprint>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b22">
+	<analytic>
+		<title level="a" type="main">Semantic parsing to probabilistic programs for situated question answering</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jayant</forename><surname>Krishnamurthy</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Oyvind</forename><surname>Tafjord</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Aniruddha</forename><surname>Kembhavi</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of EMNLP</title>
+		<meeting>EMNLP</meeting>
+		<imprint>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b23">
+	<analytic>
+		<title level="a" type="main">Using semantic unification to generate regular expressions from natural language</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Nate</forename><surname>Kushman</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Regina</forename><surname>Barzilay</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of NAACL</title>
+		<meeting>NAACL</meeting>
+		<imprint>
+			<date type="published" when="2013" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b24">
+	<analytic>
+		<title level="a" type="main">Scaling semantic parsers with on-the-fly ontology matching</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Tom</forename><surname>Kwiatkowski</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Eunsol</forename><surname>Choi</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yoav</forename><surname>Artzi</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Luke</forename><forename type="middle">S</forename><surname>Zettlemoyer</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the EMNLP</title>
+		<meeting>the EMNLP</meeting>
+		<imprint>
+			<date type="published" when="2013" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b25">
+	<analytic>
+		<title level="a" type="main">From natural language specifications to program input parsers</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Tao</forename><surname>Lei</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Fan</forename><surname>Long</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Regina</forename><surname>Barzilay</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Martin</forename><forename type="middle">C</forename><surname>Rinard</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of ACL</title>
+		<meeting>ACL</meeting>
+		<imprint>
+			<date type="published" when="2013" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b26">
+	<monogr>
+		<title level="m" type="main">Neural symbolic machines: Learning semantic parsers on freebase with weak supervision</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Chen</forename><surname>Liang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jonathan</forename><surname>Berant</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Quoc</forename><surname>Le</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kenneth</forename><forename type="middle">D</forename><surname>Forbus</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ni</forename><surname>Lao</surname></persName>
+		</author>
+		<idno>CoRR abs/1611.00020</idno>
+		<imprint>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b27">
+	<analytic>
+		<title level="a" type="main">Learning dependency-based compositional semantics</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Percy</forename><surname>Liang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Michael</forename><forename type="middle">I</forename><surname>Jordan</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Dan</forename><surname>Klein</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of ACL</title>
+		<meeting>ACL</meeting>
+		<imprint>
+			<date type="published" when="2011" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b28">
+	<analytic>
+		<title level="a" type="main">Latent predictor networks for code generation</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Wang</forename><surname>Ling</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Phil</forename><surname>Blunsom</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Edward</forename><surname>Grefenstette</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Karl</forename><forename type="middle">Moritz</forename><surname>Hermann</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Tomás</forename><surname>Kocisk´ykocisk´y</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Fumin</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Andrew</forename><surname>Senior</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of ACL</title>
+		<meeting>ACL</meeting>
+		<imprint>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b29">
+	<analytic>
+		<title level="a" type="main">Keyword programming in java</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Greg</forename><surname>Little</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Robert</forename><forename type="middle">C</forename><surname>Miller</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Autom. Softw. Eng</title>
+		<imprint>
+			<biblScope unit="volume">16</biblScope>
+			<biblScope unit="issue">1</biblScope>
+			<date type="published" when="2009" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b30">
+	<analytic>
+		<title level="a" type="main">Eui Chul Richard Shin, Mingcheng Chen, and Dawn Xiaodong Song. 2016. Latent attention for if-then program synthesis</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Chang</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Xinyun</forename><surname>Chen</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of NIPS</title>
+		<meeting>NIPS</meeting>
+		<imprint/>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b31">
+	<analytic>
+		<title level="a" type="main">Addressing the rare word problem in neural machine translation</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Thang</forename><surname>Luong</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ilya</forename><surname>Sutskever</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Quoc</forename><forename type="middle">V</forename><surname>Le</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Oriol</forename><surname>Vinyals</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Wojciech</forename><surname>Zaremba</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of ACL</title>
+		<meeting>ACL</meeting>
+		<imprint>
+			<date type="published" when="2015" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b32">
+	<analytic>
+		<title level="a" type="main">Structured generative models of natural source code</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Chris</forename><forename type="middle">J</forename><surname>Maddison</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Daniel</forename><surname>Tarlow</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of ICML</title>
+		<meeting>ICML</meeting>
+		<imprint>
+			<date type="published" when="2014" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b33">
+	<analytic>
+		<title level="a" type="main">Integrating programming by example and natural language programming</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Daniel</forename><surname>Mehdi Hafezi Manshadi</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">James</forename><forename type="middle">F</forename><surname>Gildea</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Allen</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of AAAI</title>
+		<meeting>AAAI</meeting>
+		<imprint>
+			<date type="published" when="2013" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b34">
+	<analytic>
+		<title level="a" type="main">Listen, attend, and walk: Neural mapping of navigational instructions to action sequences</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Hongyuan</forename><surname>Mei</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Mohit</forename><surname>Bansal</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Matthew</forename><forename type="middle">R</forename><surname>Walter</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of AAAI</title>
+		<meeting>AAAI</meeting>
+		<imprint>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b35">
+	<analytic>
+		<title level="a" type="main">Neural shiftreduce CCG semantic parsing</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">K</forename><surname>Dipendra</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yoav</forename><surname>Misra</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Artzi</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of EMNLP</title>
+		<meeting>EMNLP</meeting>
+		<imprint>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b36">
+	<analytic>
+		<title level="a" type="main">Environment-driven lexicon induction for high-level instructions</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kejia</forename><surname>Dipendra Kumar Misra</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Percy</forename><surname>Tao</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ashutosh</forename><surname>Liang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Saxena</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of ACL</title>
+		<meeting>ACL</meeting>
+		<imprint>
+			<date type="published" when="2015" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b37">
+	<analytic>
+		<title level="a" type="main">Neural programmer: Inducing latent programs with gradient descent</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Arvind</forename><surname>Neelakantan</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">V</forename><surname>Quoc</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ilya</forename><surname>Le</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Sutskever</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of ICLR</title>
+		<meeting>ICLR</meeting>
+		<imprint>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b38">
+	<monogr>
+		<title level="m" type="main">lamtram: A toolkit for language and translation modeling using neural networks</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Graham</forename><surname>Neubig</surname></persName>
+		</author>
+		<ptr target="http://www.github.com/neubig/lamtram" />
+		<imprint>
+			<date type="published" when="2015" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b39">
+	<analytic>
+		<title level="a" type="main">A statistical semantic language model for source code</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Anh</forename><forename type="middle">Tuan</forename><surname>Tung Thanh Nguyen</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Hoan</forename><forename type="middle">Anh</forename><surname>Nguyen</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Tien</forename><forename type="middle">N</forename><surname>Nguyen</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Nguyen</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of ACM SIGSOFT</title>
+		<meeting>ACM SIGSOFT</meeting>
+		<imprint>
+			<date type="published" when="2013" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b40">
+	<analytic>
+		<title level="a" type="main">Learning to generate pseudo-code from source code using statistical machine translation (T)</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yusuke</forename><surname>Oda</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Hiroyuki</forename><surname>Fudaba</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Graham</forename><surname>Neubig</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Hideaki</forename><surname>Hata</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Sakriani</forename><surname>Sakti</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Tomoki</forename><surname>Toda</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Satoshi</forename><surname>Nakamura</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of ASE</title>
+		<meeting>ASE</meeting>
+		<imprint>
+			<date type="published" when="2015" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b41">
+	<monogr>
+		<title level="m" type="main">Neuro-symbolic program synthesis</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Emilio</forename><surname>Parisotto</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Abdel-Rahman</forename><surname>Mohamed</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Rishabh</forename><surname>Singh</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Lihong</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Dengyong</forename><surname>Zhou</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Pushmeet</forename><surname>Kohli</surname></persName>
+		</author>
+		<idno>CoRR abs/1611.01855</idno>
+		<imprint>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b42">
+	<analytic>
+		<title level="a" type="main">Compositional semantic parsing on semi-structured tables</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Panupong</forename><surname>Pasupat</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Percy</forename><surname>Liang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of ACL</title>
+		<meeting>ACL</meeting>
+		<imprint>
+			<date type="published" when="2015" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b43">
+	<monogr>
+		<title level="m" type="main">Python Software Foundation</title>
+		<ptr target="https://docs.python.org/2/library/ast.html" />
+		<imprint>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+	<note>Python abstract grammar</note>
+</biblStruct>
+
+<biblStruct xml:id="b44">
+	<analytic>
+		<title level="a" type="main">Language to code: Learning semantic parsers for if-this-then-that recipes</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Chris</forename><surname>Quirk</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Raymond</forename><forename type="middle">J</forename><surname>Mooney</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Michel</forename><surname>Galley</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of ACL</title>
+		<meeting>ACL</meeting>
+		<imprint>
+			<date type="published" when="2015" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b45">
+	<analytic>
+		<title level="a" type="main">SWIM: synthesizing what i mean: code search and idiomatic snippet synthesis</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Mukund</forename><surname>Raghothaman</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yi</forename><surname>Wei</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Youssef</forename><surname>Hamadi</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of ICSE</title>
+		<meeting>ICSE</meeting>
+		<imprint>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b46">
+	<analytic>
+		<title level="a" type="main">Compositional program synthesis from natural language and examples</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Mohammad</forename><surname>Raza</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Sumit</forename><surname>Gulwani</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Natasa</forename><surname>Milicfrayling</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of IJCAI</title>
+		<meeting>IJCAI</meeting>
+		<imprint>
+			<date type="published" when="2015" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b47">
+	<analytic>
+		<title level="a" type="main">Using multiple clause constructors in inductive logic programming for semantic parsing</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">R</forename><surname>Lappoon</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Raymond</forename><forename type="middle">J</forename><surname>Tang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Mooney</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of ECML</title>
+		<meeting>ECML</meeting>
+		<imprint>
+			<date type="published" when="2001" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b48">
+	<analytic>
+		<title level="a" type="main">Pointer networks</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Oriol</forename><surname>Vinyals</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Meire</forename><surname>Fortunato</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Navdeep</forename><surname>Jaitly</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of NIPS</title>
+		<meeting>NIPS</meeting>
+		<imprint>
+			<date type="published" when="2015" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b49">
+	<monogr>
+		<title level="m" type="main">Building bing developer assistant</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yi</forename><surname>Wei</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Nirupama</forename><surname>Chandrasekaran</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Sumit</forename><surname>Gulwani</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Youssef</forename><surname>Hamadi</surname></persName>
+		</author>
+		<ptr target="https://www.microsoft.com/en-us/research/publication/building-bing-developer-assistant/" />
+		<imprint>
+			<date type="published" when="2015" />
+		</imprint>
+	</monogr>
+<note type="report_type">Technical report</note>
+</biblStruct>
+
+<biblStruct xml:id="b50">
+	<analytic>
+		<title level="a" type="main">Sequence-based structured prediction for semantic parsing</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Chunyang</forename><surname>Xiao</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Marc</forename><surname>Dymetman</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Claire</forename><surname>Gardent</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of ACL</title>
+		<meeting>ACL</meeting>
+		<imprint>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b51">
+	<analytic>
+		<title level="a" type="main">Semantic parsing via staged query graph generation: Question answering with knowledge base</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ming-Wei</forename><surname>Wen-Tau Yih</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Xiaodong</forename><surname>Chang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jianfeng</forename><surname>He</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Gao</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of ACL</title>
+		<meeting>ACL</meeting>
+		<imprint>
+			<date type="published" when="2015" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b52">
+	<analytic>
+		<title level="a" type="main">Neural enquirer: Learning to query tables in natural language</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Pengcheng</forename><surname>Yin</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Zhengdong</forename><surname>Lu</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Hang</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ben</forename><surname>Kao</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of IJCAI</title>
+		<meeting>IJCAI</meeting>
+		<imprint>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b53">
+	<analytic>
+		<title level="a" type="main">Learning to map sentences to logical form structured classification with probabilistic categorial grammars</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Luke</forename><surname>Zettlemoyer</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Michael</forename><surname>Collins</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of UAI</title>
+		<meeting>UAI</meeting>
+		<imprint>
+			<date type="published" when="2005" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+				</listBibl>
+			</div>
+		</back>
+	</text>
+</TEI>

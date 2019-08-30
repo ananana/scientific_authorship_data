@@ -1,0 +1,597 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<TEI xmlns="http://www.tei-c.org/ns/1.0" 
+xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+xsi:schemaLocation="http://www.tei-c.org/ns/1.0 /home/ana/installs/grobid/grobid-0.5.1/grobid-home/schemas/xsd/Grobid.xsd"
+ xmlns:xlink="http://www.w3.org/1999/xlink">
+	<teiHeader xml:lang="en">
+		<encodingDesc>
+			<appInfo>
+				<application version="0.5.1-SNAPSHOT" ident="GROBID" when="2019-04-18T10:02+0000">
+					<ref target="https://github.com/kermitt2/grobid">GROBID - A machine learning software for extracting information from scholarly documents</ref>
+				</application>
+			</appInfo>
+		</encodingDesc>
+		<fileDesc>
+			<titleStmt>
+				<title level="a" type="main">Inferring Logical Forms From Denotations</title>
+			</titleStmt>
+			<publicationStmt>
+				<publisher/>
+				<availability status="unknown"><licence/></availability>
+				<date>August 7-12, 2016</date>
+			</publicationStmt>
+			<sourceDesc>
+				<biblStruct>
+					<analytic>
+						<author>
+							<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Panupong</forename><surname>Pasupat</surname></persName>
+							<email>ppasupat@cs.stanford.edu</email>
+							<affiliation key="aff0">
+								<orgName type="department" key="dep1">Computer Science Department</orgName>
+								<orgName type="department" key="dep2">Computer Science Department</orgName>
+								<orgName type="institution" key="instit1">Stanford University</orgName>
+								<orgName type="institution" key="instit2">Stanford University</orgName>
+							</affiliation>
+						</author>
+						<author>
+							<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Percy</forename><surname>Liang</surname></persName>
+							<email>pliang@cs.stanford.edu</email>
+							<affiliation key="aff0">
+								<orgName type="department" key="dep1">Computer Science Department</orgName>
+								<orgName type="department" key="dep2">Computer Science Department</orgName>
+								<orgName type="institution" key="instit1">Stanford University</orgName>
+								<orgName type="institution" key="instit2">Stanford University</orgName>
+							</affiliation>
+						</author>
+						<title level="a" type="main">Inferring Logical Forms From Denotations</title>
+					</analytic>
+					<monogr>
+						<title level="m">Proceedings of the 54th Annual Meeting of the Association for Computational Linguistics</title>
+						<meeting>the 54th Annual Meeting of the Association for Computational Linguistics <address><addrLine>Berlin, Germany</addrLine></address>
+						</meeting>
+						<imprint>
+							<biblScope unit="page" from="23" to="32"/>
+							<date type="published">August 7-12, 2016</date>
+						</imprint>
+					</monogr>
+				</biblStruct>
+			</sourceDesc>
+		</fileDesc>
+		<profileDesc>
+			<abstract>
+				<p>A core problem in learning semantic parsers from denotations is picking out consistent logical forms-those that yield the correct denotation-from a combina-torially large space. To control the search space, previous work relied on restricted set of rules, which limits expressivity. In this paper, we consider a much more expressive class of logical forms, and show how to use dynamic programming to efficiently represent the complete set of consistent logical forms. Expressivity also introduces many more spurious logical forms which are consistent with the correct denotation but do not represent the meaning of the utterance. To address this, we generate fictitious worlds and use crowdsourced denotations on these worlds to filter out spurious logical forms. On the WIKITABLEQUESTIONS dataset, we increase the coverage of answerable questions from 53.5% to 76%, and the additional crowdsourced supervision lets us rule out 92.1% of spurious logical forms.</p>
+			</abstract>
+		</profileDesc>
+	</teiHeader>
+	<text xml:lang="en">
+		<body>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="1">Introduction</head><p>Consider the task of learning to answer com- plex natural language questions (e.g., "Where did the last 1st place finish occur?") using only question-answer pairs as supervision <ref type="bibr" target="#b3">(Clarke et al., 2010;</ref><ref type="bibr" target="#b12">Liang et al., 2011;</ref><ref type="bibr" target="#b2">Berant et al., 2013;</ref>. Seman- tic parsers map the question into a logical form (e.g., R <ref type="bibr">[Venue]</ref>.argmax <ref type="bibr">(Position.1st, Index)</ref>) that can be executed on a knowledge source to ob- tain the answer (denotation). Logical forms are very expressive since they can be recursively com- posed, but this very expressivity makes it more difficult to search over the space of logical forms. Previous work sidesteps this obstacle by restrict- ing the set of possible logical form compositions, but this is limiting. For instance, for the system in <ref type="bibr" target="#b16">Pasupat and Liang (2015)</ref>, in only 53.5% of the examples was the correct logical form even in the set of generated logical forms.</p><p>The goal of this paper is to solve two main chal- lenges that prevent us from generating more ex- pressive logical forms. The first challenge is com- putational: the number of logical forms grows ex- ponentially as their size increases. Directly enu- merating over all logical forms becomes infeasi- ble, and pruning techniques such as beam search can inadvertently prune out correct logical forms.</p><p>The second challenge is the large increase in spurious logical forms-those that do not reflect the semantics of the question but coincidentally execute to the correct denotation. For example, while logical forms z 1 , . . . , z 5 in <ref type="figure" target="#fig_0">Figure 1</ref> are all consistent (they execute to the correct answer y), the logical forms z 4 and z 5 are spurious and would give incorrect answers if the table were to change.</p><p>We address these two challenges by solving two interconnected tasks. The first task, which ad- dresses the computational challenge, is to enumer- ate the set Z of all consistent logical forms given a question x, a knowledge source w ("world"), and the target denotation y (Section 4). Observ- ing that the space of possible denotations grows much more slowly than the space of logical forms, we perform dynamic programming on denotations (DPD) to make search feasible. Our method is guaranteed to find all consistent logical forms up to some bounded size.</p><p>Given the set Z of consistent logical forms, the second task is to filter out spurious logical forms from Z (Section 5). Using the property that spuri- ous logical forms ultimately give a wrong answer when the data in the world w changes, we create x: "Where did the last 1st place finish occur?" y: Thailand Consistent Correct z1: R <ref type="bibr">[Venue]</ref>.argmax(Position.1st, Index)</p><p>Among rows with Position = 1st, pick the one with maximum index, then return the Venue of that row. z2: R <ref type="bibr">[Venue]</ref>.Index.max(R <ref type="bibr">[Index]</ref>.Position.1st)</p><p>Find the maximum index of rows with Position = 1st, then return the Venue of the row with that index. The first five are consistent: they ex- ecute to the correct answer y. Of those, correct logical forms z 1 , z 2 , and z 3 are different ways to represent the semantics of x, while spurious logi- cal forms z 4 and z 5 get the right answer y for the wrong reasons.</p><p>fictitious worlds to test the denotations of the logi- cal forms in Z. We use crowdsourcing to annotate the correct denotations on a subset of the gener- ated worlds. To reduce the amount of annotation needed, we choose the subset that maximizes the expected information gain. The pruned set of log- ical forms would provide a stronger supervision signal for training a semantic parser.</p><p>We test our methods on the WIKITABLEQUES- TIONS dataset of complex questions on Wikipedia tables. We define a simple, general set of deduc- tion rules (Section 3), and use DPD to confirm that the rules generate a correct logical form in . . .</p><formula xml:id="formula_0">r 1 · · · 1 Finland 1st r 2 · · · 2 Germany 11th r 3 · · · 3 Thailand 1st</formula><p>. . . 76% of the examples, up from the 53.5% in Pa- supat and Liang (2015). Moreover, unlike beam search, DPD is guaranteed to find all consistent logical forms up to a bounded size. Finally, by us- ing annotated data on fictitious worlds, we are able to prune out 92.1% of the spurious logical forms.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2">Setup</head><p>The overarching motivation of this work is allow- ing people to ask questions involving computa- tion on semi-structured knowledge sources such as tables from the Web. This section introduces how the knowledge source is represented, how the computation is carried out using logical forms, and our task of inferring correct logical forms.</p><p>Worlds. We use the term world to refer to a col- lection of entities and relations between entities. One way to represent a world w is as a directed graph with nodes for entities and directed edges for relations. (For example, a world about geog- raphy would contain a node Europe with an edge Contains to another node Germany.) In this paper, we use data tables from the Web as knowledge sources, such as the one in <ref type="figure" target="#fig_0">Figure 1</ref>. We follow the construction in Pasupat and Liang (2015) for converting a table into a directed graph (see <ref type="figure" target="#fig_1">Figure 2</ref>). Rows and cells become nodes (e.g., r 0 = first row and Finland) while columns be- come labeled directed edges between them (e.g., Venue maps r 1 to Finland). The graph is aug- mented with additional edges Next (from each row to the next) and Index (from each row to its index number). In addition, we add normaliza- tion edges to cell nodes, including Number (from the cell to the first number in the cell), Num2 (the second number), Date (interpretation as a date), and Part (each list item if the cell represents a list). For example, a cell with content "3-4" has a Number edge to the integer 3, a Num2 edge to 4, and a Date edge to XX-03-04.</p><p>Logical forms. We can perform computation on a world w using a logical form z, a small program that can be executed on the world, resulting in a denotation z w .</p><p>We use lambda DCS <ref type="bibr" target="#b13">(Liang, 2013)</ref> as the lan- guage of logical forms. As a demonstration, we will use z 1 in <ref type="figure" target="#fig_1">Figure 2</ref> as an example. The small- est units of lambda DCS are entities (e.g., 1st) and relations (e.g., Position). Larger logical forms can be constructed using logical operations, and the denotation of the new logical form can be com- puted from denotations of its constituents. For ex- ample, applying the join operation on Position and 1st gives Position.1st, whose denotation is the set of entities with relation Position point- ing to 1st. With the world in <ref type="figure" target="#fig_1">Figure 2</ref>, the denota- tion is Position.1st w = {r 1 , r 3 }, which cor- responds to the 2nd and 4th rows in the table. The partial logical form Position.1st is then used to construct argmax(Position.1st, Index), the denotation of which can be computed by mapping the entities in Position.1st w = {r 1 , r 3 } us- ing the relation Index ({r 0 : 0, r 1 : 1, . . . }), and then picking the one with the largest mapped value (r 3 , which is mapped to 3). The resulting logical form is finally combined with R <ref type="bibr">[Venue]</ref> with an- other join operation. The relation R <ref type="bibr">[Venue]</ref> is the reverse of Venue, which corresponds to traversing Venue edges in the reverse direction.</p><p>Semantic parsing. A semantic parser maps a natural language utterance x (e.g., "Where did the last 1st place finish occur?") into a logical form z. With denotations as supervision, a semantic parser is trained to put high probability on z's that are consistent-logical forms that execute to the cor- rect denotation y (e.g., Thailand). When the space of logical forms is large, searching for consistent logical forms z can become a challenge.</p><p>As illustrated in <ref type="figure" target="#fig_0">Figure 1</ref>, consistent logical forms can be divided into two groups: correct log- ical forms represent valid ways for computing the answer, while spurious logical forms accidentally get the right answer for the wrong reasons (e.g., z 4 picks the row with the maximum time but gets the correct answer anyway).</p><p>Tasks. Denote by Z and Z c the sets of all con- sistent and correct logical forms, respectively. The first task is to efficiently compute Z given an ut- terance x, a world w, and the correct denotation y (Section 4). With the set Z, the second task is to infer Z c by pruning spurious logical forms from Z (Section 5).</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3">Deduction rules</head><p>The space of logical forms given an utterance x and a world w is defined recursively by a set of de- duction rules <ref type="table">(Table 1)</ref>. In this setting, each con- structed logical form belongs to a category (Set, Rel, or Map). These categories are used for type checking in a similar fashion to categories in syn- tactic parsing. Each deduction rule specifies the categories of the arguments, category of the re- sulting logical form, and how the logical form is constructed from the arguments.</p><p>Deduction rules are divided into base rules and compositional rules. A base rule follows one of the following templates:</p><formula xml:id="formula_1">TokenSpan[span] → c [f (span)] (1) ∅ → c [f ()]<label>(2)</label></formula><p>A rule of Template 1 is triggered by a span of tokens from x (e.g., to construct z 1 in <ref type="figure" target="#fig_1">Figure 2</ref> from x in <ref type="figure" target="#fig_0">Figure 1</ref>, Rule B1 from <ref type="table">Table 1</ref> con- structs 1st of category Set from the phrase "1st"). Meanwhile, a rule of Template 2 generates a log- ical form without any trigger (e.g., Rule B5 gen- erates Position of category Rel from the graph edge Position without a specific trigger in x).</p><p>Compositional rules then construct larger logi- cal forms from smaller ones:</p><formula xml:id="formula_2">c 1 [z 1 ] + c 2 [z 2 ] → c [g(z 1 , z 2 )] (3) c 1 [z 1 ] → c [g(z 1 )]<label>(4)</label></formula><p>A rule of Template 3 combines partial logical forms z 1 and z 2 of categories c 1 and c 2 into g(z 1 , z 2 ) of category c (e.g., Rule C1 uses 1st of category Set and Position of category Rel to con- struct Position.1st of category Set). Template 4 works similarly. Most rules construct logical forms without re- quiring a trigger from the utterance x. This is</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Rule</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Semantics</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Base Rules B1</head><p>TokenSpan → Set fuzzymatch(span) (entity fuzzily matching the text: "chinese" → China) B2</p><p>TokenSpan → Set val(span) (interpreted value: "march 2015" → 2015-03-XX) B3</p><p>∅ → Set Type.Row (the set of all rows) B4</p><p>∅ → Set c ∈ ClosedClass (any entity from a column with few unique entities) (e.g., 400m or relay from the Event column) B5</p><p>∅ → Rel r ∈ GraphEdges (any relation in the graph: Venue, Next, Num2, . . . ) B6</p><p>∅</p><formula xml:id="formula_3">→ Rel != | &lt; | &lt;= | &gt; | &gt;= Compositional Rules C1 Set + Rel → Set z2.z1 | R[z2].z1 (R[z] is the reverse of z; i.e., flip the arrow direction) C2 Set → Set a(z1) (a ∈ {count, max, min, sum, avg}) C3 Set + Set → Set z1 z2 | z1 z2 | z1 − z2 (</formula></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>subtraction is only allowed on numbers)</head><p>Compositional Rules with Maps</p><formula xml:id="formula_4">Initialization M1 Set → Map (z1, x) (identity map) Operations on Map M2 Map + Rel → Map (u1, z2.b1) | (u1, R[z2].b1) M3 Map → Map (u1, a(b1)) (a ∈ {count, max, min, sum, avg}) M4 Map + Set → Map (u1, b1 z2) | . . . M5 Map + Map → Map (u1, b1 b2) | . . .</formula><p>(Allowed only when u1 = u2) (Rules M4 and M5 are repeated for and −) <ref type="table">Table 1</ref>: Deduction rules define the space of logi- cal forms by specifying how partial logical forms are constructed. The logical form of the i-th argu- ment is denoted by z i (or (u i , b i ) if the argument is a Map). The set of final logical forms contains any logical form with category Set.</p><formula xml:id="formula_5">Finalization M6 Map → Set argmin(u1, R[λx.b1]) | argmax(u1, R[λx.b1])</formula><p>crucial for generating implicit relations (e.g., gen- erating Year from "what's the venue in 2000?" without a trigger "year"), and generating opera- tions without a lexicon (e.g., generating argmax from "where's the longest competition"). How- ever, the downside is that the space of possible logical forms becomes very large.</p><p>The Map category. The technique in this paper requires execution of partial logical forms. This poses a challenge for argmin and argmax oper- ations, which take a set and a binary relation as arguments. The binary could be a complex func- tion (e.g., in z 3 from <ref type="figure" target="#fig_0">Figure 1</ref>). While it is possible to build the binary independently from the set, ex- ecuting a complex binary is sometimes impossible (e.g., the denotation of λx.count(x) is impossible to write explicitly without knowledge of x).</p><p>We address this challenge with the Map cat- egory. A Map is a pair (u, b) of a finite set u (unary) and a binary relation b. The deno- tation of (u, b) is (u w , b w ) where the binary b w is b w with the domain restricted to the set u w . For example, consider the construction of argmax(Position.1st, Index). After construct- ing Position.1st with denotation {r 1 , r 3 }, Rule M1 initializes (Position.1st, x) with denotation ({r 1 , r 3 }, {r 1 : {r 1 }, r 3 : {r 3 }}). Rule M2 is then applied to generate (Position.1st, R <ref type="bibr">[Index]</ref>.x) with denotation ({r 1 , r 3 }, {r 1 : {1}, r 3 : {3}}). Finally, Rule M6 converts the Map into the desired argmax logical form with denotation {r 3 }.</p><p>Generality of deduction rules. Using domain knowledge, previous work restricted the space of logical forms by manually defining the categories c or the semantic functions f and g to fit the do- main. For example, the category Set might be di- vided into Records, Values, and Atomic when the knowledge source is a table <ref type="bibr" target="#b16">(Pasupat and Liang, 2015)</ref>. Another example is when a compositional rule g (e.g., sum(z 1 )) must be triggered by some phrase in a lexicon (e.g., words like "total" that align to sum in the training data). Such restrictions make search more tractable but greatly limit the scope of questions that can be answered.</p><p>Here, we have increased the coverage of logi- cal forms by making the deduction rules simple and general, essentially following the syntax of lambda DCS. The base rules only generates en- tities that approximately match the utterance, but all possible relations, and all possible further com- binations.</p><p>Beam search. Given the deduction rules, an ut- terance x and a world w, we would like to generate all derived logical forms Z. We first present the floating parser <ref type="bibr" target="#b16">(Pasupat and Liang, 2015)</ref>, which uses beam search to generate Z b ⊆ Z, a usually incomplete subset. Intuitively, the algorithm first constructs base logical forms based on spans of the utterance, and then builds larger logical forms of increasing size in a "floating" fashion-without requiring a trigger from the utterance.</p><p>Formally, partial logical forms with category c and size s are stored in a cell (c, s). The algorithm first generates base logical forms from base deduc- tion rules and store them in cells (c, 0) (e.g., the cell (Set, 0) contains 1st, Type.Row, and so on). Then for each size s = 1, . . . , s max , we populate</p><formula xml:id="formula_6">· · · · · · · · · · · · · · · · · · · · · (</formula><note type="other">Set, 7, {Thailand}) (Set, 7, {Finland}) Figure 3: The first pass of DPD constructs cells (c, s, d) (square nodes) using denotationally in- variant semantic functions (circle nodes). The sec- ond pass enumerates all logical forms along paths that lead to the correct denotation y (solid lines). the cells (c, s) by applying compositional rules on partial logical forms with size less than s. For in- stance, when s = 2, we can apply Rule C1 on logical forms Number.1 from cell (Set, s 1 = 1) and Position from cell (Rel, s 2 = 0) to create Position.Number.1 in cell (Set, s 0 +s</note><formula xml:id="formula_7">1 +1 = 2).</formula><p>After populating each cell (c, s), the list of logi- cal forms in the cell is pruned based on the model scores to a fixed beam size in order to control the search space. Finally, the set Z b is formed by collecting logical forms from all cells (Set, s) for s = 1, . . . , s max .</p><p>Due to the generality of our deduction rules, the number of logical forms grows quickly as the size s increases. As such, partial logical forms that are essential for building the desired logical forms might fall off the beam early on. In the next sec- tion, we present a new search method that com- presses the search space using denotations.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4">Dynamic programming on denotations</head><p>Our first step toward finding all correct logical forms is to represent all consistent logical forms (those that execute to the correct denotation). For- mally, given x, w, and y, we wish to generate the set Z of all logical forms z such that z w = y.</p><p>As mentioned in the previous section, beam search does not recover the full set Z due to prun- ing. Our key observation is that while the number of logical forms explodes, the number of distinct denotations of those logical forms is much more controlled, as multiple logical forms can share the same denotation. So instead of directly enumerat- ing logical forms, we use dynamic programming on denotations (DPD), which is inspired by sim- ilar methods from program induction ( <ref type="bibr" target="#b10">Lau et al., 2003;</ref><ref type="bibr" target="#b11">Liang et al., 2010;</ref><ref type="bibr" target="#b5">Gulwani, 2011)</ref>.</p><p>The main idea of DPD is to collapse logical forms with the same denotation together. Instead of using cells (c, s) as in beam search, we per- form dynamic programming using cells (c, s, d) where d is a denotation. For instance, the logi- cal form Position.Number.1 will now be stored in cell <ref type="figure" target="#fig_0">(Set, 2, {r 1 , r 3 })</ref>.</p><p>For DPD to work, each deduction rule must have a denotationally invariant semantic function g, meaning that the denotation of the resulting log- ical form g(z 1 , z 2 ) only depends on the denota- tions of z 1 and z 2 :</p><formula xml:id="formula_8">z 1 w = z 1 w ∧ z 2 w = z 2 w ⇒ g(z 1 , z 2 ) w = g(z 1 , z 2 ) w</formula><p>All of our deduction rules in <ref type="table">Table 1</ref> are de- notationally invariant, but a rule that, for in- stance, returns the argument with the larger log- ical form size would not be. Applying a de- notationally invariant deduction rule on any pair of logical forms from (c 1 ,</p><formula xml:id="formula_9">s 1 , d 1 ) and (c 2 , s 2 , d 2 )</formula><p>always results in a logical form with the same denotation d in the same cell (c, s 1 + s 2 + 1, d). 1 (For example, the cell (Set, 4, {r 3 }) con- tains z 1 := argmax(Position.1st, Index) and z 1 := argmin(Event.Relay, Index). Combin- ing each of these with Venue using Rule C1 gives R <ref type="bibr">[Venue]</ref>.z 1 and R <ref type="bibr">[Venue]</ref>.z 1 , which belong to the same cell (Set, 5, {Thailand})).</p><p>Algorithm. DPD proceeds in two forward passes. The first pass finds the possible combi- nations of cells (c, s, d) that lead to the correct de- notation y, while the second pass enumerates the logical forms in the cells found in the first pass. <ref type="figure">Figure 3</ref> illustrates the DPD algorithm.</p><p>In the first pass, we are only concerned about finding relevant cell combinations and not the ac- tual logical forms. Therefore, any logical form that belongs to a cell could be used as an argu- ment of a deduction rule to generate further logical forms. Thus, we keep at most one logical form per cell; subsequent logical forms that are generated for that cell are discarded.</p><p>After populating all cells up to size s max , we list all cells (Set, s, y) with the correct denotation y, and then note all possible rule combinations (cell 1 , rule) or (cell 1 , cell 2 , rule) that lead to those final cells, including the combinations that yielded discarded logical forms.</p><p>The second pass retrieves the actual logical forms that yield the correct denotation. To do this, we simply populate the cells (c, s, d) with all log- ical forms, using only rule combinations that lead to final cells. This elimination of irrelevant rule combinations effectively reduces the search space. (In Section 6.2, we empirically show that the num- ber of cells considered is reduced by 98.7%.)</p><p>The parsing chart is represented as a hyper- graph as in <ref type="figure">Figure 3</ref>. After eliminating unused rule combinations, each of the remaining hyper- paths from base predicates to the target denotation corresponds to a single logical form. making the remaining parsing chart a compact implicit repre- sentation of all consistent logical forms. This rep- resentation is guaranteed to cover all possible log- ical forms under the size limit s max that can be constructed by the deduction rules.</p><p>In our experiments, we apply DPD on the de- duction rules in <ref type="table">Table 1</ref> and explicitly enumerate the logical forms produced by the second pass. For efficiency, we prune logical forms that are clearly redundant (e.g., applying max on a set of size 1). We also restrict a few rules that might otherwise create too many denotations. For example, we re- stricted the union operation () except unions of two entities (e.g., we allow Germany Finland but not Venue.Hungary . . . ), subtraction when building a Map, and count on a set of size 1. <ref type="bibr">2</ref> </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5">Fictitious worlds</head><p>After finding the set Z of all consistent logical forms, we want to filter out spurious logical forms. To do so, we observe that semantically correct log- ical forms should also give the correct denotation in worlds w other than than w. In contrast, spu- rious logical forms will fail to produce the correct denotation on some other world.</p><p>Generating fictitious worlds. With the ob- servation above, we generate fictitious worlds w 1 , w 2 , . . . , where each world w i is a slight alter- ation of w. As we will be executing logical forms z ∈ Z on w i , we should ensure that all entities and relations in z ∈ Z appear in the fictitious world w i (e.g., z 1 in <ref type="figure" target="#fig_0">Figure 1</ref> would be meaningless if the entity 1st does not appear in w i ). To this end, we</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Year</head><p>Venue <ref type="table">Position Event  Time  2001  Finland  7th  relay  46.62  2003 Germany  1st  400m 180.32  2005  China  1st  relay  47.12  2007 Hungary  7th  relay  182.05</ref> Figure 4: From the example in <ref type="figure" target="#fig_0">Figure 1</ref>, we gen- erate a table for the fictitious world w 1 . impose that all predicates present in the original world w should also be present in w i as well.</p><formula xml:id="formula_10">w w 1 w 2 · · · z 1 Thailand China Finland · · · q 1 z 2 Thailand China Finland · · · z 3 Thailand China Finland · · · z 4 Thailand Germany China · · · } q 2 z 5 Thailand China China · · · q 3 z 6 Thailand China China · · · . . . . . . . . . . . .</formula><p>In our case where the world w comes from a data table t, we construct w i from a new table t i as follows: we go through each column of t and re- sample the cells in that column. The cells are sam- pled using random draws without replacement if the original cells are all distinct, and with replace- ment otherwise. Sorted columns are kept sorted. To ensure that predicates in w exist in w i , we use the same set of table columns and enforce that any entity fuzzily matching a span in the question x must be present in t i (e.g., for the example in <ref type="figure" target="#fig_0">Fig- ure 1</ref>, the generated t i must contain "1st"). <ref type="figure">Fig- ure 4</ref> shows an example fictitious table generated from the table in <ref type="figure" target="#fig_0">Figure 1</ref>.</p><p>Fictitious worlds are similar to test suites for computer programs. However, unlike manually designed test suites, we do not yet know the cor- rect answer for each fictitious world or whether a world is helpful for filtering out spurious logical forms. The next subsections introduce our method for choosing a subset of useful fictitious worlds to be annotated.</p><p>Equivalence classes. Let W = (w 1 , . . . , w k ) be the list of all possible fictitious worlds. For each z ∈ Z, we define the denotation tuple z W = (z w 1 , . . . , z w k ). We observe that some logi- cal forms produce the same denotation across all fictitious worlds. This may be due to an algebraic equivalence in logical forms (e.g., z 1 and z 2 in <ref type="figure" target="#fig_0">Fig- ure 1)</ref> or due to the constraints in the construction of fictitious worlds (e.g., z 1 and z 3 in <ref type="figure" target="#fig_0">Figure 1</ref> are equivalent as long as the Year column is sorted). We group logical forms into equivalence classes based on their denotation tuples, as illustrated in <ref type="figure" target="#fig_2">Figure 5</ref>. When the question is unambiguous, we expect at most one equivalence class to contain correct logical forms.</p><p>Annotation. To pin down the correct equiva- lence class, we acquire the correct answers to the question x on some subset W = (w 1 , . . . , w ) ⊆ W of fictitious worlds, as it is impractical to ob- tain annotations on all fictitious worlds in W . We compile equivalence classes that agree with the an- notations into a set Z c of correct logical forms.</p><p>We want to choose W that gives us the most information about the correct equivalence class as possible. This is analogous to standard practices in active learning <ref type="bibr" target="#b18">(Settles, 2010)</ref>. 3 Let Q be the set of all equivalence classes q, and let q W be the denotation tuple computed by executing an ar- bitrary z ∈ q on W . The subset W divides Q into partitions F t = {q ∈ Q : q W = t} based on the denotation tuples t (e.g., from <ref type="figure" target="#fig_2">Figure 5</ref>, if W contains just w 2 , then q 2 and q 3 will be in the same partition F (China) ). The annotation t * , which is also a denotation tuple, will mark one of these partitions F t * as correct. Thus, to prune out many spurious equivalence classes, the partitions should be as numerous and as small as possible.</p><p>More formally, we choose a subset W that maximizes the expected information gain (or equivalently, the reduction in entropy) about the correct equivalence class given the annota- tion. With random variables Q ∈ Q represent- ing the correct equivalence class and T * W for the annotation on worlds W , we seek to find arg min W H(Q | T * W ). Assuming a uniform prior on Q (p(q) = 1/|Q|) and accurate annota-</p><formula xml:id="formula_11">tion (p(t * | q) = I[q ∈ F t * ]): H(Q | T * W ) = q,t p(q, t) log p(t) p(q, t) = 1 |Q| t |F t | log |F t |.<label>(*)</label></formula><p>We exhaustively search for W that minimizes (*). The objective value follows our intuition since t |F t | log |F t | is small when the terms |F t | are small and numerous.</p><p>In our experiments, we approximate the full set W of fictitious worlds by generating k = 30 worlds to compute equivalence classes. We choose a subset of = 5 worlds to be annotated.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6">Experiments</head><p>For the experiments, we use the training portion of the WIKITABLEQUESTIONS dataset <ref type="bibr" target="#b16">(Pasupat and Liang, 2015)</ref>, which consists of 14,152 ques- tions on 1,679 Wikipedia tables gathered by crowd workers. Answering these complex questions re- quires different types of operations. The same operation can be phrased in different ways (e.g., "best", "top ranking", or "lowest ranking num- ber") and the interpretation of some phrases de- pend on the context (e.g., "number of " could be a table lookup or a count operation). The lexical content of the questions is also quite diverse: even excluding numbers and symbols, the 14,152 train- ing examples contain 9,671 unique words, only 10% of which appear more than 10 times.</p><p>We attempted to manually annotate the first 300 examples with lambda DCS logical forms. We successfully constructed correct logical forms for 84% of these examples, which is a good number considering the questions were created by humans who could use the table however they wanted. The remaining 16% reflect limitations in our setup- for example, non-canonical table layouts, answers appearing in running text or images, and com- mon sense reasoning (e.g., knowing that "Quarter- final" is better than "Round of 16").</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6.1">Generality of deduction rules</head><p>We compare our set of deduction rules with the one given in Pasupat and Liang (2015) (hence- forth PL15). PL15 reported generating the anno- tated logical form in 53.5% of the first 200 exam- ples. With our more general deduction rules, we use DPD to verify that the rules are able to gener- ate the annotated logical form in 76% of the first 300 examples, within the logical form size limit s max of 7. This is 90.5% of the examples that were successfully annotated. <ref type="figure">Figure 6</ref> shows some ex- amples of logical forms we cover that PL15 could not. Since DPD is guaranteed to find all consis- tent logical forms, we can be sure that the logical "which opponent has the most wins" z = argmax(R <ref type="bibr">[Opponent]</ref>.Type. <ref type="bibr">Row, R[λx.count(Opponent.x Result.Lost]</ref>) "how long did ian armstrong serve?" z = R <ref type="bibr">[Num2]</ref>.R <ref type="bibr">[Term]</ref>.Member.IanArmstrong − R <ref type="bibr">[Number]</ref>.R <ref type="bibr">[Term]</ref>.Member.IanArmstrong "which players came in a place before lukas bauer?" z = R <ref type="bibr">[Name]</ref>.Index.&lt;.R <ref type="bibr">[Index]</ref>.Name.LukasBauer "which players played the same position as ardo kreek?" z = R <ref type="bibr">[Player]</ref>.Position.R <ref type="bibr">[Position]</ref>.Player.Ardo !=.Ardo <ref type="figure">Figure 6</ref>: Several example logical forms our sys- tem can generated that are not covered by the de- duction rules from the previous work PL15.</p><p>forms not covered are due to limitations of the de- duction rules. Indeed, the remaining examples ei- ther have logical forms with size larger than 7 or require other operations such as addition, union of arbitrary sets, etc.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6.2">Dynamic programming on denotations</head><p>Search space. To demonstrate the savings gained by collapsing logical forms with the same denotation, we track the growth of the number of unique logical forms and denotations as the log- ical form size increases. The plot in <ref type="figure">Figure 7</ref> shows that the space of logical forms explodes much more quickly than the space of denotations. The use of denotations also saves us from con- sidering a significant amount of irrelevant partial logical forms. On average over 14,152 training examples, DPD generates approximately 25,000 consistent logical forms. The first pass of DPD generates ≈ 153,000 cells (c, s, d), while the sec- ond pass generates only ≈ 2,000 cells resulting from ≈ 8,000 rule combinations, resulting in a 98.7% reduction in the number of cells that have to be considered.</p><p>Comparison with beam search. We compare DPD to beam search on the ability to generate (but not rank) the annotated logical forms. We consider two settings: when the beam search parameters are uninitialized (i.e., the beams are pruned ran- domly), and when the parameters are trained using the system from PL15 (i.e., the beams are pruned based on model scores). The plot in <ref type="figure">Figure 8</ref> shows that DPD generates more annotated logical forms (76%) compared to beam search (53.7%), even when beam search is guided heuristically by learned parameters. Note that DPD is an exact al- gorithm and does not require a heuristic. </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6.3">Fictitious worlds</head><p>We now explore how fictitious worlds divide the set of logical forms into equivalence classes, and how the annotated denotations on the chosen worlds help us prune spurious logical forms.</p><p>Equivalence classes. Using 30 fictitious worlds per example, we produce an average of 1,237 equivalence classes. One possible concern with using a limited number of fictitious worlds is that we may fail to distinguish some pairs of non- equivalent logical forms. We verify the equiva- lence classes against the ones computed using 300 fictitious worlds. We found that only 5% of the logical forms are split from the original equiva- lence classes.</p><p>Ideal Annotation. After computing equivalence classes, we choose a subset W of 5 fictitious worlds to be annotated based on the information- theoretic objective. For each of the 252 exam- ples with an annotated logical form z * , we use the denotation tuple t * = z * W as the annotated answers on the chosen fictitious worlds. We are able to rule out 98.7% of the spurious equivalence classes and 98.3% of spurious logical forms. Fur- thermore, we are able to filter down to just one equivalence class in 32.7% of the examples, and at most three equivalence classes in 51.3% of the examples. If we choose 5 fictitious worlds ran- domly instead of maximizing information gain, then the above statistics are 22.6% and 36.5%, respectively. When more than one equivalence classes remain, usually only one class is a dom- inant class with many equivalent logical forms, while other classes are small and contain logical forms with unusual patterns (e.g., z 5 in <ref type="figure" target="#fig_0">Figure 1</ref>). The average size of the correct equivalence class is ≈ 3,000 with the standard deviation of ≈ 8,000. Because we have an expressive logical language, there are fundamentally many equiva- lent ways of computing the same quantity.</p><p>Crowdsourced Annotation. Data from crowd- sourcing is more susceptible to errors. From the 252 annotated examples, we use 177 examples where at least two crowd workers agree on the an- swer of the original world w. When the crowd- sourced data is used to rule out spurious logical forms, the entire set Z of consistent logical forms is pruned out in 11.3% of the examples, and the correct equivalent class is removed in 9% of the examples. These issues are due to annotation er- rors, inconsistent data (e.g., having date of death before birth date), and different interpretations of the question on the fictitious worlds. For the re- maining examples, we are able to prune out 92.1% of spurious logical forms (or 92.6% of spurious equivalence classes).</p><p>To prevent the entire Z from being pruned, we can relax our assumption and keep logical forms z that disagree with the annotation in at most 1 fictitious world. The number of times Z is pruned out is reduced to 3%, but the number of spurious logical forms pruned also decreases to 78%.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="7">Related Work and Discussion</head><p>This work evolved from a long tradition of learn- ing executable semantic parsers, initially from an- notated logical forms ( <ref type="bibr" target="#b21">Zelle and Mooney, 1996;</ref><ref type="bibr" target="#b7">Kate et al., 2005;</ref><ref type="bibr" target="#b22">Zettlemoyer and Collins, 2005;</ref><ref type="bibr" target="#b23">Zettlemoyer and Collins, 2007;</ref><ref type="bibr" target="#b8">Kwiatkowski et al., 2010</ref>), but more recently from denotations ( <ref type="bibr" target="#b3">Clarke et al., 2010;</ref><ref type="bibr" target="#b12">Liang et al., 2011;</ref><ref type="bibr" target="#b2">Berant et al., 2013;</ref><ref type="bibr" target="#b9">Kwiatkowski et al., 2013;</ref><ref type="bibr" target="#b16">Pasupat and Liang, 2015)</ref>. A central challenge in learn- ing from denotations is finding consistent logical forms (those that execute to a given denotation).</p><p>As <ref type="bibr" target="#b9">Kwiatkowski et al. (2013)</ref> and Berant and Liang (2014) both noted, a chief difficulty with executable semantic parsing is the "schema mismatch"-words in the utterance do not map cleanly onto the predicates in the logical form. This mismatch is especially pronounced in the WIKITABLEQUESTIONS of <ref type="bibr" target="#b16">Pasupat and Liang (2015)</ref>. In the second example of <ref type="figure">Figure 6</ref>, "how long" is realized by a logical form that computes a difference between two dates. The ramification of this mismatch is that finding consistent logi- cal forms cannot solely proceed from the language side. This paper is about using annotated denota- tions to drive the search over logical forms.</p><p>This takes us into the realm of program in- duction, where the goal is to infer a program (logical form) from input-output pairs (for us, world-denotation pairs). Here, previous work has also leveraged the idea of dynamic program- ming on denotations ( <ref type="bibr" target="#b10">Lau et al., 2003;</ref><ref type="bibr" target="#b11">Liang et al., 2010;</ref><ref type="bibr" target="#b5">Gulwani, 2011)</ref>, though for more con- strained spaces of programs. Continuing the pro- gram analogy, generating fictitious worlds is simi- lar in spirit to fuzz testing for generating new test cases ( <ref type="bibr" target="#b14">Miller et al., 1990</ref>), but the goal there is coverage in a single program rather than identi- fying the correct (equivalence class of) programs. This connection can potentially improve the flow of ideas between the two fields.</p><p>Finally, the effectiveness of dynamic program- ming on denotations relies on having a manage- able set of denotations. For more complex logi- cal forms and larger knowledge graphs, there are many possible angles worth exploring: performing abstract interpretation to collapse denotations into equivalence classes <ref type="bibr" target="#b4">(Cousot and Cousot, 1977)</ref>, relaxing the notion of getting the correct denota- tion <ref type="bibr" target="#b19">(Steinhardt and Liang, 2015)</ref>, or working in a continuous space and relying on gradient descent ( <ref type="bibr" target="#b6">Guu et al., 2015;</ref><ref type="bibr" target="#b15">Neelakantan et al., 2016;</ref><ref type="bibr" target="#b20">Yin et al., 2016;</ref><ref type="bibr" target="#b17">Reed and de Freitas, 2016</ref>). This paper, by virtue of exact dynamic programming, sets the standard.</p></div><figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_0"><head>Figure 1 :</head><label>1</label><figDesc>Figure 1: Six logical forms generated from the question x. The first five are consistent: they execute to the correct answer y. Of those, correct logical forms z 1 , z 2 , and z 3 are different ways to represent the semantics of x, while spurious logical forms z 4 and z 5 get the right answer y for the wrong reasons.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_1"><head>Figure 2 :</head><label>2</label><figDesc>Figure 2: The table in Figure 1 is converted into a graph. The recursive execution of logical form z 1 is shown via the different colors and styles.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_2"><head>Figure 5 :</head><label>5</label><figDesc>Figure 5: We execute consistent logical forms z i ∈ Z on fictitious worlds to get denotation tuples. Logical forms with the same denotation tuple are grouped into the same equivalence class q j .</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_3"><head>Figure 7 :Figure 8 :</head><label>78</label><figDesc>Figure 7: The median of the number of logical forms (dashed) and denotations (solid) as the formula size increases. The space of logical forms grows much faster than the space of denotations.</figDesc></figure>
+
+			<note place="foot">Proceedings of the 54th Annual Meeting of the Association for Computational Linguistics, pages 23-32, Berlin, Germany, August 7-12, 2016. c 2016 Association for Computational Linguistics</note>
+
+			<note place="foot" n="1"> Semantic functions f with one argument work similarly.</note>
+
+			<note place="foot" n="2"> While we technically can apply count on sets of size 1, the number of spurious logical forms explodes as there are too many sets of size 1 generated.</note>
+
+			<note place="foot" n="3"> The difference is that we are obtaining partial information about an individual example rather than partial information about the parameters.</note>
+		</body>
+		<back>
+
+			<div type="acknowledgement">
+			</div>
+
+			<div type="references">
+
+				<listBibl>
+
+<biblStruct xml:id="b0">
+	<monogr>
+		<title level="m" type="main">UW SPF: The University of Washington semantic parsing framework</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Y</forename><surname>Artzi</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">L</forename><surname>Zettlemoyer</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1311.3011</idno>
+		<imprint>
+			<date type="published" when="2013" />
+		</imprint>
+	</monogr>
+<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b1">
+	<analytic>
+		<title level="a" type="main">Semantic parsing via paraphrasing</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">J</forename><surname>Berant</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">P</forename><surname>Liang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Association for Computational Linguistics (ACL)</title>
+		<imprint>
+			<date type="published" when="2014" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b2">
+	<analytic>
+		<title level="a" type="main">Semantic parsing on Freebase from question-answer pairs</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">J</forename><surname>Berant</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">A</forename><surname>Chou</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">R</forename><surname>Frostig</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">P</forename><surname>Liang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Empirical Methods in Natural Language Processing (EMNLP)</title>
+		<imprint>
+			<date type="published" when="2013" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b3">
+	<analytic>
+		<title level="a" type="main">Driving semantic parsing from the world&apos;s response</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">J</forename><surname>Clarke</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">D</forename><surname>Goldwasser</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">M</forename><surname>Chang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">D</forename><surname>Roth</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Computational Natural Language Learning (CoNLL)</title>
+		<imprint>
+			<date type="published" when="2010" />
+			<biblScope unit="page" from="18" to="27" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b4">
+	<analytic>
+		<title level="a" type="main">Abstract interpretation: a unified lattice model for static analysis of programs by construction or approximation of fixpoints</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">P</forename><surname>Cousot</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">R</forename><surname>Cousot</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Principles of Programming Languages (POPL)</title>
+		<imprint>
+			<date type="published" when="1977" />
+			<biblScope unit="page" from="238" to="252" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b5">
+	<analytic>
+		<title level="a" type="main">Automating string processing in spreadsheets using input-output examples</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">S</forename><surname>Gulwani</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">ACM SIGPLAN Notices</title>
+		<imprint>
+			<biblScope unit="volume">46</biblScope>
+			<biblScope unit="issue">1</biblScope>
+			<biblScope unit="page" from="317" to="330" />
+			<date type="published" when="2011" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b6">
+	<analytic>
+		<title level="a" type="main">Traversing knowledge graphs in vector space</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">K</forename><surname>Guu</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">J</forename><surname>Miller</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">P</forename><surname>Liang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Empirical Methods in Natural Language Processing (EMNLP)</title>
+		<imprint>
+			<date type="published" when="2015" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b7">
+	<analytic>
+		<title level="a" type="main">Learning to transform natural to formal languages</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">R</forename><forename type="middle">J</forename><surname>Kate</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Y</forename><forename type="middle">W</forename><surname>Wong</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">R</forename><forename type="middle">J</forename><surname>Mooney</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Association for the Advancement of Artificial Intelligence (AAAI)</title>
+		<imprint>
+			<date type="published" when="2005" />
+			<biblScope unit="page" from="1062" to="1068" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b8">
+	<analytic>
+		<title level="a" type="main">Inducing probabilistic CCG grammars from logical form with higher-order unification</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">T</forename><surname>Kwiatkowski</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">L</forename><surname>Zettlemoyer</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">S</forename><surname>Goldwater</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">M</forename><surname>Steedman</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Empirical Methods in Natural Language Processing (EMNLP)</title>
+		<imprint>
+			<date type="published" when="2010" />
+			<biblScope unit="page" from="1223" to="1233" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b9">
+	<analytic>
+		<title level="a" type="main">Scaling semantic parsers with on-the-fly ontology matching</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">T</forename><surname>Kwiatkowski</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">E</forename><surname>Choi</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Y</forename><surname>Artzi</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">L</forename><surname>Zettlemoyer</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Empirical Methods in Natural Language Processing (EMNLP)</title>
+		<imprint>
+			<date type="published" when="2013" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b10">
+	<analytic>
+		<title level="a" type="main">Programming by demonstration using version space algebra</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">T</forename><surname>Lau</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">S</forename><surname>Wolfman</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">P</forename><surname>Domingos</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">D</forename><forename type="middle">S</forename><surname>Weld</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Machine Learning</title>
+		<imprint>
+			<date type="published" when="2003" />
+			<biblScope unit="volume">53</biblScope>
+			<biblScope unit="page" from="111" to="156" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b11">
+	<analytic>
+		<title level="a" type="main">Learning programs: A hierarchical Bayesian approach</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">P</forename><surname>Liang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">M</forename><forename type="middle">I</forename><surname>Jordan</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">D</forename><surname>Klein</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">International Conference on Machine Learning (ICML)</title>
+		<imprint>
+			<date type="published" when="2010" />
+			<biblScope unit="page" from="639" to="646" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b12">
+	<analytic>
+		<title level="a" type="main">Learning dependency-based compositional semantics</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">P</forename><surname>Liang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">M</forename><forename type="middle">I</forename><surname>Jordan</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">D</forename><surname>Klein</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Association for Computational Linguistics (ACL)</title>
+		<imprint>
+			<date type="published" when="2011" />
+			<biblScope unit="page" from="590" to="599" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b13">
+	<monogr>
+				<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">P</forename><surname>Liang</surname></persName>
+		</author>
+		<title level="m">Lambda dependency-based compositional semantics. arXiv</title>
+		<imprint>
+			<date type="published" when="2013" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b14">
+	<analytic>
+		<title level="a" type="main">An empirical study of the reliability of UNIX utilities</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">B</forename><forename type="middle">P</forename><surname>Miller</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">L</forename><surname>Fredriksen</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">B</forename><surname>So</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Communications of the ACM</title>
+		<imprint>
+			<biblScope unit="volume">33</biblScope>
+			<biblScope unit="issue">12</biblScope>
+			<biblScope unit="page" from="32" to="44" />
+			<date type="published" when="1990" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b15">
+	<analytic>
+		<title level="a" type="main">Neural programmer: Inducing latent programs with gradient descent</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">A</forename><surname>Neelakantan</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Q</forename><forename type="middle">V</forename><surname>Le</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">I</forename><surname>Sutskever</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">International Conference on Learning Representations (ICLR)</title>
+		<imprint>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b16">
+	<analytic>
+		<title level="a" type="main">Compositional semantic parsing on semi-structured tables</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">P</forename><surname>Pasupat</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">P</forename><surname>Liang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Association for Computational Linguistics (ACL)</title>
+		<imprint>
+			<date type="published" when="2015" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b17">
+	<analytic>
+		<title level="a" type="main">Neural programmerinterpreters</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">S</forename><surname>Reed</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">N</forename><surname>De Freitas</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">International Conference on Learning Representations (ICLR)</title>
+		<imprint>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b18">
+	<monogr>
+		<title level="m" type="main">Active learning literature survey</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">B</forename><surname>Settles</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2010" />
+			<pubPlace>Madison</pubPlace>
+		</imprint>
+		<respStmt>
+			<orgName>University of Wisconsin</orgName>
+		</respStmt>
+	</monogr>
+<note type="report_type">Technical report</note>
+</biblStruct>
+
+<biblStruct xml:id="b19">
+	<analytic>
+		<title level="a" type="main">Learning with relaxed supervision</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">J</forename><surname>Steinhardt</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">P</forename><surname>Liang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Advances in Neural Information Processing Systems (NIPS)</title>
+		<imprint>
+			<date type="published" when="2015" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b20">
+	<monogr>
+				<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">P</forename><surname>Yin</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Z</forename><surname>Lu</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">H</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">B</forename><surname>Kao</surname></persName>
+		</author>
+		<title level="m">Neural enquirer: Learning to query tables with natural language. arXiv</title>
+		<imprint>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b21">
+	<analytic>
+		<title level="a" type="main">Learning to parse database queries using inductive logic programming</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">M</forename><surname>Zelle</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">R</forename><forename type="middle">J</forename><surname>Mooney</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Association for the Advancement of Artificial Intelligence (AAAI)</title>
+		<imprint>
+			<date type="published" when="1996" />
+			<biblScope unit="page" from="1050" to="1055" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b22">
+	<analytic>
+		<title level="a" type="main">Learning to map sentences to logical form: Structured classification with probabilistic categorial grammars</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">L</forename><forename type="middle">S</forename><surname>Zettlemoyer</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">M</forename><surname>Collins</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Uncertainty in Artificial Intelligence (UAI)</title>
+		<imprint>
+			<date type="published" when="2005" />
+			<biblScope unit="page" from="658" to="666" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b23">
+	<analytic>
+		<title level="a" type="main">Online learning of relaxed CCG grammars for parsing to logical form</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">L</forename><forename type="middle">S</forename><surname>Zettlemoyer</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">M</forename><surname>Collins</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Empirical Methods in Natural Language Processing and Computational Natural Language Learning (EMNLP/CoNLL)</title>
+		<imprint>
+			<date type="published" when="2007" />
+			<biblScope unit="page" from="678" to="687" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+				</listBibl>
+			</div>
+		</back>
+	</text>
+</TEI>

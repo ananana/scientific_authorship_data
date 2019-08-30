@@ -1,0 +1,433 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<TEI xmlns="http://www.tei-c.org/ns/1.0" 
+xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+xsi:schemaLocation="http://www.tei-c.org/ns/1.0 /home/ana/installs/grobid/grobid-0.5.1/grobid-home/schemas/xsd/Grobid.xsd"
+ xmlns:xlink="http://www.w3.org/1999/xlink">
+	<teiHeader xml:lang="en">
+		<encodingDesc>
+			<appInfo>
+				<application version="0.5.1-SNAPSHOT" ident="GROBID" when="2019-04-18T12:15+0000">
+					<ref target="https://github.com/kermitt2/grobid">GROBID - A machine learning software for extracting information from scholarly documents</ref>
+				</application>
+			</appInfo>
+		</encodingDesc>
+		<fileDesc>
+			<titleStmt>
+				<title level="a" type="main">Learning What&apos;s Easy: Fully Differentiable Neural Easy-First Taggers</title>
+			</titleStmt>
+			<publicationStmt>
+				<publisher/>
+				<availability status="unknown"><licence/></availability>
+				<date>September 7-11, 2017</date>
+			</publicationStmt>
+			<sourceDesc>
+				<biblStruct>
+					<analytic>
+						<author>
+							<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">André</forename><forename type="middle">F T</forename><surname>Martins</surname></persName>
+							<email>andre.martins@unbabel.com</email>
+							<affiliation key="aff0">
+								<orgName type="department">Computational Linguistics</orgName>
+								<orgName type="institution">Unbabel &amp; Instituto de TelecomunicaçTelecomunicaç˜Telecomunicações Lisbon</orgName>
+								<address>
+									<country key="PT">Portugal</country>
+								</address>
+							</affiliation>
+						</author>
+						<author>
+							<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Julia</forename><surname>Kreutzer</surname></persName>
+							<email>kreutzer@cl.uni-heidelberg.de</email>
+							<affiliation key="aff1">
+								<orgName type="institution">Heidelberg University</orgName>
+								<address>
+									<country key="DE">Germany</country>
+								</address>
+							</affiliation>
+						</author>
+						<title level="a" type="main">Learning What&apos;s Easy: Fully Differentiable Neural Easy-First Taggers</title>
+					</analytic>
+					<monogr>
+						<title level="m">Natural Language Processing</title>
+						<meeting> <address><addrLine>Copenhagen, Denmark</addrLine></address>
+						</meeting>
+						<imprint>
+							<biblScope unit="page" from="349" to="362"/>
+							<date type="published">September 7-11, 2017</date>
+						</imprint>
+					</monogr>
+				</biblStruct>
+			</sourceDesc>
+		</fileDesc>
+		<profileDesc>
+			<abstract>
+				<p>We introduce a novel neural easy-first de-coder that learns to solve sequence tagging tasks in a flexible order. In contrast to previous easy-first decoders, our models are end-to-end differentiable. The decoder iteratively updates a &quot;sketch&quot; of the predictions over the sequence. At its core is an attention mechanism that controls which parts of the input are strategically the best to process next. We present a new constrained softmax transformation that ensures the same cumulative attention to every word, and show how to efficiently evaluate and backpropagate over it. Our models compare favourably to BILSTM taggers on three sequence tagging tasks.</p>
+			</abstract>
+		</profileDesc>
+	</teiHeader>
+	<text xml:lang="en">
+		<body>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="1">Introduction</head><p>In the last years, neural models have led to ma- jor advances in several structured NLP problems, including sequence tagging ( <ref type="bibr" target="#b2">Plank et al., 2016;</ref><ref type="bibr">Lample et al., 2016)</ref>, sequence-to-sequence pre- diction ( <ref type="bibr" target="#b10">Sutskever et al., 2014)</ref>, and sequence-to- tree ( <ref type="bibr">Dyer et al., 2015</ref>). Part of the success comes from clever architectures such as (bidirectional) long-short term memories (BILSTMs; <ref type="bibr">Hochreiter and Schmidhuber (1997)</ref>; <ref type="bibr">Graves et al. (2005)</ref>) and attention mechanisms ( <ref type="bibr">Bahdanau et al., 2015)</ref>, which are able to select the pieces of context rele- vant for prediction.</p><p>A noticeable aspect about many of the systems above is that they typically decode from left to right, greedily or with a narrow beam. While this is computationally convenient and reminis- cent of the way humans process spoken language, the combination of unidirectional decoding and greediness leads to error propagation and subopti- mal classification performance. This can partly be mitigated by globally normalized models ( <ref type="bibr">Andor et al., 2016</ref>) and imitation learning <ref type="bibr">(Daumé et al., 2009;</ref><ref type="bibr" target="#b3">Ross et al., 2011;</ref><ref type="bibr">Bengio et al., 2015)</ref>, how- ever these techniques still have a left-to-right bias.</p><p>Easy-first decoders <ref type="bibr" target="#b12">(Tsuruoka and Tsujii, 2005;</ref><ref type="bibr">Goldberg and Elhadad, 2010, §2)</ref> are an in- teresting alternative: instead of a fixed decoding order, these methods schedule their own actions by prefering "easier" decisions over more diffi- cult ones. A disadvantage is that these models are harder to learn, due to the factorial number of orderings leading to correct predictions. Usually, gradients are not backpropagated over this combi- natorial latent space <ref type="bibr">(Kiperwasser and Goldberg, 2016a)</ref>, or a separate model is used to determine the easiest next move <ref type="bibr">(Clark and Manning, 2016)</ref>.</p><p>In this paper, we develop novel, fully differen- tiable, neural easy-first sequence taggers ( §3). Instead of taking discrete actions, our decoders use an attention mechanism to decide (in a soft man- ner) which word to focus on for the next tagging decision. Our models are able to learn their own sense of "easiness": the words receiving focus may not be the ones the model is most confident about, but the best to avoid error propagation in the long run. To make sure that all words receive the same cumulative attention, we further contribute with a new constrained softmax transformation ( §4). This transformation extends the softmax by permitting upper bound constraints on the amount of probability a word can receive. We show how to evaluate this transformation and backpropagate its gradients.</p><p>We run experiments in three sequence tagging tasks: multilingual part-of-speech (POS) tagging, named entity recognition (NER), and word-level quality estimation ( §5). We complement our find- ings with a visual analysis of the attention distribu-</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Algorithm 1 Easy-First Sequence Tagging</head><p>Input: input sequence x1:L Output: tagged sequence y1:L 1: initialize B = S = ∅ 2: while B = {1, . . . , L} do 3:</p><p>for each non-covered position i / ∈ B do 4:</p><p>compute scores f (i, yi; x1:L, S), ∀yi 5:</p><p>end for 6:</p><p>(j, yj) = argmax i,y i f (i, yi; x1:L, S) 7:</p><p>S ← S ∪ {(j, yj)}, B ← B ∪ {j} 8: end while tions produced by the decoder, to help understand what tagging decisions the model finds the easiest.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2">Easy-First Decoders</head><p>The idea behind easy-first decoding is to perform "easier" and less risky decisions before commit- ting to more difficult ones <ref type="bibr" target="#b12">(Tsuruoka and Tsujii, 2005;</ref><ref type="bibr">Goldberg and Elhadad, 2010;</ref><ref type="bibr">Ma et al., 2013)</ref>. Alg. 1 shows the overall procedure for a sequence tagging problem (the idea carries out to other structured problems). Let x 1:L be an input sequence (e.g. words in a sentence) and y 1:L be the corresponding tag sequence (e.g. their POS tags). The algorithm assigns tags one position i at the time, maintaining a set B of covered po- sitions. It also maintains a set S of pairs (i, y i ), storing the tags that have already been predicted at those positions. We can regard this set as a sketch of the output sequence, built incrementally while the algorithm is executed. At each time step, the model computes a score f (i, y i ; x 1:L , S) for each position i / ∈ B and each candidate tag y i , taking into account the current "sketch" S, which pro- vides useful contextual information. The "easiest" position and the corresponding tag are then jointly obtained by maximizing this score (line 6). The al- gorithm terminates when all positions are covered.</p><p>Previous work has trained easy-first systems with variants of the perceptron algorithm <ref type="bibr">(Goldberg and Elhadad, 2010;</ref><ref type="bibr">Ma et al., 2013</ref>) or with a gradient-based method <ref type="bibr">(Kiperwasser and Goldberg, 2016a</ref>)-but without backpropagating infor- mation about the best ordering chosen by the algo- rithm (only tag mistakes). In fact, doing so directly would be hard, since the space of possible order- ings is combinatorial-the argmax in line 6 is not continuous, let alone differentiable. In the next section, we introduce a fully differentiable easy- first system that sidesteps this problem by working with a "continuous" space of actions. <ref type="figure">Figure 1</ref>: A neural easy-first system applied to a POS tagging problem. Given the current in- put/sketch representation, an attention mechanism decides where to focus (see bar plot) and is used to generate the next sketch. Right: A sequence of sketches (S n ) N n=1 generated along the way.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3">Neural Easy-First Sequence Taggers</head><p>Let ∆ L−1 := {α ∈ R L | 1 α = 1, α ≥ 0} be the probability simplex. Our neural easy-first de- coders depart from Alg. 1 in the following key points:</p><p>• Instead of picking the position with the largest score at each step (line 6 in Alg. 1), we compute a (continuous) attention distribution α ∈ ∆ L−1 over word positions.</p><p>• Instead of a set of covered positions B, we main- tain a (continuous) cumulative attention vec- tor β ∈ R L (ideally in [0, 1] L ) over the L posi- tions in the sequence.</p><p>• The sketch set S is replaced by a sketch ma- trix S ∈ R Ds×L , whose columns are D s - dimensional vector representations of the output labels to be predicted.</p><p>The high-level procedure is shown in <ref type="figure">Figure 1</ref>. We describe two models that implement this proce- dure: a single-state model and a full-state model. They differ in the way they update the sketch ma- trix: the single-state model applies a rank-one up- date, while the full-state model does a full update.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.1">Single-State Model (NEF-S)</head><p>Let concat(x 1 , . . . , x K ) ∈ R K k=1 D k be the con- catenation of the vectors x k ∈ R D k . We use the shorthand affine(x) := Wx+b to denote an affine transformation of x, where W is a weight matrix and b is a bias vector.</p><p>Alg. 2 shows the overall procedure. We start by encoding the input sequence x 1:L as a matrix</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Algorithm 2 Neural Easy-First Sequence Tagging</head><p>Input: input sequence x1:L, sketch steps N Output: tagged sequence y1:L 1: initialize β 0 = 0 and s 0 i = 0, ∀i ∈ [L] 2: encode sequence as <ref type="bibr">[h1, . . . , hL]</ref> 3: for n = 1, 2, . . . , N do 4:</p><formula xml:id="formula_0">for each position i ∈ [L] do 5:</formula><p>compute c n i and z n i (Eqs. 1-2) 6: end for 7:</p><p>compute attention α n = ρ(z n ; β n−1 ) 8:</p><formula xml:id="formula_1">for each position i ∈ [L] do 9:</formula><p>refine sketch s n i from α n i and c n i , via Eq. 4 (single- state) or Eq. 7 (full-state) 10:</p><p>end for 11:</p><p>β n = β n−1 + α n 12: end for 13:</p><formula xml:id="formula_2">for each position i ∈ [L] do 14: p i = softmax(affine(concat(hi, s N i ))) 15: predict yi = argmax y i pi(yi) 16: end for H = [h 1 , . . . , h L ] ∈ R D h ×L (line 2).</formula><p>Our model is completely agnostic about this encoding step. In our experiments, we compute H by composing a lookup embedding layer with a BILSTM <ref type="bibr">(Hochreiter and Schmidhuber, 1997;</ref><ref type="bibr">Graves et al., 2005</ref>), as this strategy was successful in similar structured prediction tasks. However, other choices are pos- sible, for example using convolutional layers.</p><p>As stated above, our algorithm maintains a cu- mulative attention vector β ∈ R L and a sketch matrix S ∈ R Ds×L , both with all entries initial- ized to zero. It then performs N sketching steps, which progressively refine this sketch matrix, pro- ducing versions S 1 , . . . , S N . At the nth step, the following operations are performed:</p><formula xml:id="formula_3">Input-Sketch Contextual Representation. For each word i ∈ [L]</formula><p>, we compute a state c n i sum- marizing the surrounding local information about other words and sketches. We use a simple vector concatenation over a w-wide context window:</p><formula xml:id="formula_4">c n i = concat(h i−w , . . . , h i+w , s n−1 i−w , . . . , s n−1 i+w ),<label>(1)</label></formula><p>where we denote by s n−1 j the jth column of S n−1 . The intuition is that the current sketches pro- vide valuable information about the neighboring words' predictions that can influence the predic- tion for the ith word. In the vanilla easy-first algo- rithm, this was assumed in the score computation (line 4 of Alg. 1).</p><p>Attention Mechanism. We then use an attention mechanism to decide what is the "best" word to focus on next. This is done in a similar way as the feedforward attention proposed by <ref type="bibr">Bahdanau et al. (2015)</ref>. We first compute a score for each word i ∈ [L] based on its contextual representation,</p><formula xml:id="formula_5">z n i = v tanh(affine(c n i )),<label>(2)</label></formula><p>where v ∈ R Dz is a model parameter. Then, we aggregate these scores in a vector z n ∈ R L and apply a transformation ρ to map them to a proba- bility distribution α n ∈ ∆ L−1 (optionally taking into account the past cumulative attention β n−1 ):</p><formula xml:id="formula_6">α n = ρ(z n ; β n−1 ).<label>(3)</label></formula><p>The "standard" choice for ρ is the softmax trans- formation. However, in this work, we consider other possible transformations (to be described in §4). After this, the cumulative attention is updated via β n = β n−1 + α n .</p><p>Sketch Generation. Now that we have a distri- bution α n ∈ ∆ L−1 over word positions, it remains to generate a sketch for those words. We first com- pute a single-state vector representation of the en- tire sentence ¯ c n = L i=1 α n i c n i as the weighted average of the word states defined in Eq. 1. Then, we update each column of the sketch matrix as: 1</p><formula xml:id="formula_7">s n i = s n−1 i +α n i ·tanh(affine(¯ c n )), ∀i ∈ [L]. (4)</formula><p>The intuition for this update is the following: in the extreme case where the attention distribution is peaked on a single word (say, the kth word, α n = e k ), we obtain ¯ c n = c n k and the sketch update only affects that word, i.e.,</p><formula xml:id="formula_8">s n i = s n−1 i + tanh(affine(c n k )) if i = k s n−1 i if i = k.</formula><p>(5) This is similar to the sketch update in the original easy-first algorithm (line 7 in Alg. 1).</p><p>The three operations above are repeated N times (or "sketch steps"). The standard choice is N = L (one step per word), which mimics the vanilla easy-first algorithm. However, it is possi- ble to have fewer steps (or more, if we want the de- coder to be able to "self-correct"). After complet- ing the N sketch steps, we obtain the final sketch</p><formula xml:id="formula_9">matrix S N = [s N 1 , . . . , s N L ].</formula><p>Then, we compute a tag probability for every word as follows: 2</p><formula xml:id="formula_10">p i = softmax(affine(concat(h i , s N i ))).<label>(6)</label></formula><p>In §5, we compare this to a BILSTM tagger, which predicts according to p i = softmax(affine(h i )).</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.2">Full-State Model (NEF-F)</head><p>The full-state model differs from the single-state model in §3.1 by computing a full matrix for ev- ery sketch step, instead of a single vector. Namely, instead of Eq. 4, it does the following sketch up- date for every word i ∈ <ref type="bibr">[L]</ref>:</p><formula xml:id="formula_11">s n i = s n−1 i + α n i · tanh(affine(c n i )).<label>(7)</label></formula><p>Note that the only difference is in replacing the single vector ¯ c n by the word-specific vector c n i . As a result, this is no longer a rank-one update of the sketch matrix, but a full update. In the ex- treme case where the attention is peaked on a sin- gle word, the sketch update reduces to the same form as in the single-state model (Eq. 5). How- ever, the full-state model is generally more flexible and allows processing words in parallel, since it allows different sketch updates for multiple words receiving attention, instead of trying to force those words to receive the same update. We will see in the experiments ( §5) that this flexibility can be im- portant in practice.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.3">Computational Complexity</head><p>For both models, assuming that the ρ(z; β) trans- formation in Eq. 3 takes O(L) time to compute, the total runtime of Alg. 2 is O((N +K)L) (where K is the number of tags), which becomes O(L 2 ) if K ≤ N = L. This is so because the input-sketch representation, the attention mechanism, and the sketch generation step all have O(L) complexity, and the final softmax layer requires O(KL) op- erations. This is the same runtime of the vanilla easy-first algorithm, though the latter can be re- duced to O(KLlogL) with caching and a heap, if the scores in line 4 depend only on local sketches <ref type="bibr">(Goldberg and Elhadad, 2010)</ref>. By comparison, a standard BILSTM tagger has runtime O(KL).</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4">Constrained Softmax Attention</head><p>An important part of our models is their attention component (line 7 in Alg. 2). To keep the "easy- first" intuition, we would like the transformation ρ in Eq. 3 to have a couple of properties:</p><p>1. Sparsity: being able to generate sparse distri- butions α n (ideally, peaked on a single word).</p><p>2. Evenness: over iterations, spreading attention evenly over the words. Ideally, the cumulative attention should satisfy</p><formula xml:id="formula_12">β n ∈ [0, 1] L for every n ∈ [N ] and β N = 1.</formula><p>The standard choice for attention mechanisms is the softmax transformation, α n = softmax(z n ). However, the softmax does not satisfy either of the properties above. For the first requirement, we could incorporate a "temperature" parameter in the softmax to push for more peaked distribu- tions. However, this does not guarantee sparsity (only "hard attention" in the limit) and we found it numerically unstable when plugged in Alg. 2.</p><p>For the second one, we could add a penalty before the softmax transformation, α n = softmax(z n − λβ n−1 ), where λ ≥ 0 is a tunable hyperparame- ter. This strategy was found effective to prevent a word to receive too much attention, but it made the model less accurate. An alternative is the sparsemax transformation ( <ref type="bibr">Martins and Astudillo, 2016)</ref>:</p><formula xml:id="formula_13">sparsemax(z) = argmin α∈∆ L−1 α − z 2 .<label>(8)</label></formula><p>The sparsemax maintains most of the appealing properties of the softmax (efficiency to evaluate and backpropagate), and it is able to generate truly sparse distributions. However, it still does not sat- isfy the "evenness" property. Instead, we propose a novel constrained soft- max transformation that satisfies both require- ments. It resembles the standard softmax, but it allows imposing hard constraints on the maximal probability assigned to each word. Let us start by writing the (standard) softmax in the following variational form (?):</p><formula xml:id="formula_14">softmax(z) = argmin α∈∆ L−1 KL(α softmax(z)) = argmin α∈∆ L−1 −H(α) − z α, (9)</formula><p>where KL and H denote the Kullback-Leibler di- vergence and the entropy, respectively. Based on this observation, we define the constrained soft- max transformation as follows:</p><formula xml:id="formula_15">csoftmax(z; u) = argmin α∈∆ L−1 −H(α) − z α s.t. α ≤ u,<label>(10)</label></formula><p>where u ∈ R L is a vector of upper bounds. Note that, if u ≥ 1, all constraints are loose and this</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Algorithm 3 Constrained Softmax Forward</head><p>Input: z, u Output:</p><formula xml:id="formula_16">α = csoftmax(z; u) 1: initialize s := 0, A := [L], Z := K i=1 exp(zi) 2: sort qi 1 ≥ . . . ≥ qi L , where qi = exp(zi)/ui, ∀i ∈ [L] 3: for k = 1 to L do 4: αi k := exp(zi k )(1 − s)/Z 5: if αi k &gt; ui k then 6: Z := Z − exp(zi k ) 7: αi k := ui k , s := s + ui k , A := A \ {i k } 8:</formula><p>end if 9: end for reduces to the standard softmax; on the contrary, if u ∈ ∆ L−1 , they are tight and we must have α = u due to the normalization constraint. Thus, we propose the following for Eq. 3:</p><formula xml:id="formula_17">α n = csoftmax(z n ; 1 − β n−1 ).<label>(11)</label></formula><p>The constraints guarantee β n = β n−1 + α n ≤ 1.</p><p>Since 1 β N = N n=1 1 α n = N , they also en- sure that β N = 1, hence the "evenness" prop- erty is fully satisfied. Intuitively, each word gets a credit of one unit of attention that is consumed during the execution of the algorithm. When this credit expires, all subsequent attention weights for that word will be zero.</p><p>The next proposition shows how to evaluate the constrained softmax and compute its gradients.</p><p>Proposition 1 Let α = csoftmax(z; u), and de- fine the set A = {i ∈ [L] | α i &lt; u i } of the con- straints in Eq. 10 that are met strictly. Then:</p><p>• Forward propagation. The solution of Eq. 10 can be written in closed form as</p><formula xml:id="formula_18">α i = min{exp(z i )/Z, u i }, where Z = i∈A exp(z i ) 1− i / ∈A u i .</formula><p>• Gradient backpropagation. Let L(θ) be a loss function, dα = α L(θ) be the output gradient, and dz = z L(θ) and du = u L(θ) be the input gradients. Then, we have:</p><formula xml:id="formula_19">dz i = 1(i ∈ A)α i (dα i − m) (12) du i = 1(i / ∈ A)(dα i − m),<label>(13)</label></formula><p>where</p><formula xml:id="formula_20">m = ( i∈A α i dα i )/(1 − i / ∈A u i ).</formula><p>Proof: See App. A (supplementary material).</p><p>Algs. 3-4 turn the results in Prop. 1 into con- crete procedures for evaluating csoftmax and for backpropagating its gradient. Their runtimes are respectively O(LlogL) and O(L).</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Algorithm 4 Constrained Softmax Backprop</head><p>Input: z, u, dα (and cached α, A, s from Alg. 3) Output: dz, du 1:</p><formula xml:id="formula_21">m := i∈A αi dαi/(1 − s) 2: for i ∈ [L] do 3: if i ∈ A then 4: dzi := αi(dαi − m), dui := 0 5: else 6: dzi := 0, dui := dαi − m 7:</formula><p>end if 8: end for</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5">Experiments</head><p>We evaluate our neural easy-first models in three sequence tagging tasks: POS tagging, NER, and word quality estimation.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.1">Part-of-Speech Tagging</head><p>We ran POS tagging experiments in 12 languages from the Universal Dependencies project v1.4 <ref type="bibr">(Nivre et al., 2016)</ref>, using the standard splits. The datasets contain 17 universal tags. <ref type="bibr">3</ref> We implemented Alg. 2 in DyNet ( <ref type="bibr">Neubig et al., 2017)</ref>, which we extended with the constrained softmax operator (Algs. 3-4). <ref type="bibr">4</ref> We used 64- dimensional word embeddings, initialized with pre-trained Polyglot vectors (Al- <ref type="bibr" target="#b0">Rfou et al., 2013)</ref>. Apart from the words, we embedded prefix and suffix character n-grams with n ≤ 4. We set the affix embedding size to 50 and summed all these embeddings; in the end, we obtained a 164- dimensional representation for each word (words, prefixes, and suffixes). We then fed these em- beddings into a BILSTM (with 50 hidden units in each direction) to obtain the encoder states</p><formula xml:id="formula_22">[h 1 , . . . , h L ] ∈ R 100×L</formula><p>. The other hyperparam- eters were set as follows: we used a context size w = 2, set the pre-attention size D z and the sketch size D s to 50, and applied dropout with a proba- bility of 0.2 after the embedding and BILSTM lay- ers and before the final softmax output layer. <ref type="bibr">5</ref> We ran 20 epochs of Adagrad to minimize the cross- entropy loss, with a stepsize of 0.1, and gradient   clipping of 5 (DyNet's default). We excluded from the training set sentences longer than 50 words. <ref type="table" target="#tab_1">Table 1</ref> compares several variants of our neural easy-first system-the single-state model (NEF- S), the full-state model (NEF-F), and the latter with softmax, sparsemax, and csoftmax attention. We used as many sketch steps as the number of words, N = L. As baselines, we used:</p><note type="other">Ara. Chi. Cze. Eng. Fre. Ger. Hin. Ind. Jap. Por. Rus. Spa. Avg. Gillick et al.</note><p>• A feature-based linear model <ref type="bibr">(TurboTagger, Martins et al. (2013)</ref>).</p><p>• A BILSTM tagger identical to our system, but without sketch steps (N = 0).</p><p>• A vanilla easy-first tagger (Alg. 1), using the ar- gument of the softmax in Eq. 6 as the scoring function. This uses the same sketch represen- tations as the neural easy-first systems, but re- places the attention mechanism by "hard" atten- tion placed on the highest scored word.</p><p>For comparison, we also show the accuracies re- ported by <ref type="bibr">Gillick et al. (2016)</ref> for their byte-to- span system (trained separately on each language) and by <ref type="bibr" target="#b2">Plank et al. (2016)</ref> for their state-of-the-art multi-task BILSTM tagger (these results are not fully comparable though, due to different treebank versions). Among the neural easy-first systems, we ob- serve that NEF-F with csoftmax attention gener- ally outperforms the others, but the differences are very slight (excluding the sparsemax attention sys- tem, which performed substancially worse). This system wins over the linear system for all lan- guages but Spanish, and over the BILSTM base- line for 9 out of 12 languages (loses in Arabic and German, and ties in Japanese). Note, however, that the differences are small (95.47% against 95.39%, averaged across treebanks). We conjecture that this is due to the fact that the BILSTM already cap- tures most of the relevant context in its encoder. Our NEF-F system with csoftmax also wins over the vanilla easy-first system for 10 out of 12 lan- guages (arguably due to its ability to backpropa- gate the gradients through the soft attention mech- anism), but the difference in the average score is again small (95.47% against 95.42%).</p><p>Figure 2 depicts some patterns learned by the NEF-F model with various attention types. With the csoftmax, the model learns to move left and right, and the main verb "thought" is the most prominent candidate for the easiest decision. In fact, in 57% of the test sentences, the model fo- cuses first on a verb. The "raindrop" appear- ance of the plot is due to the evenness property of csoftmax, which causes the attention over a word to increase gradually until the cumulative attention is exhausted. This constrasts with the softmax attention (less diverse and non-sparse) and the sparsemax (sparse, but not even). We show for comparison the (hard) decisions made by the vanilla easy-first decoder.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.2">Named Entity Recognition</head><p>Next, we applied our model to NER. We used the official datasets from the CoNLL 2002-3 shared tasks <ref type="bibr" target="#b4">(Sang, 2002;</ref><ref type="bibr" target="#b5">Sang and De Meulder, 2003)</ref>, which tag names, locations, and organizations using a BIO scheme, and cover four languages (Dutch, English, German, and Spanish). We made two experiments: one using the exact same BIL- STM and NEF models with a standard softmax output layer, as in §5.1 (which does not guar- antee valid segmentations), and another one re- placing the output softmax layer by a sequential CRF layer, which requires learning O(K 2 ) ad- ditional parameters for pairs of consecutive tags <ref type="bibr">(Huang et al., 2015;</ref><ref type="bibr">Lample et al., 2016)</ref>. We used the same hyperparameters as in the POS tag- ging experiments, except the dropout probabil- ity, which was set to 0.3 (tuned on the valida- tion set). For English, we used pre-trained 300- dimensional GloVe-840B embeddings <ref type="bibr" target="#b1">(Pennington et al., 2014)</ref>; for Spanish and German, we used the 64-dimensional word embeddings from <ref type="bibr">Lample et al. (2016)</ref>; for Dutch we used the aforemen- tioned Polyglot vectors. All embeddings are fine- tuned during training. Since many words are not entities, and those receive a default "outside" tag, we expect that fewer sketch steps are necessary to achieve top performance. <ref type="table" target="#tab_3">Table 2</ref> shows the results, which confirm this hypothesis. We compare the same BILSTM baseline to our NEF-S and NEF-F models with csoftmax attention (with and without the CRF out- put layer), varying the maximum number of sketch steps. We also compare against the byte-to-span model of <ref type="bibr">Gillick et al. (2016)</ref> and the state-of-the- art character-based LSTM-CRF system of <ref type="bibr">Lample et al. (2016)</ref>. <ref type="bibr">6</ref> We can see that, for all languages, Dut.</p><p>Eng. Ger. Spa. <ref type="bibr">Gillick et al. (2016)</ref> 78.08 84.57 72.08 81.83 <ref type="bibr">Lample et al. (2016)</ref> 81  the NEF-CRF-F model with 5 steps is consistently better than the BILSTM-CRF and, with the excep- tion of English, the NEF-CRF-S model. The same holds for the BILSTM and NEF-F models without the CRF output layer. With the exception of Ger- man, increasing the number of steps did not make a big difference. <ref type="figure" target="#fig_1">Figure 3</ref> shows the attention distributions over the sketch steps for an English sentence, for full- state models trained with N ∈ {5, L}. The model with L sketch steps learned that it is easiest to fo- cus on the beginning of a named entity, and then to move to the right to identify the full span. The model with only 5 sketch steps learns to go straight to the point, placing most attention on the entity words and ignoring most of the O-tokens.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.3">Word-Level Quality Estimation</head><p>Finally, we evaluate our model's performance on word-level translation quality estimation. The goal is to evaluate a translation system's qual- ity without access to reference translations ( <ref type="bibr">Blatz et al., 2004;</ref><ref type="bibr" target="#b8">Specia et al., 2013)</ref>. Given a sentence pair (a source sentence and its machine translated sentence in a target language), a word-level sys- tem classifies each target word as OK or BAD. We used the official English-German dataset from the WMT16 shared task ( <ref type="bibr">Bojar et al., 2016)</ref>.</p><p>This task differs from the previous ones in which its input is a sentence pair and not a single eters, mixing character and word-based models, sharing a model across languages, or combining CRFs with convolu- tional and recurrent layers. We used simpler models in our experiments since our goal is to assess how much the neural easy-first systems can bring in addition to a BILSTM system, rather than building a state-of-the-art system. sentence. We replaced the affix embeddings by the concatenation of the 64-dimensional embed- dings of the target words with those of the aligned source words (we used the alignments provided in the shared task), yielding 128-dimensional repre- sentations. We used the same hyperparameters as in the POS tagging task, except the dropout proba- bility, set to 0.1. We followed prior work ( <ref type="bibr">Kreutzer et al., 2015)</ref> and upweighted the BAD words in the loss function to make the model more pessimistic; we used a weight of 5 (tuned in the validation set). <ref type="table">Table 3</ref> shows the results. We see that all our NEF-S and NEF-F models outperform the BIL- STM, and that the NEF-F model with 5 sketch steps achieved the best results. 7 <ref type="figure" target="#fig_2">Figure 4</ref> il- lustrates the attention over the target words for 5 sketches. We observe that the attention focuses early in the areas predicted BAD and moves left and right within these areas, not wasting attention on the OK part of the sentence. This block-wise fo- 7 Our best system would rank third in the shared task, out of 13 submissions. The winner system, which achieved 49.52 F1-MULT, was considerably more complex than ours, using an ensemble of three neural networks with a linear system ( <ref type="bibr">Martins et al., 2016)</ref>.</p><formula xml:id="formula_23">BILSTM NEF-S NEF-F N = 5 N = L N = 5 N = L 39.71</formula><p>40.91 40.99 41.18 40.84 <ref type="table">Table 3</ref>: F 1 -MULT scores (product of F 1 for OK and BAD words) for word-level quality estimation, computed by the official shared task script. cus makes sense for quality estimation, since often complete phrases are BAD.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.4">Ablation Study</head><p>To better understand our proposed model, we car- ried out an ablation study for NER on the English dataset. The following alternate configurations were tried and compared against the NEF-CRF-F model with csoftmax attention and 5 sketch steps:</p><p>• A NEF-CRF-F model for which the final con- catenation in Eq. 6 was removed, being replaced by p i = softmax(affine(s N i )). The goal was to see if the sketches retain enough information about the input to make a final prediction with- out requiring the states h i .</p><p>• A model for which the attention mechanism ap- plied at each sketch step was replaced by a uni- form distribution over the input words.</p><p>• A vanilla easy-first system (Alg. 1). Since this system can only focus on one word at the time (unlike the models with soft attention), we tried both N = 5 and N = L sketch steps.</p><p>• A left-to-right and right-to-left model, which re- places the attention mechanism by one of these two prescribed orders. <ref type="table">Table 4</ref> shows the results. As expected, the neural easy-first system was the best performing one, al- though the difference with respect to the ablated NEF-CRF-F, N = 5</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>88.01</head><p>NEF-CRF-F w/out concat, N = 5 87.47 Uniform Attention, N = 5 87.46 Vanilla EF + CRF, N = 5 87.17 Vanilla EF + CRF, N = L 87.46 Left-to-right + CRF, N = L 87.57 Right-to-left + CRF, N = L 87.53 <ref type="table">Table 4</ref>: Ablation experiments. Reported are F 1 scores for NER in the English test set.</p><p>systems is relatively small. Removing the con- catenation in Eq. 6 is harmful, which suggests that there is information about the input not retained in the sketches. The uniform attention performs surprisingly well, and so do the left-to-right and right-to-left models, but they are still about half a point behind. The vanilla easy-first system has the worst performance with N = 5. This is due to the fact that the vanilla model is uncapable of process- ing words "in parallel" in the same sketch step, a disadvantage with respect to the neural easy-first models, which have this capability due to their soft attention mechanisms (see the top image in <ref type="figure" target="#fig_1">Fig. 3</ref>).</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6">Related Work</head><p>Vanilla easy-first decoders have been used in POS tagging ( <ref type="bibr" target="#b12">Tsuruoka and Tsujii, 2005;</ref><ref type="bibr">Ma et al., 2013)</ref>, dependency parsing ( <ref type="bibr">Goldberg and Elhadad, 2010)</ref>, and coreference resolution (Stoyanov and Eisner, 2012), being related to cyclic dependency networks and guided learning ( <ref type="bibr" target="#b11">Toutanova et al., 2003;</ref><ref type="bibr" target="#b6">Shen et al., 2007</ref>). More recent works compute scores with a neural net- work <ref type="bibr" target="#b7">(Socher et al., 2011;</ref><ref type="bibr">Clark and Manning, 2016;</ref><ref type="bibr">Kiperwasser and Goldberg, 2016a</ref>), but they still operate in a discrete space to pick the easi- est actions (the non-differentiable argmax in line 6 of Alg. 1). Generalizing this idea to "continuous" operations is at the very core of our paper, allow- ing gradients to be fully backpropagated. In a dif- ferent context, building differentiable computation structures has also been addressed by <ref type="bibr">Graves et al. (2014)</ref>; <ref type="bibr">Grefenstette et al. (2015)</ref>. An important contribution of our paper is the constrained softmax transformation. Others have proposed alternatives to softmax attention, includ- ing the sparsemax <ref type="bibr">(Martins and Astudillo, 2016)</ref> and multi-focal attention ( <ref type="bibr">Globerson et al., 2016)</ref>. The latter computes a KL projection onto a bud- get polytope to focus on multiple words. Our con- strained softmax also corresponds to a KL projec- tion, but (i) it involves box constraints instead of a budget, (ii) it is normalized to 1, and (iii) we also backpropagate the gradient over the constraint variables. It also achieves sparsity (see the "rain- drop" plots in <ref type="figure" target="#fig_0">Figures 2-4)</ref>, and is suitable for se- quentially computing attention distributions when diversity is desired (e.g. soft 1-to-1 alignments). Recently, <ref type="bibr">Chorowski and Jaitly (2016)</ref> developed an heuristic with a threshold on the total attention as a "coverage criterion" (see their Eq. 11), how- ever their heuristic is non-differentiable.</p><p>Our sketch generation step is similar in spirit to the "deep recurrent attentive writer" (DRAW, Gre- gor et al. <ref type="formula" target="#formula_4">(2015)</ref>) which generates images by itera- tively refining sketches with a recurrent neural net- work (RNN). However, our goal is very different: instead of generating images, we generate vectors that lead to a final sequence tagging prediction.</p><p>Finally, the visualization provided in <ref type="figure" target="#fig_0">Figures 2- 4</ref> brings up the question how to understand and rationalize predictions by neural network systems, addressed by <ref type="bibr">Lei et al. (2016)</ref>. Their model, how- ever, uses a form of stochastic attention and it does not perform any iterative refinement like ours.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="7">Conclusions</head><p>We introduced novel fully-differentiable easy-first taggers that learn to make predictions over se- quences in an order that is adapted to the task at hand. The decoder iteratively updates a sketch of the predictions by interacting with an attention mechanism. To spread attention evenly through all words, we introduced a new constrained softmax transformation, along with an algorithm to back- propagate its gradients. Our neural-easy first de- coder consistently outperformed a BILSTM on a range of sequence tagging tasks.</p><p>A natural direction for future work is to go be- yond sequence tagging (which we regard as a sim- ple first step) toward other NLP structured predic- tion problems, such as sequence-to-sequence pre- diction. This requires replacing the sketch matrix in Alg. 2 by a dynamic memory structure. </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>A Proof of Proposition 1</head><p>We provide here a detailed proof of Proposition 1.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>A.1 Forward Propagation</head><p>The </p><p>To obtain the solution, we invoke the Karush-Kuhn-Tucker conditions. From the stationarity condition, we have 0 = log(α) + 1 − z + λ1 − µ + ν, which due to the primal feasibility condition implies that the solution is of the form:</p><formula xml:id="formula_25">α = exp(z + µ − ν)/Z,<label>(15)</label></formula><p>where Z is a normalization constant. From the complementarity slackness condition, we have that 0 &lt; α i &lt; u i implies that µ i = ν i = 0 and therefore α i = exp(z i )/Z. On the other hand, ν i &gt; 0 implies α i = u i . Hence the solution can be written as α i = min{exp(z i )/Z, u i }, where Z is determined such that the distribution normalizes:</p><formula xml:id="formula_26">Z = i∈A exp(z i ) 1 − i / ∈A u i ,<label>(16)</label></formula><p>with A = {i ∈ [L] | α i &lt; u i }.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>A.2 Gradient Backpropagation</head><p>We now turn to the problem of backpropagating the gradients through the constrained softmax transfor- mation. For that, we need to compute its Jacobian matrix, i.e., the derivatives ∂α i </p><p>where s = j / ∈A u j . Note that we have ∂s/∂z j = 0, ∀j, and ∂s/∂u j = 1(j / ∈ A). To compute the entries of the Jacobian matrix, we need to consider several cases.</p><p>Case 1: i ∈ A. In this case, the evaluation of Eq. 17 goes through the first branch. Let us first compute the derivative with respect to u j . Two things can happen: if j ∈ A, then s does not depend on u j , hence Now let us compute the derivative with respect to z j . Three things can happen: if j ∈ A and i = j, we have</p><formula xml:id="formula_28">∂α i ∂z j = −exp(z i )exp(z j )(1 − s) k∈A exp(z k ) 2 = −α i α j /(1 − s).<label>(18)</label></formula><p>If j ∈ A and i = j, we have</p><formula xml:id="formula_29">∂α i ∂z i = (1 − s) × exp(z i ) k∈A exp(z k ) − exp(z i ) 2 k∈A exp(z k ) 2 = α i − α 2 i /(1 − s).<label>(19)</label></formula><p>Finally, if j / ∈ A, we have ∂α i ∂z j = 0.</p><p>Case 2: i / ∈ A. In this case, the evaluation of Eq. 17 goes through the second branch, which means that ∂α i ∂z j = 0, always. Let us now compute the derivative with respect to u j . This derivative is always zero unless i = j, in which case ∂α i ∂u j = 1.</p><p>To sum up, we have:</p><formula xml:id="formula_30">∂α i ∂z j = 1(i = j)α i − α i α j 1−s , if i, j ∈ A 0, otherwise,<label>(20)</label></formula><p>and</p><formula xml:id="formula_31">∂α i ∂u j =    − α i 1−s , if i ∈ A, j / ∈ A 1, if i, j / ∈ A, i = j 0, otherwise.<label>(21)</label></formula><p>Therefore, we obtain:</p><formula xml:id="formula_32">dz j = i ∂α i ∂z j dα i = 1(j ∈ A) α j dα j − α j i∈A α i dα i 1 − s = 1(j ∈ A)α j (dα j − m),<label>(22)</label></formula><p>and</p><formula xml:id="formula_33">du j = i ∂α i ∂u j dα i = 1(j / ∈ A) dα j − i∈A α i dα i 1 − s = 1(j / ∈ A)(dα j − m),<label>(23)</label></formula><p>where m = i∈A α i dα i 1−s . 362</p></div><figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_0"><head>Figure 2 :</head><label>2</label><figDesc>Figure 2: Attention visualization for English POS tagging. From the left: constrained softmax, softmax, sparsemax, vanilla. Rows correspond to attention vectors (high values in yellow, low ones in dark blue).</figDesc><graphic url="image-1.png" coords="6,93.76,250.94,99.78,124.66" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_1"><head>Figure 3 :</head><label>3</label><figDesc>Figure 3: Attention visualization for English NER, for 5 (top) and L (bottom) sketch steps. Words tagged as B-* are marked in light blue, those with I-* tags, in bold red, and with O-* tags, in green.</figDesc><graphic url="image-6.png" coords="8,91.37,108.96,176.80,239.35" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_2"><head>Figure 4 :</head><label>4</label><figDesc>Figure 4: Example for word-level quality estimation. The source sentence is "To open the Actions panel, from the main menu, choose Window &gt; Actions." BAD words are red (bold font), OK words are green.</figDesc><graphic url="image-7.png" coords="8,322.28,167.38,185.53,99.45" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_3"><head></head><label></label><figDesc>The Lagrangian function is: L(α, λ, µ, ν) = −H(α) − z α + λ(1 α − 1) −µ α + ν (α − u).</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_4"><head></head><label></label><figDesc>∂z j and ∂α i ∂u j for i, j ∈ [L]. Let us first express α as α i = exp(z i )(1−s) j∈A exp(z j ) , i ∈ A u i , i / ∈ A,</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_5"><head></head><label></label><figDesc>Else, if j / ∈ A, we have ∂α i ∂u j = −exp(z i ) ∂s ∂u j k∈A exp(z k ) = −α i /(1 − s).</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_1" validated="false"><head>Table 1 :</head><label>1</label><figDesc></figDesc><table>POS tagging accuracies. The average in the rightmost column is over the words of each treebank. 
+ † Note that Gillick et al. (2016) and Plank et al. (2016) are not strictly comparable, since they use older 
+versions of the treebanks (UD1.1 and UD1.2, respectively). 
+
+</table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_3" validated="false"><head>Table 2 :</head><label>2</label><figDesc>F 1 scores for NER, computed by the CoNLL 2002 evaluation script.</figDesc><table></table></figure>
+
+			<note place="foot">* This research was partially carried out during an internship at Unbabel.</note>
+
+			<note place="foot" n="1"> Note that this is a rank-one update, as it can be written in matrix notation as S n = S n−1 + tanh(affine(¯ c n )) · α n. 2 We found the concatenation with hi in Eq. 6 beneficial to transfer input information directly to the output layer, avoiding the need of flowing this information through the sketches.</note>
+
+			<note place="foot" n="3"> Our choice of languages covers 8 families: Romance (French, Portuguese, Spanish), Germanic (English, German), Slavic (Czech, Russian), Semitic (Arabic), Indo-Iranian (Hindi), Austronesian (Indonesian), Sino-Tibetan (Chinese), and Japonic (Japanese). For all languages, we used the datasets that have the canonical language name, except for Russian, where we used the (much larger) SynTagRus corpus. We prefered large datasets over small ones, to reduce the impact of overfitting in our analysis. 4 The code is available at https://github.com/ Unbabel/neural-easy-first. 5 These hyperparameters were tuned in the English development set, and kept fixed across languages.</note>
+
+			<note place="foot" n="6"> The current state of the art on these datasets (Gillick et al., 2016; Lample et al., 2016; Ma and Hovy, 2016) is achieved by more sophisticated systems with more param</note>
+		</body>
+		<back>
+
+			<div type="acknowledgement">
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Acknowledgments</head><p>We thank the Unbabel research team and the re-viewers for their comments. This work was sup-ported by the FundaçFundaç˜Fundação para a Ciência e Tec-nologia through contracts UID/EEA/50008/2013, PTDC/EEI-SII/7092/2014 (LearnBig), and CMU-PERI/TIC/0046/2014 (GoLocal).</p></div>
+			</div>
+
+			<div type="references">
+
+				<listBibl>
+
+<biblStruct xml:id="b0">
+	<monogr>
+				<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Rami</forename><surname>Al-Rfou</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Bryan</forename><surname>Perozzi</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Steven</forename><surname>Skiena</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1307.1662</idno>
+		<title level="m">Polyglot: Distributed word representations for multilingual nlp</title>
+		<imprint>
+			<date type="published" when="2013" />
+		</imprint>
+	</monogr>
+<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b1">
+	<analytic>
+		<title level="a" type="main">Glove: Global Vectors for Word Representation</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jeffrey</forename><surname>Pennington</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Richard</forename><surname>Socher</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Christopher D</forename><surname>Manning</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Empiricial Methods in Natural Language Processing</title>
+		<meeting>the Empiricial Methods in Natural Language Processing</meeting>
+		<imprint>
+			<date type="published" when="2014" />
+			<biblScope unit="volume">12</biblScope>
+			<biblScope unit="page" from="1532" to="1543" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b2">
+	<analytic>
+		<title level="a" type="main">Multilingual part-of-speech tagging with bidirectional long short-term memory models and auxiliary loss</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Barbara</forename><surname>Plank</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Anders</forename><surname>Søgaard</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yoav</forename><surname>Goldberg</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. of the Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>of the Annual Meeting of the Association for Computational Linguistics</meeting>
+		<imprint>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+	<note>short papers</note>
+</biblStruct>
+
+<biblStruct xml:id="b3">
+	<analytic>
+		<title level="a" type="main">A reduction of imitation learning and structured prediction to no-regret online learning</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Stéphane</forename><surname>Ross</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Geoffrey</forename><forename type="middle">J</forename><surname>Gordon</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Drew</forename><surname>Bagnell</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">AISTATS</title>
+		<imprint>
+			<date type="published" when="2011" />
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page">6</biblScope>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b4">
+	<analytic>
+		<title level="a" type="main">Introduction to the CoNLL-2002 shared task: Language-independent named entity recognition</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">E</forename><forename type="middle">F T K</forename><surname>Sang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. of International Conference on Natural Language Learning</title>
+		<meeting>of International Conference on Natural Language Learning</meeting>
+		<imprint>
+			<date type="published" when="2002" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b5">
+	<analytic>
+		<title level="a" type="main">Introduction to the CoNLL-2003 shared task: Languageindependent named entity recognition</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">E</forename><forename type="middle">F T K</forename><surname>Sang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">F</forename><surname>De Meulder</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. of International Conference on Natural Language Learning</title>
+		<meeting>of International Conference on Natural Language Learning</meeting>
+		<imprint>
+			<date type="published" when="2003" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b6">
+	<analytic>
+		<title level="a" type="main">Guided learning for bidirectional sequence classification</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Libin</forename><surname>Shen</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Giorgio</forename><surname>Satta</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Aravind</forename><surname>Joshi</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">ACL</title>
+		<imprint>
+			<date type="published" when="2007" />
+			<biblScope unit="volume">7</biblScope>
+			<biblScope unit="page" from="760" to="767" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b7">
+	<monogr>
+				<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Richard</forename><surname>Socher</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">C</forename><surname>Cliff</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Chris</forename><surname>Lin</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Andrew Y</forename><surname>Manning</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Ng</surname></persName>
+		</author>
+		<title level="m">Parsing natural scenes and natural language with recursive neural networks. In Proceedings of the 28th international conference on machine learning (ICML-11)</title>
+		<imprint>
+			<date type="published" when="2011" />
+			<biblScope unit="page" from="129" to="136" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b8">
+	<analytic>
+		<title level="a" type="main">QuEst-a translation quality estimation framework</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Lucia</forename><surname>Specia</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kashif</forename><surname>Shah</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jose</forename><forename type="middle">G C</forename><surname>De Souza</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Trevor</forename><surname>Cohn</surname></persName>
+		</author>
+		<ptr target="http://www.aclweb.org/anthology/P13-4014" />
+	</analytic>
+	<monogr>
+		<title level="m">Proc. of the Annual Meeting of the Association for Computational Linguistics: System Demonstrations</title>
+		<meeting>of the Annual Meeting of the Association for Computational Linguistics: System Demonstrations</meeting>
+		<imprint>
+			<date type="published" when="2013" />
+			<biblScope unit="page" from="79" to="84" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b9">
+	<analytic>
+		<title level="a" type="main">Easy-first coreference resolution</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Veselin</forename><surname>Stoyanov</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jason</forename><surname>Eisner</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">COLING</title>
+		<imprint>
+			<date type="published" when="2012" />
+			<biblScope unit="page" from="2519" to="2534" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b10">
+	<analytic>
+		<title level="a" type="main">Sequence to sequence learning with neural networks</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ilya</forename><surname>Sutskever</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Oriol</forename><surname>Vinyals</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Quoc V</forename><surname>Le</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Advances in Neural Information Processing Systems</title>
+		<imprint>
+			<date type="published" when="2014" />
+			<biblScope unit="page" from="3104" to="3112" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b11">
+	<analytic>
+		<title level="a" type="main">Feature-rich part-ofspeech tagging with a cyclic dependency network</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kristina</forename><surname>Toutanova</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Dan</forename><surname>Klein</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">D</forename><surname>Christopher</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yoram</forename><surname>Manning</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Singer</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2003 Conference of the North American Chapter of the Association for Computational Linguistics on Human Language Technology</title>
+		<meeting>the 2003 Conference of the North American Chapter of the Association for Computational Linguistics on Human Language Technology</meeting>
+		<imprint>
+			<date type="published" when="2003" />
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="173" to="180" />
+		</imprint>
+	</monogr>
+	<note>Association for Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b12">
+	<analytic>
+		<title level="a" type="main">Bidirectional inference with the easiest-first strategy for tagging sequence data</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yoshimasa</forename><surname>Tsuruoka</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jun&amp;apos;ichi</forename><surname>Tsujii</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the conference on human language technology and empirical methods in natural language processing. Association for Computational Linguistics</title>
+		<meeting>the conference on human language technology and empirical methods in natural language processing. Association for Computational Linguistics</meeting>
+		<imprint>
+			<date type="published" when="2005" />
+			<biblScope unit="page" from="467" to="474" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b13">
+	<monogr>
+		<title level="m" type="main">Graphical Models, Exponential Families, and Variational Inference</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">M</forename><surname>Wainwright</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">M</forename><surname>Jordan</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2008" />
+			<publisher>Now Publishers</publisher>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+				</listBibl>
+			</div>
+		</back>
+	</text>
+</TEI>

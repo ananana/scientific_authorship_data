@@ -1,0 +1,974 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<TEI xmlns="http://www.tei-c.org/ns/1.0" 
+xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+xsi:schemaLocation="http://www.tei-c.org/ns/1.0 /home/ana/installs/grobid/grobid-0.5.1/grobid-home/schemas/xsd/Grobid.xsd"
+ xmlns:xlink="http://www.w3.org/1999/xlink">
+	<teiHeader xml:lang="en">
+		<encodingDesc>
+			<appInfo>
+				<application version="0.5.1-SNAPSHOT" ident="GROBID" when="2019-04-18T10:48+0000">
+					<ref target="https://github.com/kermitt2/grobid">GROBID - A machine learning software for extracting information from scholarly documents</ref>
+				</application>
+			</appInfo>
+		</encodingDesc>
+		<fileDesc>
+			<titleStmt>
+				<title level="a" type="main">Analysing recall loss in named entity slot filling</title>
+			</titleStmt>
+			<publicationStmt>
+				<publisher>Association for Computational Linguistics</publisher>
+				<availability status="unknown"><p>Copyright Association for Computational Linguistics</p>
+				</availability>
+				<date>October 25-29, 2014. 2014</date>
+			</publicationStmt>
+			<sourceDesc>
+				<biblStruct>
+					<analytic>
+						<author>
+							<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Glen</forename><surname>Pink</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="department">School of Information Technologies</orgName>
+								<orgName type="laboratory">-lab</orgName>
+								<orgName type="institution">University of Sydney NSW 2006</orgName>
+								<address>
+									<country key="AU">Australia</country>
+								</address>
+							</affiliation>
+						</author>
+						<author>
+							<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Joel</forename><surname>Nothman</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="department">School of Information Technologies</orgName>
+								<orgName type="laboratory">-lab</orgName>
+								<orgName type="institution">University of Sydney NSW 2006</orgName>
+								<address>
+									<country key="AU">Australia</country>
+								</address>
+							</affiliation>
+						</author>
+						<author>
+							<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">James</forename><forename type="middle">R</forename><surname>Curran</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="department">School of Information Technologies</orgName>
+								<orgName type="laboratory">-lab</orgName>
+								<orgName type="institution">University of Sydney NSW 2006</orgName>
+								<address>
+									<country key="AU">Australia</country>
+								</address>
+							</affiliation>
+						</author>
+						<title level="a" type="main">Analysing recall loss in named entity slot filling</title>
+					</analytic>
+					<monogr>
+						<title level="m">Proceedings of the 2014 Conference on Empirical Methods in Natural Language Processing (EMNLP)</title>
+						<meeting>the 2014 Conference on Empirical Methods in Natural Language Processing (EMNLP) <address><addrLine>Doha, Qatar. c</addrLine></address>
+						</meeting>
+						<imprint>
+							<publisher>Association for Computational Linguistics</publisher>
+							<biblScope unit="page" from="820" to="830"/>
+							<date type="published">October 25-29, 2014. 2014</date>
+						</imprint>
+					</monogr>
+				</biblStruct>
+			</sourceDesc>
+		</fileDesc>
+		<profileDesc>
+			<abstract>
+				<p>State-of-the-art fact extraction is heavily constrained by recall, as demonstrated by recent performance in TAC Slot Filling. We isolate this recall loss for NE slots by systematically analysing each stage of the slot filling pipeline as a filter over correct answers. Recall is critical as candidates never generated can never be recovered, whereas precision can always be increased in downstream processing. We provide precise, empirical confirmation of previously hypothesised sources of recall loss in slot filling. While NE type constraints substantially reduce the search space with only a minor recall penalty, we find that 10% to 39% of slot fills will be entirely ignored by most systems. One in six correct answers are lost if coreference is not used, but this can be mostly retained by simple name matching rules.</p>
+			</abstract>
+		</profileDesc>
+	</teiHeader>
+	<text xml:lang="en">
+		<body>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="1">Introduction</head><p>The TAC Knowledge Base Population (KBP) Slot Filling (SF) consists of extracting named attributes from text. Given a query, e.g. John Kerry, a system searches a corpus for documents which contain the entity. It then fills a list of slots, named attributes such as (per:spouse, Teresa Heinz).</p><p>The top TAC SF 2013 (TAC13) system scored 37.3% F-score ( <ref type="bibr" target="#b24">Roth et al., 2013)</ref>, and the median F-score was 16.9% <ref type="bibr" target="#b27">(Surdeanu, 2013)</ref>. Recall for SF systems is especially low, with many systems using precise extractors with low recall. Precision ranges from 9% to 40% greater than recall for the top 5 systems in TAC13, and unsurprisingly, <ref type="bibr" target="#b24">Roth et al. (2013)</ref> has the highest recall at 33%. Closing the recall gap without substantially increasing the search space is critical to improving SF results.  and <ref type="bibr" target="#b20">Min and Grishman (2012)</ref> identify many of the challenges of SF, and suggest that inference, coreference and named en- tity recognition (NER) are key sources of error. Min and Grishman categorise the slot fills found by human annotators but not found in the aggre- gated output of all systems. However, this ap- proach only allows them to hypothesise the likely source of recall loss. For instance, it is impossible to distinguish candidate generation errors from an- swer merging errors. <ref type="bibr" target="#b25">Roth et al. (2014)</ref> categorise these errors at a high level, without specific anal- ysis of candidate generation pipeline components such as coreference.</p><p>In this paper, we take this analysis further by performing a systematic recall analysis that al- lows us to pinpoint the cause of every recall er- ror (candidates lost that can never be recovered) and estimate upper bounds on recall in existing ap- proaches. We implement a collection of na¨ıvena¨ıve SF systems utilizing a set of increasingly restrictive filters over documents and named entities (NEs). TAC has three slot types: NE, string and value slots. We consider only those slots filled by NEs as there are widely-used, high accuracy tools available for NER, and focusing on NEs only allows us to pre- cisely gauge performance of filters. String slots do not have reliable classifiers, and value slots require more normalisation than directly returning a token span. Otherwise, this evaluation is not specifically dependent on the nature of NEs, and we expect similar results for other slot types.</p><p>We focus on systems which first generate can- didates and then process them, the approach of the majority of TAC systems. Our filters apply hard constraints over NEs commonly used in the litera- ture, accounting for a typical SF candidate genera- tion pipeline-matching the query term, the form of candidate fills and the distance between the query and the candidate-but not performing any further scoring or thresholding. We compare sev-eral forms of coreference as filters, motivated by the need for efficient coreference resolution when processing large corpora. Complementing these unsupervised experiments, we implement a max- imum recall bootstrap to identify which fills are reachable from training data.</p><p>We find ∼10% of recall is ignored by most sys- tems due to NER bounds errors, and despite state- of-the-art coreference, 8% is lost when queries and fills occur in different sentences. Using NE type constraints is very effective, reducing recall by only 2% for a search space reduction of 81%. Without any coreference, 16% of typed fills are lost, but 12% of this recall can be recovered us- ing fast na¨ıvena¨ıve name matching rules, reducing the search space to 59% that of full coreference. 15% of recall is lost if a SF approach, such as a boot- strapping, requires that dependency paths be non- unique in a corpus. We show that most remaining candidates are reachable via bootstrapping from a small number of seeds. Our results provide systematic confirmation that effective coreference and NER are critical to high recall slot filling.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2">Why focus on recall?</head><p>In this work, we determine the recall loss caused by candidate generation constraints in SF systems. SF pipelines are typically implemented using a coarse-to-fine approach, where all possible candi- dates are generated and then filtered by hard con- straints and more sophisticated downstream pro- cesses. Following this, we maximally generate candidates and assume a high-precision but rela- tively costly downstream process selects the final extractions. While ultimately any system makes precision-recall trade-offs, the recall of a system's coarse candidate generation process sets a hard upper bound on performance, as candidates that are not generated at all can never be recovered by downstream processes. SF systems could gener- ate every noun phrase in a corpus as potential can- didates, but they apply hard candidate generation constraints for efficiency and precision.</p><p>We implement these hard constraints as a se- ries of filters, and return every candidate which passes a filter without further ranking or threshold- ing. These filters are comprised of generic com- ponents, such as NER, which are representative of SF pipelines. We are only interested in precision in so much as it corresponds to the size of the search space (the candidates generated), assum- ing a small, fixed number of answers. The search space determines the workload of later stages re- sponsible for extraction, merging and ranking. Precision can be improved by this post-processing of the candidate set, but recall cannot.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3">Background</head><p>Slot filling (SF) is a query-oriented relation ex- traction (RE) task in the Knowledge Base Popu- lation (KBP) track of the Text Analysis Confer- ences (TAC) <ref type="bibr" target="#b19">(McNamee and Dang, 2009)</ref>. A SF system is queried with a name and a predefined relation schema, or slots, and must seek instances of any relations involving the query entity, and the corresponding slot fills, from a corpus.</p><p>Systems typically consist of several pipelined stages ), providing many potential locations for error. The basic pipeline, in <ref type="figure" target="#fig_0">Fig- ure 1</ref>, consists of four stages (Ji and Grishman, 2011): document retrieval, candidate generation, answer extraction, and answer merging and rank- ing. The output of the second stage is a set of can- didates which are then usually ranked using RE techniques, 1 to precisely pinpoint answers. TAC penalises redundant responses, requiring a final answer merging and ranking stage. The first two stages are the focus of this work, as they inad- vertently filter correct answers that cannot be re- covered, and they determine the size of the search space for later stages.</p><p>Min and Grishman (2012) conducted an analy- sis of the 140 TAC 2010 SF fills that were found by human annotators but not any system, and manu- ally look for evidence in the reference document and categorise the hypothetical sources of error. They find inference, coreference and NER to be the top sources of error, and that the most studied component (sentence-level RE) is not the domi- nant problem, contributing only 10% of recall loss. We precisely characterise the contribution of these sources of error.</p><p>We   <ref type="bibr" target="#b0">(Agichtein and Gravano, 2000;</ref><ref type="bibr" target="#b30">Wang et al., 2011;</ref><ref type="bibr">Carlson et al., 2010)</ref>.</p><p>Relation phrases or patterns may be identified without labels <ref type="bibr" target="#b10">(Fader et al., 2011;</ref><ref type="bibr" target="#b18">Mausam et al., 2012</ref>) or clustered ( <ref type="bibr" target="#b31">Yao et al., 2012</ref>) into types. Generating candidate entity pairs and using the syntactic or surface path between them to decide whether a relation exists are common threads in RE that also form part of the SF pipeline. In some RE tasks, entities mentioned may already be iden- tified in a document and provided to a RE sys- tem; in general, automatic NER is required. Some tasks are defined more generally to include com- mon noun phrases <ref type="bibr" target="#b10">(Fader et al., 2011;</ref><ref type="bibr">Carlson et al., 2010)</ref>. SF specifically includes slots that can be filled by arbitrary strings such as per:cause of death, which make up a large number of slot fills but may require the use of different tech- niques for extraction, separate from names. NER may be further enhanced by resolving names to a <ref type="bibr">KB (Mintz et al., 2009;</ref><ref type="bibr" target="#b13">Hoffmann et al., 2011;</ref><ref type="bibr" target="#b26">Surdeanu et al., 2012;</ref><ref type="bibr" target="#b30">Wang et al., 2011</ref>), reduc- ing noise in learning and extraction processes, but we do not take this step in this work.</p><p>Typically, a RE system will only consider enti- ties mentioned together in a sentence. When seek- ing all instances of a given relation between known entities, coreference resolution is necessary to sub- stantially expand the set of candidate pairs ( <ref type="bibr" target="#b12">Gabbard et al., 2011</ref>). Coreference resolution may not be necessary where each relation is redun- dantly mentioned in a large corpus, as in SF; in this vein, "Open" approaches prefer precision and avoid automatic coreference resolution ( <ref type="bibr" target="#b1">Banko et al., 2007)</ref>. Moreover, previous analysis attributed substantial SF error to these tools (Ji and Grish- man, 2011). Our work evaluates NER, locality heuristics and coreference within a SF context.</p><p>Classification features for RE typically encode: attributes of the entities; the surface form, depen- dency path, or phrase structure subtree between them; and surrounding context ( <ref type="bibr" target="#b33">Zhou et al., 2005;</ref><ref type="bibr" target="#b21">Mintz et al., 2009;</ref><ref type="bibr" target="#b32">Zhang et al., 2013</ref>). We eval- uate the length of dependency path between enti- ties as a variable affecting SF candidate recall, and apply na¨ıvena¨ıve entity pair bootstrapping <ref type="bibr" target="#b2">(Brin, 1998;</ref><ref type="bibr" target="#b0">Agichtein and Gravano, 2000</ref>) to assess the gener- alisation over dependency paths from examples.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4">Experimental setup</head><p>We begin with a set of queries (a query being a NE entity grounded in a mention in a document) and, for each query q, the documents D q known to contain any slot fill for q, as determined by oracle information retrieval (IR) from human annotation and judged system output. Filling every slot in q with every n-gram in D q constitutes a system with nearly perfect recall. We apply a series of increas- ingly restrictive filters over this set. As in <ref type="figure" target="#fig_0">Figure 1</ref>, SF systems in practice must retrieve relevant docu- ments and generate candidates. We propose filters that allow for analysis of recall lost during these stages. We ignore the remaining stages and evalu- ate the set of candidates directly.</p><p>Filters define what documents or NEs are al- lowed to pass through, based on constraints im- posed by query matching, entity form, and sen- tence and syntactic context. We combine these fil- ters in series in a number of configurations. The use or absence of coreference varies across our configurations, as the need to identify the query mention and terms that refer to the query mention is critical. Finally, we experiment with a boot-strapping training process, to reflect constraints implicitly applied by a training approach. The SF typical system pipeline presented in Sec- tion 3 applies to most, but not all SF approaches. The following filters directly apply only to sys- tems that use NER as the method of candidate gen- eration, and where candidate generation is distinct from answer extraction. Fourteen of the eighteen teams participating in TAC13 submitted system re- ports ( <ref type="bibr" target="#b27">Surdeanu, 2013)</ref>. Eleven of these systems identify NEs with NER and pass these to an answer extraction process. The remaining three systems either do not document whether they rely on or do not rely on NER for candidate generation for name slots. We include a high recall baseline based on noun phrases (NPs) to cover these systems.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.1">Filters</head><p>The first step in the SF pipeline is to find a relevant document and the query entity mentioned within that document. We use oracle IR to find docu- ments D q (ORACLE DOCS in <ref type="figure" target="#fig_0">Figure 1</ref>) but need to find a reference to q in these documents for other filters and downstream stages (ALIAS MATCH in <ref type="figure" target="#fig_0">Figure 1</ref>). An exact match to the query name is trivial, but some documents may not contain the query verbatim. This primarily occurs in cases where an alias is used, e.g. where the query Fyffes PLC is only mentioned as Fyffes in a document.</p><p>SF systems typically implement a query expan- sion step prior to searching for relevant docu- ments, generating and extracting aliases based on the corpus and external sources ). For documents that do not mention the query ver- batim, we manually annotate the longest token span which refers to the query. All of our filters are applied to this base setup. To measure the ef- fect of our manual aliases on recall, we implement a na¨ıvena¨ıve EXACT MATCH filter, which allows a doc- ument only if a NE matches the query verbatim.</p><p>Entity form filters are based on the form of the entities extracted from documents. We initially consider all substrings of all NPs for a high-recall, yet tractable, baseline. The NP N-GRAMS filter al- lows every n-gram of every NP. NES allows NEs only; and for TYPES, fill NEs must be of a NER type defined by the slot, e.g. for per:city of birth only LOC NEs are allowed.</p><p>Sentence filters require the query mention and fill to be in the same sentence, or to have mentions in the same sentence. Sentence filters are COREF: the query and the fill must be mentioned in the same sentence; COREF NNP: as for COREF, but the query and the fill must have coreferent proper noun mentions in the same sentence; NA¨IVENA¨IVE NNP: as for COREF NNP, but instead of using a full coreference system and identifying proper noun mentions, we use a na¨ıvena¨ıve proper noun coreference process; and NOCOREF: the verbatim query and the fill must be named in the same sentence.</p><p>As dependency paths are often a key fea- ture for extracting relations, we apply further syntactic filters based on dependency paths be- tween NEs and mentions in sentences. Where we use dependencies, we use the Stanford col- lapsed and propagated representation ( <ref type="bibr" target="#b9">de Marneffe and Manning, 2008</ref>), e.g. in Alice is an em- ployee of Bob and Charlie the collapsed and prop- agated dependency path between Alice and Charlie is →nsubj→employee←prep of←.</p><p>Syntactic filters roughly capture the complex- ity of the syntactic configuration between query and filler: LENGTH ≤ N requires that the query and fill are separated by a dependency path of at most N arcs, e.g. the above dependency path is two arcs; VERB requires a verb to be present in the dependency path between the query and fill men- tions or names; and NON-UNIQUE requires the de- pendency path between the query and fill to occur more than once in a corpus, modelling a hard con- straint on bootstrapping and other learning pro- cesses that require a shared dependency context between training and test examples.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.2">Bootstrapping reachability</head><p>In addition to the upper bound set by these explicit hard constraints, we want to reflect constraints that are implicitly applied by an extraction process- are there fills that are never learnable given a set of features and a set of training data? We extend our evaluation to include a training process in a semi- supervised setting. We treat this as a bootstrap- ping task <ref type="bibr" target="#b0">(Agichtein and Gravano, 2000</ref>): given training pairs of NEs in text (each pair effectively a query entity and a candidate slot fill, or vice- versa), extract the context of each pair, and find other pairs in the corpus that share that context. A pair is reachable, and hence learnable, if it can be found by iterating this process. We continue to evaluate maximum recall and do not apply thresh- olding or ranking that would typically be utilised in a bootstrapping process. We simply output all Jim Senn (PER) Center for Global Business (ORG)</p><formula xml:id="formula_0">Herb Gibson (PER) OSHA (ORG)</formula><p>Leslie Walker (PER) Massachusetts Correctional Legal Services (ORG) per:employee_of &lt;-prep_of&lt;-director&lt;-appos&lt;- &lt;-prep_for&lt;-director&lt;-appos&lt;- possible candidates in order to measure recall loss: as with hard constraints applied by filters, if recall is lost it can never be recovered.</p><p>Given a set of training data, we identify if we can reach a test instance by bootstrapping, no mat- ter how remotely it is connected to training in- stances. We use lemmatised dependency paths as the context for this process as they are relatively precise and discriminative, compared to other fea- tures used for SF. In order to simplify process- ing, we construct a graph of all pairs and paths in the corpus first, and then bootstrap from train- ing instances over this graph. Bootstrapping more general features (e.g. bag-of-words) results in the graph becoming too large to process on our com- puting resources.</p><p>The graph is constructed as follows. Each ver- tex represents a typed pair of NEs that occur in the same sentence in the TAC KBP Source Data <ref type="bibr">(LDC, 2010)</ref>, collapsing vertices that have equal names and types into a single vertex. An edge exists between pairs that are connected at least once by the same dependency path. The constructed graph is equivalent to the EXACT MATCH + NOCOREF + NON-UNIQUE filter. Constructing a graph for COREF (which requires many more edges than NOCOREF) was impractical.</p><p>Initially, pairs in training data are labelled with their corresponding slots (see <ref type="figure" target="#fig_1">Figure 2)</ref>. In each bootstrap iteration, the labels of each vertex are added to its neighbouring vertices. There is no fil- tering or competition between labels on a vertex, they are all added. We analyse performance after each iteration, evaluating by mapping the labelled graph back to the equivalent SF queries. This en- ables us to determine what fills are recoverable from the bootstrapping process.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5">Evaluation</head><p>We evaluate our filters on the TAC KBP English Slot Filling 2011 corpus, queries and task spec- ification. As we aim to determine recall upper bounds and recall loss, we use only the documents D from the TAC KBP Source Data <ref type="bibr">(LDC, 2010)</ref> that are known to contain at least one correct slot fill in the TAC KBP 2011 English Slot Filling As- sessment Results (LDC, 2011).</p><p>We restrict the assessment results and the eval- uation process to all slot types that are filled by name content types as opposed to value or string. We also do not evaluate the per:alt- ernate names or org:alternate names slots, as extraction of fills for these slots typically falls outside the RE task: while X also known as Y or similar may appear in text, X and Y are typically mentioned independently across documents.</p><p>There are 100 TAC11 queries, 50 PER and 50 ORG. There are 535 fills in our reduced evalua- tion, 1,171 correct responses over these fills: 56% of the original evaluation slots. The distribution of fills per slot is listed in <ref type="table">Table 1</ref>  <ref type="bibr" target="#b22">(Pink et al., 2013</ref>), motivated by efficiency reasons, as the full CoreNLP requires parsing and a more complex model. The rules do not require deep processing and can run quickly over large volumes of text. All NEs from a doc- ument are matched by processing in decreasing length order. Two names are marked coreferent where, ignoring titles and case: they match ex- actly; they have a matching final word; they have a matching initial word; or one is an acronym of the other. If multiple conditions are matched, the earliest (the most strict match) is used.</p><p>The NON-UNIQUE filter requires that a depen- dency path occurs more than once between NEs in the full TAC KBP Source Data <ref type="bibr">(LDC, 2010)</ref>, comprised of 1.8M documents and 318M NE pairs. There are 38.6M distinct lemmatised dependency paths, 5M of which occur more than once.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6">Results</head><p>We now analyse where the filters lose recall. Re- sults for non-syntactic filters are listed in <ref type="table" target="#tab_4">Table 2</ref>. <ref type="figure">Figure 3</ref> illustrates our main pipeline which con- tains filters that would typically be implemented.</p><p>NP n-grams We choose all n-grams of NPs (from the CoreNLP constituency parser) to be our highest recall filter, and so our highest baseline has 3% recall loss. We identify the reasons for loss at this filter. There are four errors due to the fill not existing verbatim in text, e.g. Pinellas and Pasco counties does not contain Pinellas County verbatim. Four errors occur where an NP is not correctly identified, which occurs in two differ- ent cases: where there is genuine error or where the sentence being parsed is actually a list or other semi-structured data as opposed to an actual sen- tence. four errors are where a correct answer has not been annotated as correct, we refer to this as ANNOTATION error below, and one case where an incorrect response has been annotated as correct.</p><p>While 97% recall is an excellent starting point, 53M candidates is a huge, likely intractable search space for any downstream process. Hence NER is commonly used as the starting point for SF.</p><p>NEs Most errors here are due to NER errors, and these errors result in nearly a 10% recall loss. 25 errors are caused where no token in the fill has been tagged as part of a NE (NO NER); and 13 where some tokens were missed (NER BOUNDS). There are two additional cases of ANNOTATION due to determiners not being included in an NE, where they perhaps should have also been anno- tated. Hence, in agreement with previous analy- ses, NER error has a large impact on SF.</p><p>On this data set we have 10% recall loss that most SF or RE approaches would never be able to extract. However, it is still fairly unconstrained and a high recall bound in comparison to the fol- lowing filters. Recall errors could be substan- tially reduced if SF approaches were to take into consideration all NEs in documents as a set of candidates, and take a more document-based ap- proach to RE as opposed to sentence-based. While there has been some work in extracting relations across sentences without coreference <ref type="bibr" target="#b28">(Swampillai and Stevenson, 2011</ref>), RE across sentence bound- aries is effectively limited to coreference chains between sentences. Currently whole document extraction is not a research focus for SF, and the implementation of whole document techniques throughout SF pipelines would likely be beneficial.  <ref type="figure">Figure 3</ref>: Results for NP N-GRAMS + NES + TYPES, followed by sentence filters with a range of corefer- ence configurations. Grey fill and % indicates recall after each filter, and the number in the arrow is the size of the result set passed to the next filter or to the downstream process.  Coref This filter is the starting point for many recent SF approaches: we consider entities that are either named or mentioned in the same sentence. <ref type="table">Table 3</ref> shows that coreference is the largest cat- egory of recall error created by the COREF filter. NN COREF, NNP COREF and PRP COREF indicate failure to resolve common noun, proper noun and pronoun coreference. The remainder of the errors are cases where mentions of the fills do not occur in the same sen- tence. ROLE INF indicates that an individual's role is mentioned, e.g. Gene Roberts, the executive editor, where The Inquirer is mentioned in a previous sen- tence. LOC INF where additional location knowl- edge is required: a French company is headquar- tered in France. The search space has been sub- stantially reduced, by a further 55% to 0.1% of the original space. However, the recall upper bound has dropped to 80% of all fills.</p><p>Coref NNP and naive NNP While coreference is important for high recall, more difficult coref- erence cases (common noun and pronoun coref- erence) may generate a large number of spurious cases. Using COREF NNP as the sentence filter loses 2% recall, to an upper bound of 78%, for a 12% reduction in the search space. However, using a full coreference system generates may more candidates than using simple NNP corefer- ence. NA¨IVENA¨IVE NNP has an upper bound of 76%. This is only 4% lower recall than COREF, but for a 41% reduction in search space. In addi- tion, CoreNLP coreference is much more expen- sive than our na¨ıvena¨ıve approach as it requires parsing.</p><p>No coref Errors for NOCOREF are listed in Ta- ble 3. INF indicates that inference or more sophis- ticated analysis is required to find the fill, such as correctly identifying the relation between entities <ref type="table" target="#tab_4">826   Experiment NN COREF NNP COREF PRP COREF ROLE INF LOC INF INF NO NER ANNOTATION   COREF   9  6  13  4  3  0  8  1   NOCOREF   16  52  20  4  3  2  14  3   Table 3</ref>: Error types for COREF and NOCOREF. referred to in an interview. NOCOREF results in a recall upper bound of 64%. While this gives us a small search space, we are now losing a substan- tial proportion of the correct fills.</p><p>Precision-recall curves for the dependency path filters are given in Figures 4, 5 and 6. We choose to report precision for simplicity, and note that the downstream search space is the inverse of preci- sion multiplied by the number of correct fills. Dots from low recall to high recall indicate maximum dependency path length from n = 1 to n = 7. De- pendency paths of length 7 give maximum recall in our experiments. Results for the addition of the NON-UNIQUE constraint are given in <ref type="table" target="#tab_4">Table 2</ref>.</p><p>Use of coreference While critical for recall, use of coreference generates a large number of candi- dates and presents a key trade-off for SF, as indi- cated by <ref type="figure">Figure 4</ref>. At maximum dependency path length, coreference gives 16% greater recall at a cost of 1.1% precision, roughly half the precision of no coreference.</p><p>Higher precision indicates that fewer candidates are generated. Fewer candidates allows for SF ap- proaches to be scaled to larger amounts of data, and enables techniques that take advantage of re- dundancy or clustering to be used. Hence the higher precision no coreference approach may al- low for more precise learning methods to be used, which may provide better results overall than an approach using coreference.</p><p>Short dependency paths In all of our filter con- figurations, a short dependency path length is suf- ficient for extracting the majority of slot fills for that particular configuration. Improving precision of fills found on short dependency paths may be a more effective and scalable approach to improving F-score rather than focusing on long paths.</p><p>In <ref type="figure">Figure 5</ref> we consider NOCOREF. Limiting the dependency path length to three loses 11% recall, but gains 0.7% precision. While this loss of re- call is high, the reduction in unique dependency paths is substantial. For maximum path length three there are 10,732 paths (1,551 unique); for all paths there are 17,394 paths (2,863 unique).</p><p>Verb <ref type="figure">Figure 6</ref> shows the VERB filters has less impact or recall or precision than some other de- pendency filters. For COREF with all paths, adding the VERB filter loses 6% recall for a 0.1% gain in precision. Some slots not included in this anal- ysis, such as per:title, tend to be described by shorter paths that often do not include verbs. These slots are also frequent in the TAC11 dataset.</p><p>Non-unique The frequency of a dependency path may be a critical feature for learning, as paths that occur only once will not been seen by a boot- strapping process or may not be considered by other machine learning approaches. Applying the NON-UNIQUE filter <ref type="table" target="#tab_4">(Table 2)</ref> has a large effect on recall: COREF loses 15% recall for a 41% reduc- tion in the size of the search space; NOCOREF loses 15% recall for a 44% reduction in search space. To recover this recall, the strictness of this filter could be relaxed by further generalising de- pendency paths or using a different similarity met- ric to direct match of paths. However, this is the upper bound for approaches which consider only exact dependency paths as a feature.</p><p>Bootstrapping A small amount of training data quickly finds slot fills via bootstrapping. One it- eration has a recall of 24%, with 7,665 candidates generated. Two to four iterations have recall of 37%-39% (maximum recall), with 31,702-37,797 candidates. The recall upper bound for these con- figurations is 43%-more training data will allow for better precision, but will only minimally im- prove recall in this setup. We note that limit- ing bootstrap to one or two iterations is ideal for the best trade-off between recall and search space. However, closer analysis of discriminative paths is required for a full SF system.</p><p>Note that even when bootstrapping through ev- ery dependency path in the corpus, there is an up- per bound on recall of 39%. Even if we used the test data as additional training data the recall would still be limited to 43%. This demonstrates that systems need distributional features, depen- dency tree kernels or other similarity comparison as opposed to exact feature matching if depen- dency paths are to be a useful feature for SF.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="7">Discussion</head><p>We present an analysis of SF recall bounds given hard constraints applied by standard system com- ponents. Pipeline error is common across all NLP tasks. Our analysis suggests that high-precision na¨ıvena¨ıve tools, e.g. na¨ıvena¨ıve coreference, can lead to state-of-the-art performance. However, the SF task is not strictly an exhaus- tive evaluation for each query, as the evaluation data is comprised of the time-limited human anno- tation plus aggregated system output only. There may be fills that are missed in the evaluation re- sults but are correct and returned by our high recall filters-affecting our reported precisions.</p><p>We manually evaluate a small sample of the queries, the first five person and the first five organization queries, to identify missed fills in the COREF output (2,903 of 49,170 total fills, or 5.9%). For these fills, there were 29 fills in the as- sessment data. Of these fills, 21 are returned by COREF, however there are two correct fills found by COREF that are not in the assessment data. One of these two errors would be identified with cor- rect coreference, and the other requires complex long range inference. These additional correct fills that are identified will not have a large impact on the absolute precision, as there are two of 2,903 more fills. However, the relative difference in true positives, 21 to 23, results in some uncertainty in results when comparing them relatively.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="8">Conclusion</head><p>Recent TAC KBP Slot Filling results have shown that state-of-the-art systems are substantially lim- ited by low recall. In this work, we perform a maximum recall analysis of slot filling, providing a comprehensive analysis of recall error created in the document retrieval and candidate generation stages. We focus on recall error in candidate gen- eration as a performance limitation, as candidates that are lost in the pipeline cannot be recovered by downstream processes.</p><p>We find ∼10% of recall is ignored by most slot filling systems due to NER error, and while state- of-the-art coreference provides a substantial recall gain over no coreference, 8% of recall is still lost when queries and fills occur in different sentences. Using NE type constraints is very effective, reduc- ing recall by only 2% for a search space reduc- tion of 81%. Without coreference, a further 16% of fills are lost, but 12% of this recall can be re- gained using efficient na¨ıvena¨ıve name matching rules, while still reducing the search space by 41%, mak- ing such an approach possibly preferable over full coreference. We confirm that coreference and ac- curate NER are critical to high recall slot filling.</p><p>We find that using maximum recall bootstrap- ping, 39% of test slots fills are reachable from the TAC09 and TAC10 training data, limited by an up- per bound on non-unique paths of 43%.</p><p>In the future, we intend to assess how specific slots are affected by recall and search space trade- off, and perform evaluation over all slot types: names, values and strings. In addition, we in- tend to expand the bootstrapping experiments with variations over the training data. This work highlights NER, coreference and typ- ing as the areas that have the most impact on slot filling recall, enabling researchers to focus on problems that will most improve performance.</p></div><figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_0"><head>Figure 1 :</head><label>1</label><figDesc>Figure 1: Candidate filters within the standard SF pipeline. Arrows indicate a sequence of filters.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_1"><head>Figure 2 :</head><label>2</label><figDesc>Figure 2: Bootstrapping. The rightmost vertex is labelled with per:employee of after two iterations.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_2"><head>Figure 5 :Figure 6 :</head><label>56</label><figDesc>Figure 4: Effect of COREF.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_1" validated="false"><head></head><label></label><figDesc>. The number of fills per query ranges from 0 (one query has no name fills) to 71, with a median of 17. D is comprised of 1,351 documents. The number of documents per query ranges from 0 to 63, with a median of 15.5. We use TAC 2009 and 2010 results and an- notations as training data for bootstrapping, with 4,647 relevant training examples. We evaluate ignoring case and without requir- ing a specific source document: nocase and anydoc in SF evaluation. Note that each slot fill is an equivalence class of responses: e.g. for org:founded by the correct fills Clifford S. As- ness and Clifford Asness are equivalent. Consis- tent with SF evaluation, we identify at what con- straint an entire equivalence class no longer has any member proposed as a fill. We process documents with Stanford CoreNLP: tokenisation, POS tagging (Toutanova et al., 2003), NER (Finkel et al., 2005), parsing (Klein and Manning, 2003), and coreference resolution (Lee et al., 2011), and these annotations form the relevant components of our filters. Where we use dependency paths, we lemmatise tokens on thepath to increase generality and recall in further analysis. For example, for Alice employs Bob we extract the path ←nsubj←employ→dobj→. The COREF NNP filter uses CoreNLP corefer- ence, limited to mentions which are headed by NNPs. For NA¨IVENA¨IVE NNP we use a na¨ıvena¨ıve rule-based coreference process</figDesc><table>slot 
+
+# 
+org:top members,employees 118 
+per:employee of 
+71 
+per:member of 
+47 
+org:subsidiaries 
+32 
+org:parents 
+24 
+per:origin 
+23 
+org:country of headquarters 
+22 
+per:countries of residence 
+20 
+org:city of headquarters 
+19 
+org:shareholders 
+18 
+
+slot 
+# 
+per:cities of residence 
+17 
+per:children 
+17 
+org:stateorprovince of headquarters 17 
+per:schools attended 
+16 
+per:stateorprovinces of residence 
+11 
+org:member of 
+11 
+per:spouse 
+8 
+org:members 
+8 
+org:founded by 
+7 
+per:siblings 
+6 
+
+slot 
+# 
+per:other family 
+6 
+per:city of birth 
+6 
+per:parents 
+3 
+per:country of birth 
+3 
+org:political,religious affiliation 2 
+per:stateorprovince of birth 
+1 
+per:country of death 
+1 
+per:city of death 
+1 
+
+Table 1: Number of fills for slots in the evaluation. 
+
+</table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_4" validated="false"><head>Table 2 :</head><label>2</label><figDesc></figDesc><table>Results on D given sets of filters config-
+urations. The ellipses indicate the previous line. 
+
+Exact match Requiring that the query name is 
+exactly matched (EXACT MATCH) loses a further 
+2% recall. Effectively this is the recall error cre-
+ated by the IR component of SF. Five error cases 
+occur when an alias is required, e.g. Quds Force 
+for IRGC-QF; Chris Bentley for Christopher Bentley. 
+Eight errors occur where the query term is a refer-
+ence to an entity but not its name, all pertaining to 
+the query GMAC's Residential Capital LLC. 
+
+Types All errors created by the TYPES filter are 
+due to incorrect NER types on mentions proposed 
+by CoreNLP. We do not aggregate the NE type over 
+the coreference chain. Applying this filter cuts 
+down the search space substantially, with minimal 
+loss to recall. Adding TYPES results in a recall loss 
+of 2%, but cuts down the search space by 80%. 
+
+</table></figure>
+
+			<note place="foot" n="1"> We note that question answering techniques have been used directly by SF systems (Byrne and Dunnion, 2011) but RE techniques are the primary method for answer extraction.</note>
+		</body>
+		<back>
+
+			<div type="acknowledgement">
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Acknowledgements</head><p>We would like to thank the anonymous review-ers for their useful feedback. This work was sup-ported by an Australian Postgraduate Award, the Capital Markets CRC Computable News project and Australian Research Council Discovery grant DP1097291.</p></div>
+			</div>
+
+			<div type="references">
+
+				<listBibl>
+
+<biblStruct xml:id="b0">
+	<analytic>
+		<title level="a" type="main">Snowball: Extracting Relations from Large Plain-text Collections</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Eugene</forename><surname>Agichtein</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Luis</forename><surname>Gravano</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Fifth ACM Conference on Digital Libraries</title>
+		<meeting>the Fifth ACM Conference on Digital Libraries<address><addrLine>San Antonio, Texas, USA</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2000" />
+			<biblScope unit="page" from="85" to="94" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b1">
+	<analytic>
+		<title level="a" type="main">Open Information Extraction from the Web</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Michele</forename><surname>Banko</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Michael</forename><forename type="middle">J</forename><surname>Cafarella</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Stephen</forename><surname>Soderland</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Matt</forename><surname>Broadhead</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Oren</forename><surname>Etzioni</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of IJCAI</title>
+		<meeting>IJCAI<address><addrLine>Hyderabad, India</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2007" />
+			<biblScope unit="page" from="2670" to="2676" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b2">
+	<analytic>
+		<title level="a" type="main">Extracting patterns and relations from the World Wide Web</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Sergey Brin</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 1998 International Workshop on the Web and Databases</title>
+		<meeting>the 1998 International Workshop on the Web and Databases<address><addrLine>Valencia, Spain</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="1998" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b3">
+	<analytic>
+		<title level="a" type="main">UCD IIRG at TAC</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Lorna</forename><surname>Byrne</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">John</forename><surname>Dunnion</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of TAC</title>
+		<meeting>TAC<address><addrLine>Gaithersburg, Maryland, USA</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2011" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b4">
+	<monogr>
+		<title/>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Andrew</forename><surname>Carlson</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Justin</forename><surname>Betteridge</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Bryan</forename><surname>Kisiel</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Burr</forename><surname>Settles</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Estevam</forename><forename type="middle">R</forename><surname>Hruschka</surname><genName>Jr</genName></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Tom</forename><forename type="middle">M</forename></persName>
+		</author>
+		<imprint/>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b5">
+	<analytic>
+		<title level="a" type="main">Toward an Architecture for NeverEnding Language Learning</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Mitchell</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of AAAI</title>
+		<meeting>AAAI<address><addrLine>Atlanta, Georgia, USA</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2010" />
+			<biblScope unit="page" from="1306" to="1313" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b6">
+	<monogr>
+		<title level="m" type="main">Linguistic Data Consortium</title>
+		<author>
+			<orgName type="collaboration">TAC KBP Source Data. LDC2010E12</orgName>
+		</author>
+		<imprint>
+			<date type="published" when="2010" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b7">
+	<monogr>
+		<title level="m" type="main">Linguistic Data Consortium</title>
+		<author>
+			<orgName type="collaboration">TAC KBP</orgName>
+		</author>
+		<imprint>
+			<date type="published" when="2011" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b8">
+	<monogr>
+		<title level="m" type="main">English Slot Filling Assessment Results</title>
+		<imprint/>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b9">
+	<analytic>
+		<title level="a" type="main">The Stanford Typed Dependencies Representation</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Marie-Catherine</forename><surname>De Marneffe</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Christopher</forename><forename type="middle">D</forename><surname>Manning</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Workshop on Cross-Framework and Cross-Domain Parser Evaluation</title>
+		<meeting>the Workshop on Cross-Framework and Cross-Domain Parser Evaluation<address><addrLine>Manchester, United Kingdom</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2008" />
+			<biblScope unit="page" from="1" to="8" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b10">
+	<analytic>
+		<title level="a" type="main">Identifying Relations for Open Information Extraction</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Anthony</forename><surname>Fader</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Stephen</forename><surname>Soderland</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Oren</forename><surname>Etzioni</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of EMNLP</title>
+		<meeting>EMNLP<address><addrLine>Edinburgh, United Kingdom</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2011" />
+			<biblScope unit="page" from="1535" to="1545" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b11">
+	<analytic>
+		<title level="a" type="main">Incorporating Non-local Information into Information Extraction Systems by Gibbs Sampling</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jenny</forename><forename type="middle">Rose</forename><surname>Finkel</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Trond</forename><surname>Grenager</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Christopher</forename><surname>Manning</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of ACL</title>
+		<meeting>ACL<address><addrLine>Ann Arbor, Michigan, USA</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2005" />
+			<biblScope unit="page" from="363" to="370" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b12">
+	<analytic>
+		<title level="a" type="main">Coreference for Learning to Extract Relations: Yes Virginia, Coreference Matters</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ryan</forename><surname>Gabbard</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Marjorie</forename><surname>Freedman</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ralph</forename><surname>Weischedel</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of ACL</title>
+		<meeting>ACL<address><addrLine>Portland, Oregon, USA</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2011" />
+			<biblScope unit="page" from="288" to="293" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b13">
+	<analytic>
+		<title level="a" type="main">Knowledge-based weak supervision for information extraction of overlapping relations</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Raphael</forename><surname>Hoffmann</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Congle</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Xiao</forename><surname>Ling</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Luke</forename><surname>Zettlemoyer</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Daniel</forename><forename type="middle">S</forename><surname>Weld</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of ACL-HLT</title>
+		<meeting>ACL-HLT<address><addrLine>Portland, Oregon, USA</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2011" />
+			<biblScope unit="page" from="541" to="550" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b14">
+	<analytic>
+		<title level="a" type="main">Knowledge Base Population: Successful Approaches and Challenges</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Heng</forename><surname>Ji</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ralph</forename><surname>Grishman</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of ACL-HLT</title>
+		<meeting>ACL-HLT<address><addrLine>Portland, Oregon</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2011" />
+			<biblScope unit="page" from="1148" to="1158" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b15">
+	<analytic>
+		<title level="a" type="main">Overview of the TAC2011 Knowledge Base Population Track</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Heng</forename><surname>Ji</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ralph</forename><surname>Grishman</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Hoa</forename><surname>Dang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of TAC</title>
+		<meeting>TAC<address><addrLine>Gaithersburg, Maryland, USA</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2011" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b16">
+	<analytic>
+		<title level="a" type="main">Accurate Unlexicalized Parsing</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Dan</forename><surname>Klein</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Christopher</forename><forename type="middle">D</forename><surname>Manning</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of ACL</title>
+		<meeting>ACL<address><addrLine>Sapporo, Japan</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2003" />
+			<biblScope unit="page" from="423" to="430" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b17">
+	<analytic>
+		<title level="a" type="main">Stanford&apos;s multi-pass sieve coreference resolution system at the CoNLL-2011 shared task</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Heeyoung</forename><surname>Lee</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yves</forename><surname>Peirsman</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Angel</forename><surname>Chang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Nathanael</forename><surname>Chambers</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Mihai</forename><surname>Surdeanu</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Dan</forename><surname>Jurafsky</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of CONLL: Shared Task</title>
+		<meeting>CONLL: Shared Task<address><addrLine>Portland, Oregan, USA</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2011" />
+			<biblScope unit="page" from="28" to="34" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b18">
+	<analytic>
+		<title level="a" type="main">Open language learning for information extraction</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Michael</forename><surname>Mausam</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Robert</forename><surname>Schmitz</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Stephen</forename><surname>Bart</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Oren</forename><surname>Soderland</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Etzioni</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of EMNLP-CONLL</title>
+		<meeting>EMNLP-CONLL<address><addrLine>Jeju Island, Korea</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2012" />
+			<biblScope unit="page" from="523" to="534" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b19">
+	<analytic>
+		<title level="a" type="main">Overview of the TAC 2009 Knowledge Base Population Track</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Paul</forename><surname>Mcnamee</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Hoa</forename><surname>Dang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of TAC</title>
+		<meeting>TAC<address><addrLine>Gaithersburg, Maryland, USA</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2009" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b20">
+	<analytic>
+		<title level="a" type="main">Challenges in the Knowledge Base Population Slot Filling Task</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Bonan</forename><surname>Min</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ralph</forename><surname>Grishman</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of LREC</title>
+		<meeting>LREC<address><addrLine>Turkey</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2012" />
+			<biblScope unit="page" from="1148" to="1158" />
+		</imprint>
+	</monogr>
+	<note>Istanbul</note>
+</biblStruct>
+
+<biblStruct xml:id="b21">
+	<analytic>
+		<title level="a" type="main">Distant supervision for relation extraction without labeled data</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Mike</forename><surname>Mintz</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Steven</forename><surname>Bills</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of ACLIJCNLP</title>
+		<meeting>ACLIJCNLP<address><addrLine>Singapore</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2009" />
+			<biblScope unit="page" from="1003" to="1011" />
+		</imprint>
+	</monogr>
+	<note>Rion Snow, and Dan Jurafsky</note>
+</biblStruct>
+
+<biblStruct xml:id="b22">
+	<analytic>
+		<title level="a" type="main">SYDNEY CMCRC at TAC 2013</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Glen</forename><surname>Pink</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Will</forename><surname>Radford</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Will</forename><surname>Cannings</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Andrew</forename><surname>Naoum</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Joel</forename><surname>Nothman</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Daniel</forename><surname>Tse</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">James</forename><forename type="middle">R</forename><surname>Curran</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of TAC</title>
+		<meeting>TAC<address><addrLine>Gaithersburg, Maryland, USA</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2013" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b23">
+	<analytic>
+		<title level="a" type="main">Relation Extraction with Matrix Factorization and Universal Schemas</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Sebastian</forename><surname>Riedel</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Limin</forename><surname>Yao</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Benjamin</forename><forename type="middle">M</forename><surname>Marlin</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Andrew</forename><surname>Mccallum</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of HLT-NAACL</title>
+		<meeting>HLT-NAACL<address><addrLine>Atlanta, Georgia, USA</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2013" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b24">
+	<analytic>
+		<title level="a" type="main">Effective Slot Filling Based on Shallow Distant Supervision Methods</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Benjamin</forename><surname>Roth</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Tassilo</forename><surname>Barth</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Michael</forename><surname>Wiegand</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Mittul</forename><surname>Singh</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Dietrich</forename><surname>Klakow</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of TAC</title>
+		<meeting>TAC<address><addrLine>Gaithersburg, Maryland, USA</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2013" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b25">
+	<analytic>
+		<title level="a" type="main">RelationFactory: A Fast, Modular and Effective System for Knowledge Base Population</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Benjamin</forename><surname>Roth</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Tassilo</forename><surname>Barth</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Grzegorz</forename><surname>Chrupała</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Martin</forename><surname>Gropp</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Dietrich</forename><surname>Klakow</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of EACL</title>
+		<meeting>EACL</meeting>
+		<imprint>
+			<date type="published" when="2014" />
+			<biblScope unit="page" from="89" to="92" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b26">
+	<analytic>
+		<title level="a" type="main">Multi-instance multi-label learning for relation extraction</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Mihai</forename><surname>Surdeanu</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Julie</forename><surname>Tibshirani</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ramesh</forename><surname>Nallapati</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Christopher</forename><forename type="middle">D</forename><surname>Manning</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of EMNLP-CONLL</title>
+		<meeting>EMNLP-CONLL<address><addrLine>Jeju Island, Korea</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2012" />
+			<biblScope unit="page" from="455" to="465" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b27">
+	<analytic>
+		<title level="a" type="main">Overview of the TAC2013 Knowledge Base Population Evaluation: English Slot Filling and Temporal Slot Filling</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Mihai</forename><surname>Surdeanu</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of TAC</title>
+		<meeting>TAC<address><addrLine>Gaithersburg, Maryland, USA</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2013" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b28">
+	<analytic>
+		<title level="a" type="main">Extracting Relations Within and Across Sentences</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kumutha</forename><surname>Swampillai</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Mark</forename><surname>Stevenson</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of RANLP</title>
+		<meeting>RANLP</meeting>
+		<imprint>
+			<publisher>Bulgaria</publisher>
+			<date type="published" when="2011" />
+			<biblScope unit="page" from="25" to="32" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b29">
+	<analytic>
+		<title level="a" type="main">Feature-rich Part-ofspeech Tagging with a Cyclic Dependency Network</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kristina</forename><surname>Toutanova</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Dan</forename><surname>Klein</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Christopher</forename><forename type="middle">D</forename><surname>Manning</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yoram</forename><surname>Singer</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of HLT-NAACL</title>
+		<meeting>HLT-NAACL<address><addrLine>Edmonton, Canada</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2003" />
+			<biblScope unit="page" from="173" to="180" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b30">
+	<analytic>
+		<title level="a" type="main">Harvesting Facts from Textual Web Sources by Constrained Label Propagation</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yafang</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Bin</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Lizhen</forename><surname>Qu</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Marc</forename><surname>Spaniol</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Gerhard</forename><surname>Weikum</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of CIKM</title>
+		<meeting>CIKM<address><addrLine>Glasgow, Scotland, UK</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2011" />
+			<biblScope unit="page" from="837" to="846" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b31">
+	<analytic>
+		<title level="a" type="main">Unsupervised Relation Discovery with Sense Disambiguation</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Limin</forename><surname>Yao</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Sebastian</forename><surname>Riedel</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Andrew</forename><surname>Mccallum</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of ACL</title>
+		<meeting>ACL<address><addrLine>Jeju Island, Korea</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2012" />
+			<biblScope unit="page" from="712" to="720" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b32">
+	<analytic>
+		<title level="a" type="main">Towards Accurate Distant Supervision for Relational Facts Extraction</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Xingxing</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jianwen</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Junyu</forename><surname>Zeng</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jun</forename><surname>Yan</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Zheng</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Zhifang</forename><surname>Sui</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of ACL-HLT</title>
+		<meeting>ACL-HLT<address><addrLine>Jeju Island, Korea</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2013" />
+			<biblScope unit="page" from="810" to="815" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b33">
+	<analytic>
+		<title level="a" type="main">Exploring Various Knowledge in Relation Extraction</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Guodong</forename><surname>Zhou</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jian</forename><surname>Su</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jie</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Min</forename><surname>Zhang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of ACL</title>
+		<meeting>ACL<address><addrLine>Ann Arbor, Michigan, USA</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2005" />
+			<biblScope unit="page" from="427" to="434" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+				</listBibl>
+			</div>
+		</back>
+	</text>
+</TEI>

@@ -1,0 +1,874 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<TEI xmlns="http://www.tei-c.org/ns/1.0" 
+xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+xsi:schemaLocation="http://www.tei-c.org/ns/1.0 /home/ana/installs/grobid/grobid-0.5.1/grobid-home/schemas/xsd/Grobid.xsd"
+ xmlns:xlink="http://www.w3.org/1999/xlink">
+	<teiHeader xml:lang="en">
+		<encodingDesc>
+			<appInfo>
+				<application version="0.5.1-SNAPSHOT" ident="GROBID" when="2019-04-18T13:08+0000">
+					<ref target="https://github.com/kermitt2/grobid">GROBID - A machine learning software for extracting information from scholarly documents</ref>
+				</application>
+			</appInfo>
+		</encodingDesc>
+		<fileDesc>
+			<titleStmt>
+				<title level="a" type="main">Labeling Gaps Between Words: Recognizing Overlapping Mentions with Mention Separators</title>
+			</titleStmt>
+			<publicationStmt>
+				<publisher>Association for Computational Linguistics</publisher>
+				<availability status="unknown"><p>Copyright Association for Computational Linguistics</p>
+				</availability>
+				<date>September 7-11, 2017. 2017</date>
+			</publicationStmt>
+			<sourceDesc>
+				<biblStruct>
+					<analytic>
+						<author role="corresp">
+							<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Aldrian</forename><forename type="middle">Obaja</forename><surname>Muis</surname></persName>
+							<email>{aldrian_muis,luwei}@sutd.edu.sg</email>
+							<affiliation key="aff0">
+								<orgName type="institution">Singapore University of Technology and Design</orgName>
+							</affiliation>
+						</author>
+						<author>
+							<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Wei</forename><surname>Lu</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="institution">Singapore University of Technology and Design</orgName>
+							</affiliation>
+						</author>
+						<title level="a" type="main">Labeling Gaps Between Words: Recognizing Overlapping Mentions with Mention Separators</title>
+					</analytic>
+					<monogr>
+						<title level="m">Natural Language Processing</title>
+						<meeting> <address><addrLine>Copenhagen, Denmark</addrLine></address>
+						</meeting>
+						<imprint>
+							<publisher>Association for Computational Linguistics</publisher>
+							<biblScope unit="page" from="2608" to="2618"/>
+							<date type="published">September 7-11, 2017. 2017</date>
+						</imprint>
+					</monogr>
+				</biblStruct>
+			</sourceDesc>
+		</fileDesc>
+		<profileDesc>
+			<abstract>
+				<p>In this paper, we propose a new model that is capable of recognizing overlapping mentions. We introduce a novel notion of mention separators that can be effectively used to capture how mentions overlap with one another. On top of a novel multigraph representation that we introduce, we show that efficient and exact inference can still be performed. We present some theoretical analysis on the differences between our model and a recently proposed model for recognizing overlapping mentions, and discuss the possible implications of the differences. Through extensive empirical analysis on standard datasets, we demonstrate the effectiveness of our approach.</p>
+			</abstract>
+		</profileDesc>
+	</teiHeader>
+	<text xml:lang="en">
+		<body>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="1">Introduction</head><p>Named entity recognition (NER), or in general the task of recognizing entity mentions 1 in a text, has been a research topic for many years <ref type="bibr" target="#b16">(McCallum and Li, 2003;</ref><ref type="bibr" target="#b21">Nadeau and Sekine, 2007;</ref><ref type="bibr" target="#b23">Ratinov and Roth, 2009;</ref><ref type="bibr" target="#b11">Ling and Weld, 2012)</ref>. However, as noted by <ref type="bibr" target="#b3">Finkel and Manning (2009)</ref>, many previous works ignored overlapping men- tions, although they are quite common. <ref type="figure" target="#fig_1">Figure  1</ref> illustrates some examples of overlapping men- tions adapted from existing datasets. For example, the location mention Pennsylvania appears within the mention of type organization a Pennsylvania radio station. In practice, overlapping mentions have been found in many existing datasets across different domains ( <ref type="bibr" target="#b2">Doddington et al., 2004;</ref><ref type="bibr">Suominen et al., 2013</ref>). Developing algorithms that can effectively and efficiently ex- tract overlapping mentions can be crucial for the At issue is the liability of a Pennsylvania  performance of many downstream tasks such as relation extraction <ref type="bibr" target="#b18">(Mintz et al., 2009;</ref><ref type="bibr" target="#b5">Gupta and Andrassy, 2016)</ref>, event extraction ( <ref type="bibr" target="#b14">Lu and Roth, 2012;</ref><ref type="bibr" target="#b10">Li et al., 2013;</ref><ref type="bibr" target="#b22">Nguyen et al., 2016)</ref>, coref- erence resolution <ref type="bibr" target="#b1">(Chang et al., 2013;</ref>, question answering ( <ref type="bibr" target="#b19">Mollá et al., 2007)</ref>, and equation parsing ( <ref type="bibr" target="#b24">Roy et al., 2016)</ref>.</p><p>Overlapping mention recognition is non-trivial, as existing methods that model mention recogni- tion as a sequence prediction problem -e.g., us- ing linear-chain conditional random fields (CRF) ( <ref type="bibr" target="#b9">Lafferty et al., 2001</ref>) -have difficulties in han- dling overlapping mentions ( <ref type="bibr" target="#b0">Alex et al., 2007)</ref>. <ref type="bibr" target="#b3">Finkel and Manning (2009)</ref> proposed to use a tree- based constituency parsing model to handle nested entities. <ref type="bibr">2</ref> Due to the tree structured representa- tion used, the resulting algorithm has a time com- plexity that is cubic in n for its inference proce- dure with n being the number of words in the sentence. This effectively makes the algorithm less scalable compared to models such as linear- chain CRF where the complexity is linear in n. <ref type="bibr" target="#b15">Lu and Roth (2015)</ref> proposed an alternative ap- proach which shows a time complexity that is lin- ear in n. Their method differs from the conven-tional sequence labeling approach, in that a hyper- graph representation was used in their model. In this work, we make an observation that there exists an efficient model for recognizing overlap- ping mentions while still regarding the problem as a sequence labeling problem. As opposed to the conventional approach where we assign labels to natural language words, in our new approach we assign labels to the gaps between words, mod- eling the mention boundaries instead of model- ing the role of words in forming mentions. Fur- thermore, while these gap-based labels can be modeled using conventional graphical models like linear-chain CRFs, we also propose a novel multi- graph representation to utilize such gap-based la- bels efficiently. To the best of our knowledge, this is the first structured prediction model utilizing a gap-based annotation scheme to predict overlap- ping structures.</p><p>In this paper we make the following major con- tributions:</p><p>• We propose a set of mention separators which can be collectively used to define all possible mention combinations together with a novel multigraph representation, on top of which efficient and exact inference can be performed.</p><p>• Theoretically, we show that unlike a recently proposed state-of-the-art model that we com- pare against, our model does not exhibit the spurious structures issue in its learning pro- cedure. On the other hand, it still maintains the same inference time complexity as the previous model. • Empirically, we show that our model is able to achieve higher F 1 -scores compared to pre- vious models in multiple datasets. We believe our proposed approach and the novel representations can be applied in other research problems involving predicting overlapping struc- tures, and we hope this work can inspire further research along such a direction.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2">Related Work</head><p>NER or mention detection is normally regarded as a chunking task similar to base noun phrase chunking ( <ref type="bibr" target="#b8">Kudo and Matsumoto, 2001;</ref><ref type="bibr" target="#b26">Shen and Sarkar, 2005)</ref>, and hence the entities or mentions are usually represented in a similar way, using BILOU (Beginning, Inside, Last, Outside, Unit- length mention) or the simpler BIO annotation scheme <ref type="bibr" target="#b23">(Ratinov and Roth, 2009</ref>). As a chunking task, it is commonly modeled using sequence la- beling models, such as the linear-chain CRF <ref type="bibr" target="#b9">(Lafferty et al., 2001</ref>), which has time complexity O(nT 2 ) with n being the number of words in the sentence and T the number of mention types.</p><p>On the task of recognizing mentions that may overlap with one another, one of the earliest works that attempted to regard this task as a structured prediction task was by <ref type="bibr" target="#b17">McDonald et al. (2005)</ref>. They represented entity mentions as top-k predic- tions with positive score from a structured multil- abel classification model. Their model has a time complexity of O(n 3 T ). <ref type="bibr" target="#b0">Alex et al. (2007)</ref> proposed a cascading ap- proach using multiple linear-chain CRF models, each handling a subset of all the possible mention types, where the models which come later in the pipeline have access to the predictions of the mod- els earlier in the pipeline. This results in the time complexity of roughly O(nT ) depending on how the pipeline was designed. <ref type="bibr" target="#b3">Finkel and Manning (2009)</ref> later proposed a constituency parser to handle nested entities by converting each sentence into a tree, and each mention is represented as one of the subtrees. Their model has the standard time complexity for a constituency parser with binary grammar: O(n 3 |G|), where |G| is the size of the grammar, which in this case is proportional to T in the best case, and T 3 in the worst case. They showed that their model outperforms a semi-CRF baseline ( <ref type="bibr" target="#b25">Sarawagi and Cohen, 2004</ref>) in terms of F 1 -score.</p><p>Recently, <ref type="bibr" target="#b15">Lu and Roth (2015)</ref> proposed a hypergraph-based model called mention hyper- graph that is able to handle overlapping mentions with a linear time complexity O(nT ). The model was shown to achieve competitive results com- pared to previous models on standard datasets. As we will be making extensive comparisons against this previous state-of-the-art model, we will de- scribe this approach in the next section.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3">Mention Hypergraph</head><p>In the mention hypergraph model of <ref type="bibr" target="#b15">Lu and Roth (2015)</ref>, nodes and directed hyperedges 3 are used together to encode mentions and their combina- tions. The following five types of nodes are used at the position k of a sentence:</p><p>• A k denotes all mentions starting at k or later, • E k denotes all mentions starting at k, • T k t denotes all mentions (type t) starting at k, • I k t denotes all mentions (type t) covering k, • X denotes the end of a mention (leaf node). Different hyperedges connecting these nodes are used to represent how the semantics of a node is composed from those of its child nodes.</p><p>Specifically, each A k is connected to A k+1 and E k through the hyperedge A k → (A k+1 , E k ), de- noting the fact that the set of mentions that start at k or later is the union of the set of mentions that start at k + 1 or later and the set of men- tions that start at k. Each E k is connected to</p><formula xml:id="formula_0">T k 1 , T k 2 , . . . , T k</formula><p>T through a hyperedge, denoting the fact that the mentions that start at k must be one of the T types. Each T k t can be connected to I k t through an edge (denoting there is a mention of type t that starts at the k-th token) or to X through another edge (denoting there are no mentions of type t that start at the k-th token). Each I k t can be connected to I k+1 t (denoting there is a mention continuing to the next token), to X (denoting there is a mention ending here), or to both (with a single hyperedge, denoting the two cases above occur at the same time, a case of overlapping mentions).</p><p>In this mention hypergraph, each possible men- tion is represented as a path from a T-node to the X-node through a sequence of I-nodes (each de- noting the words which are part of the mention), and the set of all mentions present in a given sen- tence forms a hyperpath from the root node A 0 to the leaf node X. <ref type="figure" target="#fig_2">Figure 2</ref> shows how the men- tion hypergraph represents the two mentions in the phrase "the human TCF-1 protein", which are "TCF-1" and "human TCF-1 protein". The edges T 1 − I 1 and T 2 − I 2 respectively denote that the words "human" and "TCF-1" are the beginning of a mention, and the edges from the I-nodes to the X-node define the end of the mentions. We remark that any mention hypergraph which encodes the mentions in a sentence, like this example, forms a hyperpath from the root node A 0 to the leaf node X, where a hyperpath is defined as a subgraph of a hypergraph with the property that each node has exactly one outgoing (hyper)edge except the last node, and the root node is connected to all nodes.</p><p>We refer the readers to <ref type="bibr" target="#b15">Lu and Roth (2015)</ref> for more details on the model.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.1">Spurious Structures</head><p>Mention hypergraph is trained by maximizing the likelihood of the training data, similar to training a linear-chain CRF. Recall that the likelihood of the training data can be calculated by taking the score of the correct structures and divide it by the normalization term, which is the total score of all possible structures. <ref type="bibr" target="#b15">Lu and Roth (2015)</ref> used a dynamic programming algorithm to calculate the normalization term. However, the normalization term calculated this way contains additional terms, which we call the spurious structures. This leads to the following: Theorem 3.1. Let Z be the normalization term as calculated using forward-backward algorithm on mention hypergraph, and let Z be the true nor- malization term. Then we have Z &gt; Z.</p><p>Due to space limitation, we provide a proof sketch here. We refer the reader to the supplemen- tal material for the details on spurious structures.</p><p>Proof sketch. First note that Z includes all possi- ble hyperpaths, so Z ≥ Z. Next, due to the pres- ence of a node with multiple parents (e.g., node I 2 in <ref type="figure" target="#fig_2">Figure 2</ref> (left)), Z includes the score of that node multiple times with different children, which results in a subgraph which is not a hyperpath. For example, Z includes the score 4 of the structure shown in <ref type="figure" target="#fig_2">Figure 2</ref> (right), where node I 2 has two children, and so it is not a hyperpath. Since Z is the sum of all hyperpaths, this structure is not part of Z, but it is included in Z , so Z &gt; Z.</p><p>Later we will see how this issue may affect the model's performance in predicting mentions.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4">Mention Separators</head><p>We now describe the mention separators which can be used to encode overlapping mentions in a sentence. Traditional encoding schemes that asso- ciate labels to words, such as BIO scheme, attach the semantics of the labels to the role of the words in forming mentions. For example, the label B in BIO scheme denotes the role of the word it is at- tached to, which is the first word of a mention. This BIO scheme cannot be used directly to en- code overlapping mentions, since they only en- code whether a word is part of a mention and pos- sibly their position in the mention. We notice that by encoding the mention boundaries instead, we can represent overlapping mentions. This can be accomplished by assigning what we call mention separators to the gaps between two words.</p><formula xml:id="formula_1">w w w [w w] w w] [w X S E ES w -w w -[w w]-w w]-[w C CS EC ECS</formula><p>At each gap, we consider eight possible types of mention separators based on the combination of the following three cases:</p><p>1. A mention is starting at the next word (S) 2. A mention is ending at the previous word (E) 3. A mention is continuing to the next word (C) Therefore, for each token, the possible combina- tions of cases are as follows: ECS, EC, CS, C, ES, E, S, and X, where X means none of the three cases applies. For example, the separator EC means there is a mention ending at the current token and another mention (overlapping) continuing to the next token. Note that there might be more than just two mentions involved here. <ref type="figure" target="#fig_3">Figure 3</ref> shows an illustration of these separators, and <ref type="figure">Figure 4a</ref> shows how they can be used to encode the exam- ple in <ref type="figure" target="#fig_2">Figure 2</ref>. Now we prove that the following theorem holds:</p><p>Theorem 4.1. For any combination of mentions in a sentence, there is exactly one sequence of men- tion separators that encodes it.</p><p>Proof. Consider the gap between any two adja- cent words in the sentence. The combination of mentions present in the sentence uniquely defines what mention separator is associated with this gap. If there is a mention starting at the next word, then case S applies. Similarly, if there is a men- tion ending at the previous word, case E applies. And finally, if there is a mention covering both words, case C applies. By combining the cases, we get the corresponding mention separator for this gap. In this way, each gap in the sentence has a unique mention separator, which in turn defines the unique sequence of mention separators.</p><p>Note that the converse of Theorem 4.1 is not true, as multiple mention combinations might en- code to the same sequence of mention separators. Now we describe two ways the mention separa- tors can be used to encode overlapping mentions.</p><p>STATE-based The first is by directly using these mention separators to replace the standard mention encoding scheme (e.g., BIO encoding) in standard linear-chain CRF. So we assign each mention separator to a state in a linear-chain CRF model. Since this model encodes the gap between words and also the gap before the first word and after the last word, a sentence with n words is modeled by a sequence of n + 1 mention sepa- rators. Since each sequence of mention separa- tors can only encode mentions of the same type, we support multiple types by using multiple se- quences, one for each mention type.</p><p>EDGE-based Now, we propose a novel way of utilizing these mention separators. Since the mention separators encode the gaps between words, it is more intuitive to assign the mention separators to the edges of a graphical model, as opposed to the states, as described in the previous paragraph. To do this, we need to define the states of the models in such a way that all possible se- quences of mention separators are accounted for. For this purpose we assign two states to each word at position k:</p><p>• I k : word at k is part of a mention, • O k : word at k is not part of any mentions. Next we define the edges between the states ac- cording to the eight possible mention separators between adjacent words. More specifically, each mention separator is mapped to an edge connect- ing one state in the current position to another state in the next position depending on whether the sep- arator defines current and next word as part of an mention, so in total we have eight edges between two positions in the model. Some mention sep- arators may connect the same two states, for ex- ample, the ES and C separator both connect I k to I k+1 since in both cases the current word and the next word are part of a mention. In those cases, we simply define multiple edges between the pair of states. The resulting graph, where there can be multiple edges between two states, is known in graph theory literature as a multigraph 5 . <ref type="figure">Figure 4</ref>: Our mention separator model with the EDGE representation encoding two phrases. <ref type="figure">Figure 5</ref>: The full graph in EDGE-based model.</p><formula xml:id="formula_2">R O 0 O 1 O 2 O 3 I 0 I 1 I 2 I 3 X the human TCF-1 protein X [ -[ ]- ] X S CS EC E R O 0 O 1 O 2 O 3 I 0 I 1 I 2 I 3 X the IL2 regulatory region X [ ]- - ] X S EC C E (a) (b)</formula><formula xml:id="formula_3">R O 0 O 1 O 2 O 3 I 0 I 1 I 2 I 3 X X S X S</formula><note type="other">E ES C CS EC ECS X S E ES C CS EC ECS X S E ES C CS EC ECS X E</note><p>The first I-and O-nodes in the sentence are con- nected to the root node, and the last I-and O- nodes are connected to the unique leaf node X. <ref type="figure">Figure 4a</ref> shows how the EDGE-based model encodes the two mentions "human TCF-1 protein" and "TCF-1" in the phrase "the human TCF-1 pro- tein", and <ref type="figure">Figure 4b</ref> shows the encoding of the phrase found in the second example in <ref type="figure" target="#fig_1">Figure 1</ref>. Note how each edge maps to a distinct mention separator visualized in the text in red. <ref type="figure">Figure 5</ref> shows the full graph of our EDGE- based model, in a format similar to the trellis graph for linear-chain CRFs in <ref type="figure" target="#fig_4">Figure 6</ref>. We remark that the EDGE-based model can be seen as an exten- sion of linear-chain CRFs, with additional seman- tics attached to the edges. Also note that this graph encodes only one mention type. To support multi- ple types, similar to the STATE-based approach we can use multiple chains, one for each type.</p><p>Note that the edges in our EDGE-based repre- sentations are directed, with nodes on the left serv- ing as parents to the nodes on the right. Such di- rected edges will be helpful when performing in- ference, to be discussed in the next section.</p><p>We remark that the way we utilize multigraph in the EDGE-based model can also be applied to the discontiguous mention model (DMM) by <ref type="bibr" target="#b20">Muis and Lu (2016)</ref>. In fact, it can be shown that the number of canonical structures as calculated in the supplementary material of DMM paper matches the number of possible paths in our multigraph- based model, as the transition matrix in DMM corresponds to the number of possible transitions from one position to the next position, which is regarded as a lattice where edges are associated with labels. encoded in our multigraph-based model as edges between adjacent positions. See the supplemental material for more discussion on this.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.1">Training, Inference and Decoding</head><p>We follow the log-linear approach to define our model, using regularized log-likelihood in training data D as our objective function, as follows:</p><formula xml:id="formula_4">LD(w) = (x,y)∈D e∈y w · f (e) − log Zw(x) −λ||w|| 2<label>(1)</label></formula><p>Here, (x, y) is a training instance consisting of the sentence x and the correct output y, w is the weight vector, f (e) is the feature vector de- fined over the edge e, Z w (x) is the normalization term, and λ is the l 2 -regularization parameter. The objective function is then optimized until conver- gence using L-BFGS ( <ref type="bibr" target="#b12">Liu and Nocedal, 1989)</ref>.</p><p>We note the mention hypergraph model also de- fines the objective in a similar manner. For both of our models, the inference is done based on a generalized inside-outside algorithm. Both mod- els involve directed structures, on top of which the inference algorithm first calculates the inside score for each node from the leaf node to root, and then the outside score from the root to the leaf node, in very much the same way as how infer- ence is done in a classic graphical model. Specifi- cally, for our EDGE-based model, the inside scores are calculated using a bottom-up (right-to-left) dy- namic programming procedure, where we calcu- late the inside score at each node by summing up the scores associated with each path connecting the current node to one of its child nodes. Each <ref type="bibr">ACE-2004</ref>  such path score is defined as the product of the in- side score stored in that child node and the score defined over the edge connecting them. The com- putation of the outside scores can be done in an analogous manner from left to right. It can be ver- ified that the time complexity of this inference pro- cedure for our model is O(nT ), which is the same as the mention hypergraph model. Note that, how- ever, both of our models do not have the spurious structures issue, as for any path in these models there are no nodes with multiple incoming edges. During decoding, we perform MAP inference using a max-product procedure that is analogous to how the Viterbi decoding algorithm is used in conventional tree-structured graphical models to find out the highest-scoring subgraph, from which we extract mentions through the process that we call the interpretation process. As noted in previ- ous section, there could be multiple mention com- binations that correspond to the same sequence of mention separators, which presents an ambiguity during the interpretation process. For these am- biguous cases, we implemented the same inter- pretation process as that was done in the mention hypergraph model, which is by resolving ambigu- ous structures as nested mentions. For other cases, there is exactly one way to interpret the structure. For example, in <ref type="figure">Figure 4b</ref>, although there is only one gap marked as starting position (S) and two gaps marked as ending position (EC and E), the interpretation is clear that the two mentions here are "IL2" and "IL2 regulatory region".</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>ACE-2005 GENIA Train (%) Dev (%) Test (%) Train (%) Dev (%) Test (%) Train (%) Dev (%) Test (%) # sentence 6,799 829 879 7,336 958 1,047 14,836 1,855 1,855 w/ o.l. 2,685 (39) 293 (35) 373 (42) 2,686 (37) 341 (36) 330 (32) 3,199 (22) 366 (20) 448 (24) # mentions 22,207 2,511 3,031 24,687 3,217 3,027 46,473 5,014 5,600 o.l. 10,170 (46) 1,091 (43) 1,418 (47) 9,937 (40) 1,192 (37) 1,184 (39) 8,337 (18) 915 (18) 1,217 (22) o.l. (s) 5,431 (24) 624 (25) 780 (26) 5,044 (20) 600 (19) 638 (21) 4,613 (10) 479 (10) 634 (11)</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5">Experiments</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.1">Datasets</head><p>To assess our model's capability in recognizing overlapping mentions and make comparisons with previous models, we looked at datasets where overlapping mentions are explicitly annotated. Following the previous work ( <ref type="bibr" target="#b15">Lu and Roth, 2015)</ref>, our main results are based on the standard <ref type="bibr">ACE2004</ref><ref type="bibr">and ACE-2005</ref><ref type="bibr">datasets (Doddington et al., 2004</ref>). We also additionally looked at the GE- NIA dataset ( , which was used in the previous works <ref type="bibr" target="#b3">(Finkel and Manning, 2009;</ref><ref type="bibr" target="#b15">Lu and Roth, 2015)</ref>.</p><p>For ACE datasets, we used the same splits as used in our previous work ( <ref type="bibr" target="#b15">Lu and Roth, 2015)</ref>, published on our website 6 . For GENIA, we used GENIAcorpus3.02p 7 that comes with POS tags for each word ( <ref type="bibr" target="#b30">Tateisi and Tsujii, 2004</ref>). Follow- ing previous works <ref type="bibr" target="#b3">(Finkel and Manning, 2009;</ref><ref type="bibr" target="#b15">Lu and Roth, 2015)</ref>, we first split the last 10% of the data as the test set. Next we used the first 80% and the subsequent 10% for training and develop- ment, respectively. We made the same modifica- tions as described by <ref type="bibr" target="#b3">Finkel and Manning (2009)</ref> by collapsing all DNA, RNA, and protein subtypes into DNA, RNA, and protein, keeping cell line and cell type, and removing other mention types, re- sulting in 5 mention types. The statistics of each dataset are shown in <ref type="table" target="#tab_0">Table 1</ref>. We can see overlap- ping mentions are common in such datasets.</p><p>For more details on the dataset preprocessing, please refer to the supplemental material.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.2">Features</head><p>For models that fall under the edge-based paradigm (mention hypergraph and our model), we define features over the edges in the models. Features are defined as string concatenations of in- put features -information extracted over the in- puts (such as current word and POS tags of sur- rounding words) and output features -structured information extracted over the output structure. We carefully defined the input and output features in a way that allows us to make use of the iden- tical set of features for both our mention sepa- rator model and the baseline mention hypergraph model, in order to make a proper comparison. We also followed <ref type="bibr" target="#b15">Lu and Roth (2015)</ref> to add the addi- tional mention penalty feature for our model and all baseline approaches so that we are able to tune F 1 -scores on the development set. Roughly speak- <ref type="bibr">ACE-2004</ref><ref type="bibr">ACE-2005</ref><ref type="bibr">ACE-2004</ref><ref type="bibr">ACE-2005</ref></p><formula xml:id="formula_5">) (F1 optimized) P R F1 w/s P R F1 w/s P R F1 P R F1 LCRF (single)</formula><p>70.6 41.7 52.5 40.2 66.0 45.0 53.5 41.2 66.2 47.7 55.4 62.1 48.9 54.7 LCRF (multiple) 78.6 44.5 56.9 119.4 76.2 46.8 58.0 118.7 69.9 55.1 61.6 66.5 55.3 60.4 <ref type="bibr" target="#b15">Lu and Roth (2015)</ref> 81.2 45.9 58.6 472.5 78.6 46.9 58.7 516.6 72.5 55.7 63.0 66.3 57.3 61.5 This work <ref type="bibr">(STATE)</ref> 78.0 51.2 61.8 50.5 75.3 51.7 61.3 52.1 71.2 58.0 64.0 67.6 58.4 62.7 This work (EDGE) 79.5 51.1 62.2 251.5 75.5 51.7 61.3 253.3 72.7 58.0 64.5 69.1 58.1 63.1 ing, the weight of this feature controls how confi- dent the model should be in predicting more men- tions. In other words, this is a way to balance the precision and recall of the model. When defining the input features for both our model and the mention hypergraph model, we im- plemented the features used by previous works in each dataset based on the descriptions in their pa- pers: we followed <ref type="bibr" target="#b15">Lu and Roth (2015)</ref> for the fea- tures used in ACE datasets, and Finkel and Man- ning (2009) for features used in GENIA dataset. In general, they include surrounding words, sur- rounding POS tags, bag-of-words, Brown clusters (for GENIA only), and orthographic features. See the supplemental material for more details.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.3">Experimental Setup</head><p>We trained each model in the training set, then tuned the l 2 -regularization parameter based on the development set. For GENIA experiments, we also tuned the number of Brown clusters. Fol- lowing <ref type="bibr" target="#b15">Lu and Roth (2015)</ref>, we also used each development set to tune the mention penalty to optimize the F 1 -score and report the scores on the corresponding test sets separately. Similar to <ref type="bibr" target="#b3">Finkel and Manning (2009)</ref>, as another base- line model we also trained a standard linear-chain CRF using the BILOU scheme. Although this model does not support overlapping mentions, it gives us a baseline to see the extent to which our model's ability to recognize overlapping mentions can help the overall performance. There is also a simple extension 8 of this linear-chain CRF model that can support overlapping mentions of differ- ent types by considering each type separately us- ing multiple chains, one for each type. We call this multiple-chain variant LCRF (multiple) and the earlier standard approach LCRF (single). In all models, we also implement the mention penalty feature, adapted accordingly so that increasing the feature weight will increase the number of men- tions predicted by the model. See supplemental material for more details.</p><p>We implemented all models using Java, and also made additional comparisons on running time by running them under the same machine. In addi- tion, we also analyzed the convergence rate for dif- ferent models. <ref type="table" target="#tab_1">Table 2</ref> shows the results on the ACE datasets, and these are our main results. Following pre- vious works <ref type="bibr" target="#b3">(Finkel and Manning, 2009;</ref><ref type="bibr" target="#b15">Lu and Roth, 2015)</ref>, we report standard precision (P ), recall (R) and F 1 -score percentage scores. The highest results (F 1 -score) and those results that are not significantly different from the highest results are highlighted in bold (based on bootstrap resam- pling test <ref type="bibr" target="#b7">(Koehn, 2004)</ref>, where p &gt; 0.01). For ACE datasets, we make comparisons with the two versions of the linear-chain CRF baseline: LCRF (single) which does not support overlapping men- tions at all and LCRF (multiple) which does not support overlapping mentions of the same type, as well as our implementation of the mention hyper- graph baseline ( <ref type="bibr" target="#b15">Lu and Roth, 2015)</ref>.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6">Results and Discussion</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6.1">Results on ACE</head><p>From such empirical results we can see that our proposed model using mention separators consis- tently yields significantly better results (p &lt; 0.01) than the mention hypergraph model across these two datasets, under two setups (whether to op- timize F 1 -score or not). Specifically, when the state-based approach is used (STATE), our ap- proach is able to obtain a much higher recall, re- sulting in improved F 1 -score. Empirically, we found this approach was also faster than the LCRF baseline approach in terms of the number of words processed each second (w/s) during decoding, which is expected, since STATE uses fewer num-  <ref type="table">Table 3</ref>: Results on GENIA.</p><p>ber of tags. <ref type="bibr">9</ref> The edge-based approach (EDGE) using our proposed multigraph representation is able to achieve a significant speedup in compar- ison with the state-based approach. Although this model is still about 50% slower than the mention hypergraph model 10 , but it yielded a significantly higher F 1 -score (up to 3.6 points higher on ACE- 2004 before optimizing F 1 -score). These results largely confirm the effectiveness of our proposed mention separator model and the usefulness of the multigraph representation for learning the model. And as expected, the LCRF baselines yields rel- atively lower results compared to the other mod- els, since it cannot predict overlapping mentions. 11 However, such results give us some idea on how much performance increase we can gain by prop- erly recognizing overlapping mentions by looking at the results of LCRF (single), which in this case can be up to 9.7 points in F 1 -score in ACE-2004. We can also see the gain from recognizing over- lapping mentions of the same type by looking at the results of LCRF (multiple), which can be up to 5.3 points in F 1 -score in ACE-2004. <ref type="table">Table 3</ref> shows the results of running the models with F 1 -score tuning on GENIA dataset. All mod- els include Brown clustering features learned from PubMed abstracts. Besides the mention hyper- graph baseline, we also make comparisons with the system of <ref type="bibr" target="#b3">Finkel and Manning (2009)</ref> that can also support overlapping mentions.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6.2">Results on GENIA</head><p>We see that the mention hypergraph model matches the performance of the constituency parser-based model of <ref type="bibr" target="#b3">Finkel and Manning (2009)</ref>, while our models based on mention sepa- rators yield significantly higher scores (p &lt; 0.05) than all other baselines (except LCRF (multiple), which we will discuss shortly). There are two ob- <ref type="bibr">9</ref> There are eight tags in STATE and nine in LCRF. <ref type="bibr">10</ref> Though both models have the same time complexity, they differ by a constant factor. 11 LCRF (single) cannot predict any overlapping mentions, while LCRF (multiple) cannot predict overlapping mentions of the same type. % <ref type="bibr" target="#b15">Lu and Roth (2015)</ref> This work (EDGE)  servations worth mentioning: (1) the absolute dif- ference of F 1 -scores of our models and the base- line models in GENIA is much smaller compared to that in ACE datasets, and (2) the LCRF (mul- tiple) model in GENIA dataset can achieve higher scores compared to other more complex baseline models, although LCRF (multiple) does not sup- port overlapping mentions of the same type. We suspect that these two observations are due to the small proportion of overlapping mentions in GE- NIA (18%, as compared to &gt;40% in ACE datasets, see <ref type="table" target="#tab_0">Table 1</ref>). To investigate this, we conduct a few more sets of experiments.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6.3">Further Experiments</head><p>On different types of sentences: As these datasets consist of both overlapping and non- overlapping mentions, to further understand the model's effectiveness in recognizing overlapping mentions (and non-overlapping mentions), we per- formed some additional experiments on the men- tion hypergraph model and our model. <ref type="bibr">12</ref> Specifi- cally, we split the test data into two portions, one that consists of only sentences that contain over- lapping mentions (O) and those which do not (Ø).</p><p>The results are shown in <ref type="table" target="#tab_4">Table 4</ref>. We can see that in ACE datasets, our model achieves higher F 1 -scores compared to the men- tion hypergraph for both portions, but it achieves slightly lower results in GENIA dataset for the portion that contains overlapping mentions. We believe that our models learn parameters so as to obtain an optimal overall performance, and since the proportion of the overlapping mentions in GENIA is much smaller compared to that in ACE datasets, it learns to focus more on the non- overlapping mentions. This is supported by the fact that the difference of F 1 -score between the mention hypergraph model and our model in GE- NIA is larger compared to the difference in ACE   These results also lead to the interesting empir- ical finding that our model appears to be able to do well also on recognizing non-overlapping men- tions. This motivates us to conduct the next set of experiments.</p><p>On data without overlapping mentions: We also performed one additional set of experiments, on the standard CoNLL-2003 dataset <ref type="bibr" target="#b31">(Tjong Kim Sang and De Meulder, 2003)</ref>, which has no overlapping mentions.</p><p>The results (without optimizing F 1 -score) are shown in <ref type="table" target="#tab_6">Table 5</ref>. We see that our models based on mention separators outperform baseline mod- els such as the Illinois NER system where external resources are not used <ref type="bibr" target="#b23">(Ratinov and Roth, 2009)</ref>, and a linear-chain CRF model, although the linear- chain CRF baseline models some interactions be- tween distinct mention types and our models do not. Such results also suggest that modeling the interactions between distinct mention types may not be crucial to get a good performance in men- tion recognition. This is further corroborated by the result of LCRF (multiple), which is higher than the result of LCRF (single) by about 0.5 points.</p><p>When comparing our model against the mention hypergraph model, we note that our model con- sistently yields a higher recall. We speculate this is due to the fact that as our model does not ex- hibit the issue of spurious structures we discussed in Section 3.1, it is more confident in making its predictions.</p><p>On convergence: We also empirically analyzed the convergence properties of the two models. Empirically, as illustrated in <ref type="figure">Figure 7</ref> which shows how the objective improves when the training pro- gresses on ACE-2004, GENIA, and CoNLL-2003, we found that our EDGE-based model requires sig- nificantly less iterations to converge than the men- tion hypergraph on the former two datasets which contain overlapping mentions. We believe it is possible that this slower convergence is due to the spurious structures issue in mention hypergraphs, which causes the objective function to be more complex to optimize. However, some further anal- yses on the convergence issue and the impact of different ways of exploiting features (over differ- ent hyperedges) for the hypergraph-based models are needed.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="7">Conclusion and Future Work</head><p>We proposed the novel mention separators for mention recognition where mentions may overlap with one another. We also proposed two ways these mention separators can be utilized to en- code overlapping mentions, where one of them utilizes a novel multigraph-based representation. We showed that by utilizing mention separators, we can get better recognition results compared to previous models, and by utilizing the multigraph representation, we can maintain a good inference speed, albeit still slower than the mention hyper- graph model. We also performed theoretical anal- ysis on the model and showed that our model does not present the spurious structures issue associ- ated with a previous state-of-the-art model, while still keeping the same inference time complexity.</p><p>Future work includes further investigations on how to apply the multigraph approach to other structured prediction tasks, as well as applications of the proposed model in other related NLP tasks that involve the prediction of overlapping struc- tures, such as equation parsing <ref type="bibr" target="#b24">(Roy et al., 2016)</ref>.</p><p>The code used in this paper is available at http://statnlp.org/research/ie/.</p></div><figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_0"><head></head><label></label><figDesc>ORG under the federal wiretap statute. CAT expression directed by the IL2 :: DNA regulatory region ::::::::::::::: DNA or by a multimer of the NF-AT :::: PROT -binding site ::::::::::::: DNA was lower.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_1"><head>Figure 1 :</head><label>1</label><figDesc>Figure 1: Examples of overlapping mentions.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_2"><head>Figure 2 :</head><label>2</label><figDesc>Figure 2: (left) An example mention hypergraph encoding two overlapping mentions. (right) An example of spurious structure.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_3"><head>Figure 3 :</head><label>3</label><figDesc>Figure 3: An illustration of the 8 mention separators. The opening bracket ([), closing bracket (]), and dash (-) respectively refer to S, E, and C.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_4"><head>Figure 6 :</head><label>6</label><figDesc>Figure 6: A linear-chain CRF model encoding a mention in BIO scheme.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_0" validated="false"><head>Table 1 :</head><label>1</label><figDesc></figDesc><table>Statistics of the datasets used in the experiments. w/ o.l.: sentences containing overlapping 
+mentions; o.l.: overlapping mentions; o.l. (s): overlapping mentions with the same type. 
+
+</table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_1" validated="false"><head>Table 2 :</head><label>2</label><figDesc></figDesc><table>Main results (on ACE). 
+
+</table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_4" validated="false"><head>Table 4 :</head><label>4</label><figDesc></figDesc><table>Results on different types of sentences. 
+
+</table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_6" validated="false"><head>Table 5 :</head><label>5</label><figDesc></figDesc><table>Results on CoNLL-2003 (without opti-
+mizing F 1 -score). 
+
+datasets (1.1 points in GENIA, compared to 0.9 
+and 0.6 points in ACE). 
+
+</table></figure>
+
+			<note place="foot" n="1"> As noted in (Florian et al., 2004), mention recognition is more general than NER, where a mention can be either named, nominal, or pronominal.</note>
+
+			<note place="foot" n="2"> We note that nested entities are only one of the two kinds of overlapping entities, the other kind being crossing entities, where two entities overlap but neither is contained in another. However, it is extremely rare, and there is only one occurrence of crossing entity in our datasets.</note>
+
+			<note place="foot" n="3"> For brevity, in this paper we may also use edge to refer to hyperedge in some discussions.</note>
+
+			<note place="foot" n="4"> Note that structure scores exp(w · f ) are always positive.</note>
+
+			<note place="foot" n="5"> In this work, the multigraph representation can also be</note>
+
+			<note place="foot" n="6"> http://statnlp.org/research/ie#mention-hypergraph 7 http://geniaproject.org/genia-corpus/pos-annotation</note>
+
+			<note place="foot" n="8"> We also tried a more elaborate encoding scheme based on BIO scheme Tang et al. (2013), originally designed for discontiguous mentions, but is supposed to be able to also recognize overlapping mentions of the same type. However, the result is very similar to LCRF (multiple), perhaps due to the invalid structures issue noted by Muis and Lu (2016).</note>
+
+			<note place="foot" n="12"> We also performed this on other models. Due to space constraint, we do not include the results here. See the supplemental material for more details.</note>
+		</body>
+		<back>
+
+			<div type="acknowledgement">
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Acknowledgments</head><p>We thank all the reviewers for their useful feed-back to the earlier draft of this paper. This work is supported by MOE Tier 1 grant SUTDT12015008.</p></div>
+			</div>
+
+			<div type="references">
+
+				<listBibl>
+
+<biblStruct xml:id="b0">
+	<analytic>
+		<title level="a" type="main">Recognising Nested Named Entities in Biomedical Text</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Beatrice</forename><surname>Alex</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Barry</forename><surname>Haddow</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Claire</forename><surname>Grover</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. of the Workshop on BioNLP</title>
+		<meeting>of the Workshop on BioNLP</meeting>
+		<imprint>
+			<date type="published" when="2007-06" />
+			<biblScope unit="page" from="65" to="72" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b1">
+	<analytic>
+		<title level="a" type="main">A Constrained Latent Variable Model for Coreference Resolution</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kai-Wei</forename><surname>Chang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Rajhans</forename><surname>Samdani</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Dan</forename><surname>Roth</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. of EMNLP</title>
+		<meeting>of EMNLP</meeting>
+		<imprint>
+			<date type="published" when="2013" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b2">
+	<monogr>
+				<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">George</forename><surname>Doddington</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Alexis</forename><surname>Mitchell</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Mark</forename><surname>Przybocki</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Lance</forename><surname>Ramshaw</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Stephanie</forename><surname>Strassel</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ralph</forename><surname>Weischedel</surname></persName>
+		</author>
+		<title level="m">The Automatic Content Extraction (ACE) Program-Tasks, Data, and Evaluation. LREC</title>
+		<imprint>
+			<date type="published" when="2004" />
+			<biblScope unit="volume">2</biblScope>
+			<biblScope unit="page" from="837" to="840" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b3">
+	<analytic>
+		<title level="a" type="main">Nested Named Entity Recognition</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jenny</forename><forename type="middle">Rose</forename><surname>Finkel</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Christopher</forename><forename type="middle">D</forename><surname>Manning</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. of EMNLP</title>
+		<meeting>of EMNLP</meeting>
+		<imprint>
+			<date type="published" when="2009" />
+			<biblScope unit="page">141</biblScope>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b4">
+	<analytic>
+		<title level="a" type="main">A Statistical Model for Multilingual Entity Detection and Tracking</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Radu</forename><surname>Florian</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Hany</forename><surname>Hassan</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Abraham</forename><surname>Ittycheriah</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Hongyan</forename><surname>Jing</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Nanda</forename><surname>Kambhatla</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Xiaoqiang</forename><surname>Luo</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">H</forename><surname>Nicolov</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Salim</forename><surname>Roukos</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. of HLT-NAACL</title>
+		<meeting>of HLT-NAACL</meeting>
+		<imprint>
+			<date type="published" when="2004" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b5">
+	<analytic>
+		<title level="a" type="main">Table Filling Multi-Task Recurrent Neural Network for Joint Entity and Relation Extraction</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Pankaj</forename><surname>Gupta</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Bernt</forename><surname>Andrassy</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. of COLING</title>
+		<meeting>of COLING</meeting>
+		<imprint>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b6">
+	<analytic>
+		<title level="a" type="main">GENIA Corpus-A Semantically Annotated Corpus for Bio-textmining</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jin-Dong</forename><surname>Kim</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Tomoko</forename><surname>Ohta</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yuka</forename><surname>Tateisi</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jun&amp;apos;ichi</forename><surname>Tsujii</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Bioinformatics</title>
+		<imprint>
+			<biblScope unit="volume">19</biblScope>
+			<biblScope unit="issue">1</biblScope>
+			<biblScope unit="page" from="180" to="182" />
+			<date type="published" when="2003" />
+		</imprint>
+	</monogr>
+	<note>Suppl</note>
+</biblStruct>
+
+<biblStruct xml:id="b7">
+	<analytic>
+		<title level="a" type="main">Statistical significance tests for machine translation evaluation</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Philipp</forename><surname>Koehn</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. of EMNLP</title>
+		<meeting>of EMNLP</meeting>
+		<imprint>
+			<date type="published" when="2004" />
+			<biblScope unit="page" from="388" to="395" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b8">
+	<analytic>
+		<title level="a" type="main">Association for Computational Linguistics</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Taku</forename><surname>Kudo</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yuji</forename><surname>Matsumoto</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. of NAACL</title>
+		<meeting>of NAACL<address><addrLine>Morristown, NJ, USA</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2001" />
+			<biblScope unit="volume">816</biblScope>
+			<biblScope unit="page" from="1" to="8" />
+		</imprint>
+	</monogr>
+	<note>Chunking with Support Vector Machines</note>
+</biblStruct>
+
+<biblStruct xml:id="b9">
+	<analytic>
+		<title level="a" type="main">Conditional Random Fields: Probabilistic Models for Segmenting and Labeling Sequence Data</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">John</forename><surname>Lafferty</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Andrew</forename><surname>Mccallum</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Fernando</forename><surname>Pereira</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. of ICML</title>
+		<meeting>of ICML</meeting>
+		<imprint>
+			<date type="published" when="2001" />
+			<biblScope unit="page" from="282" to="289" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b10">
+	<analytic>
+		<title level="a" type="main">Joint Event Extraction via Structured Prediction with Global Features</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Qi</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ji</forename><surname>Heng</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Liang</forename><surname>Huang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. of ACL</title>
+		<meeting>of ACL</meeting>
+		<imprint>
+			<date type="published" when="2013" />
+			<biblScope unit="page" from="73" to="82" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b11">
+	<analytic>
+		<title level="a" type="main">Fine-Grained Entity Recognition</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Xiao</forename><surname>Ling</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Daniel S Weld</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. of AAAI</title>
+		<meeting>of AAAI</meeting>
+		<imprint>
+			<date type="published" when="2012" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b12">
+	<analytic>
+		<title level="a" type="main">On the Limited Memory BFGS Method for Large Scale Optimization</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">C</forename><surname>Dong</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jorge</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Nocedal</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Mathematical Programming</title>
+		<imprint>
+			<biblScope unit="page" from="503" to="528" />
+			<date type="published" when="1989" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b13">
+	<analytic>
+		<title level="a" type="main">Joint Inference for Event Coreference Resolution</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jing</forename><surname>Lu</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Deepak</forename><surname>Venugopal</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. of COLING</title>
+		<meeting>of COLING</meeting>
+		<imprint>
+			<date type="published" when="2016" />
+			<biblScope unit="page" from="3264" to="3275" />
+		</imprint>
+	</monogr>
+	<note>Vibhav Gogate, and Vincent Ng</note>
+</biblStruct>
+
+<biblStruct xml:id="b14">
+	<analytic>
+		<title level="a" type="main">Automatic event extraction with structured preference modeling</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Wei</forename><surname>Lu</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Dan</forename><surname>Roth</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 50th Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 50th Annual Meeting of the Association for Computational Linguistics<address><addrLine>Jeju Island, Korea</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2012" />
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="835" to="844" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b15">
+	<analytic>
+		<title level="a" type="main">Joint Mention Extraction and Classification with Mention Hypergraphs</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Wei</forename><surname>Lu</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Dan</forename><surname>Roth</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. of EMNLP</title>
+		<meeting>of EMNLP</meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2015" />
+			<biblScope unit="page" from="857" to="867" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b16">
+	<analytic>
+		<title level="a" type="main">Early Results for Named Entity Recognition with Conditional Random Fields, Feature Induction and Web-enhanced Lexicons</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Andrew</forename><surname>Mccallum</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Wei</forename><surname>Li</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. of HLT-NAACL</title>
+		<meeting>of HLT-NAACL<address><addrLine>Morristown, NJ, USA</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2003" />
+			<biblScope unit="volume">4</biblScope>
+			<biblScope unit="page" from="188" to="191" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b17">
+	<analytic>
+		<title level="a" type="main">Flexible Text Segmentation with Structured Multilabel Classification</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ryan</forename><surname>Mcdonald</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Koby</forename><surname>Crammer</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Fernando</forename><surname>Pereira</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. of HLT-EMNLP, October</title>
+		<meeting>of HLT-EMNLP, October<address><addrLine>Morristown, NJ, USA</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2005" />
+			<biblScope unit="page" from="987" to="994" />
+		</imprint>
+	</monogr>
+	<note>Association for Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b18">
+	<analytic>
+		<title level="a" type="main">Distant Supervision for Relation Extraction without Labeled Data</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Mike</forename><surname>Mintz</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Steven</forename><surname>Bills</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. of ACLIJCNLP</title>
+		<meeting>of ACLIJCNLP</meeting>
+		<imprint>
+			<date type="published" when="2009" />
+			<biblScope unit="page" from="1003" to="1011" />
+		</imprint>
+	</monogr>
+	<note>Rion Snow, and Dan Jurafsky</note>
+</biblStruct>
+
+<biblStruct xml:id="b19">
+	<analytic>
+		<title level="a" type="main">Named Entity Recognition in Question Answering of Speech Data</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Diego</forename><surname>Mollá</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Menno</forename><surname>Van Zaanen</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Steve</forename><surname>Cassidy</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. of the Australasian Language Technology Workshop</title>
+		<meeting>of the Australasian Language Technology Workshop</meeting>
+		<imprint>
+			<date type="published" when="2007" />
+			<biblScope unit="page" from="57" to="65" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b20">
+	<analytic>
+		<title level="a" type="main">Learning to Recognize Discontiguous Entities</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Aldrian</forename><surname>Obaja Muis</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Wei</forename><surname>Lu</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. of EMNLP</title>
+		<meeting>of EMNLP<address><addrLine>Stroudsburg, PA, USA</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2016" />
+			<biblScope unit="page" from="75" to="84" />
+		</imprint>
+	</monogr>
+	<note>Association for Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b21">
+	<analytic>
+		<title level="a" type="main">A Survey of Named Entity Recognition and Classification</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">David</forename><surname>Nadeau</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Satoshi</forename><surname>Sekine</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Lingvisticae Investigationes</title>
+		<imprint>
+			<date type="published" when="2007" />
+			<biblScope unit="volume">30</biblScope>
+			<biblScope unit="page" from="3" to="26" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b22">
+	<analytic>
+		<title level="a" type="main">Joint Event Extraction via Recurrent Neural Networks</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kyunghyun</forename><surname>Thien Huu Nguyen</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ralph</forename><surname>Cho</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Grishman</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. of NAACL-HLT</title>
+		<meeting>of NAACL-HLT</meeting>
+		<imprint>
+			<date type="published" when="2016" />
+			<biblScope unit="page" from="300" to="309" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b23">
+	<analytic>
+		<title level="a" type="main">Design Challenges and Misconceptions in Named Entity Recognition</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Lev</forename><surname>Ratinov</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Dan</forename><surname>Roth</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. of CoNLL, page 147. Association for Computational Linguistics</title>
+		<meeting>of CoNLL, page 147. Association for Computational Linguistics</meeting>
+		<imprint>
+			<date type="published" when="2009" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b24">
+	<analytic>
+		<title level="a" type="main">Equation Parsing : Mapping Sentences to Grounded Equations</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Subhro</forename><surname>Roy</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Shyam</forename><surname>Upadhyay</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Dan</forename><surname>Roth</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Association for Computational Linguistics</title>
+		<meeting><address><addrLine>Stroudsburg, PA, USA</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2016" />
+			<biblScope unit="page" from="1088" to="1097" />
+		</imprint>
+	</monogr>
+	<note>Proc. of EMNLP</note>
+</biblStruct>
+
+<biblStruct xml:id="b25">
+	<analytic>
+		<title level="a" type="main">SemiMarkov Conditional Random Fields for Information Extraction</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Sunita</forename><surname>Sarawagi</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">William</forename><forename type="middle">W</forename><surname>Cohen</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. of NIPS</title>
+		<meeting>of NIPS</meeting>
+		<imprint>
+			<date type="published" when="2004" />
+			<biblScope unit="page" from="1185" to="1192" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b26">
+	<analytic>
+		<title level="a" type="main">Voting Between Multiple Data Representations for Text Chunking</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Hong</forename><surname>Shen</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Anoop</forename><surname>Sarkar</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Advances in Artificial Intelligence</title>
+		<meeting><address><addrLine>Berlin, Heidelberg</addrLine></address></meeting>
+		<imprint>
+			<publisher>Springer-Verlag</publisher>
+			<date type="published" when="2005" />
+			<biblScope unit="volume">3501</biblScope>
+			<biblScope unit="page" from="389" to="400" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b27">
+	<monogr>
+		<title/>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Hanna</forename><surname>Suominen</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Sanna</forename><surname>Salanterä</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Sumithra</forename><surname>Velupillai</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Wendy</forename><forename type="middle">W</forename><surname>Chapman</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Guergana</forename><surname>Savova</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Noemie</forename><surname>Elhadad</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Sameer</forename><surname>Pradhan</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Brett</forename><forename type="middle">R</forename><surname>South</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Danielle</forename><forename type="middle">L</forename><surname>Mowery</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">J</forename><forename type="middle">F</forename><surname>Gareth</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Johannes</forename><surname>Jones</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Leveling</surname></persName>
+		</author>
+		<imprint>
+			<pubPlace>Liadh Kelly, Lorraine Goeuriot, David</pubPlace>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b28">
+	<analytic>
+		<title level="a" type="main">Overview of the ShARe/CLEF eHealth Evaluation Lab</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Guido</forename><surname>Martinez</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Zuccon</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Information Access Evaluation: Multilinguality, Multimodality, and Visualization</title>
+		<editor>P. Forner</editor>
+		<meeting><address><addrLine>Berlin, Heidelberg</addrLine></address></meeting>
+		<imprint>
+			<publisher>SpringerVerlag</publisher>
+			<date type="published" when="2013" />
+			<biblScope unit="volume">8138</biblScope>
+			<biblScope unit="page" from="212" to="231" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b29">
+	<analytic>
+		<title level="a" type="main">Recognizing and Encoding Disorder Concepts in Clinical Text using Machine Learning and Vector Space</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Buzhou</forename><surname>Tang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yonghui</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Min</forename><surname>Jiang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Joshua</forename><forename type="middle">C</forename><surname>Denny</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Hua</forename><surname>Xu</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. of the ShARe/CLEF Evaluation Lab</title>
+		<meeting>of the ShARe/CLEF Evaluation Lab</meeting>
+		<imprint>
+			<date type="published" when="2013" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b30">
+	<analytic>
+		<title level="a" type="main">Part-of-Speech Annotation of Biology Research Abstracts</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yuka</forename><surname>Tateisi</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jun&amp;apos;ichi</forename><surname>Tsujii</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. of LREC</title>
+		<meeting>of LREC</meeting>
+		<imprint>
+			<date type="published" when="2004" />
+			<biblScope unit="page" from="1267" to="1270" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b31">
+	<analytic>
+		<title level="a" type="main">Introduction to the CoNLL-2003 Shared Task: Language-independent Named Entity Recognition</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Erik F Tjong Kim</forename><surname>Sang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Fien De</forename><surname>Meulder</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. of HLT-NAACL</title>
+		<meeting>of HLT-NAACL</meeting>
+		<imprint>
+			<date type="published" when="2003" />
+			<biblScope unit="page" from="142" to="147" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+				</listBibl>
+			</div>
+		</back>
+	</text>
+</TEI>

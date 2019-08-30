@@ -1,0 +1,807 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<TEI xmlns="http://www.tei-c.org/ns/1.0" 
+xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+xsi:schemaLocation="http://www.tei-c.org/ns/1.0 /home/ana/installs/grobid/grobid-0.5.1/grobid-home/schemas/xsd/Grobid.xsd"
+ xmlns:xlink="http://www.w3.org/1999/xlink">
+	<teiHeader xml:lang="en">
+		<encodingDesc>
+			<appInfo>
+				<application version="0.5.1-SNAPSHOT" ident="GROBID" when="2019-04-18T11:08+0000">
+					<ref target="https://github.com/kermitt2/grobid">GROBID - A machine learning software for extracting information from scholarly documents</ref>
+				</application>
+			</appInfo>
+		</encodingDesc>
+		<fileDesc>
+			<titleStmt>
+				<title level="a" type="main">Extreme Adaptation for Personalized Neural Machine Translation</title>
+			</titleStmt>
+			<publicationStmt>
+				<publisher/>
+				<availability status="unknown"><licence/></availability>
+				<date>July 15-20, 2018</date>
+			</publicationStmt>
+			<sourceDesc>
+				<biblStruct>
+					<analytic>
+						<author>
+							<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Paul</forename><surname>Michel</surname></persName>
+							<email>pmichel1@cs.cmu.edu</email>
+							<affiliation key="aff0">
+								<orgName type="institution" key="instit1">Language Technologies Institute Carnegie Mellon University</orgName>
+								<orgName type="institution" key="instit2">Language Technologies Institute Carnegie Mellon University</orgName>
+							</affiliation>
+						</author>
+						<author>
+							<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Graham</forename><surname>Neubig</surname></persName>
+							<email>gneubig@cs.cmu.edu</email>
+							<affiliation key="aff0">
+								<orgName type="institution" key="instit1">Language Technologies Institute Carnegie Mellon University</orgName>
+								<orgName type="institution" key="instit2">Language Technologies Institute Carnegie Mellon University</orgName>
+							</affiliation>
+						</author>
+						<title level="a" type="main">Extreme Adaptation for Personalized Neural Machine Translation</title>
+					</analytic>
+					<monogr>
+						<title level="m">Proceedings of the 56th Annual Meeting of the Association for Computational Linguistics (Short Papers)</title>
+						<meeting>the 56th Annual Meeting of the Association for Computational Linguistics (Short Papers) <address><addrLine>Melbourne, Australia</addrLine></address>
+						</meeting>
+						<imprint>
+							<biblScope unit="page" from="312" to="318"/>
+							<date type="published">July 15-20, 2018</date>
+						</imprint>
+					</monogr>
+					<note>312</note>
+				</biblStruct>
+			</sourceDesc>
+		</fileDesc>
+		<profileDesc>
+			<abstract>
+				<p>Every person speaks or writes their own flavor of their native language, influenced by a number of factors: the content they tend to talk about, their gender, their social status, or their geographical origin. When attempting to perform Machine Translation (MT), these variations have a significant effect on how the system should perform translation, but this is not captured well by standard one-size-fits-all models. In this paper, we propose a simple and parameter-efficient adaptation technique that only requires adapting the bias of the output softmax to each particular user of the MT system, either directly or through a factored approximation. Experiments on TED talks in three languages demonstrate improvements in translation accuracy, and better reflection of speaker traits in the target text.</p>
+			</abstract>
+		</profileDesc>
+	</teiHeader>
+	<text xml:lang="en">
+		<body>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="1">Introduction</head><p>The production of language varies depending on the speaker or author, be it to reflect personal traits (e.g. job, gender, role, dialect) or the top- ics that tend to be discussed (e.g. technology, law, religion). Current Neural Machine Translation (NMT) systems do not incorporate any explicit in- formation about the speaker, and this forces the model to learn these traits implicitly. This is a difficult and indirect way to capture inter-personal variations, and in some cases it is impossible with- out external context <ref type="table">(Table 1</ref>, <ref type="bibr" target="#b14">Mirkin et al. (2015)</ref>).</p><p>Recent work has incorporated side information about the author such as personality ( <ref type="bibr" target="#b14">Mirkin et al., 2015</ref>), gender <ref type="bibr" target="#b18">(Rabinovich et al., 2017)</ref> or polite- ness ( <ref type="bibr" target="#b20">Sennrich et al., 2016a</ref>), but these methods can only handle phenomena where there are ex- <ref type="bibr">Source</ref> Translation I went home <ref type="bibr">[Man]</ref>: Je suis rentrérentré`rentréà la maison <ref type="bibr">[Woman]</ref>: Je suis rentréè a la maison I do drug testing <ref type="bibr">[Doctor]</ref>: Je teste des médicaments <ref type="bibr">[Police]</ref>: Je dépiste des drogues <ref type="table">Table 1</ref>: Examples where speaker information in- fluences English-French translation.</p><p>plicit labels for the traits. Our work investigates how we can efficiently model speaker-related vari- ations to improve NMT models.</p><p>In particular, we are interested in improving our NMT system given few training examples for any particular speaker. We propose to approach this task as a domain adaptation problem with an ex- tremely large number of domains and little data for each domain, a setting where we may expect tradi- tional approaches to domain adaptation that adjust all model parameters to be sub-optimal ( §2). Our proposed solution involves modeling the speaker- specific variations as an additional bias vector in the softmax layer, where we either learn this bias directly, or through a factored model that treats each user as a mixture of a few prototypical bias vectors ( §3).</p><p>We construct a new dataset of Speaker Anno- tated TED talks (SATED, §4) to validate our ap- proach. Adaptation experiments ( §5) show that explicitly incorporating speaker information into the model improves translation quality and accu- racy with respect to speaker traits. <ref type="bibr">1</ref> </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2">Problem Formulation and Baselines</head><p>In the rest of this paper, we refer to the person producing the source sentence (speaker, author, etc. . . ) generically as the speaker. We denote as S the set of all speakers.</p><p>The usual objective of NMT is to find parame- ters θ of the conditional distribution p(y | x; θ) to maximize the empirical likelihood. We argue that personal variations in language warrant decom- posing the empirical distribution into |S| speaker specific domains D s and learning a different set of parameters θ s for each. This setting exhibits spe- cific traits that set it apart from common domain adaptation settings:</p><p>1. The number of speakers is very large. Our particular setting deals with |S| ≈ 1800 but our approaches should be able to accommo- date orders of magnitude more speakers.</p><p>2. There is very little data (even monolin- gual, let alone bilingual or parallel) for each speaker, compared to millions of sentences usually used in NMT.</p><p>3. As a consequence of 1, we can assume that many speakers share similar characteristics such as gender, social status, and as such may have similar associated domains. <ref type="bibr">2</ref> </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.1">Baseline NMT model</head><p>All of our experiments are based on a standard neural sequence to sequence model. We use one layer LSTMs as the encoder and decoder and the concat attention mechanism described in <ref type="bibr" target="#b11">Luong and Manning (2015)</ref>. We share the parameters in the embedding and softmax matrix of the de- coder as proposed in <ref type="bibr" target="#b17">Press and Wolf (2017)</ref>. All the layers have dimension 512 except for the atten- tion layer (dimension 256). To make our baseline competitive, we apply several regularization tech- niques such as dropout ( <ref type="bibr" target="#b22">Srivastava et al., 2014</ref>) in the output layer and within the LSTM (using the variant presented in <ref type="bibr" target="#b3">Gal and Ghahramani, 2016</ref>). We also drop words in the target sentence with probability 0.1 according to <ref type="bibr" target="#b4">Iyyer et al. (2015)</ref> and implement label smoothing as proposed in <ref type="bibr" target="#b23">Szegedy et al. (2016)</ref> with coefficient 0.1. Ap- pendix A provides a more thorough description of the baseline model.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.2">Baseline adaptation strategy</head><p>As mentioned in §2, our goal is to learn a sep- arate conditional distribution p(y | x, s) and parametrization θ s to improve translation for speaker s. The usual way of adapting from gen- eral domain parameters θ to θ s is to retrain the full model on the domain specific data ( <ref type="bibr" target="#b11">Luong and Manning, 2015)</ref>. Naively applying this approach in the context of personalizing a model for each speaker however has two main drawbacks:</p><p>Parameter cost Maintaining a set of model pa- rameters for each speaker is expensive. For ex- ample, the model in §2.1 has ≈47M parameters when the vocabulary size is 40k, as is the case in our experiments in §5. Assuming each parame- ter is stored as a 32bit float, every speaker-specific model costs ≈188MB. In a production environ- ment with thousands to billions of speakers, this is impractical.</p><p>Overfitting Training each speaker model with very little data is a challenge, necessitating care- ful and heavy regularization <ref type="bibr" target="#b12">(Miceli Barone et al., 2017)</ref> and an early stopping procedure.  <ref type="formula" target="#formula_0">(2017)</ref>: introduce an additional token marking the domain in the source and/or the target sentence. In experiments, we add a token indicating the speaker at the start of the target sen- tence for each speaker. We refer to this method as the spk token method in the following. Note that in this case there is now only an em- bedding vector (of dimension 512 in our experi- ments) for each speaker. However, the resulting domain embedding are non-trivial to interpret (i.e. it is not clear what they tell us about the domain or speaker itself).</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.3">Domain Token</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3">Speaker-specific Vocabulary Bias</head><p>In NMT models, the final choice of which word to use in the next step t of translation is generally performed by the following softmax equation</p><formula xml:id="formula_0">p t = softmax(E T o t + b T )<label>(1)</label></formula><p>where o t is predicted in a context-sensitive man- ner by the NMT system and E T and b T are the weight matrix and bias vector parameters respec- tively. Importantly, b T governs the overall likeli- hood that the NMT model will choose particular vocabulary. In this section, we describe our pro- posed methods for making this bias term speaker- <ref type="figure">Figure 1</ref>: Graphical representation of our differ- ent adaptation models for the softmax layer. From top to bottom is the base softmax, the full bias softmax and the fact bias softmax specific, which provides an efficient way to allow for speaker-specific vocabulary choice. 3</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.1">Full speaker bias</head><p>We first propose to learn speaker-specific param- eters for the bias term in the output softmax only. This means changing Eq. 1 to</p><formula xml:id="formula_1">p t = softmax(E T o t + b T + b s )<label>(2)</label></formula><p>for speaker s. This only requires learning and stor- ing a vector equal to the size of the vocabulary, which is a mere 0.09% of the parameters in the full model in our experiments. In effect, this greatly reducing the parameter cost and concerns of over- fitting cited in §2.2. This model is also easy to interpret as each coordinate of the bias vector cor- responds to a log-probability on the target vocab- ulary. We refer to this variant as full bias.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.2">Factored speaker bias</head><p>The biases for a set of speakers S on a vocabulary V can be represented as a matrix:</p><formula xml:id="formula_2">B ∈ R |S|×|V|<label>(3)</label></formula><p>where each row of B is one speaker bias b s . In this formulation, the |S| rows are still linearly in- dependent, meaning that B is high rank. In prac- tical terms, this means that we cannot share infor- mation among users about how their vocabulary en-fr en-es en- <ref type="table">de  #talks  1,887  1,922  1,670  #train  177,743 182,582 156,134  #dev  3,774  3,844  3,340  #test  3,774  3,844  3,340  avg. sent/talk  94,2</ref> 95.0 93,5 std dev 57,6 57.8 60,3 <ref type="table">Table 2</ref>: Dataset statistics selection co-varies, which is likely sub-ideal given that speakers share common characteristics. Thus, we propose another parametrization of the speaker bias, fact bias, where the B matrix is factored according to:</p><formula xml:id="formula_3">B =S˜B=S˜ =S˜B S ∈R |S|×r , ˜ B ∈R r×|V| (4)</formula><p>where S is a matrix of speaker vectors of low di- mension r and˜Band˜ and˜B is a matrix of r speaker inde- pendent biases. Here, the bias for each speaker is a mixture of r "centroid" biases˜Bbiases˜ biases˜B with r speaker "weights". This reduces the total number of parameters allocated to speaker adaptation from |S||V| to r(|S| + |V|). In our experiments, this corresponds to using between 99.38 and 99.45% fewer parameters than the full bias model de- pending on the language pair, with r parameters per speaker. In this work, we will use r = 10.</p><p>We provide a graphical summary of our pro- posed approaches in figure 1.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4">Speaker Annotated TED Talks Dataset</head><p>In order to evaluate the effectiveness of our proposed methods, we construct a new dataset, Speaker Annotated TED (SATED) based on TED talks, <ref type="bibr">4</ref> with three language pairs, English-French (en-fr), English-German (en-de) and English- Spanish (en-es) and speaker annotation.</p><p>The dataset consists of transcripts directly col- lected from https://www.ted.com/talks, and contains roughly 271K sentences in each language distributed among 2324 talks. We pre-process the data by removing sentences that don't have any translation or are longer than 60 words, lower- casing, and tokenizing (using the Moses tokenizer ( <ref type="bibr" target="#b7">Koehn et al., 2007)</ref>). Some talks are partially or not translated in some of the languages (in particular there are fewer translations in German than in French or Spanish), we therefore remove any talk with less than 10 translated sentences in each language pair.</p><p>The data is then partitioned into training, vali- dation and test sets. We split the corpus such that the test and validation split each contain 2 sentence pairs from each talk, thus ensuring that all talks are present in every split. Each sentence pair is anno- tated with the name of the talk and the speaker. <ref type="table">Table 2</ref> lists statistics on the three language pairs. This data is made available under the Creative Commons license, Attribution-Non Commercial- No Derivatives (or the CC BY-NC-ND 4.0 International, https://creativecommons.org/ licenses/by-nc-nd/4.0/legalcode), all credit for the content goes to the TED organization and the respective authors of the talks. The data it- self can be found at http://www.cs.cmu.edu/ ∼ pmichel1/sated/.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5">Experiments</head><p>We run a set of experiments to validate the abil- ity of our proposed approach to model speaker- induced variations in translation.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.1">Experimental setup</head><p>We test three models base (a baseline ignoring speaker labels), full bias and fact bias. Dur- ing training, we limit our vocabulary to the 40,000 most frequent words. Additionally, we discard any word appearing less than 2 times. Any word that doesn't satisfy those conditions is replaced with an UNK token. <ref type="bibr">5</ref> All our models are implemented with the DyNet ( ) framework, and unless speci- fied we use the default settings therein. We refer to appendix B for a detailed explanation of the train- ing process. We translate the test set using beam search with beam size 5.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.2">Does explicitly modeling speaker-related</head><p>variation improve translation quality? <ref type="table">Table 3</ref> shows final test scores for each model with statistical significance measured with paired boot- <ref type="bibr">5</ref> Recent NMT systems also commonly use sub-word units ( <ref type="bibr" target="#b21">Sennrich et al., 2016b</ref>). This may influence on the result, either negatively (less direct control over high- frequency words) or positively (more capacity to adapt to high-frequency words). We leave a careful examination of these effects for future work.  <ref type="table">Table 3</ref>: Test BLEU. Scores significantly (p &lt; 0.05) better than the baseline are written in bold strap resampling <ref type="bibr" target="#b6">(Koehn, 2004</ref>). As shown in the table, both proposed methods give significant im- provements in BLEU score, with the biggest gains in English to French (+0.99) and smaller gains in German and Spanish (+0.74 and +0.40 respec- tively). Reducing the number of parameters with fact bias gives slightly better (en-fr) or worse (en-de) BLEU score, but in those cases the results are still significantly better than the baseline.</p><note type="other">en-fr en-es en-de base 38</note><p>However, BLEU is not a perfect evaluation met- ric. In particular, we are interested in evaluating how much of the personal traits of each speaker our models capture. To gain more insight into this aspect of the MT results, we devise a simple ex- periment. For every language pair, we train a clas- sifier (continuous bag-of-n-grams; details in Ap- pendix C) to predict the author of each sentence on the target language part of the training set. We then evaluate the classifier on the ground truth and the outputs from our 3 models (base, full bias and fact bias).</p><p>The results are reported in <ref type="figure" target="#fig_1">Figure 2</ref>. As can be seen from the figure, it is easier to predict the author of a sentence from the output of speaker- specific models than from the baseline. This demonstrates that explicitly incorporating infor- mation about the author of a sentence allows for better transfer of personal traits during transla- tions, although the difference from the ground truth demonstrates that this problem is still far from solved. Appendix D shows qualitative ex- amples of our model improving over the baseline.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.3">Further experiments on the Europarl corpus</head><p>One of the quirks of the TED talks is that the speaker annotation correlates with the topic of their talk to a high degree. Although the topics that a speaker talks about can be considered as a man- ifestation of speaker traits, we also perform a con- trol experiment on a different dataset to verify that our model is indeed learning more than just topical We use roughly the same training procedure as the one described in §5.1, with a random train/dev/test split since none is provided in the original dataset. Note that in this case, the num- ber of speakers is much lower (747) whereas the total size of the dataset is bigger (≈300k).</p><p>We report the results in table 4. Although the difference is less salient than in the case of SATED, our factored bias model still per- forms significantly better than the baseline (+0.83 BLEU). This suggests that even outside the con- text of TED talks, our proposed method is capable of improvements over a speaker-agnostic model.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6">Related work</head><p>Domain adaptation techniques for MT often rely on data selection <ref type="bibr" target="#b15">(Moore and Lewis, 2010;</ref><ref type="bibr" target="#b8">Li et al., 2010;</ref><ref type="bibr" target="#b25">Wang et al., 2017)</ref>, tuning ( <ref type="bibr" target="#b11">Luong and Manning, 2015;</ref><ref type="bibr" target="#b12">Miceli Barone et al., 2017)</ref>, or adding domain tags to NMT input ( <ref type="bibr" target="#b1">Chu et al., 2017)</ref>. There are also methods that fine-tune parameters of the model on each sen- tence in the test set ( <ref type="bibr" target="#b10">Li et al., 2016)</ref>, and meth- ods that adapt based on human post-edits ( <ref type="bibr" target="#b24">Turchi et al., 2017)</ref>, although these follow our baseline adaptation strategy of tuning all parameters. There are also partial update methods for transfer learn- ing, albeit for the very different task of transfer between language pairs ( <ref type="bibr" target="#b26">Zoph et al., 2016)</ref>.</p><p>Pioneering work by <ref type="bibr" target="#b13">Mima et al. (1997)</ref>   <ref type="table">Table 4</ref>: Test BLEU on the Europarl corpus. Scores significantly (p &lt; 0.05) better than the baseline are written in bold rule based MT systems. In the context of data- driven systems, previous work has treated spe- cific traits such as politeness or gender as a "do- main" in domain adaptation models and applied adaptation techniques such as adding a "polite- ness tag" to moderate politeness ( <ref type="bibr" target="#b20">Sennrich et al., 2016a)</ref>, or doing data selection to create gender- specific corpora for training <ref type="bibr" target="#b18">(Rabinovich et al., 2017)</ref>. The aforementioned methods differ from ours in that they require explicit signal (gender, politeness. . . ) for which labeling (manual or au- tomatic) is needed, and also handle a limited num- ber of "domains" (≈ 2), where our method only requires annotation of the speaker, and must scale to a much larger number of "domains" (≈ 1, 800).</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="7">Conclusion</head><p>In this paper, we have explained and motivated the challenge of modeling the speaker explicitly in NMT systems, then proposed two models to do so in a parameter-efficient way. We cast this prob- lem as an extreme form of domain adaptation and showed that, even when adapting a small propor- tion of parameters (the softmax bias, &lt; 0.1% of all parameters), allowed the model to better reflect personal linguistic variations through translation.</p><p>We further showed that the number of parame- ters specific to any person could be reduced to as low as 10 while still retaining better scores than a baseline for some language pairs, making it vi- able in a real world application with potentially millions of different users.</p></div><figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_0"><head>A</head><label></label><figDesc>more efficient domain adaptation technique is the domain token idea used in Sennrich et al. (2016a); Chu et al.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_1"><head>Figure 2 :</head><label>2</label><figDesc>Figure 2: Speaker classification accuracy of our continuous bag-of-n-grams model.</figDesc><graphic url="image-2.png" coords="5,72.00,62.81,218.27,102.87" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_1" validated="false"><head></head><label></label><figDesc>.05 39.89 26.46 spk token 38.85 40.04 26.52 full bias 38.54 40.30 27.20 fact bias 39.01 39.88 26.94</figDesc><table></table></figure>
+
+			<note place="foot" n="2"> Note that the speakers are still unique, and many might use very specific words (e.g. the name of their company or of a specific medical procedure that they are an expert on).</note>
+
+			<note place="foot" n="3"> Notably, while this limits the model to only handling word choice and does not explicitly allow it to model syntactic variations, favoring certain words over others can indirectly favor certain phenomena (e.g. favoring passive speech by increasing the probability of auxiliaries).</note>
+
+			<note place="foot" n="4"> https://www.ted.com</note>
+
+			<note place="foot" n="6"> available here: https://www.kaggle.com/ellarabi/ europarl-annotated-for-speaker-gender-and-age/ version/1</note>
+		</body>
+		<back>
+
+			<div type="acknowledgement">
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Acknowledgements</head><p>The authors give their thanks the anonymous re-viewers for their useful feedback which helped make this paper what it is, as well as the members of Neulab who helped proof read this paper and provided constructive criticism. This work was supported by a Google Faculty Research Award 2016 on Machine Translation.</p></div>
+			</div>
+
+			<div type="references">
+
+				<listBibl>
+
+<biblStruct xml:id="b0">
+	<analytic>
+		<title level="a" type="main">Cost weighting for neural machine translation domain adaptation</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Boxing</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Colin</forename><surname>Cherry</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">George</forename><surname>Foster</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Samuel</forename><surname>Larkin</surname></persName>
+		</author>
+		<ptr target="http://www.aclweb.org/anthology/W17-3205" />
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the First Workshop on Neural Machine Translation. Association for Computational Linguistics</title>
+		<meeting>the First Workshop on Neural Machine Translation. Association for Computational Linguistics<address><addrLine>Vancouver</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2017" />
+			<biblScope unit="page" from="40" to="46" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b1">
+	<analytic>
+		<title level="a" type="main">An empirical comparison of domain adaptation methods for neural machine translation</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Chenhui</forename><surname>Chu</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Raj</forename><surname>Dabre</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Sadao</forename><surname>Kurohashi</surname></persName>
+		</author>
+		<ptr target="http://aclweb.org/anthology/P17-2061" />
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 55th Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 55th Annual Meeting of the Association for Computational Linguistics<address><addrLine>Vancouver, Canada</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2017" />
+			<biblScope unit="volume">2</biblScope>
+			<biblScope unit="page" from="385" to="391" />
+		</imprint>
+	</monogr>
+	<note>Short Papers)</note>
+</biblStruct>
+
+<biblStruct xml:id="b2">
+	<monogr>
+				<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Michael</forename><surname>Denkowski</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Graham</forename><surname>Neubig</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1706.09733</idno>
+		<title level="m">Stronger baselines for trustable results in neural machine translation</title>
+		<imprint>
+			<date type="published" when="2017" />
+		</imprint>
+	</monogr>
+<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b3">
+	<analytic>
+		<title level="a" type="main">A theoretically grounded application of dropout in recurrent neural networks</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yarin</forename><surname>Gal</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Zoubin</forename><surname>Ghahramani</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Advances in neural information processing systems</title>
+		<imprint>
+			<date type="published" when="2016" />
+			<biblScope unit="page" from="1019" to="1027" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b4">
+	<analytic>
+		<title level="a" type="main">Deep unordered composition rivals syntactic methods for text classification</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Mohit</forename><surname>Iyyer</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Varun</forename><surname>Manjunatha</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jordan</forename><surname>Boyd-Graber</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Hal</forename><surname>Daumé</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Iii</forename></persName>
+		</author>
+		<ptr target="http://www.aclweb.org/anthology/P15-1162" />
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 53rd Annual Meeting of the Association for Computational Linguistics and the 7th International Joint Conference on Natural Language Processing</title>
+		<meeting>the 53rd Annual Meeting of the Association for Computational Linguistics and the 7th International Joint Conference on Natural Language Processing<address><addrLine>Beijing, China</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2015" />
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="1681" to="1691" />
+		</imprint>
+	</monogr>
+	<note>Long Papers)</note>
+</biblStruct>
+
+<biblStruct xml:id="b5">
+	<analytic>
+		<title level="a" type="main">Adam: A method for stochastic optimization</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">P</forename><surname>Diederik</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jimmy</forename><surname>Kingma</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Ba</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">ICLR</title>
+		<imprint>
+			<date type="published" when="2014" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b6">
+	<analytic>
+		<title level="a" type="main">Statistical significance tests for machine translation evaluation</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Philipp</forename><surname>Koehn</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of EMNLP 2004</title>
+		<editor>Dekang Lin and Dekai Wu</editor>
+		<meeting>EMNLP 2004<address><addrLine>Barcelona, Spain</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2004" />
+			<biblScope unit="page" from="388" to="395" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b7">
+	<analytic>
+		<title level="a" type="main">Moses: Open source toolkit for statistical machine translation</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Philipp</forename><surname>Koehn</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Hieu</forename><surname>Hoang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Alexandra</forename><surname>Birch</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Chris</forename><surname>Callison-Burch</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Marcello</forename><surname>Federico</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Nicola</forename><surname>Bertoldi</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Brooke</forename><surname>Cowan</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Wade</forename><surname>Shen</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Christine</forename><surname>Moran</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Richard</forename><surname>Zens</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Chris</forename><surname>Dyer</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ondřej</forename><surname>Bojar</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Alexandra</forename><surname>Constantin</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Evan</forename><surname>Herbst</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 45th Annual Meeting of the ACL on Interactive Poster and Demonstration Sessions</title>
+		<meeting>the 45th Annual Meeting of the ACL on Interactive Poster and Demonstration Sessions<address><addrLine>Stroudsburg, PA, USA</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2007" />
+			<biblScope unit="page" from="177" to="180" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b8">
+	<analytic>
+		<title level="a" type="main">Adaptive development data selection for log-linear model in statistical machine translation</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Mu</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yinggong</forename><surname>Zhao</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Dongdong</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ming</forename><surname>Zhou</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 23rd</title>
+		<meeting>the 23rd</meeting>
+		<imprint>
+			<date type="published" when="2010" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b9">
+	<monogr>
+				<ptr target="http://www.aclweb.org/anthology/C10-1075" />
+		<title level="m">International Conference on Computational Linguistics</title>
+		<meeting><address><addrLine>Beijing, China</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2010" />
+			<biblScope unit="page" from="662" to="670" />
+		</imprint>
+	</monogr>
+	<note>Coling 2010 Organizing Committee</note>
+</biblStruct>
+
+<biblStruct xml:id="b10">
+	<monogr>
+		<title level="m" type="main">One sentence one model for neural machine translation</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Xiaoqing</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jiajun</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Chengqing</forename><surname>Zong</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1609.06490</idno>
+		<imprint>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b11">
+	<analytic>
+		<title level="a" type="main">Stanford neural machine translation systems for spoken language domains</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Minh-Thang</forename><surname>Luong</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Christopher D</forename><surname>Manning</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the International Workshop on Spoken Language Translation</title>
+		<meeting>the International Workshop on Spoken Language Translation</meeting>
+		<imprint>
+			<date type="published" when="2015" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b12">
+	<analytic>
+		<title level="a" type="main">Regularization techniques for fine-tuning in neural machine translation</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Antonio</forename><surname>Valerio Miceli</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Barry</forename><surname>Barone</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ulrich</forename><surname>Haddow</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Rico</forename><surname>Germann</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Sennrich</surname></persName>
+		</author>
+		<ptr target="https://www.aclweb.org/anthology/D17-1156" />
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2017 Conference on Empirical Methods in Natural Language Processing. Association for Computational Linguistics</title>
+		<meeting>the 2017 Conference on Empirical Methods in Natural Language Processing. Association for Computational Linguistics<address><addrLine>Copenhagen, Denmark</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2017" />
+			<biblScope unit="page" from="1490" to="1495" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b13">
+	<analytic>
+		<title level="a" type="main">Improving performance of transfer-driven machine translation with extra-linguistic informatioon from context, situation and environment</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Hideki</forename><surname>Mima</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Osamu</forename><surname>Furuse</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Hitoshi</forename><surname>Iida</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">IJCAI</title>
+		<imprint>
+			<date type="published" when="1997" />
+			<biblScope unit="page" from="983" to="989" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b14">
+	<analytic>
+		<title level="a" type="main">Motivating personality-aware machine translation</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Shachar</forename><surname>Mirkin</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Scott</forename><surname>Nowson</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Caroline</forename><surname>Brun</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Julien</forename><surname>Perez</surname></persName>
+		</author>
+		<ptr target="http://aclweb.org/anthology/D15-1130" />
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2015 Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>the 2015 Conference on Empirical Methods in Natural Language Processing<address><addrLine>Lisbon, Portugal</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2015" />
+			<biblScope unit="page" from="1102" to="1108" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b15">
+	<analytic>
+		<title level="a" type="main">Intelligent selection of language model training data</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">C</forename><surname>Robert</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">William</forename><surname>Moore</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Lewis</surname></persName>
+		</author>
+		<ptr target="http://www.aclweb.org/anthology/P10-2041" />
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the ACL 2010 Conference Short Papers. Association for Computational Linguistics</title>
+		<meeting>the ACL 2010 Conference Short Papers. Association for Computational Linguistics<address><addrLine>Uppsala, Sweden</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2010" />
+			<biblScope unit="page" from="220" to="224" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b16">
+	<analytic>
+				<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Graham</forename><surname>Neubig</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Chris</forename><surname>Dyer</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yoav</forename><surname>Goldberg</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Austin</forename><surname>Matthews</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Waleed</forename><surname>Ammar</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Antonios</forename><surname>Anastasopoulos</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Miguel</forename><surname>Ballesteros</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">David</forename><surname>Chiang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Daniel</forename><surname>Clothiaux</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Trevor</forename><surname>Cohn</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1701.03980</idno>
+	</analytic>
+	<monogr>
+		<title level="m">The dynamic neural network toolkit</title>
+		<imprint>
+			<date type="published" when="2017" />
+		</imprint>
+	</monogr>
+<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b17">
+	<analytic>
+		<title level="a" type="main">Using the output embedding to improve language models</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ofir</forename><surname>Press</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Lior</forename><surname>Wolf</surname></persName>
+		</author>
+		<ptr target="http://www.aclweb.org/anthology/E17-2025" />
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 15th Conference of the European Chapter of the Association for Computational Linguistics</title>
+		<meeting>the 15th Conference of the European Chapter of the Association for Computational Linguistics<address><addrLine>Valencia, Spain</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2017" />
+			<biblScope unit="volume">2</biblScope>
+			<biblScope unit="page" from="157" to="163" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b18">
+	<analytic>
+		<title level="a" type="main">Personalized machine translation: Preserving original author traits</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ella</forename><surname>Rabinovich</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Raj</forename><forename type="middle">Nath</forename><surname>Patel</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Shachar</forename><surname>Mirkin</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Lucia</forename><surname>Specia</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Shuly</forename><surname>Wintner</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 15th</title>
+		<meeting>the 15th</meeting>
+		<imprint>
+			<date type="published" when="2017" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b19">
+	<analytic>
+				<ptr target="http://www.aclweb.org/anthology/E17-1101" />
+	</analytic>
+	<monogr>
+		<title level="m">Conference of the European Chapter of the Association for Computational Linguistics</title>
+		<meeting><address><addrLine>Valencia, Spain</addrLine></address></meeting>
+		<imprint>
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="1074" to="1084" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b20">
+	<analytic>
+		<title level="a" type="main">Controlling politeness in neural machine translation via side constraints</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Rico</forename><surname>Sennrich</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Barry</forename><surname>Haddow</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Alexandra</forename><surname>Birch</surname></persName>
+		</author>
+		<ptr target="http://www.aclweb.org/anthology/N16-1005" />
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2016 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies. Association for Computational Linguistics</title>
+		<meeting>the 2016 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies. Association for Computational Linguistics<address><addrLine>San Diego, California</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2016" />
+			<biblScope unit="page" from="35" to="40" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b21">
+	<analytic>
+		<title level="a" type="main">Neural machine translation of rare words with subword units</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Rico</forename><surname>Sennrich</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Barry</forename><surname>Haddow</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Alexandra</forename><surname>Birch</surname></persName>
+		</author>
+		<ptr target="http://www.aclweb.org/anthology/P16-1162" />
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 54th Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 54th Annual Meeting of the Association for Computational Linguistics<address><addrLine>Berlin, Germany</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2016" />
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="1715" to="1725" />
+		</imprint>
+	</monogr>
+	<note>Long Papers)</note>
+</biblStruct>
+
+<biblStruct xml:id="b22">
+	<analytic>
+		<title level="a" type="main">Dropout: a simple way to prevent neural networks from overfitting</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Nitish</forename><surname>Srivastava</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Geoffrey</forename><forename type="middle">E</forename><surname>Hinton</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Alex</forename><surname>Krizhevsky</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ilya</forename><surname>Sutskever</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ruslan</forename><surname>Salakhutdinov</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Journal of machine learning research</title>
+		<imprint>
+			<biblScope unit="volume">15</biblScope>
+			<biblScope unit="issue">1</biblScope>
+			<biblScope unit="page" from="1929" to="1958" />
+			<date type="published" when="2014" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b23">
+	<analytic>
+		<title level="a" type="main">Rethinking the inception architecture for computer vision</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Christian</forename><surname>Szegedy</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Vincent</forename><surname>Vanhoucke</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Sergey</forename><surname>Ioffe</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jon</forename><surname>Shlens</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Zbigniew</forename><surname>Wojna</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the IEEE Conference on Computer Vision and Pattern Recognition</title>
+		<meeting>the IEEE Conference on Computer Vision and Pattern Recognition</meeting>
+		<imprint>
+			<date type="published" when="2016" />
+			<biblScope unit="page" from="2818" to="2826" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b24">
+	<analytic>
+		<title level="a" type="main">Continuous learning from human post-edits for neural machine translation</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Marco</forename><surname>Turchi</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Matteo</forename><surname>Negri</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Marcello</forename><surname>Amin Farajian</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Federico</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">The Prague Bulletin of Mathematical Linguistics</title>
+		<imprint>
+			<biblScope unit="volume">108</biblScope>
+			<biblScope unit="issue">1</biblScope>
+			<biblScope unit="page" from="233" to="244" />
+			<date type="published" when="2017" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b25">
+	<analytic>
+		<title level="a" type="main">Instance weighting for neural machine translation domain adaptation</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Rui</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Masao</forename><surname>Utiyama</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Lemao</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kehai</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Eiichiro</forename><surname>Sumita</surname></persName>
+		</author>
+		<ptr target="https://www.aclweb.org/anthology/D17-1155" />
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2017 Conference on Empirical Methods in Natural Language Processing. Association for Computational Linguistics</title>
+		<meeting>the 2017 Conference on Empirical Methods in Natural Language Processing. Association for Computational Linguistics<address><addrLine>Copenhagen, Denmark</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2017" />
+			<biblScope unit="page" from="1483" to="1489" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b26">
+	<analytic>
+		<title level="a" type="main">Transfer learning for low-resource neural machine translation</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Barret</forename><surname>Zoph</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Deniz</forename><surname>Yuret</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jonathan</forename><surname>May</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kevin</forename><surname>Knight</surname></persName>
+		</author>
+		<ptr target="https://aclweb.org/anthology/D16-1163" />
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2016 Conference on Empirical Methods in Natural Language Processing. Association for Computational Linguistics</title>
+		<meeting>the 2016 Conference on Empirical Methods in Natural Language Processing. Association for Computational Linguistics<address><addrLine>Austin, Texas</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2016" />
+			<biblScope unit="page" from="1568" to="1575" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+				</listBibl>
+			</div>
+		</back>
+	</text>
+</TEI>

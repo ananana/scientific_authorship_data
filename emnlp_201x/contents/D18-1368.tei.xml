@@ -1,0 +1,981 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<TEI xmlns="http://www.tei-c.org/ns/1.0" 
+xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+xsi:schemaLocation="http://www.tei-c.org/ns/1.0 /home/ana/installs/grobid/grobid-0.5.1/grobid-home/schemas/xsd/Grobid.xsd"
+ xmlns:xlink="http://www.w3.org/1999/xlink">
+	<teiHeader xml:lang="en">
+		<encodingDesc>
+			<appInfo>
+				<application version="0.5.1-SNAPSHOT" ident="GROBID" when="2019-04-18T12:17+0000">
+					<ref target="https://github.com/kermitt2/grobid">GROBID - A machine learning software for extracting information from scholarly documents</ref>
+				</application>
+			</appInfo>
+		</encodingDesc>
+		<fileDesc>
+			<titleStmt>
+				<title level="a" type="main">Building Context-aware Clause Representations for Situation Entity Type Classification</title>
+			</titleStmt>
+			<publicationStmt>
+				<publisher/>
+				<availability status="unknown"><licence/></availability>
+				<date>October 31-November 4, 2018</date>
+			</publicationStmt>
+			<sourceDesc>
+				<biblStruct>
+					<analytic>
+						<author>
+							<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Zeyu</forename><surname>Dai</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="department">Department of Computer Science and Engineering</orgName>
+								<orgName type="institution">Texas A&amp;M University</orgName>
+							</affiliation>
+						</author>
+						<author>
+							<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ruihong</forename><surname>Huang</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="department">Department of Computer Science and Engineering</orgName>
+								<orgName type="institution">Texas A&amp;M University</orgName>
+							</affiliation>
+						</author>
+						<title level="a" type="main">Building Context-aware Clause Representations for Situation Entity Type Classification</title>
+					</analytic>
+					<monogr>
+						<title level="m">Proceedings of the 2018 Conference on Empirical Methods in Natural Language Processing</title>
+						<meeting>the 2018 Conference on Empirical Methods in Natural Language Processing <address><addrLine>Brussels; Belgium</addrLine></address>
+						</meeting>
+						<imprint>
+							<biblScope unit="page" from="3305" to="3315"/>
+							<date type="published">October 31-November 4, 2018</date>
+						</imprint>
+					</monogr>
+					<note>3305</note>
+				</biblStruct>
+			</sourceDesc>
+		</fileDesc>
+		<profileDesc>
+			<abstract>
+				<p>Capabilities to categorize a clause based on the type of situation entity (e.g., events, states and generic statements) the clause introduces to the discourse can benefit many NLP applications. Observing that the situation entity type of a clause depends on discourse functions the clause plays in a paragraph and the interpretation of discourse functions depends heavily on paragraph-wide contexts, we propose to build context-aware clause representations for predicting situation entity types of clauses. Specifically, we propose a hierarchical recurrent neural network model to read a whole paragraph at a time and jointly learn representations for all the clauses in the paragraph by extensively modeling context influences and inter-dependencies of clauses. Experimental results show that our model achieves the state-of-the-art performance for clause-level situation entity classification on the genre-rich MASC+Wiki corpus, which approaches human-level performance.</p>
+			</abstract>
+		</profileDesc>
+	</teiHeader>
+	<text xml:lang="en">
+		<body>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="1">Introduction</head><p>Clauses in a paragraph play different discourse and pragmatic roles and have different aspectual properties <ref type="bibr" target="#b28">(Smith, 1997;</ref><ref type="bibr" target="#b33">Verkuyl, 2013)</ref> accord- ingly. We aim to categorize a clause based on its aspectual property and more specifically, based on the type of Situation Entity (SE) 1 (e.g., events, states, generalizing statements and generic state- ments) the clause introduces to the discourse, fol- lowing the recent work by <ref type="bibr" target="#b6">(Friedrich et al., 2016)</ref>. Understanding SE types of clauses is beneficial for many NLP tasks, including discourse mode identi-fication 2 <ref type="bibr" target="#b29">(Smith, 2003</ref><ref type="bibr" target="#b30">(Smith, , 2005</ref>), text summarization, information extraction and question answering.</p><p>The situation entity type of a clause reflects discourse roles the clause plays in a paragraph and discourse role interpretation depends heavily on paragraph-wide contexts. Recently, <ref type="bibr" target="#b6">Friedrich et al. (2016)</ref> used insightful syntactic-semantic features extracted from the target clause itself for SE type classification, which has achieved good performance across several genres when evaluated on the newly created large dataset MASC+Wiki. In addition, <ref type="bibr" target="#b6">Friedrich et al. (2016)</ref> implemented a sequence labeling model with conditional ran- dom fields (CRF) ( <ref type="bibr" target="#b12">Lafferty et al., 2001</ref>) for fine- tuning a sequence of predicted SE types. However, other than leveraging common SE label patterns (e.g., GENERIC clauses tend to cluster together.), this approach largely ignored the wider contexts a clause appears in when predicting its SE type.</p><p>To further improve the performance and robust- ness of situation entity type classification, we ar- gue that we should consider influences of wider contexts more extensively, not only by fine-tuning a sequence of SE type predictions, but also in de- riving clause representations and obtaining precise individual SE type predictions. For example, we distinguish GENERIC statements from GENER- ALIZING statements depending on if a clause ex- presses general information over classes or kinds instead of specific individuals. We recognize the latter two clauses in the following paragraph as GENERALIZING because both clauses describe situations related to the Amazon river:</p><p>(1): [Today, the Amazon river is experiencing a crisis of overfishing.] STATE [Both subsistence fishers and their commercial rivals compete in net- ting large quantities of pacu,] <ref type="bibr">GENERALIZING</ref> </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>[which bring good prices at markets in Brazil and abroad.] GENERALIZING</head><p>If we ignore the wider context, the second clause can be wrongly recognized as GENERIC easily since "fishers" usually refer to one gen- eral class rather than specific individuals. How- ever, considering the background introduced in first clause, "fishers" here actually refer to the fish- ers who fish on Amazon river which become spe- cific individuals immediately.</p><p>Therefore, we aim to build context-aware clause representations dynamically which are informed by their paragraph-wide contexts. Specifically, we propose a hierarchical recurrent neural net- work model to read a whole paragraph at a time and jointly learn representations for all the clauses in the paragraph. Our paragraph-level model derive clause representations by modeling inter- dependencies between clauses within a paragraph. In order to further improve SE type classification performance, we also add an extra CRF layer at the top of our paragraph-level model to fine-tune a sequence of SE type predictions over clauses ( <ref type="bibr" target="#b6">Friedrich et al., 2016)</ref>, which however is not our contribution.</p><p>Experimental results show that our paragraph- level neural network model greatly improves the performance of SE type classification on the same MASC+Wiki ( <ref type="bibr" target="#b6">Friedrich et al., 2016</ref>) corpus and achieves robust performance close to human level. In addition, the CRF layer further improves the SE type classification results, but by a small margin. We hypothesize that situation entity type patterns across clauses may have been largely captured by allowing the preceding and following clauses to influence semantic representation building for a clause in the paragraph-level neural net model.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2">Related Work</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.1">Linguistic Categories of SE Types</head><p>The situation entity types annotated in the MASC+Wiki corpus <ref type="bibr" target="#b6">(Friedrich et al., 2016)</ref> were initially introduced by <ref type="bibr" target="#b29">Smith (2003)</ref>, which were then extended by <ref type="bibr" target="#b18">(Palmer et al., 2007;</ref><ref type="bibr" target="#b5">Friedrich and Palmer, 2014b</ref>). The situation entity types can be divided into the following broad categories:</p><p>• Eventualities (EVENT, STATE and RE- PORT): for clauses representing actual hap- penings and world states. STATE and EVENT are two fundamental aspectual classes of a clause <ref type="bibr" target="#b27">(Siegel and McKeown, 2000</ref>) which can be distinguished by the se- mantic property of dynamism. REPORT is a subtype of EVENT for quoted speech.</p><p>• General Statives (GENERIC and GENER- ALIZING): for clauses that express general information over classes or kinds, or regular- ities related to specific main referents. The type GENERIC is for utterances describing a general class or kind rather than any specific individuals (e.g., People love dogs.). The type GENERALIZING is for habitual utter- ances that refer to ongoing actions or prop- erties of specific individuals (e.g., Audubon educates the public.).</p><p>• Speech Acts (QUESTION and IMPERA- TIVE): for clauses expressing two types of speech acts (Searle, 1969).</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.2">Situation Entity (SE) Type Classification</head><p>Although situation entities have been well-studied in linguistics, there were only several previous works focusing on data-driven SE type classi- fication using computational methods. <ref type="bibr" target="#b18">Palmer et al. (2007)</ref> first implemented a maximum en- tropy model for SE type classification relying on words, POS tags and some linguistic cues as main features. This work used a relatively small dataset (around 4300 clauses) and did not achieve satisfied performance (around 50% of accuracy).</p><p>To bridge the gap, <ref type="bibr" target="#b6">Friedrich et al. (2016)</ref> cre- ated a much larger dataset MASC+Wiki (more than 40,000 clauses) and achieved better SE type classification performance (around 75% accuracy) by using rich features extracted from the target clause. The feature sets include POS tags, Brown cluster features, syntactic and semantic features of the main verb and main referent as well as fea- tures indicating the aspectual nature of a clause. <ref type="bibr" target="#b6">Friedrich et al. (2016)</ref> further improved the per- formance by implementing a sequence labeling (CRF) model to fine-tune a sequence of SE type predictions and noted that much of the perfor- mance gain came from modeling the label pattern that GENERIC clauses often occur together. In contrast, we focus on deriving dynamic clause rep- resentations informed by paragraph-level contexts and model context influences more extensively. <ref type="bibr" target="#b0">Becker et al. (2017)</ref> proposed a GRU based neu- ral network model that predicts the SE type for one clause each time, by encoding the content of the target clause using a GRU and incorporat- ing several sources of context information, includ-ing contents and labels of preceding clauses as well as genre information, using additional sepa- rate GRUs ( <ref type="bibr" target="#b2">Chung et al., 2014</ref>). This model is dif- ferent from our approach that processes one para- graph (with a sequence of clauses) at a time and extensively models inter-dependencies of clauses.</p><p>Other related tasks include predicting aspectual classes of verbs <ref type="bibr" target="#b4">(Friedrich and Palmer, 2014a)</ref>, classifying genericity of noun phrases <ref type="bibr" target="#b22">(Reiter and Frank, 2010)</ref> and predicting clause habitual- ity (Friedrich and Pinkal, 2015).</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.3">Paragraph-level Sequence Labeling</head><p>Learning latent representations and predicting a sequence of labels from a long sequence of sen- tences (clauses), such as a paragraph, is a chal- lenging task. Recently, various neural network models, including Convolution Neural Network (CNN) ( <ref type="bibr" target="#b35">Wang and Lu, 2017)</ref>, Recurrent Neural Network (RNN) based models ( <ref type="bibr" target="#b34">Wang et al., 2015;</ref><ref type="bibr" target="#b1">Chiu and Nichols, 2016;</ref><ref type="bibr" target="#b9">Huang et al., 2015;</ref><ref type="bibr" target="#b15">Ma and Hovy, 2016;</ref><ref type="bibr" target="#b13">Lample et al., 2016)</ref> and Se- quence to Sequence models ( <ref type="bibr" target="#b32">Vaswani et al., 2016;</ref><ref type="bibr" target="#b36">Zheng et al., 2017)</ref>, have been applied to the gen- eral task of sequence labeling. Among them, the bidirectional LSTM (Bi-LSTM) model <ref type="bibr" target="#b24">(Schuster and Paliwal, 1997</ref>) has been widely used to pro- cess a paragraph for applications such as lan- guage generation ( <ref type="bibr" target="#b14">Li et al., 2015)</ref>, dialogue sys- tems ( <ref type="bibr" target="#b26">Serban et al., 2016)</ref> and text summariza- tion ( <ref type="bibr" target="#b17">Nallapati et al., 2016)</ref>, because of its ca- pabilities in modeling long-distance dependencies between words. In this work, we use two lev- els of Bi-LSTMs connected by a max-pooling layer to abstract clause representations by ex- tensively modeling paragraph-wide contexts and inter-dependencies between clauses.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3">The Hierarchical Recurrent Neural Network for SE Type Classification</head><p>We design an unified neural network to exten- sively model word-level dependencies as well as clause-level dependencies in deriving clause rep- resentations for SE type prediction. <ref type="figure" target="#fig_0">Figure 1</ref> shows the architecture of the proposed paragraph- level neural network model which includes two Bi-LSTM layers, one max-pooling layer in be- tween and one final softmax prediction layer. Given the word sequence of one paragraph as input, the word-level Bi-LSTM will firstly gener- ate a sequence of hidden states as word representa- tions, then a max-pooling layer will be applied to abstract clause embeddings from word represen- tations within a clause. Next, another clause-level Bi-LSTM will run over the sequence of clause em- beddings and derive final clause representations by further modeling semantic dependencies between clauses within a paragraph. The softmax predic- tion layer will then predict a sequence of situation entity (SE) types with one label for each clause, based on the final clause representations.</p><p>Word Vectors: To transform the one-hot repre- sentation of each word into its distributed word vector ( , we used the pre- trained 300-dimension Google English word2vec embeddings 3 . For the words which are not in- cluded in the vocabulary of Google word2vec, we randomly initialize their word vectors with each dimension sampled from the range <ref type="bibr">[−0.25, 0.25]</ref>.</p><p>For situation entity type classification, it is im- portant to recognize certain types of words such as punctuation marks (e.g., "?" for QUESTION and "!" for IMPERATIVE) as well as entities such as locations and time values. We therefore created feature-rich word vectors by concatenating word embeddings with parts-of-speech (POS) tag and named-entity (NE) tag one-hot embeddings <ref type="bibr">4</ref> .</p><p>Deriving Clause Representations: In design- ing the model, we focus on building clause rep- resentations that sufficiently leverage cues from paragraph-wide contexts for SE type prediction, including both preceding and following clauses in a paragraph. To process long paragraphs which may contain a number of clauses, we utilize a two- level bottom-up abstraction approach and progres- sively obtain the compositional representation of each word (low-level) and then compute a compo- sitional representation of each clause (high-level), with a max-pooling layer in between.</p><p>At both word-level and clause-level, we choose the Bi-LSTM as our basic neural net component for representation learning, mainly considering its ability to capture long-distance dependencies be- tween words (clauses) and to integrate influences of context words (clauses) from both directions.</p><p>Given a word sequence X = (x 1 , x 2 , ..., x L ) in a paragraph as the input, the word-level Bi- LSTM will process the input paragraph by using two separate LSTMs, one processes the word se- quence from the left to right while the other pro- cesses the sequence from the right to left. There- fore, at each word position t, we obtain two hidden states − → h t , ← − h t and concatenate them to get the word representation</p><formula xml:id="formula_0">h t = [ − → h t , ← − h t ].</formula><p>Then we apply the max-pooling operation over the sequence of word representations for words within a clause in order to get the initial clause embedding:</p><formula xml:id="formula_1">h Clause [j] = Clause end max t=Clause start h t [j]<label>(1)</label></formula><p>where, 1 ≤ j ≤ hidden unit size</p><p>Next, the clause-level Bi-LSTM will process the sequence of initial clause embeddings in a paragraph and generate refined hidden states Situation Entity Type Classification: Finally, the prediction layer will predict the situation entity type for each clause by applying the softmax func- tion to its clause representation:</p><formula xml:id="formula_3">y t = sof tmax(W y * h Clause t + b y ) (3)</formula></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.1">Fine-tune Situation Entity Predictions with a CRF Layer</head><p>Previous studies <ref type="bibr" target="#b6">(Friedrich et al., 2016;</ref><ref type="bibr" target="#b0">Becker et al., 2017)</ref> show that there exist common SE la- bel patterns between adjacent clauses. For exam- ple, <ref type="bibr" target="#b6">Friedrich et al. (2016)</ref> reported the fact that GENERIC sentences usually occur together in a paragraph. Following <ref type="bibr" target="#b6">(Friedrich et al., 2016)</ref>, in order to capture SE label patterns in our hierarchi- cal recurrent neural network model, we add a CRF layer at the top of the softmax prediction layer (shown in <ref type="figure" target="#fig_2">figure 2</ref>) to fine-tune predicted situation entity types. The CRF layer will update a state-transition ma- trix, which can effectively adjust the current label depending on its preceding and following labels. Both the training and decoding procedures of the CRF layer can be conducted efficiently using the Viterbi algorithm. With the CRF layer, the model jointly assigns a sequence of SE labels, one label per clause, by considering individual clause repre- sentations as well as common SE label patterns. </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.2">Parameter Settings and Model Training</head><p>We finalized hyperparameters based on the best performance with 10-fold cross-validation on the training set. The word vectors were fixed dur- ing model training. Both word representations and clause representations in the model are of 300 di- mensions, and all the Bi-LSTM layers contain 300 hidden units as well. To avoid overfitting, we applied dropout mechanism ( <ref type="bibr" target="#b8">Hinton et al., 2012)</ref> with dropout rate of 0.5 to both input and output vectors of Bi-LSTM layers. To deal with the ex- ploding gradient problem in LSTMs training, we utilized gradient clipping ( <ref type="bibr" target="#b20">Pascanu et al., 2013</ref>) with gradient L2-norm threshold of 5.0 and used L2 regularization with λ = 10 −4 simultaneously. These parameters remained the same for all our proposed models including our own baseline mod- els.</p><p>We chose the standard cross-entropy loss func- tion for training our neural network models and adopted <ref type="bibr">Adam (Kingma and Ba, 2014</ref>) optimizer with the initial learning rate of 0.001 and the batch size 5 of 128. All our proposed models were im- plemented with Pytorch 6 and converged to the best result within 40 epochs. Note that to diminish the effects of randomness in training neural network models and report stable experimental results, we ran each of the proposed models as well as our own baseline models ten times and reported the averaged performance across the ten runs.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4">Evaluation</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.1">Dataset and Preprocessing</head><p>The MASC+Wiki Corpus: We evaluated our neural network model on the MASC+Wiki cor- pus <ref type="bibr">7</ref>   <ref type="bibr">et al., 2016)</ref>, texts were split into clauses using SPADE <ref type="bibr" target="#b31">(Soricut and Marcu, 2003)</ref>. There are 4,784 paragraphs in total in the corpus; and on average, each paragraph contains 9.6 clauses. In <ref type="figure" target="#fig_4">figure 4</ref>, the horizontal axis shows the distribution of paragraphs based on the number of clauses in a paragraph. The annotations of clauses are stored in separate files from the text files. To recover the paragraph contexts for each clause, we matched its content with the corresponding raw document.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.2">Systems for Comparisons</head><p>We compare the performance of our neural net- work model with two recent SE type classification models on the MASC+Wiki corpus as well as hu- mans' performance (upper bound).</p><p>•   notators' annotation as "gold labels". It has been reported that labeling SE types is a non- trivial task even for humans.</p><p>In addition, we implemented a clause-level Bi- LSTM model as our own baseline, which takes a single clause as its input. Since there is only one clause, the upper Bi-LSTM layer shown in <ref type="figure" target="#fig_0">Figure  1</ref> is meaningless and removed in the clause-level Bi-LSTM model.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.3">Experimental Results</head><p>Following the previous work <ref type="bibr" target="#b6">(Friedrich et al., 2016)</ref> on the same task and dataset, we report accuracy and macro-average F1-score across SE types on the test set of MASC+Wiki.</p><p>The first section of <ref type="table" target="#tab_3">Table 3</ref> shows the results of the previous works. The second section shows the result of our implemented clause-level Bi-LSTM baseline, which already outperforms the previous best model. This result proves the effectiveness of the Bi-LSTM + max pooling approach in clause representation learning ( <ref type="bibr" target="#b3">Conneau et al., 2017</ref>). The third section reports the performance of the paragraph-level models that uses paragraph-wide contexts as input. Compared with the baseline clause-level Bi-LSTM model, the basic paragraph- level model achieves 3.5% and 3.3% of perfor- mance gains in macro-average F1-score and ac- curacy respectively. Building on top of the basic paragraph-level model, the CRF layer further im- proves the SE type prediction performance slightly by 0.4% and 0.7% in macro-average F1-score and accuracy respectively. Therefore, our full model with the CRF layer achieves the state-of-the-art performance on the MASC+Wiki corpus.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5">Analysis</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.1">10-Fold Cross-Validation</head><p>We noticed that the previous work <ref type="bibr" target="#b6">(Friedrich et al., 2016)</ref> did not publish the class-wise performance of their model on the test set, instead, they reported the detailed performance on the training set using 10-fold cross-validation. For direct comparisons, we also report our 10-fold cross-validation results 8 on the training set of MASC+Wiki. <ref type="table" target="#tab_2">Table 2</ref> reports the cross-validation classifica- tion results. Consistently, our clause-level base- line model already outperforms the previous best model. By exploiting paragraph-wide contexts, the basic paragraph-level model obtains consistent performance improvements across all the classes compared with the baseline clause-level predic- tion model, especially for the classes GENERIC and GENERALIZING, where the improvements are significant. After using the CRF layer to fine-tune the predicted SE label sequence, slight performance improvements were observed on the four small classes. Overall, the full paragraph- level neural network model achieves the best macro-average F1-score of 77.8% in predicting SE types, which not only outperforms all previous ap- proaches but also reaches human-like performance on some classes.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Model</head><p>Macro Acc STA EVE REP GENI GENA QUE IMP CRF ( <ref type="bibr" target="#b6">Friedrich et al., 2016)</ref> 66   </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.2">Impact of Genre</head><p>Considering that MASC+Wiki is rich in written genres, we additionally conduct cross-genre clas- sification experiments, where we use one genre of documents for testing and the other genres of doc- uments for training. The purpose of cross-genre experiment is to see whether the model can work robustly across genres. <ref type="table" target="#tab_5">Table 4</ref> shows cross-genre experimental results of our neural network models on the training set of MASC+Wiki by treating each genre as one cross- validation fold. As we expected, both the macro- average F1-score and class-wise F1 scores are lower compared with the results in <ref type="table" target="#tab_2">Table 2</ref> where in-genre data were used for model training as well. But the performance drop on the paragraph-level models is little, which clearly outperform the pre- vious system <ref type="bibr" target="#b6">(Friedrich et al., 2016</ref>) and the base- line model by a large margin. As shown in Ta- ble 5, benefited from modeling wider contexts and common SE label patterns, our full paragraph- level model improves performance across almost all the genres. The high performance in the cross- genre setting demonstrates the robustness of our paragraph-level model across genres.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Genre</head><p>Baseline  </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.3">Impact of Training Data Size</head><p>In order to understand how much training data is required to train the paragraph-level model and obtain a good performance for SE type classifi- cation, we plot the learning curve shown in <ref type="figure" target="#fig_3">Fig- ure 3</ref> by training the full model several times us- ing an increasing amount of training data. The classification performance increased quickly be- fore the amount of training data was increased to 30% of the full training set; then the learning curve starts to become saturated afterwards. We con- clude that the paragraph-level model can achieve a high performance quickly without requiring a large amount of training data.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.4">Impact of Paragraph Length</head><p>To study the influence of paragraph lengths to the performance of the paragraph-level models, we report the performance of our proposed mod- els on subsets of the test set, with paragraphs di- vided based on the number of clauses in a para- graph. The histogram in <ref type="figure" target="#fig_4">Figure 4</ref> compares per- formance of the two paragraph-level models and the baseline model. Note that the last bucket (para- graphs containing ten or more clauses) of the his- togram is especially large and contains over 30% of all the paragraphs in the test set. Clearly, the paragraph-level model greatly outperforms the baseline clause-level model on paragraphs con- taining more than 6 clauses, which covers over 50% of the test set. Adding the CRF layer fur- ther improves the performance of the paragraph- level model on long paragraphs (with 10 or more clauses), while the influences to the performance are mixed on short paragraphs. Therefore, it is beneficial to model wider paragraph-level contexts and inter-dependencies between clauses for situ- ation entity type classification, especially when processing long paragraphs.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.5">Impact of Discourse Connective Phrases</head><p>As one aspect of modeling context influences and clause inter-dependencies in SE type identifica- tion, we investigated the role of discourse connec- tive phrases in determining the SE type of clauses they connect. Our assumption is that discourse connectives are important to glue clauses together and removing them affects text coherence and in- formation flow between clauses. Intuitively, the connective "and" may occur between two clauses with the same SE type; "for example" may indi- cate that the following clause is not GENERIC. Therefore, we designed a pilot experiment to see whether discourse connective phrases are indis- pensable in building clause representations.</p><p>In this pilot experiment, we extracted a list of 100 explicit discourse connectives. PDTB cor- pus ( <ref type="bibr" target="#b21">Prasad et al., 2008)</ref> and identified clauses that start with a discourse connecte <ref type="bibr">9</ref> . Then we ran the full paragraph-level model with one mod- ification, i.e., disregarding words in connective phrases when conducting the max-pooling oper- ation in equation <ref type="formula" target="#formula_1">(1)</ref>, thus we did not consider dis- course connective phrases directly when building a clause representation.</p><p>As shown in <ref type="table">Table 6</ref>, for clauses containing a discourse connective phrase, both macro-average F1-score and accuracy dropped due to the exclu- sion of discourse connective phrases. The perfor- mance was negatively influenced across all the SE types except the type of QUESTION and IMPER- ATIVE <ref type="bibr">10</ref> . The performance decreases on three SE types, REPORT, GENERIC and GENERALIZ- ING, are noticeable. To some extent, this pilot study shows that modeling text coherence and the overall discourse structure of a paragraph is im- portant in situation entity type classification. <ref type="table">Table 7</ref> reports the confusion matrix of the full model on the training set of MASC+Wiki with cross-validation. We can see that the four situation entity types, including two eventuali- ties (STATE and EVENT) and two general sta- <ref type="bibr">9</ref> We found that 20.6% of clauses in the MASC+Wiki cor- pus contain a discourse connective phrase. <ref type="bibr">10</ref> A possible explanation is that recognizing QUESTION (IMPERATIVE) clauses mainly relies on seeing certain punc- tuation marks and key words, such as "?" ("!") and "why" ("please"), which are independent from discourse connec- tives.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.6">Confusion Matrix</head></div><figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_0"><head>Figure 1 :</head><label>1</label><figDesc>Figure 1: The Paragraph-level Model Architecture for Situation Entity Type Classification.</figDesc><graphic url="image-1.png" coords="4,72.00,62.81,453.52,297.62" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_1"><head></head><label></label><figDesc>Clause t at each clause position t. Then, we concatenate the two hidden states for a clause to get the final clause representation h Clause t = [ − −−−− → h Clause t , ← −−−− − h Clause t ].</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_2"><head>Figure 2 :</head><label>2</label><figDesc>Figure 2: Fine-tune a Situation Entity Label Sequence with a CRF layer.</figDesc><graphic url="image-2.png" coords="5,72.00,62.81,218.27,85.03" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_3"><head>Figure 3 :</head><label>3</label><figDesc>Figure 3: Learning Curve of the Paragraph-level Model + CRF on MASC+Wiki.</figDesc><graphic url="image-3.png" coords="7,96.10,189.53,170.07,141.73" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_4"><head>Figure 4 :</head><label>4</label><figDesc>Figure 4: Impact of Paragraph Lengths. We plot the macro-average F1-score for each paragraph length.</figDesc><graphic url="image-4.png" coords="8,72.00,62.81,453.53,187.08" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_2" validated="false"><head>Table 2 :</head><label>2</label><figDesc></figDesc><table>Situation Entity Type Classification Results on the Training Set of MASC+Wiki with 10-Fold 
+Cross-Validation. We report accuracy (Acc), macro-average F1-score (Macro) and class-wise F1 scores 
+for STATE (STA), EVENT (EVE), REPORT (REP), GENERIC (GENI), GENERALIZING (GENA), 
+QUESTION (QUE) and IMPERATIVE (IMP). 
+
+Model 
+Macro Acc 
+CRF (Friedrich et al., 2016) 
+69.3 
+74.7 
+GRU (Becker et al., 2017) 
+68.0 
+71.1 
+Clause-level Bi-LSTM 
+73.5 
+76.7 
+Paragraph-level Model 
+77.0 
+80.0 
+Paragraph-level Model + CRF 
+77.4 
+80.7 
+
+</table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_3" validated="false"><head>Table 3 :</head><label>3</label><figDesc></figDesc><table>Situation Entity Type Classification Re-
+sults on the Test Set of MASC+Wiki. We report 
+accuracy (Acc) and macro-average F1 (Macro). 
+
+</table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_5" validated="false"><head>Table 4 :</head><label>4</label><figDesc></figDesc><table>Cross-genre Classification Results on the Training Set of MASC+Wiki. We report accuracy 
+(Acc), macro-average F1-score (Macro) and class-wise F1 scores. 
+
+</table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_7" validated="false"><head>Table 5 :</head><label>5</label><figDesc></figDesc><table>Cross-genre Classification Results by 
+Genre on the Training Set of MASC+Wiki. 
+Baseline: Clause-level Bi-LSTM; Full Model: 
+Paragraph-level Model + CRF. We report macro-
+average F1-score for each genre. 
+
+</table></figure>
+
+			<note place="foot" n="1"> The Situation Entity (SE) type of a clause is defined with respect to three situation-related features: the main NP referent type (specific or generic), fundamental aspectual class (stative or dynamic), and whether the situation evoked is episodic or habitual (Friedrich and Palmer, 2014b).</note>
+
+			<note place="foot" n="2"> E.g., EVENTs and STATEs are dominant in narratives while GENERALIZINGs and GENERICs are dominant in informative discourses.</note>
+
+			<note place="foot" n="3"> Downloaded from https://docs.google.com/ uc?id=0B7XkCwpI5KDYNlNUTTlSS21pQmM 4 Our feature-rich word vectors are of dimension 343, including 300 dimensions for Google word2vec + 36 dimensions for POS tags + 7 dimensions for NE tags. We used the Stanford CoreNLP to generate POS tags and NE tags.</note>
+
+			<note place="foot" n="5"> Counted as the number of SEs rather than paragraph instances. 6 http://pytorch.org/ 7 www.coli.uni-saarland.de/projects/ sitent/page.php?id=resources</note>
+
+			<note place="foot" n="8"> The original folds split used by Friedrich et al. (2016) is not available. So we manually split folds by ourselves with even genre distribution across folds.</note>
+		</body>
+		<back>
+
+			<div type="acknowledgement">
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Acknowledgments</head><p>This work was partially supported by the National Science Foundation via NSF Award IIS-1755943. Disclaimer: the views and conclusions contained herein are those of the authors and should not be interpreted as necessarily representing the of-ficial policies or endorsements, either expressed or implied, of NSF or the U.S. Government. In addition, we gratefully acknowledge the support of NVIDIA Corporation for their donation of one GeForce GTX TITAN X GPU used for this re-search.</p></div>
+			</div>
+
+			<div type="annex">
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6">Conclusion</head><p>We presented a paragraph-level neural network model for situation entity (SE) type classification which builds context-aware clause representations by modeling inter-dependencies of clauses in a paragraph. Evaluation shows that the paragraph- level model outperforms previous systems for SE type classification and approaches human-level performance. In the future, we plan to incorpo- rate SE type information in various downstream applications, e.g., many information extraction ap- plications that require distinguishing specific fact descriptions from generic statements.</p></div>			</div>
+			<div type="references">
+
+				<listBibl>
+
+<biblStruct xml:id="b0">
+	<analytic>
+		<title level="a" type="main">Classifying semantic clause types: Modeling context and genre characteristics with recurrent neural networks and attention</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Maria</forename><surname>Becker</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Michael</forename><surname>Staniek</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Vivi</forename><surname>Nastase</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Alexis</forename><surname>Palmer</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Anette</forename><surname>Frank</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 6th Joint Conference on Lexical and Computational Semantics (* SEM 2017)</title>
+		<meeting>the 6th Joint Conference on Lexical and Computational Semantics (* SEM 2017)</meeting>
+		<imprint>
+			<date type="published" when="2017" />
+			<biblScope unit="page" from="230" to="240" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b1">
+	<analytic>
+		<title level="a" type="main">Named entity recognition with bidirectional lstm-cnns</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">P</forename><forename type="middle">C</forename><surname>Jason</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Eric</forename><surname>Chiu</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Nichols</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Transactions of the Association for Computational Linguistics</title>
+		<imprint>
+			<date type="published" when="2016" />
+			<biblScope unit="volume">4</biblScope>
+			<biblScope unit="page" from="357" to="370" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b2">
+	<analytic>
+		<title level="a" type="main">Empirical evaluation of gated recurrent neural networks on sequence modeling</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Junyoung</forename><surname>Chung</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Caglar</forename><surname>Gulcehre</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kyunghyun</forename><surname>Cho</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yoshua</forename><surname>Bengio</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">NIPS 2014 Workshop on Deep Learning</title>
+		<imprint>
+			<date type="published" when="2014-12" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b3">
+	<analytic>
+		<title level="a" type="main">Supervised learning of universal sentence representations from natural language inference data</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Alexis</forename><surname>Conneau</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Douwe</forename><surname>Kiela</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Holger</forename><surname>Schwenk</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Lo¨ıclo¨ıc</forename><surname>Barrault</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Antoine</forename><surname>Bordes</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2017 Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>the 2017 Conference on Empirical Methods in Natural Language Processing<address><addrLine>Copenhagen, Denmark</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2017-09-09" />
+			<biblScope unit="volume">2017</biblScope>
+			<biblScope unit="page" from="681" to="691" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b4">
+	<analytic>
+		<title level="a" type="main">Automatic prediction of aspectual class of verbs in context</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Annemarie</forename><surname>Friedrich</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Alexis</forename><surname>Palmer</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 52nd Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 52nd Annual Meeting of the Association for Computational Linguistics</meeting>
+		<imprint>
+			<date type="published" when="2014" />
+			<biblScope unit="volume">2</biblScope>
+			<biblScope unit="page" from="517" to="523" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b5">
+	<analytic>
+		<title level="a" type="main">Situation entity annotation</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Annemarie</forename><surname>Friedrich</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Alexis</forename><surname>Palmer</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of LAW VIII-The 8th Linguistic Annotation Workshop</title>
+		<meeting>LAW VIII-The 8th Linguistic Annotation Workshop</meeting>
+		<imprint>
+			<date type="published" when="2014" />
+			<biblScope unit="page" from="149" to="158" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b6">
+	<analytic>
+		<title level="a" type="main">Situation entity types: automatic classification of clause-level aspect</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Annemarie</forename><surname>Friedrich</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Alexis</forename><surname>Palmer</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Manfred</forename><surname>Pinkal</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 54th Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 54th Annual Meeting of the Association for Computational Linguistics</meeting>
+		<imprint>
+			<date type="published" when="2016" />
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="1757" to="1768" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b7">
+	<analytic>
+		<title level="a" type="main">Automatic recognition of habituals: a three-way classification of clausal aspect</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Annemarie</forename><surname>Friedrich</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Manfred</forename><surname>Pinkal</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2015 Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>the 2015 Conference on Empirical Methods in Natural Language Processing</meeting>
+		<imprint>
+			<date type="published" when="2015" />
+			<biblScope unit="page" from="2471" to="2481" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b8">
+	<monogr>
+		<title level="m" type="main">Improving neural networks by preventing coadaptation of feature detectors</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Nitish</forename><surname>Geoffrey E Hinton</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Alex</forename><surname>Srivastava</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ilya</forename><surname>Krizhevsky</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Sutskever</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Salakhutdinov</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1207.0580</idno>
+		<imprint>
+			<date type="published" when="2012" />
+		</imprint>
+	</monogr>
+<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b9">
+	<monogr>
+		<title level="m" type="main">Bidirectional lstm-crf models for sequence tagging</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Zhiheng</forename><surname>Huang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Wei</forename><surname>Xu</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kai</forename><surname>Yu</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1508.01991</idno>
+		<imprint>
+			<date type="published" when="2015" />
+		</imprint>
+	</monogr>
+<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b10">
+	<analytic>
+		<title level="a" type="main">Masc: The manually annotated sub-corpus of american english</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Nancy</forename><surname>Ide</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Collin</forename><surname>Baker</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Christiane</forename><surname>Fellbaum</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Charles</forename><surname>Fillmore</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Sixth International Conference on Language Resources and Evaluation (LREC. Citeseer</title>
+		<meeting>the Sixth International Conference on Language Resources and Evaluation (LREC. Citeseer</meeting>
+		<imprint>
+			<date type="published" when="2008" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b11">
+	<monogr>
+		<title level="m" type="main">Adam: A method for stochastic optimization</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Diederik</forename><surname>Kingma</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jimmy</forename><surname>Ba</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1412.6980</idno>
+		<imprint>
+			<date type="published" when="2014" />
+		</imprint>
+	</monogr>
+<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b12">
+	<analytic>
+		<title level="a" type="main">Conditional random fields: Probabilistic models for segmenting and labeling sequence data</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">John</forename><surname>Lafferty</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Andrew</forename><surname>Mccallum</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Fernando Cn</forename><surname>Pereira</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 18th International Conference on Machine Learning</title>
+		<meeting>the 18th International Conference on Machine Learning</meeting>
+		<imprint>
+			<date type="published" when="2001" />
+			<biblScope unit="volume">951</biblScope>
+			<biblScope unit="page" from="282" to="289" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b13">
+	<analytic>
+		<title level="a" type="main">Neural architectures for named entity recognition</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Guillaume</forename><surname>Lample</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Miguel</forename><surname>Ballesteros</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Sandeep</forename><surname>Subramanian</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kazuya</forename><surname>Kawakami</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Chris</forename><surname>Dyer</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of NAACL-HLT</title>
+		<meeting>NAACL-HLT</meeting>
+		<imprint>
+			<date type="published" when="2016" />
+			<biblScope unit="page" from="260" to="270" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b14">
+	<analytic>
+		<title level="a" type="main">A hierarchical neural autoencoder for paragraphs and documents</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jiwei</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Thang</forename><surname>Luong</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Dan</forename><surname>Jurafsky</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 53rd Annual Meeting of the Association for Computational Linguistics and the 7th International Joint Conference on Natural Language Processing</title>
+		<meeting>the 53rd Annual Meeting of the Association for Computational Linguistics and the 7th International Joint Conference on Natural Language Processing</meeting>
+		<imprint>
+			<date type="published" when="2015" />
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="1106" to="1115" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b15">
+	<analytic>
+		<title level="a" type="main">End-to-end sequence labeling via bi-directional lstm-cnns-crf</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Xuezhe</forename><surname>Ma</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Eduard</forename><surname>Hovy</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 54th Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 54th Annual Meeting of the Association for Computational Linguistics</meeting>
+		<imprint>
+			<date type="published" when="2016" />
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="1064" to="1074" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b16">
+	<analytic>
+		<title level="a" type="main">Distributed representations of words and phrases and their compositionality</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Tomas</forename><surname>Mikolov</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ilya</forename><surname>Sutskever</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kai</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Greg</forename><forename type="middle">S</forename><surname>Corrado</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jeff</forename><surname>Dean</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Advances in neural information processing systems</title>
+		<imprint>
+			<date type="published" when="2013" />
+			<biblScope unit="page" from="3111" to="3119" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b17">
+	<monogr>
+		<title level="m" type="main">Abstractive text summarization using sequence-tosequence rnns and beyond</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ramesh</forename><surname>Nallapati</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Bowen</forename><surname>Zhou</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2016" />
+			<biblScope unit="page">280</biblScope>
+		</imprint>
+	</monogr>
+	<note>Cicero Nogueira dos santos, Caglar Gulcehre, and Bing Xiang</note>
+</biblStruct>
+
+<biblStruct xml:id="b18">
+	<analytic>
+		<title level="a" type="main">A sequencing model for situation entity classification</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Alexis</forename><surname>Palmer</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Elias</forename><surname>Ponvert</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jason</forename><surname>Baldridge</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Carlota</forename><surname>Smith</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 45th</title>
+		<meeting>the 45th</meeting>
+		<imprint>
+			<date type="published" when="2007" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b19">
+	<monogr>
+				<title level="m">Annual Meeting of the Association of Computational Linguistics</title>
+		<imprint>
+			<biblScope unit="page" from="896" to="903" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b20">
+	<analytic>
+		<title level="a" type="main">On the difficulty of training recurrent neural networks</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Razvan</forename><surname>Pascanu</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Tomas</forename><surname>Mikolov</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yoshua</forename><surname>Bengio</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">International Conference on Machine Learning</title>
+		<imprint>
+			<date type="published" when="2013" />
+			<biblScope unit="page" from="1310" to="1318" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b21">
+	<analytic>
+		<title level="a" type="main">The penn discourse treebank 2.0</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Rashmi</forename><surname>Prasad</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Nikhil</forename><surname>Dinesh</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Alan</forename><surname>Lee</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Eleni</forename><surname>Miltsakaki</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Livio</forename><surname>Robaldo</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Aravind</forename><surname>Joshi</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Bonnie</forename><surname>Webber</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of LREC</title>
+		<meeting>LREC</meeting>
+		<imprint>
+			<date type="published" when="2008" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b22">
+	<analytic>
+		<title level="a" type="main">Identifying generic noun phrases</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Nils</forename><surname>Reiter</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Anette</forename><surname>Frank</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 48th</title>
+		<meeting>the 48th</meeting>
+		<imprint>
+			<date type="published" when="2010" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b23">
+	<monogr>
+				<title level="m">Annual Meeting of the Association for Computational Linguistics</title>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<biblScope unit="page" from="40" to="49" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b24">
+	<analytic>
+		<title level="a" type="main">Bidirectional recurrent neural networks</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Mike</forename><surname>Schuster</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Kuldip</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Paliwal</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">IEEE Transactions on Signal Processing</title>
+		<imprint>
+			<biblScope unit="volume">45</biblScope>
+			<biblScope unit="issue">11</biblScope>
+			<biblScope unit="page" from="2673" to="2681" />
+			<date type="published" when="1997" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b25">
+	<monogr>
+		<title level="m" type="main">Speech acts: An essay in the philosophy of language</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>John R Searle</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="1969" />
+			<publisher>Cambridge university press</publisher>
+			<biblScope unit="volume">626</biblScope>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b26">
+	<analytic>
+		<title level="a" type="main">Building end-to-end dialogue systems using generative hierarchical neural network models</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Alessandro</forename><surname>Iulian Vlad Serban</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yoshua</forename><surname>Sordoni</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Bengio</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">C</forename><surname>Aaron</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Joelle</forename><surname>Courville</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Pineau</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">AAAI</title>
+		<imprint>
+			<date type="published" when="2016" />
+			<biblScope unit="page" from="3776" to="3784" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b27">
+	<analytic>
+		<title level="a" type="main">Learning methods to combine linguistic indicators: Improving aspectual classification and revealing linguistic insights</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">V</forename><surname>Eric</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kathleen</forename><forename type="middle">R</forename><surname>Siegel</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Mckeown</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Computational Linguistics</title>
+		<imprint>
+			<biblScope unit="volume">26</biblScope>
+			<biblScope unit="issue">4</biblScope>
+			<biblScope unit="page" from="595" to="628" />
+			<date type="published" when="2000" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b28">
+	<monogr>
+		<title level="m" type="main">The Parameter of Aspect</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Carlota</forename><forename type="middle">S</forename><surname>Smith</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="1997" />
+			<publisher>Springer Science &amp; Business Media</publisher>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b29">
+	<monogr>
+		<title level="m" type="main">Modes of Discourse: The Local Structure of Texts</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Carlota</forename><forename type="middle">S</forename><surname>Smith</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2003" />
+			<publisher>Cambridge University Press</publisher>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b30">
+	<analytic>
+		<title level="a" type="main">Aspectual entities and tense in discourse</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">S</forename><surname>Carlota</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Smith</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Aspectual inquiries</title>
+		<imprint>
+			<publisher>Springer</publisher>
+			<date type="published" when="2005" />
+			<biblScope unit="page" from="223" to="237" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b31">
+	<analytic>
+		<title level="a" type="main">Sentence level discourse parsing using syntactic and lexical information</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Radu</forename><surname>Soricut</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Daniel</forename><surname>Marcu</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2003 Conference of the North American Chapter</title>
+		<meeting>the 2003 Conference of the North American Chapter</meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2003" />
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="149" to="156" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b32">
+	<analytic>
+		<title level="a" type="main">Supertagging with lstms</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ashish</forename><surname>Vaswani</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yonatan</forename><surname>Bisk</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kenji</forename><surname>Sagae</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ryan</forename><surname>Musa</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2016 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies</title>
+		<meeting>the 2016 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies</meeting>
+		<imprint>
+			<date type="published" when="2016" />
+			<biblScope unit="page" from="232" to="237" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b33">
+	<monogr>
+		<title level="m" type="main">On the compositional nature of the aspects</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Hendrik</forename><forename type="middle">Jacob</forename><surname>Verkuyl</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2013" />
+			<publisher>Springer Science &amp; Business Media</publisher>
+			<biblScope unit="volume">15</biblScope>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b34">
+	<monogr>
+		<title level="m" type="main">Part-of-speech tagging with bidirectional long short-term memory recurrent neural network</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Peilu</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yao</forename><surname>Qian</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">K</forename><surname>Frank</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Lei</forename><surname>Soong</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Hai</forename><surname>He</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Zhao</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1510.06168</idno>
+		<imprint>
+			<date type="published" when="2015" />
+		</imprint>
+	</monogr>
+<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b35">
+	<analytic>
+		<title level="a" type="main">A sequence labeling convolutional network and its application to handwritten string recognition</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Qingqing</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yue</forename><surname>Lu</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 26th International Joint Conference on Artificial Intelligence</title>
+		<meeting>the 26th International Joint Conference on Artificial Intelligence</meeting>
+		<imprint>
+			<publisher>AAAI Press</publisher>
+			<date type="published" when="2017" />
+			<biblScope unit="page" from="2950" to="2956" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b36">
+	<analytic>
+		<title level="a" type="main">Joint extraction of entities and relations based on a novel tagging scheme</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Suncong</forename><surname>Zheng</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Feng</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Hongyun</forename><surname>Bao</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yuexing</forename><surname>Hao</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Peng</forename><surname>Zhou</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Bo</forename><surname>Xu</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 55th Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 55th Annual Meeting of the Association for Computational Linguistics</meeting>
+		<imprint>
+			<date type="published" when="2017" />
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="1227" to="1236" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+				</listBibl>
+			</div>
+		</back>
+	</text>
+</TEI>

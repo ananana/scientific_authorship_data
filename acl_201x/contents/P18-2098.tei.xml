@@ -1,0 +1,909 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<TEI xmlns="http://www.tei-c.org/ns/1.0" 
+xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+xsi:schemaLocation="http://www.tei-c.org/ns/1.0 /home/ana/installs/grobid/grobid-0.5.1/grobid-home/schemas/xsd/Grobid.xsd"
+ xmlns:xlink="http://www.w3.org/1999/xlink">
+	<teiHeader xml:lang="en">
+		<encodingDesc>
+			<appInfo>
+				<application version="0.5.1-SNAPSHOT" ident="GROBID" when="2019-04-18T12:01+0000">
+					<ref target="https://github.com/kermitt2/grobid">GROBID - A machine learning software for extracting information from scholarly documents</ref>
+				</application>
+			</appInfo>
+		</encodingDesc>
+		<fileDesc>
+			<titleStmt>
+				<title level="a" type="main">Parser Training with Heterogeneous Treebanks</title>
+			</titleStmt>
+			<publicationStmt>
+				<publisher/>
+				<availability status="unknown"><licence/></availability>
+				<date>July 15-20, 2018</date>
+			</publicationStmt>
+			<sourceDesc>
+				<biblStruct>
+					<analytic>
+						<author>
+							<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Sara</forename><surname>Stymne</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="department">Department of Linguistics and Philology</orgName>
+								<orgName type="institution">Uppsala University</orgName>
+							</affiliation>
+						</author>
+						<author>
+							<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Miryam</forename><surname>De Lhoneux</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="department">Department of Linguistics and Philology</orgName>
+								<orgName type="institution">Uppsala University</orgName>
+							</affiliation>
+						</author>
+						<author>
+							<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Aaron</forename><surname>Smith</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="department">Department of Linguistics and Philology</orgName>
+								<orgName type="institution">Uppsala University</orgName>
+							</affiliation>
+						</author>
+						<author>
+							<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Joakim</forename><surname>Nivre</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="department">Department of Linguistics and Philology</orgName>
+								<orgName type="institution">Uppsala University</orgName>
+							</affiliation>
+						</author>
+						<title level="a" type="main">Parser Training with Heterogeneous Treebanks</title>
+					</analytic>
+					<monogr>
+						<title level="m">Proceedings of the 56th Annual Meeting of the Association for Computational Linguistics (Short Papers)</title>
+						<meeting>the 56th Annual Meeting of the Association for Computational Linguistics (Short Papers) <address><addrLine>Melbourne, Australia</addrLine></address>
+						</meeting>
+						<imprint>
+							<biblScope unit="page" from="619" to="625"/>
+							<date type="published">July 15-20, 2018</date>
+						</imprint>
+					</monogr>
+					<note>619</note>
+				</biblStruct>
+			</sourceDesc>
+		</fileDesc>
+		<profileDesc>
+			<abstract>
+				<p>How to make the most of multiple heterogeneous treebanks when training a mono-lingual dependency parser is an open question. We start by investigating previously suggested, but little evaluated, strategies for exploiting multiple treebanks based on concatenating training sets, with or without fine-tuning. We go on to propose a new method based on treebank embed-dings. We perform experiments for several languages and show that in many cases fine-tuning and treebank embeddings lead to substantial improvements over single treebanks or concatenation, with average gains of 2.0-3.5 LAS points. We argue that treebank embeddings should be preferred due to their conceptual simplicity, flexibility and extensibility.</p>
+			</abstract>
+		</profileDesc>
+	</teiHeader>
+	<text xml:lang="en">
+		<body>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="1">Introduction</head><p>In this paper we investigate how to train mono- lingual parsers in the situation where several tree- banks are available for a single language. This is quite a common occurrence; in release 2.1 of the Universal Dependencies (UD) treebanks <ref type="bibr" target="#b20">(Nivre et al., 2017</ref>), 25 languages have more than one treebank. These treebanks can differ in several respects: they can contain material from differ- ent language variants, domains, or genres, and written or spoken material. Even though the UD project provides guidelines for consistent annota- tion, treebanks can still differ with respect to an- notation choices, consistency and quality of anno- tation. Some treebanks are thoroughly checked by human annotators, whereas others are based en- tirely on automatic conversions. All this means that it is often far from trivial to combine multiple treebanks for the same language.</p><p>The 2017 CoNLL Shared Task on Universal De- pendency Parsing ( <ref type="bibr" target="#b20">Zeman et al., 2017</ref>) included 15 languages with multiple treebanks. An addi- tional parallel test set of 1000 sentences, PUD, was also made available for a selection of lan- guages. Most of the participating teams did not take advantage of the multiple treebanks, however, and simply trained one model per treebank instead of one model per language. There were a few ex- ceptions to this rule, but these teams typically did not investigate the effect of their proposed strate- gies in detail.</p><p>In this paper we begin by performing a thorough investigation of previously proposed strategies for training with multiple treebanks for the same lan- guage. We then propose a novel method, based on treebank embeddings. Our new technique has the advantage of producing a single flexible model for each language, regardless of the number of tree- banks. We show that this method leads to sub- stantial improvements for many languages. Of the competing methods, training on the concatenation of treebanks, followed by fine-tuning for each tree- bank, also performed well, but this method results in longer training times and necessitates multiple unwieldy models per language.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2">Training with Multiple Treebanks</head><p>The most obvious way to combine treebanks for a particular language, provided that they use the same annotation scheme, is simply to concatenate the training sets. This has the advantage that it does not require any modifications to the parser itself, and it produces a single model that can be directly used for any input from the language in question. <ref type="bibr" target="#b3">Björkelund et al. (2017)</ref> and <ref type="bibr" target="#b5">Das et al. (2017)</ref> used this strategy to parse the PUD test sets in the 2017 CoNLL Shared Task. Little details are given on the results, but while it was successful on dev data for most languages, results were mixed on the actual PUD test sets. For the two Nor- wegian language variants, concatenation has been proposed ( <ref type="bibr" target="#b19">Velldal et al., 2017)</ref>, but it hurts results unless combined with machine translation.</p><p>Training on concatenated treebanks can be im- proved by a subsequent fine-tuning step. In this set-up, after training the model on concatenated data, it is refined for each treebank by training only on its own training set for a few additional epochs. This enables the models to learn differences be- tween treebanks, but it requires more training, and results in separate models for each treebank. When the parser is applied to new data, there is thus a choice of which fine-tuned version to use. This approach was used by <ref type="bibr" target="#b4">Che et al. (2017)</ref> and <ref type="bibr" target="#b16">Shi et al. (2017)</ref> for languages with multiple tree- banks in the CoNLL 2017 Shared Task. <ref type="bibr" target="#b4">Che et al. (2017)</ref> apply fine-tuning to all but the largest tree- bank for each language, and show average gains of 1.8 LAS for a subset of nine treebanks. <ref type="bibr" target="#b16">Shi et al. (2017)</ref> show that the choice of treebank for pars- ing the PUD test set is important, but do not have any specific evaluation of the effect of fine-tuning.</p><p>Another approach, not explored in this paper, is shared gated adversarial networks, proposed by <ref type="bibr" target="#b15">Sato et al. (2017)</ref> for the CoNLL 2017 Shared Task. They use treebank prediction as an adver- sarial task. In this model, treebank-specific BiL- STMs are constructed for all treebanks in addition to a shared BiLSTM which is used both for parsing and for the adversarial task. This method requires knowing at test time which treebank the input be- longs to. <ref type="bibr" target="#b15">Sato et al. (2017)</ref> show that this strat- egy can give substantial improvements, especially for small treebanks. For large treebanks, however, there are mostly no or only minor improvements.</p><p>Our approach for taking advantage of multiple treebanks is to use a treebank embedding to repre- sent the treebank to which a sentence belongs. In our proposed model, all parameters of the model are shared; the treebank embedding facilitates soft sharing between treebanks at the word level, and allows the parser to learn treebank-specific phe- nomena. At test time, a treebank identifier has to be given for the input data. A key benefit of using treebank embeddings is that we can train a single model for each language using all avail- able data while remaining sensitive to the differ- ences between treebanks. The addition of treebank embeddings requires only minor modifications to the parser (see section 3.1). To the best of our knowledge this approach is novel when applied to the monolingual case as treebank embeddings. The most similar approach we have found in the literature is <ref type="bibr" target="#b11">Lim and Poibeau (2017)</ref>, who used one-hot treebank representations to combine data for improving monolingual parsing for three tiny treebanks, with improvements of 0.6-1.9 LAS. It is also related to work on domain embeddings for machine translation ( <ref type="bibr" target="#b7">Kobus et al., 2017)</ref>, and language embeddings for parsing <ref type="bibr" target="#b0">(Ammar et al., 2016)</ref>.</p><p>We previously used a similar architecture for combining languages with very small training sets with additional languages (de <ref type="bibr" target="#b9">Lhoneux et al., 2017a</ref>). Language embeddings have also been ex- plored for other cross-lingual tasks such as lan- guage modeling ( <ref type="bibr" target="#b18">Tsvetkov et al., 2016;</ref><ref type="bibr" target="#b14">¨ Ostling and Tiedemann, 2017)</ref> and POS-tagging <ref type="bibr" target="#b2">(Bjerva and Augenstein, 2018)</ref>. Cross-lingual parsing, however, often requires substantially more com- plex models. They typically include features such as multilingual word embeddings ( <ref type="bibr" target="#b0">Ammar et al., 2016)</ref>, linguistic re-write rules <ref type="bibr" target="#b1">(Aufrant et al., 2016)</ref>, or machine translation <ref type="bibr" target="#b17">(Tiedemann, 2015)</ref>. Unlike much work on cross-lingual parsing, we do not focus on a low-resource scenario.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3">Experimental Setup</head><p>We perform experiments for 24 treebanks from 9 languages, using UUParser (de <ref type="bibr">Lhoneux et al., 2017a,b)</ref>. We compare concatenation (CONCAT), concatenation with fine-tuning (C+FT), and tree- bank embeddings (TB-EMB). In addition we com- pare these results to using only single treebanks for training (SINGLE). While some of these meth- ods were previously suggested in the literature, no proper evaluation and comparison between them has been performed. For the PUD test data, there is no corresponding training set, so we need to choose a model or set a treebank embedding based on some other treebank. We call this a proxy tree- bank.</p><p>For evaluation we use labeled attachment score (LAS). Significance testing is performed using a randomization test, with the script from the CoNLL 2017 Shared Task. <ref type="bibr">1</ref> </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.1">The Parser</head><p>We use UUParser 2 (de <ref type="bibr" target="#b9">Lhoneux et al., 2017a)</ref>, which is based on the transition-based parser of <ref type="bibr" target="#b6">Kiperwasser and Goldberg (2016)</ref>, and adapted to UD. It uses the arc-hybrid transition system from <ref type="bibr" target="#b8">Kuhlmann et al. (2011)</ref> extended with a SWAP transition and a static-dynamic oracle, as described in de <ref type="bibr" target="#b10">Lhoneux et al. (2017b)</ref>. This model allows the construction of non-projective dependency trees <ref type="bibr" target="#b12">(Nivre, 2009)</ref>.</p><p>A configuration c is represented by a feature function φ(·) over a subset of its elements and, for each configuration, transitions are scored by a classifier. In this case, the classifier is a multi- layer perceptron (MLP) and φ(·) is a concatena- tion of the BiLSTM vectors v i of words on top of the stack and at the beginning of the buffer. The MLP scores transitions together with the arc labels for transitions that involve adding an arc.</p><p>For an input sentence of length n with words w 1 , . . . , w n , the parser creates a sequence of vec- tors x 1:n , where the vector x i representing w i is the concatenation of a word embedding e(w i ) and a character vector, obtained by running a BiLSTM over the m characters ch 1 , . . . , ch m of w i :</p><formula xml:id="formula_0">x i = e(w i ) • BILSTM(ch 1:m )</formula><p>Note that no POS-tags or morphological features are used in this parser.</p><p>In the TB-EMB setup, we also concatenate a treebank embedding tb(w i ) to the representation of w i :</p><formula xml:id="formula_1">x i = e(w i ) • BILSTM(ch 1:m ) • tb(w i )</formula><p>Finally, each input element is represented by a BiLSTM vector, v i :</p><formula xml:id="formula_2">v i = BILSTM(x 1:n , i)</formula><p>All embeddings are initialized randomly, and trained together with the BiLSTMs and MLP. For hyperparameter settings we used default values from de <ref type="bibr" target="#b9">Lhoneux et al. (2017a)</ref>. The dimension of the treebank embedding is set to 12 in our ex- periments; we saw only small and inconsistent changes when varying the number of dimensions. We train the parser for 30 epochs per setting. For C+FT we apply fine-tuning for an additional 10 epochs for each treebank. We pick the best epoch based on LAS score on the dev set, using average dev scores when training on more than one tree- bank, and apply the model from this epoch to the test data.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.2">Data</head><p>We performed all experiments on UD version 2.1 treebanks ( <ref type="bibr" target="#b20">Nivre et al., 2017)</ref>, using gold sentence and word segmentation. We selected 9 languages, based on the criteria that they should have at least two treebanks with fully available training data and a PUD test set. The sizes of the training cor- pora for the 9 languages are shown in <ref type="table">Table 1</ref>. The situation is quite different across languages with either treebanks of roughly the same size, as for Spanish, or very skewed data sizes with a mix of large and small treebanks, as for Czech. In all cases we use all available data, except for Czech, where we randomly choose a maximum of 15,000 sentences per treebank per epoch for effi- ciency reasons. <ref type="table">Table 1</ref> shows the results on the test sets of each training treebank and on the PUD test sets. Over- all we observe substantial gains when using either C+FT or TB-EMB. On average both C+FT and TB- EMB beat SINGLE by 3.5 LAS points and CON- CAT by over 2.0 LAS points when testing on the test sets of the treebanks used for training, and both methods beat both baselines by over 2.0 LAS points for the PUD test set, if we consider the best proxy treebank.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4">Results</head><p>We see positive gains across many scenarios when using C+FT and TB-EMB. First, there are gains for both balanced and unbalanced data sizes, as in the cases of Spanish and French, respectively. Secondly, there are cases with different language variants, as for Portuguese, and different domains, as for Finnish where FTB only contains grammar examples and TDT contains a mix of domains. There are also cases of known differences in an- notation choices, as for the Swedish treebanks.</p><p>When the data is very skewed, as for Russian, the effect of adding a small treebank to a large one is minor, as expected. While our results are not directly comparable to the adversarial learning in <ref type="bibr" target="#b15">Sato et al. (2017)</ref> who used a different parser and test set, the improvements of C+FT and TB- EMB are typically at least on par with and often larger than their improvements. While our im-  <ref type="table">Table 1</ref>: LAS scores when testing on the training treebank and on the PUD test set with training treebank as proxy. For each test set, the best result is marked with bold. Treebank size is given as number of sentences in the training data. Statistically significant differences, at the 0.05-level, from SINGLE are marked with +, from CONCAT with × and from both these systems with *. For clarity, significance for PUD is only shown for the proxy treebank with the highest score.</p><p>provements are, unsurprisingly, largest for smaller treebanks, we do also see some improvements for large treebanks, in contrast to <ref type="bibr" target="#b15">Sato et al. (2017)</ref>. Some variation can be observed between lan- guages. In two cases, Italian ISDT and Czech PUD, CONCAT performs marginally better than the more advanced methods, but these differences are not statistically significant. In several cases, especially for small treebanks, CONCAT helps no- ticeably over SINGLE, whereas it actually hurts for Finnish and Russian. It is, however, nearly always better to combine treebanks in some way than to use only a single treebank. The differences be- tween the two best methods, C+FT and TB-EMB are typically small and not statistically significant, with the exception of Czech PDT, and for some of the small proxy treebanks for PUD.</p><p>The PUD test set can be seen as an example of applying the proposed models to unseen data, without matching training data. For all languages, except Czech, the results for C+FT and TB-EMB with the best proxy treebank are significantly bet- ter than the equivalent result for SINGLE, and for six of the nine languages, TB-EMB performs sig- nificantly better than CONCAT. It is clear that some treebanks are bad fits to PUD, most notably Finnish FTB and Russian SynTagRus. However, even when a treebank is a bad fit, TB-EMB and C+FT can still improve substantially over using only the single model for the treebank with the best fit, as for Russian where there is a gain of nearly 8 LAS points for TB-EMB over SINGLE, when using GSD as a proxy. For some languages, however, most notably Italian, the choice of proxy treebank makes little difference for TB-EMB and C+FT. It is also interesting to see that in many cases it is not the largest treebank that is the best proxy for PUD. The large difference in results for PUD, depending on which treebank was used as proxy, also seems to point at potential inconsisten- cies in the UD annotation for several languages.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5">Error Analysis</head><p>To complement the LAS scores, we performed a small manual error analysis for Swedish, looking at the results for the PUD data, when translated Ett vittne berättade för polisen att offret hade attackerat den misstänkte i april . A witness related for the-police that the-victim had attacked the suspected in April . using different methods and proxy treebanks. The two Swedish treebanks, Talbanken and LinES, are known to differ in the annotation of a few constructions, notably relative clauses and prepo- sitions that take subordinate clauses as comple- ments. The error analysis reveals that the treebank embedding approach allows the model to learn the distinctive "style" of each treebank, while con- catenation, even with fine-tuning, results in more inconsistencies in the output. A typical example is shown in <ref type="figure" target="#fig_0">Figure 1</ref>. When trained with tree- bank embeddings (and Talbanken as the proxy treebank), the parser produces the correct tree de- picted above the sentence. When trained with fine- tuning instead, the parser incorrectly analyzes the subordinate clause as a relative clause (as shown by the dashed arc below the sentence), because the mark relation is also used for relative pronouns in the LinES treebank, despite the fact that such structures never occur in Talbanken.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6">Conclusion and Future Work</head><p>We have conducted the first large-scale study on how best to combine multiple treebanks for a sin- gle language, when all treebanks use the same an- notation scheme but may be heterogeneous with respect to domain, genre, size, language variant, annotation style, and quality, as is the case for many languages in the UD project. We propose using treebank embeddings, which represent the treebank a sentence comes from. This method is simple, effective, and flexible, and performs on par with a previously suggested method of using con- catenation in combination with fine-tuning, which, however, requires longer training, and produces more models. We show that both these methods give substan- tial gains for a variety of languages, including dif- ferent scenarios with respect to the mix of avail- able treebanks. Our results are also at least on par with a previously proposed, but more complex model, based on adversarial learning ( <ref type="bibr" target="#b15">Sato et al., 2017)</ref>. To improve parsing accuracy, it is cer- tainly worth combining multiple treebanks, when available, for a language, using more sophisticated methods than simple concatenation. We recom- mend the treebank embedding model due to its simplicity.</p><p>The proposed methods work well with a transition-based parser with BiLSTM feature ex- tractors without POS-tags or pre-trained embed- dings. In future work, we want to investigate how these methods interact with other parsers, and if the combination methods are useful also for tasks like POS-tagging and morphology prediction.</p><p>We did not yet investigate methods for choos- ing a proxy treebank when parsing new data. The results on the PUD test set could indicate which treebank is likely to be the best proxy for the lan- guages explored here. Other factors that could be taken into account when making this choice in- clude degree of domain match and treebank qual- ity. The user may also simply choose the de- sired annotation style by selecting the correspond- ing proxy treebank. For the TB-EMB approach, in- terpolation of the various treebank embeddings is another possibility.</p><p>In the current paper, we explore only the mono- lingual case, using several treebanks for a sin- gle language. Preliminary experiments show that we can combine treebank and language embed- dings and add other languages to the mix. Includ- ing closely related languages typically gives addi- tional gains, which we will explore in future work.</p></div><figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_0"><head>Figure 1 :</head><label>1</label><figDesc>Figure 1: Example sentence from the Swedish PUD treebank with parsing error represented by dashed arc. Translation: "A witness told the police that the victim had attacked the suspect in April."</figDesc></figure>
+
+			<note place="foot" n="1"> https://github.com/udapi/ udapi-python/blob/master/udapi/block/ eval/conll17.py</note>
+
+			<note place="foot" n="2"> https://github.com/UppsalaNLP/ uuparser</note>
+		</body>
+		<back>
+
+			<div type="acknowledgement">
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Acknowledgments</head><p>We gratefully acknowledge funding from the Swedish Research Council (P2016-01817) and computational resources on the Taito-CSC cluster in Helsinki from NeIC-NLPL (www.nlpl.eu).</p></div>
+			</div>
+
+			<div type="references">
+
+				<listBibl>
+
+<biblStruct xml:id="b0">
+	<analytic>
+		<title level="a" type="main">Many languages, one parser</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Waleed</forename><surname>Ammar</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">George</forename><surname>Mulcaire</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Miguel</forename><surname>Ballesteros</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Chris</forename><surname>Dyer</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Noah</forename><surname>Smith</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Transactions of the Association of Computational Linguistics</title>
+		<imprint>
+			<biblScope unit="volume">4</biblScope>
+			<biblScope unit="page" from="431" to="444" />
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b1">
+	<analytic>
+		<title level="a" type="main">Zero-resource dependency parsing: Boosting delexicalized cross-lingual transfer with linguistic knowledge</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Lauriane</forename><surname>Aufrant</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Guillaume</forename><surname>Wisniewski</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">François</forename><surname>Yvon</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 26th International Conference on Computational Linguistics (COLING)</title>
+		<meeting>the 26th International Conference on Computational Linguistics (COLING)<address><addrLine>Osaka, Japan</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2016" />
+			<biblScope unit="page" from="119" to="130" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b2">
+	<analytic>
+		<title level="a" type="main">Tracking typological traits of Uralic languages in distributed language representations</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Johannes</forename><surname>Bjerva</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Isabelle</forename><surname>Augenstein</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Fourth International Workshop on Computatinal Linguistics of Uralic Languages</title>
+		<meeting>the Fourth International Workshop on Computatinal Linguistics of Uralic Languages<address><addrLine>Helsinki, Finland</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2018" />
+			<biblScope unit="page" from="78" to="88" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b3">
+	<analytic>
+		<title level="a" type="main">IMS at the CoNLL 2017 UD shared task: CRFs and perceptrons meet neural networks</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Anders</forename><surname>Björkelund</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Agnieszka</forename><surname>Falenska</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Xiang</forename><surname>Yu</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jonas</forename><surname>Kuhn</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the CoNLL 2017 Shared Task: Multilingual Parsing from Raw Text to Universal Dependencies</title>
+		<meeting>the CoNLL 2017 Shared Task: Multilingual Parsing from Raw Text to Universal Dependencies<address><addrLine>Vancouver, Canada</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2017" />
+			<biblScope unit="page" from="40" to="51" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b4">
+	<analytic>
+		<title level="a" type="main">The hit-scir system for end-to-end parsing of universal dependencies</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Wanxiang</forename><surname>Che</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jiang</forename><surname>Guo</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yuxuan</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Bo</forename><surname>Zheng</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Huaipeng</forename><surname>Zhao</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yang</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Dechuan</forename><surname>Teng</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ting</forename><surname>Liu</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the CoNLL 2017 Shared Task: Multilingual Parsing from Raw Text to Universal Dependencies</title>
+		<meeting>the CoNLL 2017 Shared Task: Multilingual Parsing from Raw Text to Universal Dependencies<address><addrLine>Vancouver, Canada</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2017" />
+			<biblScope unit="page" from="52" to="62" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b5">
+	<analytic>
+		<title level="a" type="main">Delexicalized transfer parsing for low-resource languages using transformed and combined treebanks</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ayan</forename><surname>Das</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Affan</forename><surname>Zaffar</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Sudeshna</forename><surname>Sarkar</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the CoNLL 2017 Shared Task: Multilingual Parsing from Raw Text to Universal Dependencies</title>
+		<meeting>the CoNLL 2017 Shared Task: Multilingual Parsing from Raw Text to Universal Dependencies<address><addrLine>Vancouver, Canada</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2017" />
+			<biblScope unit="page" from="182" to="190" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b6">
+	<analytic>
+		<title level="a" type="main">Simple and accurate dependency parsing using bidirectional LSTM feature representations</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Eliyahu</forename><surname>Kiperwasser</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yoav</forename><surname>Goldberg</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Transactions of the Association of Computational Linguistics</title>
+		<imprint>
+			<date type="published" when="2016" />
+			<biblScope unit="volume">4</biblScope>
+			<biblScope unit="page" from="313" to="327" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b7">
+	<analytic>
+		<title level="a" type="main">Domain control for neural machine translation</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Catherine</forename><surname>Kobus</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Josep</forename><surname>Crego</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jean</forename><surname>Senellart</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the International Conference Recent Advances in Natural Language Processing, RANLP&apos;17</title>
+		<meeting>the International Conference Recent Advances in Natural Language Processing, RANLP&apos;17<address><addrLine>Varna, Bulgaria</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2017" />
+			<biblScope unit="page" from="372" to="378" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b8">
+	<analytic>
+		<title level="a" type="main">Dynamic programming algorithms for transition-based dependency parsers</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Marco</forename><surname>Kuhlmann</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Carlos</forename><surname>Gómez-Rodríguez</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Giorgio</forename><surname>Satta</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 49th Annual Meeting of the ACL: Human Language Technologies</title>
+		<meeting>the 49th Annual Meeting of the ACL: Human Language Technologies<address><addrLine>Portland, Oregon, USA</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2011" />
+			<biblScope unit="page" from="673" to="682" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b9">
+	<analytic>
+		<title level="a" type="main">From raw text to universal dependencies-look, no tags!</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yan</forename><surname>Miryam De Lhoneux</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ali</forename><surname>Shao</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Eliyahu</forename><surname>Basirat</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Sara</forename><surname>Kiperwasser</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yoav</forename><surname>Stymne</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Joakim</forename><surname>Goldberg</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Nivre</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the CoNLL 2017 Shared Task: Multilingual Parsing from Raw Text to Universal Dependencies</title>
+		<meeting>the CoNLL 2017 Shared Task: Multilingual Parsing from Raw Text to Universal Dependencies<address><addrLine>Vancouver, Canada</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2017" />
+			<biblScope unit="page" from="207" to="217" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b10">
+	<analytic>
+		<title level="a" type="main">Arc-hybrid non-projective dependency parsing with a static-dynamic oracle</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Sara</forename><surname>Miryam De Lhoneux</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Joakim</forename><surname>Stymne</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Nivre</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 15th International Conference on Parsing Technologies</title>
+		<meeting>the 15th International Conference on Parsing Technologies<address><addrLine>Pisa, Italy</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2017" />
+			<biblScope unit="page" from="99" to="104" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b11">
+	<analytic>
+		<title level="a" type="main">A system for multilingual dependency parsing based on bidirectional lstm feature representations</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kyungtae</forename><surname>Lim</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Thierry</forename><surname>Poibeau</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the CoNLL 2017 Shared Task: Multilingual Parsing from Raw Text to Universal Dependencies</title>
+		<meeting>the CoNLL 2017 Shared Task: Multilingual Parsing from Raw Text to Universal Dependencies<address><addrLine>Vancouver, Canada</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2017" />
+			<biblScope unit="page" from="63" to="70" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b12">
+	<analytic>
+		<title level="a" type="main">Non-projective dependency parsing in expected linear time</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Joakim</forename><surname>Nivre</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Joint Conference of the 47th Annual Meeting of the ACL and the 4th International Joint Conference on Natural Language Processing of the AFNLP</title>
+		<meeting>the Joint Conference of the 47th Annual Meeting of the ACL and the 4th International Joint Conference on Natural Language Processing of the AFNLP<address><addrLine>Suntec, Singapore</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2009" />
+			<biblScope unit="page" from="351" to="359" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b13">
+	<monogr>
+				<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Joakim</forename><surname>Nivre</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Zeljko</forename><surname>Agi´cagi´c</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Lars</forename><surname>Ahrenberg</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Lene</forename><surname>Antonsen</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Maria</forename><forename type="middle">Jesus</forename><surname>Aranzabe</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Masayuki</forename><surname>Asahara</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Luma</forename><surname>Ateyah</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Mohammed</forename><surname>Attia</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Aitziber</forename><surname>Atutxa</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Liesbeth</forename><surname>Augustinus</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Elena</forename><surname>Badmaeva</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Miguel</forename><surname>Ballesteros</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Esha</forename><surname>Banerjee</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Sebastian</forename><surname>Bank</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Verginica Barbu</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">John</forename><surname>Mititelu</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kepa</forename><surname>Bauer</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Riyaz</forename><forename type="middle">Ahmad</forename><surname>Bengoetxea</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Eckhard</forename><surname>Bhat</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Victoria</forename><surname>Bick</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Carl</forename><surname>Bobicev</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Cristina</forename><surname>Börstell</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Gosse</forename><surname>Bosco</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Sam</forename><surname>Bouma</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Aljoscha</forename><surname>Bowman</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Marie</forename><surname>Burchardt</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Gauthier</forename><surname>Candito</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Gülsgüls¸en</forename><surname>Caron</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Giuseppe</forename><forename type="middle">G A</forename><surname>Cebiro˘ Glu Eryi˘ Git</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Savas</forename><surname>Celano</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Fabricio</forename><surname>Cetin</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jinho</forename><surname>Chalub</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Silvie</forename><surname>Choi</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">C</forename><surname>Cinková</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Miriam</forename><surname>Grı C ¸ ¨ Oltekin</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Elizabeth</forename><surname>Connor</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Marie-Catherine</forename><surname>Davidson</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Valeria</forename><surname>De Marneffe</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Arantza</forename><surname>De Paiva</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Peter</forename><surname>Diaz De Ilarraza</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kaja</forename><surname>Dirix</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Timothy</forename><surname>Dobrovoljc</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kira</forename><surname>Dozat</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Puneet</forename><surname>Droganova</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Marhaba</forename><surname>Dwivedi</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ali</forename><surname>Eli</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Tomaž</forename><surname>Elkahky</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Richárd</forename><surname>Erjavec</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Hector</forename><surname>Farkas</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jennifer</forename><surname>Fernandez Alcalde</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Cláudia</forename><surname>Foster</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Katarína</forename><surname>Freitas</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Daniel</forename><surname>Gajdošová</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Marcos</forename><surname>Galbraith</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Moa</forename><surname>Garcia</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kim</forename><surname>Gärdenfors</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Filip</forename><surname>Gerdes</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Iakes</forename><surname>Ginter</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Koldo</forename><surname>Goenaga</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Memduh</forename><surname>Gojenola</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yoav</forename><surname>Gökırmak</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Xavier</forename><forename type="middle">Gómez</forename><surname>Goldberg</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Berta</forename><forename type="middle">Gonzáles</forename><surname>Guinovart</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Matias</forename><surname>Saavedra</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Grioni</surname></persName>
+		</author>
+		<title level="m">Normunds Gr¯ uz¯ ıtis</title>
+		<editor>M˜yM˜y, Kim Harris, Dag Haug, Barbora Hladká, Jaroslava Hlaváčová, Florinel Hociung, Petter Hohle, Radu Ion, Elena Irimia, Tomáš Jelínek, Anders Johannsen, Fredrik Jørgensen, Hüner Kas¸ıkaraKas¸ıkara, Hiroshi Kanayama, Jenna Kanerva, Tolga Kayadelen, Václava Kettnerová, Jesse Kirchner, Natalia Kotsyba, Simon Krek, Veronika Laippala, Lorenzo Lambertino, Tatiana Lando, John Lee, Phng Lê H`ˆ ong, Alessandro Lenci, Saran Lertpradit, Herman Leung, Cheuk Ying Li, Josie Li, Keying Li, Nikola Ljubeši´Ljubeši´c, Olga Loginova, Olga Lyashevskaya, Teresa Lynn, Vivien Macketanz, Aibek Makazhanov, Michael Mandl, Christopher Manning, C˘ at˘ alina M˘ ar˘ anduc</editor>
+		<meeting><address><addrLine>Bruno Guillaume, Nizar Habash; David Mareček, Katrin</addrLine></address></meeting>
+		<imprint>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b14">
+	<analytic>
+		<title level="a" type="main">Continuous multilinguality with language vectors</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Robert¨ostlingrobert¨</forename><surname>Robert¨ostling</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jörg</forename><surname>Tiedemann</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 15th Conference of the European Chapter of the Association for Computational Linguistics</title>
+		<meeting>the 15th Conference of the European Chapter of the Association for Computational Linguistics<address><addrLine>Valencia, Spain</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2017" />
+			<biblScope unit="volume">2</biblScope>
+			<biblScope unit="page" from="644" to="649" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b15">
+	<analytic>
+		<title level="a" type="main">Adversarial training for crossdomain universal dependency parsing</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Motoki</forename><surname>Sato</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Hitoshi</forename><surname>Manabe</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Hiroshi</forename><surname>Noji</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yuji</forename><surname>Matsumoto</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the CoNLL 2017 Shared Task: Multilingual Parsing from Raw Text to Universal Dependencies</title>
+		<meeting>the CoNLL 2017 Shared Task: Multilingual Parsing from Raw Text to Universal Dependencies<address><addrLine>Vancouver, Canada</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2017" />
+			<biblScope unit="page" from="71" to="79" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b16">
+	<analytic>
+		<title level="a" type="main">Combining global models for parsing universal dependencies</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Tianze</forename><surname>Shi</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Felix</forename><forename type="middle">G</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Xilun</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yao</forename><surname>Cheng</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the CoNLL 2017 Shared Task: Multilingual Parsing from Raw Text to Universal Dependencies</title>
+		<meeting>the CoNLL 2017 Shared Task: Multilingual Parsing from Raw Text to Universal Dependencies<address><addrLine>Vancouver, Canada</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2017" />
+			<biblScope unit="page" from="31" to="39" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b17">
+	<analytic>
+		<title level="a" type="main">Cross-lingual dependency parsing with universal dependencies and predicted PoS labels</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jörg</forename><surname>Tiedemann</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Third International Conference on Dependency Linguistics</title>
+		<meeting>the Third International Conference on Dependency Linguistics<address><addrLine>Uppsala, Sweden; Uppsala, Sweden</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2015" />
+			<biblScope unit="page" from="340" to="349" />
+		</imprint>
+		<respStmt>
+			<orgName>Uppsala University</orgName>
+		</respStmt>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b18">
+	<analytic>
+		<title level="a" type="main">Polyglot neural language models: A case study in cross-lingual phonetic representation learning</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yulia</forename><surname>Tsvetkov</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Sunayana</forename><surname>Sitaram</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Manaal</forename><surname>Faruqui</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Guillaume</forename><surname>Lample</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Patrick</forename><surname>Littell</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">David</forename><surname>Mortensen</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Alan</forename><forename type="middle">W</forename><surname>Black</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Lori</forename><surname>Levin</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Chris</forename><surname>Dyer</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2016 Conference of the NAACL: Human Language Technologies</title>
+		<meeting>the 2016 Conference of the NAACL: Human Language Technologies<address><addrLine>San Diego, California, USA</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2016" />
+			<biblScope unit="page" from="1357" to="1366" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b19">
+	<analytic>
+		<title level="a" type="main">Joint UD parsing of Norwegian Bokmål and Nynorsk</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Erik</forename><surname>Velldal</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Lilja</forename><surname>Øvrelid</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Petter</forename><surname>Hohle</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 21st Nordic Conference on Computational Linguistics (NODALIDA&apos;17)</title>
+		<meeting>the 21st Nordic Conference on Computational Linguistics (NODALIDA&apos;17)<address><addrLine>Gothenburg, Sweden</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2017" />
+			<biblScope unit="page" from="1" to="10" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b20">
+	<analytic>
+		<title level="a" type="main">CoNLL 2017 shared task: Multilingual parsing from raw text to universal dependencies</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Daniel</forename><surname>Zeman</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Martin</forename><surname>Popel</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Milan</forename><surname>Straka</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Hajič</forename><surname>Jan</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Joakim</forename><surname>Nivre</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Filip</forename><surname>Ginter</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Juhani</forename><surname>Luotolahti</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Sampo</forename><surname>Pyysalo</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Slav</forename><surname>Petrov</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Martin</forename><surname>Potthast</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Francis</forename><surname>Tyers</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Elena</forename><surname>Badmaeva</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Memduh</forename><surname>Gokirmak</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Anna</forename><surname>Nedoluzhko</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Silvie</forename><surname>Cinkova</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jan</forename><surname>Hajič Jr</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jaroslava</forename><surname>Hlavacova</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Václava</forename><surname>Kettnerová</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Zdenka</forename><surname>Uresova</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jenna</forename><surname>Kanerva</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Stina</forename><surname>Ojala</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Anna</forename><surname>Missilä</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Christopher</forename><forename type="middle">D</forename><surname>Manning</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Sebastian</forename><surname>Schuster</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Siva</forename><surname>Reddy</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Dima</forename><surname>Taji</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Nizar</forename><surname>Habash</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Herman</forename><surname>Leung</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Marie-Catherine</forename><surname>De Marneffe</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Manuela</forename><surname>Sanguinetti</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Maria</forename><surname>Simi</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Hiroshi</forename><surname>Kanayama</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Valeria</forename><surname>Depaiva</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kira</forename><surname>Droganova</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">C</forename><surname>Héctor Martínez Alonso</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Grı C ¸ ¨ Oltekin</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the CoNLL 2017 Shared Task: Multilingual Parsing from Raw Text to Universal Dependencies</title>
+		<editor>Mohammed Attia, Ali Elkahky, Zhuoran Yu, Emily Pitler, Saran Lertpradit, Michael Mandl, Jesse Kirchner, Hector Fernandez Alcalde, Jana Strnadová, Esha Banerjee, Ruli Manurung, Antonio Stella, Atsuko Shimada, Sookyoung Kwak, Gustavo Mendonca, Tatiana Lando, Rattima Nitisaroj, and Josie Li</editor>
+		<meeting>the CoNLL 2017 Shared Task: Multilingual Parsing from Raw Text to Universal Dependencies<address><addrLine>Umut Sulubacak, Hans Uszkoreit, Vivien Macketanz, Aljoscha Burchardt, Kim Harris, Katrin Marheinecke, Georg Rehm, Tolga Kayadelen; Vancouver, Canada</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2017" />
+			<biblScope unit="page" from="1" to="19" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+				</listBibl>
+			</div>
+		</back>
+	</text>
+</TEI>

@@ -1,0 +1,1221 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<TEI xmlns="http://www.tei-c.org/ns/1.0" 
+xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+xsi:schemaLocation="http://www.tei-c.org/ns/1.0 /home/ana/installs/grobid/grobid-0.5.1/grobid-home/schemas/xsd/Grobid.xsd"
+ xmlns:xlink="http://www.w3.org/1999/xlink">
+	<teiHeader xml:lang="en">
+		<encodingDesc>
+			<appInfo>
+				<application version="0.5.1-SNAPSHOT" ident="GROBID" when="2019-04-18T11:47+0000">
+					<ref target="https://github.com/kermitt2/grobid">GROBID - A machine learning software for extracting information from scholarly documents</ref>
+				</application>
+			</appInfo>
+		</encodingDesc>
+		<fileDesc>
+			<titleStmt>
+				<title level="a" type="main"></title>
+			</titleStmt>
+			<publicationStmt>
+				<publisher/>
+				<availability status="unknown"><licence/></availability>
+				<date>November 1-5, 2016</date>
+			</publicationStmt>
+			<sourceDesc>
+				<biblStruct>
+					<analytic>
+						<author>
+							<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Sam</forename><surname>Wiseman</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="department">School of Engineering and Applied Sciences</orgName>
+								<orgName type="institution">Harvard University Cambridge</orgName>
+								<address>
+									<region>MA</region>
+									<country key="US">USA</country>
+								</address>
+							</affiliation>
+						</author>
+						<author>
+							<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Alexander</forename><forename type="middle">M</forename><surname>Rush</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="department">School of Engineering and Applied Sciences</orgName>
+								<orgName type="institution">Harvard University Cambridge</orgName>
+								<address>
+									<region>MA</region>
+									<country key="US">USA</country>
+								</address>
+							</affiliation>
+						</author>
+					</analytic>
+					<monogr>
+						<title level="m">Proceedings of the 2016 Conference on Empirical Methods in Natural Language Processing</title>
+						<meeting>the 2016 Conference on Empirical Methods in Natural Language Processing <address><addrLine>Austin, Texas</addrLine></address>
+						</meeting>
+						<imprint>
+							<biblScope unit="page" from="1296" to="1306"/>
+							<date type="published">November 1-5, 2016</date>
+						</imprint>
+					</monogr>
+					<note>Sequence-to-Sequence Learning as Beam-Search Optimization</note>
+				</biblStruct>
+			</sourceDesc>
+		</fileDesc>
+		<profileDesc>
+			<abstract>
+				<p>Sequence-to-Sequence (seq2seq) modeling has rapidly become an important general-purpose NLP tool that has proven effective for many text-generation and sequence-labeling tasks. Seq2seq builds on deep neural language modeling and inherits its remarkable accuracy in estimating local, next-word distributions. In this work, we introduce a model and beam-search training scheme, based on the work of Daumé III and Marcu (2005), that extends seq2seq to learn global sequence scores. This structured approach avoids classical biases associated with local training and unifies the training loss with the test-time usage, while preserving the proven model architecture of seq2seq and its efficient training approach. We show that our system outperforms a highly-optimized attention-based seq2seq system and other baselines on three different sequence to sequence tasks: word ordering, parsing, and machine translation.</p>
+			</abstract>
+		</profileDesc>
+	</teiHeader>
+	<text xml:lang="en">
+		<body>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="1">Introduction</head><p>Sequence-to-Sequence learning with deep neural networks (herein, seq2seq) <ref type="bibr" target="#b32">(Sutskever et al., 2011;</ref>) has rapidly become a very useful and surprisingly general-purpose tool for nat- ural language processing. In addition to demon- strating impressive results for machine translation ( <ref type="bibr" target="#b2">Bahdanau et al., 2015)</ref>, roughly the same model and training have also proven to be useful for sen- tence compression ( <ref type="bibr" target="#b14">Filippova et al., 2015</ref>), parsing ( , and dialogue systems <ref type="bibr" target="#b29">(Serban et al., 2016)</ref>, and they additionally underlie other text generation applications, such as image or video captioning ( <ref type="bibr" target="#b34">Venugopalan et al., 2015;</ref><ref type="bibr" target="#b38">Xu et al., 2015)</ref>.</p><p>The dominant approach to training a seq2seq sys- tem is as a conditional language model, with training maximizing the likelihood of each successive tar- get word conditioned on the input sequence and the gold history of target words. Thus, training uses a strictly word-level loss, usually cross-entropy over the target vocabulary. This approach has proven to be very effective and efficient for training neural lan- guage models, and seq2seq models similarly obtain impressive perplexities for word-generation tasks.</p><p>Notably, however, seq2seq models are not used as conditional language models at test-time; they must instead generate fully-formed word sequences. In practice, generation is accomplished by searching over output sequences greedily or with beam search. In this context, <ref type="bibr" target="#b24">Ranzato et al. (2016)</ref> note that the combination of the training and generation scheme just described leads to at least two major issues:</p><p>1. Exposure Bias: the model is never exposed to its own errors during training, and so the in- ferred histories at test-time do not resemble the gold training histories.</p><p>2. Loss-Evaluation Mismatch: training uses a word-level loss, while at test-time we target improving sequence-level evaluation metrics, such as BLEU ( <ref type="bibr" target="#b22">Papineni et al., 2002</ref>).</p><p>We might additionally add the concern of label bias ( <ref type="bibr" target="#b18">Lafferty et al., 2001</ref>) to the list, since word- probabilities at each time-step are locally normal- ized, guaranteeing that successors of incorrect his-tories receive the same mass as do the successors of the true history.</p><p>In this work we develop a non-probabilistic vari- ant of the seq2seq model that can assign a score to any possible target sequence, and we propose a training procedure, inspired by the learning as search optimization (LaSO) framework of Daumé III and <ref type="bibr" target="#b11">Marcu (2005)</ref>, that defines a loss function in terms of errors made during beam search. Fur- thermore, we provide an efficient algorithm to back- propagate through the beam-search procedure dur- ing seq2seq training.</p><p>This approach offers a possible solution to each of the three aforementioned issues, while largely maintaining the model architecture and training ef- ficiency of standard seq2seq learning. Moreover, by scoring sequences rather than words, our ap- proach also allows for enforcing hard-constraints on sequence generation at training time. To test out the effectiveness of the proposed approach, we develop a general-purpose seq2seq system with beam search optimization. We run experiments on three very dif- ferent problems: word ordering, syntactic parsing, and machine translation, and compare to a highly- tuned seq2seq system with attention ( <ref type="bibr" target="#b20">Luong et al., 2015</ref>). The version with beam search optimization shows significant improvements on all three tasks, and particular improvements on tasks that require difficult search.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2">Related Work</head><p>The issues of exposure bias and label bias have re- ceived much attention from authors in the structured prediction community, and we briefly review some of this work here. One prominent approach to com- bating exposure bias is that of SEARN <ref type="bibr" target="#b12">(Daumé III et al., 2009</ref>), a meta-training algorithm that learns a search policy in the form of a cost-sensitive classifier trained on examples generated from an interpolation of an oracle policy and the model's current (learned) policy. Thus, SEARN explicitly targets the mis- match between oracular training and non-oracular (often greedy) test-time inference by training on the output of the model's own policy. <ref type="bibr">DAgger (Ross et al., 2011</ref>) is a similar approach, which differs in terms of how training examples are generated and aggregated, and there have additionally been impor- tant refinements to this style of training over the past several years ( <ref type="bibr" target="#b6">Chang et al., 2015)</ref>. When it comes to training RNNs, SEARN/DAgger has been applied under the name "scheduled sampling" ( , which involves training an RNN to generate the t + 1'st token in a target sequence after consum- ing either the true t'th token, or, with probability that increases throughout training, the predicted t'th to- ken.</p><p>Though technically possible, it is uncom- mon to use beam search when training with SEARN/DAgger. The early-update ( <ref type="bibr" target="#b10">Collins and Roark, 2004</ref>) and <ref type="bibr">LaSO (Daumé III and Marcu, 2005</ref>) training strategies, however, explicitly ac- count for beam search, and describe strategies for updating parameters when the gold structure be- comes unreachable during search. Early update and LaSO differ primarily in that the former discards a training example after the first search error, whereas LaSO resumes searching after an error from a state that includes the gold partial structure. In the con- text of feed-forward neural network training, early update training has been recently explored in a feed- forward setting by <ref type="bibr" target="#b44">Zhou et al. (2015)</ref> and <ref type="bibr">Andor et al. (2016)</ref>. Our work differs in that we adopt a LaSO-like paradigm (with some minor modifica- tions), and apply it to the training of seq2seq RNNs (rather than feed-forward networks). We also note that <ref type="bibr" target="#b37">Watanabe and Sumita (2015)</ref> apply maximum- violation training <ref type="bibr" target="#b16">(Huang et al., 2012)</ref>, which is sim- ilar to early-update, to a parsing model with recur- rent components, and that <ref type="bibr" target="#b39">Yazdani and Henderson (2015)</ref> use beam-search in training a discriminative, locally normalized dependency parser with recurrent components.</p><p>Recently authors have also proposed alleviating exposure bias using techniques from reinforcement learning. <ref type="bibr" target="#b24">Ranzato et al. (2016)</ref> follow this ap- proach to train RNN decoders in a seq2seq model, and they obtain consistent improvements in perfor- mance, even over models trained with scheduled sampling. As Daumé III and <ref type="bibr" target="#b11">Marcu (2005)</ref> note, LaSO is similar to reinforcement learning, except it does not require "exploration" in the same way. Such exploration may be unnecessary in supervised text-generation, since we typically know the gold partial sequences at each time-step. <ref type="bibr" target="#b30">Shen et al. (2016)</ref> use minimum risk training (approximated by sampling) to address the issues of exposure bias and loss-evaluation mismatch for seq2seq MT, and show impressive performance gains.</p><p>Whereas exposure bias results from training in a certain way, label bias results from properties of the model itself. In particular, label bias is likely to affect structured models that make sub-structure predictions using locally-normalized scores. Be- cause the neural and non-neural literature on this point has recently been reviewed by <ref type="bibr">Andor et al. (2016)</ref>, we simply note here that RNN models are typically locally normalized, and we are unaware of any specifically seq2seq work with RNNs that does not use locally-normalized scores. The model we introduce here, however, is not locally normalized, and so should not suffer from label bias. We also note that there are some (non-seq2seq) exceptions to the trend of locally normalized RNNs, such as the work of <ref type="bibr">Sak et al. (2014)</ref> and <ref type="bibr" target="#b36">Voigtlaender et al. (2015)</ref>, who train LSTMs in the context of HMMs for speech recognition using sequence-level objec- tives; their work does not consider search, however.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3">Background and Notation</head><p>In the simplest seq2seq scenario, we are given a col- lection of source-target sequence pairs and tasked with learning to generate target sequences from source sequences. For instance, we might view ma- chine translation in this way, where in particular we attempt to generate English sentences from (corre- sponding) French sentences. Seq2seq models are part of the broader class of "encoder-decoder" mod- els ( <ref type="bibr" target="#b9">Cho et al., 2014</ref>), which first use an encoding model to transform a source object into an encoded representation x. Many different sequential (and non-sequential) encoders have proven to be effec- tive for different source domains. In this work we are agnostic to the form of the encoding model, and simply assume an abstract source representation x.</p><p>Once the input sequence is encoded, seq2seq models generate a target sequence using a decoder. The decoder is tasked with generating a target se- quence of words from a target vocabulary V. In particular, words are generated sequentially by con- ditioning on the input representation x and on the previously generated words or history. We use the notation w 1:T to refer to an arbitrary word sequence of length T , and the notation y 1:T to refer to the gold (i.e., correct) target word sequence for an input x.</p><p>Most seq2seq systems utilize a recurrent neural network (RNN) for the decoder model. Formally, a recurrent neural network is a parameterized non- linear function RNN that recursively maps a se- quence of vectors to a sequence of hidden states. Let m 1 , . . . , m T be a sequence of T vectors, and let h 0 be some initial state vector. Applying an RNN to any such sequence yields hidden states h t at each time-step t, as follows:</p><formula xml:id="formula_0">h t ← RNN(m t , h t−1 ; θ),</formula><p>where θ is the set of model parameters, which are shared over time. In this work, the vectors m t will always correspond to the embeddings of a tar- get word sequence w 1:T , and so we will also write h t ← RNN(w t , h t−1 ; θ), with w t standing in for its embedding.</p><p>RNN decoders are typically trained to act as con- ditional language models. That is, one attempts to model the probability of the t'th target word con- ditioned on x and the target history by stipulating that p(w t |w 1:t−1 , x) = g(w t , h t−1 , x), for some pa- rameterized function g typically computed with an affine layer followed by a softmax. In computing these probabilities, the state h t−1 represents the tar- get history, and h 0 is typically set to be some func- tion of x. The complete model (including encoder) is trained, analogously to a neural language model, to minimize the cross-entropy loss at each time-step while conditioning on the gold history in the train- ing data. That is, the model is trained to minimize − ln T t=1 p(y t |y 1:t−1 , x). Once the decoder is trained, discrete se- quence generation can be performed by approx- imately maximizing the probability of the tar- get sequence under the conditional distribution, ˆ y 1:T = argbeam w 1:T T t=1 p(w t |w 1:t−1 , x), where we use the notation argbeam to emphasize that the decoding process requires heuristic search, since the RNN model is non-Markovian. In practice, a simple beam search procedure that explores K prospective histories at each time-step has proven to be an effec- tive decoding approach. However, as noted above, decoding in this manner after conditional language- model style training potentially suffers from the is-sues of exposure bias and label bias, which moti- vates the work of this paper.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4">Beam Search Optimization</head><p>We begin by making one small change to the seq2seq modeling framework. Instead of predicting the probability of the next word, we instead learn to produce (non-probabilistic) scores for ranking se- quences. Define the score of a sequence consisting of history w 1:t−1 followed by a single word w t as f (w t , h t−1 , x), where f is a parameterized function examining the current hidden-state of the relevant RNN at time t − 1 as well as the input representa- tion x. In experiments, our f will have an identi- cal form to g but without the final softmax transfor- mation (which transforms unnormalized scores into probabilities), thereby allowing the model to avoid issues associated with the label bias problem.</p><p>More importantly, we also modify how this model is trained. Ideally we would train by comparing the gold sequence to the highest-scoring complete sequence. However, because finding the argmax sequence according to this model is intractable, we propose to adopt a LaSO-like <ref type="bibr" target="#b11">(Daumé III and Marcu, 2005</ref>) scheme to train, which we will re- fer to as beam search optimization (BSO). In par- ticular, we define a loss that penalizes the gold se- quence falling off the beam during training. <ref type="bibr">1</ref> The proposed training approach is a simple way to ex- pose the model to incorrect histories and to match the training procedure to test generation. Further- more we show that it can be implemented efficiently without changing the asymptotic run-time of train- ing, beyond a factor of the beam size K.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.1">Search-Based Loss</head><p>We now formalize this notion of a search-based loss for RNN training. Assume we have a set S t of K candidate sequences of length t. We can calculate a score for each sequence in S t using a scoring func- tion f parameterized with an RNN, as above, and we define the sequencê y (K) 1:t ∈ S t to be the K'th ranked</p><formula xml:id="formula_1">, ˆ h (K) t−1 )}| = K − 1, wherê y (k)</formula><p>t is the t'th token inˆyinˆ inˆy</p><formula xml:id="formula_2">(k) 1:t , ˆ h (k)</formula><p>t−1 is the RNN state corresponding to its t − 1'st step, and where we have omitted the x argument to f for brevity.</p><p>We now define a loss function that gives loss each time the score of the gold prefix y 1:t does not exceed that ofˆyofˆ ofˆy (K) 1:t by a margin:</p><formula xml:id="formula_3">L(f ) = T t=1 ∆(ˆ y (K) 1:t ) 1 − f (y t , h t−1 ) + f (ˆ y (K) t , ˆ h (K) t−1 ) .</formula><p>Above, the ∆(ˆ y</p><p>1:t ) term denotes a mistake-specific cost-function, which allows us to scale the loss de- pending on the severity of erroneously predictingˆy predictingˆ predictingˆy (K) 1:t ; it is assumed to return 0 when the margin re- quirement is satisfied, and a positive number other- wise. It is this term that allows us to use sequence- rather than word-level costs in training (addressing the 2nd issue in the introduction). For instance, when training a seq2seq model for machine trans- lation, it may be desirable to have ∆(ˆ y (K) 1:t ) be in- versely related to the partial sentence-level BLEU score ofˆyofˆ ofˆy <ref type="bibr">(K)</ref> 1:t with y 1:t ; we experiment along these lines in Section 5.3.</p><p>Finally, because we want the full gold sequence to be at the top of the beam at the end of search, when t = T we modify the loss to require the score of y 1:T to exceed the score of the highest ranked incorrect prediction by a margin.</p><p>We can optimize the loss L using a two-step pro- cess: (1) in a forward pass, we compute candidate sets S t and record margin violations (sequences with non-zero loss); (2) in a backward pass, we back- propagate the errors through the seq2seq RNNs. Un- like standard seq2seq training, the first-step requires running search (in our case beam search) to find margin violations. The second step can be done by adapting back-propagation through time (BPTT). We next discuss the details of this process.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.2">Forward: Find Violations</head><p>In order to minimize this loss, we need to specify a procedure for constructing candidate sequencesˆysequencesˆ sequencesˆy (k) 1:t at each time step t so that we find margin viola- tions. We follow LaSO (rather than early-update 2 ; see Section 2) and build candidates in a recursive manner. If there was no margin violation at t−1, then S t is constructed using a standard beam search update. If there was a margin violation, S t is con- structed as the K best sequences assuming the gold history y 1:t−1 through time-step t−1.</p><p>Formally, assume the function succ maps a se- quence w 1:t−1 ∈ V t−1 to the set of all valid se- quences of length t that can be formed by appending to it a valid word w ∈ V. In the simplest, uncon- strained case, we will have succ(w 1:t−1 ) = {w 1:t−1 , w | w ∈ V}.</p><p>As an important aside, note that for some prob- lems it may be preferable to define a succ func- tion which imposes hard constraints on successor sequences. For instance, if we would like to use seq2seq models for parsing (by emitting a con- stituency or dependency structure encoded into a se- quence in some way), we will have hard constraints on the sequences the model can output, namely, that they represent valid parses. While hard constraints such as these would be difficult to add to standard seq2seq at training time, in our framework they can naturally be added to the succ function, allowing us to train with hard constraints; we experiment along these lines in Section 5.3, where we refer to a model trained with constrained beam search as ConBSO.</p><p>Having defined an appropriate succ function, we specify the candidate set as:</p><formula xml:id="formula_5">S t = topK succ(y 1:t−1 ) violation at t−1 K k=1 succ(ˆ y (k) 1:t−1 ) otherwise,</formula><p>where we have a margin violation at t−1 iff</p><formula xml:id="formula_6">f (y t−1 , h t−2 ) &lt; f (ˆ y (K) t−1 , ˆ h (K)</formula><p>t−2 ) + 1, and where topK considers the scores given by f . This search procedure is illustrated in the top portion of <ref type="figure" target="#fig_0">Figure 1</ref>.</p><p>In the forward pass of our training algorithm, shown as the first part of Algorithm 1, we run this version of beam search and collect all sequences and their hidden states that lead to losses.  1:t formed in training with a beam of size K = 3 and with gold sequence y 1:6 = "a red dog runs quickly today". The gold sequence is high- lighted in yellow, and the predicted prefixes involved in margin violations (at t = 4 and t = 6) are in gray. Note that time-step T = 6 uses a different loss criterion. Bot- tom: prefixes that actually participate in the loss, ar- ranged to illustrate the back-propagation process.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.3">Backward: Merge Sequences</head><p>Once we have collected margin violations we can run backpropagation to compute parameter updates. Assume a margin violation occurs at time-step t be- tween the predicted historyˆyhistoryˆ historyˆy (K) 1:t and the gold his- tory y 1:t . As in standard seq2seq training we must back-propagate this error through the gold history; however, unlike seq2seq we also have a gradient for the wrongly predicted history.</p><p>Recall that to back-propagate errors through an RNN we run a recursive backward procedure - denoted below by BRNN -at each time-step t, which accumulates the gradients of next-step and fu- ture losses with respect to h t . We have:</p><formula xml:id="formula_7">ht L ← BRNN( ht L t+1 , h t+1 L),</formula><p>where L t+1 is the loss at step t + 1, deriving, for instance, from the score f (y t+1 , h t ). Running this BRNN procedure from t = T − 1 to t = 0 is known as back-propagation through time (BPTT).</p><p>In determining the total computational cost of back-propagation here, first note that in the worst case there is one violation at each time-step, which leads to T independent, incorrect sequences. Since we need to call BRNN O(T ) times for each se- quence, a naive strategy of running BPTT for each incorrect sequence would lead to an O(T 2 ) back- ward pass, rather than the O(T ) time required for the standard seq2seq approach.</p><p>Fortunately, our combination of search-strategy and loss make it possible to efficiently share BRNN operations. This shared structure comes naturally from the LaSO update, which resets the beam in a convenient way.</p><p>We informally illustrate the process in <ref type="figure" target="#fig_0">Figure 1</ref>. The top of the diagram shows a possible sequence ofˆyofˆ ofˆy (k) 1:t formed during search with a beam of size 3 for the target sequence y = "a red dog runs quickly today." When the gold sequence falls off the beam at t = 4, search resumes with S 5 = succ(y 1:4 ), and so all subsequent predicted sequences have y 1:4 as a prefix and are thus functions of h 4 . Moreover, be- cause our loss function only involves the scores of the gold prefix and the violating prefix, we end up with the relatively simple computation tree shown at the bottom of <ref type="figure" target="#fig_0">Figure 1</ref>. It is evident that we can backpropagate in a single pass, accumulating gradi- ents from sequences that diverge from the gold at the time-step that precedes their divergence. The second half of Algorithm 1 shows this explicitly for a single sequence, though it is straightforward to extend the algorithm to operate in batch. <ref type="bibr">3</ref> </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5">Data and Methods</head><p>We run experiments on three different tasks, com- paring our approach to the seq2seq baseline, and to other relevant baselines.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.1">Model</head><p>While the method we describe applies to seq2seq RNNs in general, for all experiments we use the global attention model of <ref type="bibr" target="#b20">Luong et al. (2015)</ref> -which consists of an LSTM <ref type="bibr" target="#b15">(Hochreiter and Schmidhuber, 1997)</ref> encoder and an LSTM decoder with a global attention model -as both the base- line seq2seq model (i.e., as the model that computes the g in Section 3) and as the model that computes our sequence-scores f (w t , h t−1 , x). As in <ref type="bibr" target="#b20">Luong et al. (2015)</ref>, we also use "input feeding," which involves feeding the attention distribution from the previous time-step into the decoder at the current step. This model architecture has been found to be highly performant for neural machine translation and other seq2seq tasks.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Algorithm 1 Seq2seq Beam-Search Optimization</head><p>1: procedure BSO(x, K tr , succ) 2:</p><p>/*FORWARD*/ 3:</p><p>Init empty storagê y 1:T andˆhandˆ andˆh 1:T ; init S 1</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>4:</head><p>r ← 0; violations ← {0}</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>5:</head><p>for t = 1, . . . , T do 6: S t+1 ← topK(succ(y 1:t ))</p><formula xml:id="formula_8">K = K tr if t = T else arg max k:ˆ y (k) 1:t =y 1:t f (ˆ y (k) t , ˆ h (k) t−1 ) 7: if f (y t , h t−1 ) &lt; f (ˆ y (K) t , ˆ h<label>(</label></formula></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>13:</head><p>else 14: </p><formula xml:id="formula_9">S t+1 ← topK( K k=1 succ(ˆ y</formula><formula xml:id="formula_10">for t = T − 1, . . . , 1 do 18: grad h t ← BRNN( ht L t+1 , grad h t+1 ) 19: grad h t ← BRNN( ht L t+1 , grad h t+1 ) 20:</formula><p>if t − 1 ∈ violations then 21:</p><formula xml:id="formula_11">grad h t ← grad h t + grad h t 22: grad h t ← 0</formula><p>To distinguish the models we refer to our system as BSO (beam search optimization) and to the base- line as seq2seq. When we apply constrained training (as discussed in Section 4.2), we refer to the model as ConBSO. In providing results we also distinguish between the beam size K tr with which the model is trained, and the beam size K te which is used at test-time. In general, if we plan on evaluating with a beam of size K te it makes sense to train with a beam of size K tr = K te + 1, since our objective requires the gold sequence to be scored higher than the last sequence on the beam.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.2">Methodology</head><p>Here we detail additional techniques we found nec- essary to ensure the model learned effectively. First, we found that the model failed to learn when trained from a random initialization. <ref type="bibr">4</ref> We therefore found it necessary to pre-train the model using a standard, word-level cross-entropy loss as described in Sec-tion 3. The necessity of pre-training in this instance is consistent with the findings of other authors who train non-local neural models <ref type="bibr" target="#b17">(Kingsbury, 2009;</ref><ref type="bibr">Sak et al., 2014;</ref><ref type="bibr">Andor et al., 2016;</ref><ref type="bibr" target="#b24">Ranzato et al., 2016)</ref>. <ref type="bibr">5</ref> Similarly, it is clear that the smaller the beam used in training is, the less room the model has to make erroneous predictions without running afoul of the margin loss. Accordingly, we also found it use- ful to use a "curriculum beam" strategy in training, whereby the size of the beam is increased gradually during training. In particular, given a desired train- ing beam size K tr , we began training with a beam of size 2, and increased it by 1 every 2 epochs until reaching K tr .</p><p>Finally, it has been established that dropout <ref type="bibr" target="#b31">(Srivastava et al., 2014</ref>) regularization improves the per- formance of <ref type="bibr">LSTMs (Pham et al., 2014;</ref><ref type="bibr">Zaremba et al., 2014)</ref>, and in our experiments we run beam search under dropout. <ref type="bibr">6</ref> For all experiments, we trained both seq2seq and BSO models with mini-batch Adagrad ( <ref type="bibr" target="#b13">Duchi et al., 2011</ref>) (using batches of size 64), and we renormal- ized all gradients so they did not exceed 5 before updating parameters. We did not extensively tune learning-rates, but we found initial rates of 0.02 for the encoder and decoder LSTMs, and a rate of 0.1 or 0.2 for the final linear layer (i.e., the layer tasked with making word-predictions at each time- step) to work well across all the tasks we consid- ered. Code implementing the experiments described below can be found at https://github.com/ harvardnlp/BSO. <ref type="bibr">7</ref> </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.3">Tasks and Results</head><p>Our experiments are primarily intended to evaluate the effectiveness of beam search optimization over standard seq2seq training. As such, we run exper- iments with the same model across three very dif- 5 <ref type="bibr">Andor et al. (2016)</ref> found, however, that pre-training only increased convergence-speed, but was not necessary for obtain- ing good results. <ref type="bibr">6</ref> However, it is important to ensure that the same mask ap- plied at each time-step of the forward search is also applied at the corresponding step of the backward pass. We accomplish this by pre-computing masks for each time-step, and sharing them between the partial sequence LSTMs. <ref type="bibr">7</ref> Our code is based on Yoon Kim's seq2seq code, https: //github.com/harvardnlp/seq2seq-attn. ferent problems: word ordering, dependency pars- ing, and machine translation. While we do not in- clude all the features and extensions necessary to reach state-of-the-art performance, even the baseline seq2seq model is generally quite performant.</p><p>Word Ordering The task of correctly ordering the words in a shuffled sentence has recently gained some attention as a way to test the (syntactic) capa- bilities of text-generation systems ( <ref type="bibr" target="#b42">Zhang and Clark, 2011;</ref><ref type="bibr" target="#b43">Zhang and Clark, 2015;</ref><ref type="bibr" target="#b19">Liu et al., 2015;</ref><ref type="bibr" target="#b28">Schmaltz et al., 2016</ref>). We cast this task as seq2seq problem by viewing a shuffled sentence as a source sentence, and the correctly ordered sentence as the target. While word ordering is a somewhat synthetic task, it has two interesting properties for our pur- poses. First, it is a task which plausibly requires search (due to the exponentially many possible or- derings), and, second, there is a clear hard constraint on output sequences, namely, that they be a permu- tation of the source sequence. For both the baseline and BSO models we enforce this constraint at test- time. However, we also experiment with constrain- ing the BSO model during training, as described in Section 4.2, by defining the succ function to only al- low successor sequences containing un-used words in the source sentence.</p><p>For experiments, we use the same PTB dataset (with the standard training, development, and test splits) and evaluation procedure as in <ref type="bibr" target="#b43">Zhang and Clark (2015)</ref> and later work, with performance re- ported in terms of BLEU score with the correctly or- dered sentences. For all word-ordering experiments we use 2-layer encoder and decoder LSTMs, each with 256 hidden units, and dropout with a rate of 0.2 between LSTM layers. We use simple 0/1 costs in defining the ∆ function.</p><p>We show our test-set results in <ref type="table">Table 1</ref>. We see that on this task there is a large improvement at each beam size from switching to BSO, and a further im- provement from using the constrained model.</p><p>Inspired by a similar analysis in <ref type="bibr" target="#b11">Daumé III and Marcu (2005)</ref>, we further examine the relationship between K tr and K te when training with ConBSO in <ref type="table" target="#tab_2">Table 2</ref>. We see that larger K tr hurt greedy in- ference, but that results continue to improve, at least initially, when using a K te that is (somewhat) bigger than K tr − 1.  </p><formula xml:id="formula_12">Word Ordering (BLEU) K te = 1 K te = 5 K te = 10</formula></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Dependency Parsing</head><p>We next apply our model to dependency parsing, which also has hard con- straints and plausibly benefits from search. We treat dependency parsing with arc-standard transi- tions as a seq2seq task by attempting to map from a source sentence to a target sequence of source sentence words interleaved with the arc-standard, reduce-actions in its parse. For example, we attempt to map the source sentence  and dropout with a rate of 0.3 between LSTM lay- ers. We replace singleton words in the training set with an UNK token, normalize digits to a single symbol, and initialize word embeddings for both source and target words from the publicly available word2vec ( <ref type="bibr" target="#b21">Mikolov et al., 2013)</ref> embeddings. We use simple 0/1 costs in defining the ∆ function. As in the word-ordering case, we also experiment with modifying the succ function in order to train under hard constraints, namely, that the emitted tar- get sequence be a valid parse. In particular, we con- strain the output at each time-step to obey the stack constraint, and we ensure words in the source are emitted in order.</p><p>We show results on the test-set in <ref type="table" target="#tab_4">Table 3</ref>. BSO and ConBSO both show significant improvements over seq2seq, with ConBSO improving most on UAS, and BSO improving most on LAS. We achieve a reasonable final score of 91.57 UAS, which lags behind the state-of-the-art, but is promising for a general-purpose, word-only model.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Translation</head><p>We finally evaluate our model on a small machine translation dataset, which allows us to experiment with a cost function that is not 0/1, and to consider other baselines that attempt to mit- igate exposure bias in the seq2seq setting. We use the dataset from the work of <ref type="bibr" target="#b24">Ranzato et al. (2016)</ref>, which uses data from the German-to-English por- tion of the IWSLT 2014 machine translation eval- uation campaign ( <ref type="bibr" target="#b5">Cettolo et al., 2014</ref>  al. <ref type="formula" target="#formula_8">(2016)</ref>, and like them we also use a single-layer LSTM decoder with 256 units. We also use dropout with a rate of 0.2 between each LSTM layer. We em- phasize, however, that while our decoder LSTM is of the same size as that of <ref type="bibr" target="#b24">Ranzato et al. (2016)</ref>, our re- sults are not directly comparable, because we use an LSTM encoder (rather than a convolutional encoder as they do), a slightly different attention mechanism, and input feeding ( <ref type="bibr" target="#b20">Luong et al., 2015</ref>).</p><p>For our main MT results, we set ∆(ˆ y (k) 1:t ) to 1 − SB(ˆ y (K) r+1:t , y r+1:t ), where r is the last margin violation and SB denotes smoothed, sentence-level BLEU <ref type="bibr" target="#b7">(Chen and Cherry, 2014)</ref>. This setting of ∆ should act to penalize erroneous predictions with a relatively low sentence-level BLEU score more than those with a relatively high sentence-level BLEU score. In <ref type="table" target="#tab_6">Table 4</ref> we show our final results and those from <ref type="bibr" target="#b24">Ranzato et al. (2016)</ref>. <ref type="bibr">8</ref> While we start with an improved baseline, we see similarly large increases in accuracy as those obtained by DAD and MIXER, in particular when K te &gt; 1.</p><p>We further investigate the utility of these sequence-level costs in <ref type="table">Table 5</ref>, which compares us- ing sentence-level BLEU costs in defining ∆ with using 0/1 costs. We see that the more sophisti- cated sequence-level costs have a moderate effect on BLEU score. <ref type="bibr">8</ref> Some results from personal communication.</p><p>Machine Translation (BLEU) K te = 1 K te = 5 K te = 10 0/1-∆ 25.73 28.21 27.43 SB-∆ 25.99 28.45 27.58 <ref type="table">Table 5</ref>: BLEU scores obtained on the machine trans- lation development data when training with ∆(ˆ y Timing Given Algorithm 1, we would expect training time to increase linearly with the size of the beam. On the above MT task, our highly tuned seq2seq baseline processes an average of 13,038 to- kens/second (including both source and target to- kens) on a GTX 970 GPU. For beams of size K tr = 2, 3, 4, 5, and 6, our implementation processes on average 1,985, 1,768, 1,709, 1,521, and 1,458 to- kens/second, respectively. Thus, we appear to pay an initial constant factor of ≈ 3.3 due to the more complicated forward and backward passes, and then training scales with the size of the beam. Because we batch beam predictions on a GPU, however, we find that in practice training time scales sub-linearly with the beam-size.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6">Conclusion</head><p>We have introduced a variant of seq2seq and an as- sociated beam search training scheme, which ad- dresses exposure bias as well as label bias, and moreover allows for both training with sequence- level cost functions as well as with hard constraints. Future work will examine scaling this approach to much larger datasets.</p></div><figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_0"><head>Figure 1 :</head><label>1</label><figDesc>Figure 1: Top: possiblê y (k)</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_2" validated="false"><head>Table 2 :</head><label>2</label><figDesc></figDesc><table>Beam-size experiments on word ordering devel-
+opment set. All numbers reflect training with constraints 
+(ConBSO). 
+
+</table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_4" validated="false"><head>Table 3 :</head><label>3</label><figDesc></figDesc><table>Dependency parsing. UAS/LAS of seq2seq, 
+BSO, ConBSO and baselines on PTB test set. Andor is 
+the current state-of-the-art model for this data set (Andor 
+et al. 2016), and we note that with a beam of size 32 they 
+obtain 94.41/92.55. All experiments above have K tr = 6. 
+
+</table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_5" validated="false"><head></head><label></label><figDesc>). The data comes from translated TED talks, and the dataset contains roughly 153K training sentences, 7K devel- opment sentences, and 7K test sentences. We use the same preprocessing and dataset splits as Ranzato et</figDesc><table>Machine Translation (BLEU) 
+K te = 1 K te = 5 K te = 10 
+
+seq2seq 
+22.53 
+24.03 
+23.87 
+BSO, SB-∆ 
+23.83 
+26.36 
+25.48 
+
+XENT 
+17.74 
+20.10 
+20.28 
+DAD 
+20.12 
+22.25 
+22.40 
+MIXER 
+20.73 
+21.81 
+21.83 
+
+</table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_6" validated="false"><head>Table 4 :</head><label>4</label><figDesc></figDesc><table>Machine translation experiments on test set; re-
+sults below middle line are from MIXER model of Ran-
+zato et al. (2016). SB-∆ indicates sentence BLEU costs 
+are used in defining ∆. XENT is similar to our seq2seq 
+model but with a convolutional encoder and simpler at-
+tention. DAD trains seq2seq with scheduled sampling 
+(Bengio et al., 2015). BSO, SB-∆ experiments above 
+have K tr = 6. 
+
+</table></figure>
+
+			<note place="foot" n="1"> Using a non-probabilistic model further allows us to incur no loss (and thus require no update to parameters) when the gold sequence is on the beam; this contrasts with models based on a CRF loss, such as those of Andor et al. (2016) and Zhou et al. (2015), though in training those models are simply not updated when the gold sequence remains on the beam. sequence in S t according to f. That is, assuming distinct scores, |{ˆy|{ˆy (k) 1:t ∈ S t | f (ˆ y (k) t , ˆ h (k) t−1 ) &gt; f (ˆ y (K) t</note>
+
+			<note place="foot" n="2"> We found that training with early-update rather than (delayed) LaSO did not work well, even after pre-training. Given the success of early-update in many NLP tasks this was somewhat surprising. We leave this question to future work.</note>
+
+			<note place="foot" n="3"> We also note that because we do not update the parameters until after the T &apos;th search step, our training procedure differs slightly from LaSO (which is online), and in this aspect is essentially equivalent to the &quot;delayed LaSO update&quot; of Björkelund and Kuhn (2014).</note>
+
+			<note place="foot" n="4"> This may be because there is relatively little signal in the sparse, sequence-level gradient, but this point requires further investigation.</note>
+		</body>
+		<back>
+
+			<div type="acknowledgement">
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Acknowledgments</head><p>We thank Yoon Kim for helpful discussions and for providing the initial seq2seq code on which our im-plementations are based. We thank Allen Schmaltz for help with the word ordering experiments. We also gratefully acknowledge the support of a Google Research Award.</p></div>
+			</div>
+
+			<div type="references">
+
+				<listBibl>
+
+<biblStruct xml:id="b0">
+	<monogr>
+		<title/>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Daniel</forename><surname>Andor</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Chris</forename><surname>Alberti</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">David</forename><surname>Weiss</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Aliaksei</forename><surname>Severyn</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Alessandro</forename><surname>Presta</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kuzman</forename><surname>Ganchev</surname></persName>
+		</author>
+		<imprint>
+			<pubPlace>Slav</pubPlace>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b1">
+	<monogr>
+		<title level="m" type="main">Globally normalized transition-based neural networks</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Michael</forename><surname>Petrov</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Collins</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2016" />
+			<publisher>ACL</publisher>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b2">
+	<analytic>
+		<title level="a" type="main">Neural machine translation by jointly learning to align and translate</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Dzmitry</forename><surname>Bahdanau</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kyunghyun</forename><surname>Cho</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yoshua</forename><surname>Bengio</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">ICLR</title>
+		<imprint>
+			<date type="published" when="2015" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b3">
+	<analytic>
+		<title level="a" type="main">Scheduled sampling for sequence prediction with recurrent neural networks</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Samy</forename><surname>Bengio</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Oriol</forename><surname>Vinyals</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Navdeep</forename><surname>Jaitly</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Noam</forename><surname>Shazeer</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Advances in Neural Information Processing Systems</title>
+		<imprint>
+			<date type="published" when="2015" />
+			<biblScope unit="page" from="1171" to="1179" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b4">
+	<analytic>
+		<title level="a" type="main">Learning structured perceptrons for coreference Resolution with Latent Antecedents and Non-local Features</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Anders</forename><surname>Björkelund</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jonas</forename><surname>Kuhn</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">ACL</title>
+		<imprint>
+			<date type="published" when="2014-06" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b5">
+	<analytic>
+		<title level="a" type="main">Report on the 11th iwslt evaluation campaign</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Mauro</forename><surname>Cettolo</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jan</forename><surname>Niehues</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Sebastian</forename><surname>Stüker</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Luisa</forename><surname>Bentivogli</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Marcello</forename><surname>Federico</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of IWSLT</title>
+		<meeting>IWSLT</meeting>
+		<imprint>
+			<date type="published" when="2014" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b6">
+	<analytic>
+		<title level="a" type="main">Efficient programmable learning to search</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kai-Wei</forename><surname>Chang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Hal</forename><surname>Daumé</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Iii</forename></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">John</forename><surname>Langford</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Stephane</forename><surname>Ross</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Arxiv</title>
+		<imprint>
+			<date type="published" when="2015" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b7">
+	<monogr>
+		<title level="m" type="main">A systematic comparison of smoothing techniques for sentencelevel bleu</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Boxing</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Colin</forename><surname>Cherry</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2014" />
+			<biblScope unit="page">362</biblScope>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b8">
+	<analytic>
+		<title level="a" type="main">A fast and accurate dependency parser using neural networks</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Danqi</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Christopher</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Manning</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">EMNLP</title>
+		<imprint>
+			<date type="published" when="2014" />
+			<biblScope unit="page" from="740" to="750" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b9">
+	<analytic>
+		<title level="a" type="main">On the properties of neural machine translation: Encoder-decoder approaches</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kyunghyun</forename><surname>Cho</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Bart</forename><surname>Van Merrienboer</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Dzmitry</forename><surname>Bahdanau</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yoshua</forename><surname>Bengio</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Eighth Workshop on Syntax, Semantics and Structure in Statistical Translation</title>
+		<imprint>
+			<date type="published" when="2014" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b10">
+	<analytic>
+		<title level="a" type="main">Incremental parsing with the perceptron algorithm</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Michael</forename><surname>Collins</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Brian</forename><surname>Roark</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 42nd Annual Meeting on Association for Computational Linguistics</title>
+		<meeting>the 42nd Annual Meeting on Association for Computational Linguistics</meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2004" />
+			<biblScope unit="page">111</biblScope>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b11">
+	<analytic>
+		<title level="a" type="main">Learning as search optimization: approximate large margin methods for structured prediction</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Hal</forename><surname>Daumé</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Iii</forename></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Daniel</forename><surname>Marcu</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Twenty-Second International Conference on Machine Learning (ICML 2005)</title>
+		<meeting>the Twenty-Second International Conference on Machine Learning (ICML 2005)</meeting>
+		<imprint>
+			<date type="published" when="2005" />
+			<biblScope unit="page" from="169" to="176" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b12">
+	<analytic>
+		<title level="a" type="main">Search-based structured prediction</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Hal</forename><surname>Daumé</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Iii</forename></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">John</forename><surname>Langford</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Daniel</forename><surname>Marcu</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Machine Learning</title>
+		<imprint>
+			<biblScope unit="volume">75</biblScope>
+			<biblScope unit="issue">3</biblScope>
+			<biblScope unit="page" from="297" to="325" />
+			<date type="published" when="2009" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b13">
+	<analytic>
+		<title level="a" type="main">Adaptive Subgradient Methods for Online Learning and Stochastic Optimization</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">John</forename><surname>Duchi</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Elad</forename><surname>Hazan</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yoram</forename><surname>Singer</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">The Journal of Machine Learning Research</title>
+		<imprint>
+			<biblScope unit="volume">12</biblScope>
+			<biblScope unit="page" from="2121" to="2159" />
+			<date type="published" when="2011" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b14">
+	<analytic>
+		<title level="a" type="main">Sentence compression by deletion with lstms</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Katja</forename><surname>Filippova</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Enrique</forename><surname>Alfonseca</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Carlos</forename><forename type="middle">A</forename><surname>Colmenares</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Lukasz</forename><surname>Kaiser</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Oriol</forename><surname>Vinyals</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2015 Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>the 2015 Conference on Empirical Methods in Natural Language Processing</meeting>
+		<imprint>
+			<date type="published" when="2015" />
+			<biblScope unit="page" from="360" to="368" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b15">
+	<analytic>
+		<title level="a" type="main">Long short-term memory</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Sepp</forename><surname>Hochreiter</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jürgen</forename><surname>Schmidhuber</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Neural Comput</title>
+		<imprint>
+			<biblScope unit="volume">9</biblScope>
+			<biblScope unit="page" from="1735" to="1780" />
+			<date type="published" when="1997" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b16">
+	<analytic>
+		<title level="a" type="main">Structured perceptron with inexact search</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Liang</forename><surname>Huang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Suphan</forename><surname>Fayong</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yang</forename><surname>Guo</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2012 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies</title>
+		<meeting>the 2012 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies</meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2012" />
+			<biblScope unit="page" from="142" to="151" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b17">
+	<analytic>
+		<title level="a" type="main">Lattice-based optimization of sequence classification criteria for neural-network acoustic modeling</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Brian</forename><surname>Kingsbury</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Acoustics, Speech and Signal Processing</title>
+		<imprint>
+			<publisher>IEEE</publisher>
+			<date type="published" when="2009" />
+			<biblScope unit="page" from="3761" to="3764" />
+		</imprint>
+	</monogr>
+	<note>IEEE International Conference on</note>
+</biblStruct>
+
+<biblStruct xml:id="b18">
+	<analytic>
+		<title level="a" type="main">Conditional random fields: Probabilistic models for segmenting and labeling sequence data</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">John</forename><forename type="middle">D</forename><surname>Lafferty</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Andrew</forename><surname>Mccallum</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Fernando</forename><forename type="middle">C N</forename><surname>Pereira</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Eighteenth International Conference on Machine Learning</title>
+		<meeting>the Eighteenth International Conference on Machine Learning</meeting>
+		<imprint>
+			<date type="published" when="2001" />
+			<biblScope unit="page" from="282" to="289" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b19">
+	<analytic>
+		<title level="a" type="main">Transition-based syntactic linearization</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yijia</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yue</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Wanxiang</forename><surname>Che</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Bing</forename><surname>Qin</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of NAACL</title>
+		<meeting>NAACL</meeting>
+		<imprint>
+			<date type="published" when="2015" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b20">
+	<analytic>
+		<title level="a" type="main">Effective approaches to attention-based neural machine translation</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Thang</forename><surname>Luong</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Hieu</forename><surname>Pham</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Christopher</forename><forename type="middle">D</forename><surname>Manning</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2015 Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>the 2015 Conference on Empirical Methods in Natural Language Processing</meeting>
+		<imprint>
+			<date type="published" when="2015" />
+			<biblScope unit="page" from="1412" to="1421" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b21">
+	<analytic>
+		<title level="a" type="main">Distributed representations of words and phrases and their compositionality</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Tomas</forename><surname>Mikolov</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ilya</forename><surname>Sutskever</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kai</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Greg</forename><forename type="middle">S</forename><surname>Corrado</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jeff</forename><surname>Dean</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Advances in neural information processing systems</title>
+		<imprint>
+			<date type="published" when="2013" />
+			<biblScope unit="page" from="3111" to="3119" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b22">
+	<analytic>
+		<title level="a" type="main">Bleu: a method for automatic evaluation of machine translation</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kishore</forename><surname>Papineni</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Salim</forename><surname>Roukos</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Todd</forename><surname>Ward</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Weijing</forename><surname>Zhu</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 40th annual meeting on association for computational linguistics</title>
+		<meeting>the 40th annual meeting on association for computational linguistics</meeting>
+		<imprint>
+			<date type="published" when="2002" />
+			<biblScope unit="page" from="311" to="318" />
+		</imprint>
+	</monogr>
+	<note>Association for Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b23">
+	<analytic>
+		<title level="a" type="main">Dropout improves recurrent neural networks for handwriting recognition</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Théodore</forename><surname>Vu Pham</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Christopher</forename><surname>Bluche</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jérôme</forename><surname>Kermorvant</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Louradour</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Frontiers in Handwriting Recognition (ICFHR)</title>
+		<imprint>
+			<publisher>IEEE</publisher>
+			<date type="published" when="2014" />
+			<biblScope unit="page" from="285" to="290" />
+		</imprint>
+	</monogr>
+	<note>14th International Conference on</note>
+</biblStruct>
+
+<biblStruct xml:id="b24">
+	<monogr>
+				<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Sumit</forename><surname>Marc&amp;apos;aurelio Ranzato</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Michael</forename><surname>Chopra</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Wojciech</forename><surname>Auli</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Zaremba</surname></persName>
+		</author>
+		<title level="m">Sequence level training with recurrent neural networks. ICLR</title>
+		<imprint>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b25">
+	<analytic>
+		<title level="a" type="main">A reduction of imitation learning and structured prediction to no-regret online learning</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Stéphane</forename><surname>Ross</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Geoffrey</forename><forename type="middle">J</forename><surname>Gordon</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Drew</forename><surname>Bagnell</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Fourteenth International Conference on Artificial Intelligence and Statistics</title>
+		<meeting>the Fourteenth International Conference on Artificial Intelligence and Statistics</meeting>
+		<imprint>
+			<date type="published" when="2011" />
+			<biblScope unit="page" from="627" to="635" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b26">
+	<monogr>
+		<title/>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Hasim</forename><surname>Sak</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Oriol</forename><surname>Vinyals</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Georg</forename><surname>Heigold</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Andrew</forename><forename type="middle">W</forename><surname>Senior</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Erik</forename><surname>Mcdermott</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Rajat</forename><surname>Monga</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Mark</forename><forename type="middle">Z</forename></persName>
+		</author>
+		<imprint/>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b27">
+	<analytic>
+		<title level="a" type="main">Sequence discriminative distributed training of long short-term memory recurrent neural networks</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Mao</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">INTERSPEECH 2014</title>
+		<imprint>
+			<date type="published" when="2014" />
+			<biblScope unit="page" from="1209" to="1213" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b28">
+	<monogr>
+				<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Allen</forename><surname>Schmaltz</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Alexander</forename><forename type="middle">M</forename><surname>Rush</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Stuart M</forename><surname>Shieber</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1604.08633</idno>
+		<title level="m">Word ordering without syntax</title>
+		<imprint>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b29">
+	<analytic>
+		<title level="a" type="main">Building end-to-end dialogue systems using generative hierarchical neural network models</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Alessandro</forename><surname>Iulian Vlad Serban</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yoshua</forename><surname>Sordoni</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Aaron</forename><forename type="middle">C</forename><surname>Bengio</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Joelle</forename><surname>Courville</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Pineau</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Thirtieth AAAI Conference on Artificial Intelligence</title>
+		<meeting>the Thirtieth AAAI Conference on Artificial Intelligence</meeting>
+		<imprint>
+			<date type="published" when="2016" />
+			<biblScope unit="page" from="3776" to="3784" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b30">
+	<analytic>
+		<title level="a" type="main">Minimum risk training for neural machine translation</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Shiqi</forename><surname>Shen</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yong</forename><surname>Cheng</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Zhongjun</forename><surname>He</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Wei</forename><surname>He</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Hua</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Maosong</forename><surname>Sun</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yang</forename><surname>Liu</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 54th Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 54th Annual Meeting of the Association for Computational Linguistics</meeting>
+		<imprint>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b31">
+	<analytic>
+		<title level="a" type="main">Dropout: A simple way to prevent neural networks from overfitting</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Nitish</forename><surname>Srivastava</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Geoffrey</forename><surname>Hinton</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Alex</forename><surname>Krizhevsky</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ilya</forename><surname>Sutskever</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ruslan</forename><surname>Salakhutdinov</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">The Journal of Machine Learning Research</title>
+		<imprint>
+			<biblScope unit="volume">15</biblScope>
+			<biblScope unit="issue">1</biblScope>
+			<biblScope unit="page" from="1929" to="1958" />
+			<date type="published" when="2014" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b32">
+	<analytic>
+		<title level="a" type="main">Generating text with recurrent neural networks</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ilya</forename><surname>Sutskever</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">James</forename><surname>Martens</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Geoffrey</forename><forename type="middle">E</forename><surname>Hinton</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 28th International Conference on Machine Learning (ICML)</title>
+		<meeting>the 28th International Conference on Machine Learning (ICML)</meeting>
+		<imprint>
+			<date type="published" when="2011" />
+			<biblScope unit="page" from="1017" to="1024" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b33">
+	<analytic>
+		<title level="a" type="main">Sequence to sequence learning with neural networks</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ilya</forename><surname>Sutskever</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Oriol</forename><surname>Vinyals</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Quoc</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Le</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Advances in Neural Information Processing Systems (NIPS)</title>
+		<imprint>
+			<date type="published" when="2014" />
+			<biblScope unit="page" from="3104" to="3112" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b34">
+	<analytic>
+		<title level="a" type="main">Sequence to sequence-video to text</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Subhashini</forename><surname>Venugopalan</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Marcus</forename><surname>Rohrbach</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jeffrey</forename><surname>Donahue</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Raymond</forename><forename type="middle">J</forename><surname>Mooney</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Trevor</forename><surname>Darrell</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kate</forename><surname>Saenko</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">ICCV</title>
+		<imprint>
+			<date type="published" when="2015" />
+			<biblScope unit="page" from="4534" to="4542" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b35">
+	<analytic>
+		<title level="a" type="main">Grammar as a foreign language</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Oriol</forename><surname>Vinyals</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Łukasz</forename><surname>Kaiser</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Terry</forename><surname>Koo</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Slav</forename><surname>Petrov</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ilya</forename><surname>Sutskever</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Geoffrey</forename><surname>Hinton</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Advances in Neural Information Processing Systems</title>
+		<imprint>
+			<date type="published" when="2015" />
+			<biblScope unit="page" from="2755" to="2763" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b36">
+	<monogr>
+				<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Paul</forename><surname>Voigtlaender</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Patrick</forename><surname>Doetsch</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Simon</forename><surname>Wiesler</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ralf</forename><surname>Schluter</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Hermann</forename><surname>Ney</surname></persName>
+		</author>
+		<title level="m">Sequencediscriminative training of recurrent neural networks. In Acoustics, Speech and Signal Processing</title>
+		<imprint>
+			<publisher>IEEE</publisher>
+			<date type="published" when="2015" />
+			<biblScope unit="page" from="2100" to="2104" />
+		</imprint>
+	</monogr>
+	<note>2015 IEEE International Conference on</note>
+</biblStruct>
+
+<biblStruct xml:id="b37">
+	<analytic>
+		<title level="a" type="main">Transitionbased neural constituent parsing</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Taro</forename><surname>Watanabe</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Eiichiro</forename><surname>Sumita</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of ACLIJCNLP</title>
+		<meeting>ACLIJCNLP</meeting>
+		<imprint>
+			<date type="published" when="2015" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b38">
+	<analytic>
+		<title level="a" type="main">Show, attend and tell: Neural image caption generation with visual attention</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kelvin</forename><surname>Xu</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jimmy</forename><surname>Ba</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ryan</forename><surname>Kiros</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kyunghyun</forename><surname>Cho</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Aaron</forename><forename type="middle">C</forename><surname>Courville</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ruslan</forename><surname>Salakhutdinov</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Richard</forename><forename type="middle">S</forename><surname>Zemel</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yoshua</forename><surname>Bengio</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">ICML</title>
+		<imprint>
+			<date type="published" when="2015" />
+			<biblScope unit="page" from="2048" to="2057" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b39">
+	<analytic>
+		<title level="a" type="main">Incremental recurrent neural network dependency parser with search-based discriminative training</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Majid</forename><surname>Yazdani</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">James</forename><surname>Henderson</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 19th Conference on Computational Natural Language Learning</title>
+		<meeting>the 19th Conference on Computational Natural Language Learning</meeting>
+		<imprint>
+			<date type="published" when="2015" />
+			<biblScope unit="page" from="142" to="152" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b40">
+	<monogr>
+				<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Wojciech</forename><surname>Zaremba</surname></persName>
+		</author>
+		<title level="m">Ilya Sutskever, and Oriol Vinyals. 2014. Recurrent neural network regularization</title>
+		<imprint/>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b41">
+	<monogr>
+		<title/>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Corr</surname></persName>
+		</author>
+		<idno>abs/1409.2329</idno>
+		<imprint/>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b42">
+	<analytic>
+		<title level="a" type="main">Syntax-based grammaticality improvement using ccg and guided search</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yue</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Stephen</forename><surname>Clark</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>the Conference on Empirical Methods in Natural Language Processing</meeting>
+		<imprint>
+			<date type="published" when="2011" />
+			<biblScope unit="page" from="1147" to="1157" />
+		</imprint>
+	</monogr>
+	<note>Association for Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b43">
+	<analytic>
+		<title level="a" type="main">Discriminative syntax-based word ordering for text generation</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yue</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Stephen</forename><surname>Clark</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Computational Linguistics</title>
+		<imprint>
+			<biblScope unit="volume">41</biblScope>
+			<biblScope unit="issue">3</biblScope>
+			<biblScope unit="page" from="503" to="538" />
+			<date type="published" when="2015" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b44">
+	<analytic>
+		<title level="a" type="main">A neural probabilistic structured-prediction model for transition-based dependency parsing</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Hao</forename><surname>Zhou</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yue</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jiajun</forename><surname>Chen</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 53rd Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 53rd Annual Meeting of the Association for Computational Linguistics</meeting>
+		<imprint>
+			<date type="published" when="2015" />
+			<biblScope unit="page" from="1213" to="1222" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+				</listBibl>
+			</div>
+		</back>
+	</text>
+</TEI>

@@ -1,0 +1,1078 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<TEI xmlns="http://www.tei-c.org/ns/1.0" 
+xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+xsi:schemaLocation="http://www.tei-c.org/ns/1.0 /home/ana/installs/grobid/grobid-0.5.1/grobid-home/schemas/xsd/Grobid.xsd"
+ xmlns:xlink="http://www.w3.org/1999/xlink">
+	<teiHeader xml:lang="en">
+		<encodingDesc>
+			<appInfo>
+				<application version="0.5.1-SNAPSHOT" ident="GROBID" when="2019-04-18T11:44+0000">
+					<ref target="https://github.com/kermitt2/grobid">GROBID - A machine learning software for extracting information from scholarly documents</ref>
+				</application>
+			</appInfo>
+		</encodingDesc>
+		<fileDesc>
+			<titleStmt>
+				<title level="a" type="main">Structured Alignment Networks for Matching Sentences</title>
+			</titleStmt>
+			<publicationStmt>
+				<publisher>Association for Computational Linguistics</publisher>
+				<availability status="unknown"><p>Copyright Association for Computational Linguistics</p>
+				</availability>
+				<date>October 31-November 4, 2018. 2018</date>
+			</publicationStmt>
+			<sourceDesc>
+				<biblStruct>
+					<analytic>
+						<author role="corresp">
+							<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yang</forename><surname>Liu</surname></persName>
+							<email>yang.liu2@ed.ac.uk mattg@allenai.org mlap@inf.ed.ac.uk</email>
+							<affiliation key="aff0">
+								<orgName type="institution" key="instit1">University of Edinburgh</orgName>
+								<orgName type="institution" key="instit2">Allen Institute for Artificial Intelligence</orgName>
+							</affiliation>
+						</author>
+						<author>
+							<persName xmlns="http://www.tei-c.org/ns/1.0"><roleName>Matt</roleName><forename type="first">Gardner</forename><forename type="middle">♦</forename></persName>
+							<affiliation key="aff0">
+								<orgName type="institution" key="instit1">University of Edinburgh</orgName>
+								<orgName type="institution" key="instit2">Allen Institute for Artificial Intelligence</orgName>
+							</affiliation>
+						</author>
+						<author>
+							<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Mirella</forename><surname>Lapata</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="institution" key="instit1">University of Edinburgh</orgName>
+								<orgName type="institution" key="instit2">Allen Institute for Artificial Intelligence</orgName>
+							</affiliation>
+						</author>
+						<title level="a" type="main">Structured Alignment Networks for Matching Sentences</title>
+					</analytic>
+					<monogr>
+						<title level="m">Proceedings of the 2018 Conference on Empirical Methods in Natural Language Processing</title>
+						<meeting>the 2018 Conference on Empirical Methods in Natural Language Processing <address><addrLine>Brussels, Belgium</addrLine></address>
+						</meeting>
+						<imprint>
+							<publisher>Association for Computational Linguistics</publisher>
+							<biblScope unit="page" from="1554" to="1564"/>
+							<date type="published">October 31-November 4, 2018. 2018</date>
+						</imprint>
+					</monogr>
+					<note>1554</note>
+				</biblStruct>
+			</sourceDesc>
+		</fileDesc>
+		<profileDesc>
+			<abstract>
+				<p>Many tasks in natural language processing involve comparing two sentences to compute some notion of relevance, entailment, or similarity. Typically, this comparison is done either at the word level or at the sentence level, with no attempt to leverage the inherent structure of the sentence. When sentence structure is used for comparison, it is obtained during a non-differentiable pre-processing step, leading to propagation of errors. We introduce a model of structured alignments between sentences, showing how to compare two sentences by matching their latent structures. Using a struc-tured attention mechanism, our model matches candidate spans in the first sentence to candidate spans in the second sentence, simultaneously discovering the tree structure of each sentence. Our model is fully differentiable and trained only on the matching objective. We evaluate this model on two tasks, entail-ment detection and answer sentence selection, and find that modeling latent tree structures results in superior performance. Analysis of the learned sentence structures shows they can reflect some syntactic phenomena.</p>
+			</abstract>
+		</profileDesc>
+	</teiHeader>
+	<text xml:lang="en">
+		<body>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="1">Introduction</head><p>There are many tasks in natural language process- ing that require matching two sentences: natural language inference <ref type="bibr" target="#b0">(Bowman et al., 2015;</ref><ref type="bibr" target="#b31">Nangia et al., 2017</ref>) and paraphrase detection ( <ref type="bibr">Wang et al., 2017b</ref>) are classification tasks over sentence pairs, and question answering often requires an align- ment between a question and a passage of text that may contain the answer ( <ref type="bibr" target="#b40">Tan et al., 2016a;</ref><ref type="bibr" target="#b34">Rajpurkar et al., 2016;</ref><ref type="bibr" target="#b18">Joshi et al., 2017)</ref>.</p><p>Most neural models for these tasks perform comparisons between the two sentences either at the word level ( <ref type="bibr" target="#b32">Parikh et al., 2016</ref>), or at the sen- tence level <ref type="bibr" target="#b0">(Bowman et al., 2015)</ref>. Word-level comparisons ignore the inherent structure of the sentences being compared, at best relying on a re- current neural network such as an LSTM <ref type="bibr" target="#b16">(Hochreiter and Schmidhuber, 1997</ref>) to incorporate some amount of context from neighboring words into each word's representation. Sentence-level com- parisons can incorporate the structure of each sen- tence individually <ref type="bibr" target="#b1">(Bowman et al., 2016;</ref><ref type="bibr" target="#b39">Tai et al., 2015</ref>), but cannot easily compare substructures between the sentences, as these are all squashed into a single vector. Some models do incorporate sentence structure by comparing subtrees between the two sentences ( <ref type="bibr">Zhao et al., 2016;</ref><ref type="bibr" target="#b2">Chen et al., 2017)</ref>, but require pipelined approaches where a parser is run in a non-differentiable preprocessing step, losing the benefits of end-to-end training.</p><p>In this paper we propose a method, which we call structured alignment networks, to perform comparisons between substructures in two sen- tences, in a more interpretable way, and without relying on an external, non-differentiable parser. We use a structured attention mechanism <ref type="bibr" target="#b19">(Kim et al., 2017;</ref><ref type="bibr" target="#b27">Liu and Lapata, 2018)</ref> to compute a structured alignment between the two sentences, jointly learning a latent tree structure for each sen- tence and aligning spans between the two sen- tences.</p><p>Our method constructs a CKY chart for each sentence using the inside-outside algorithm <ref type="bibr" target="#b30">(Manning et al., 1999</ref>), which is fully differentiable ( <ref type="bibr" target="#b24">Li and Eisner, 2009;</ref><ref type="bibr" target="#b14">Gormley et al., 2015)</ref>. This chart has a node for each possible span in the sentence, and a score for the likelihood of that span being a constituent in a parse of the sentence, marginal- ized over all possible parses. We take these two charts and find alignments between them, repre- senting each span in each sentence with structured attention over spans in the other sentence. These span representations, weighted by the span's like- lihood, are then used to compare the two sen- tences. In this way, we can perform compar- isons between sentences by leveraging their in- ternal structure in an end-to-end, fully differen- tiable model, trained only on one final objective. Our model helps obtain more precise representa- tions of the sentence pair, with the learned tree structures and the alignment between them, and provides better interpretability, which most neural models lack in sentence matching tasks.</p><p>We evaluate this model on two sentence com- parison datasets: SNLI ( <ref type="bibr" target="#b0">Bowman et al., 2015)</ref> and TREC-QA <ref type="bibr">(Voorhees and Tice, 2000</ref>). We find that comparing sentences at the span level consis- tently outperforms comparing at the word level. Additionally, the learned sentence structures rep- resent well-formed trees that reflect some syntac- tic phenomena.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2">Word-level Comparison Baseline</head><p>We first describe a common word-level compari- son model, called decomposable attention ( <ref type="bibr" target="#b32">Parikh et al., 2016)</ref>. This model was first proposed for the natural language inference task, but similar mechanisms have been used in many other tasks, such as for aligning question and passage words in the bi-directional attention model for ques- tion answering ( <ref type="bibr" target="#b38">Seo et al., 2017)</ref>. This model serves as our main point of comparison, as our latent tree matching model simply replaces the word-level comparisons in decomposable atten- tion model with span comparisons.</p><p>The decomposable attention model consists of three steps: attend, compare, and aggregate. As input, the model takes two sentences a and b represented by sequences of word embeddings</p><formula xml:id="formula_0">[a 1 , · · · , a m ] and [b 1 , · · · , b n ].</formula><p>In the attend step, the model computes attention scores for each pair of words across the two input sentences and nor- malizes them as a soft alignment from a to b (and vice versa):</p><formula xml:id="formula_1">e ij = F 1 (a i ) T F 1 (b j )<label>(1)</label></formula><formula xml:id="formula_2">B i = n j=1 exp(e ij ) n k=1 exp(e ik ) b j (2) A j = m i=1 exp(e ij ) m k=1 exp(e kj ) a i (3)</formula><p>where F 1 is a feed-forward neural network, B i is the weighted summation of the words in b that are softly aligned to word a i and vice versa for A j .</p><p>In the compare step, the input vectors a i and b j are concatenated with their corresponding at- tended vector B i and A j , and fed into a feed- forward neural network, giving a comparison be- tween each word and the words it aligns to in the other sentence:</p><formula xml:id="formula_3">v ai = F 2 ([a i , B i ]) ∀i ∈ [1, · · · , m] (4) v bj = F 2 ([b j , A j ]) ∀j ∈ [1, · · · , n] (5)</formula><p>The aggregate step is a simple summation of v ai and v bj for each word in sentence a and b, and the two resulting fixed-length vectors are con- catenated and fed into a linear layer with W y as the weight matrix, followed by a softmax layer for predicting the distribution y:</p><formula xml:id="formula_4">v a = m i=1 v ai v b = n j=1 v bj (6) y = sof tmax(W y [v a , v b ]))<label>(7)</label></formula><p>The decomposable attention model completely ignores the order and context of words in the se- quence. There are some efforts to strengthen the decomposable attention model with a recurrent neural network ( <ref type="bibr" target="#b27">Liu and Lapata, 2018)</ref> or intra- sentence attention <ref type="bibr" target="#b32">(Parikh et al., 2016)</ref>. However, these models amount to simply changing the input vectors a and b, and still only perform a word- level alignment between the two sentences.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3">Structured Alignment Networks</head><p>Language is inherently tree structured, and the meaning of sentences comes largely from compos- ing the meanings of subtrees <ref type="bibr" target="#b6">(Chomsky, 2002</ref>). It is natural, then, to compare the meaning of two sentences by comparing their substructures <ref type="bibr" target="#b28">(MacCartney and Manning, 2009)</ref>. For example, when determining the relationship between two sen- tences in <ref type="figure">Figure 1</ref>, the ideal units of comparison are spans determined by subtrees: "is in Seattle" compared to "based in Washington state".</p><p>The challenge with comparing spans drawn from subtrees is that the tree structure of the sen- tence is latent and must be inferred, either dur- ing pre-processing or in the model itself. In this section we present a model that operates on the latent tree structure of each sentence, comparing all possible spans in one sentence with all possi- ble spans in the second sentence, weighted by how A: the headquarter of BOEING is in Seattle B: Boeing is a company based in Washington state <ref type="figure">Figure 1</ref>: Example span alignments of a sen- tence pair, where different colors indicate match- ing spans. Note that some spans overlap, which cannot happen in a single tree; our model consid- ers all possible span comparisons, weighted by the spans' marginal likelihood.</p><p>likely each span is to appear as a constituent in a parse of the sentence. We use the non-terminal nodes of a binary constituency parse to represent spans. Because of this choice of representation, we can use the nodes in a CKY parsing chart to ef- ficiently marginalize span likelihood over all pos- sible parses for each sentence, and compare nodes in each sentence's chart.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.1">Learning Latent Constituency Trees</head><p>A constituency parser can be partially formal- ized as a graphical model with the following cliques ( <ref type="bibr" target="#b20">Klein and Manning, 2004</ref>): the latent variables c ikj ∈ 0, 1 for all i &lt; j, indicating whether the span from the i-th token to the j-th token (span ij ) is a constituency node built from the merging of sub-node span ik and span (k+1)j . Given a sentence x = [x i , · · · , x n ], the probability of a tree z is,</p><formula xml:id="formula_5">p(z|x) = c ikj ∈z p(c ikj = 1) z ∈Z c ikj ∈z p(c ikj = 1)<label>(8)</label></formula><p>where Z represents all possible constituency trees for x.</p><p>The parameters for the graph-based CRF con- stituency parser are δ ikj reflecting the scores of span ij forming a binary constituency node with k as the splitting point. It is possible to calcu- late the marginal probability of each constituency node p(c ijk = 1|x) using the inside-outside algo- rithm ( <ref type="bibr" target="#b21">Klein and Manning, 2003)</ref>. Although the inside-outside algorithm is constrained to gener- ate a binary tree, this is not a severe limitation, as most structures can be easily binarized ( <ref type="bibr" target="#b12">Finkel et al., 2008)</ref>.</p><p>In a typical constituency parser, the score δ ikj is parameterized according to the production rules of a grammar, e.g., with normalized categorical dis- tributions for each non-terminal. Our unlabeled grammar effectively has only a single production is a part of the process for calculating the outside score β ij , with target span span ij as the right child of a non-terminal. The blue space indicates β kj and two yellow spaces indicate α k(i−1) and δ kij .</p><formula xml:id="formula_6">w i w k-1 w k w j w k w i-1 w i w j w 1 w n (a) Inside pass w i w k-1 w k w j w k w i-1 w i w j w 1 w n (b) Outside pass</formula><p>rule, however, we parameterize these scores as bi- linear functions operating on the representations of the two subtrees being merged. For the in- side pass, as illustrated in <ref type="figure" target="#fig_0">Figure 2a</ref>, the inside score α ij for span from position i to j is marginal- ized over the splitting points k:</p><formula xml:id="formula_7">δ ikj = sp T ik W sp (k+1)j (9) α ij = i &lt; k ≤ j δ ikj α i(k−1) α kj (10)</formula><p>where sp ij ∈ R d is the representation for the span, and W ∈ R d * d is the weight matrix. This process is calculated recursively from bottom to root, gen- erating the score for each possible constituent. For the outside pass, the outside score β ij is:</p><formula xml:id="formula_8">β ij = 1≤k&lt;i δ kij α k(i−1) β kj + j&lt;k≤n δ ijk α (j+1)k β ik (11)</formula><p>where the first term is the score for span ij be- ing the right child on a non-terminal node and the second term is the score for span ij being the left child. In <ref type="figure" target="#fig_0">Figure 2b</ref>, we illustrate the outside pro- cess with the target span span ij being the right child of a non-terminal node. This process is cal- culated recursively from root to bottom. The normalized marginal probability ρ ij for each span span ij , where 1 ≤ i &lt; n, i &lt; j ≤ n can be calculated by:</p><formula xml:id="formula_9">ρ ij = α ij β ij /α 0n<label>(12)</label></formula><p>To compute the representations of all pos- sible spans, we use Long Short-Term Mem- ory Neural Networks (LSTMs; Hochreiter and Schmidhuber 1997) with max-pooling and mi- nus features <ref type="bibr" target="#b9">(Cross and Huang, 2016;</ref><ref type="bibr" target="#b26">Liu and Lapata, 2017)</ref>. We represent each sen- tence as a sequence of word embeddings [w sos , w 1 , · · · , w t , · · · , w n , w eos ] and run a bidi- rectional LSTM to obtain the output vectors.</p><formula xml:id="formula_10">h t = [ h t ,</formula><p>h t ] is the output vector for the t th word, and h t and h t are the output vectors from the for- ward and backward directions, respectively. We represent a constituent from position i to j with a span vector sp ij :</p><formula xml:id="formula_11">sp maxpool ij = max(h i , · · · , h j )<label>(13)</label></formula><formula xml:id="formula_12">sp minus ij = [ h j − h i−1 , h i − h j+1 ]<label>(14)</label></formula><formula xml:id="formula_13">sp ij = [sp maxpool ij , sp minus ij ]<label>(15)</label></formula><p>where max(x i , · · · , x j ) is the max-pooling oper- ation over the sequence of output vectors within this constituent. After applying the parsing process on two sen- tences, we obtain the marginal probabilities for all potential spans of the two constituency trees, which can then be used for aligning.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.2">Learning Structured Alignments</head><p>After learning latent constituency trees for each sentence, we are able to perform span-level com- parisons between the two sentences, instead of the word-level comparisons done by the decom- posable attention model. The structure of these two comparison models is the same, but the ba- sic elements of our structured alignment model are spans instead of words, and the marginal proba- bilities obtained from the inside-outside algorithm are used as a re-normalization value for incorpo- rating structural information into the alignments.</p><p>For sentence a, we have the representation sp a ij for each span ij and its marginal probability ρ a ij . And for sentence b, we also get sp b ij and ρ b ij . The attention scores are computed between all pairs of spans across the two sentences, and the attended vectors can be calculated as:</p><formula xml:id="formula_14">e ij,kl = F 1 (sp a ij ) T F 1 (sp b kl )<label>(16)</label></formula><formula xml:id="formula_15">B ij = n k=1 n l=k exp(e ij,kl + ln(ρ b kl )) n s=1 n t=s exp(e ij,st + ln(ρ b st )) sp b kl (17) A kl = m i=1 m j=i exp(e ij,kl + ln(ρ a ij )) m s=1 m t=s exp(e st,kl + ln(ρ a st )) sp a ij<label>(18)</label></formula><p>Then, the span vectors are concatenated with the attended vectors and fed into a feed-forward neural network:</p><formula xml:id="formula_16">v a ij = F 2 ([sp a ij , B ij ])<label>(19)</label></formula><formula xml:id="formula_17">v b kl = F 2 ([sp b kl , A kl ])<label>(20)</label></formula><p>To aggregate these vectors, instead of using di- rect summation, we apply weighted summation with the marginal probabilities as weights:</p><formula xml:id="formula_18">v a = m i=1 m j=i ρ a ij v a ij ; v b = n k=1 n l=1 ρ b kl v b kl (21)</formula><p>where ρ a and ρ b work like the self-attention mech- anism of ( <ref type="bibr" target="#b25">Lin et al., 2017</ref>) to replace the summa- tion pooling step. We use a softmax function to compute the predicted distribution y of the input sentence pair:</p><formula xml:id="formula_19">y = sof tmax(W y [v a , v b ])<label>(22)</label></formula></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4">Experiments</head><p>We evaluate our structured alignment model on two natural language matching tasks: question an- swering as sentence selection and natural language inference. We view our approach as a module for replacing the widely-used word-level alignment which can be plugged into other neural models. For that reason, our experiments are not intended to show performance improvements over state-of- the-art neural network architectures. Rather our evaluation studies aim to address three questions: (a) whether our methods can be trained effectively in an end-to-end fashion; (b) whether they yield improvements over standard word-level alignment models; and (c) whether they can learn plausible latent constituency tree structures.  <ref type="figure" target="#fig_0">(Wang et al., 2017b)</ref> 0.802 0.875 <ref type="table">Table 1</ref>: Results of our models (top) and previously proposed systems (bottom) on the TREC-QA test set.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Models</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>MAP MRR</head><p>For both tasks, we initialize our model with 300D 840B GloVe word embeddings <ref type="bibr" target="#b33">(Pennington et al., 2014</ref>). The hidden size for the BiL- STM is 150. The feed-forward networks F 1 and F 2 are two-layer perceptrons with ReLU as the hidden activation function and the size of the hid- den and output layers is set to 300. All hyper- parameters are selected based on the model's per- formance on the development set.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.1">Answer Sentence Selection</head><p>We first study the effectiveness of our model for answer sentence selection tasks. Given a question, answer sentence selection aims to rank a list of candidate answer sentences based on their related- ness to the question. We experiment on the TREC- QA dataset ( <ref type="bibr">Wang et al., 2007)</ref>, in which all ques- tions with only positive or negative answers are removed. This leaves us with 1,162 training ques- tions, 65 development questions and 68 test ques- tions. Experimental results are listed in <ref type="table">Table 1</ref>. We measure performance by the mean average precision (MAP) and mean reciprocal rank (MRR) using the standard TREC evaluation script.</p><p>In the first block of <ref type="table">Table 1</ref>, we compare our model and variants thereof against several base- lines. The first baseline is the Word-level De- composable Attention model strengthened with a bidirectional LSTM for obtaining a contextualized representation for each word. The second baseline is a Simple Span Alignment model; we use an MLP layer over the LSTM outputs to calculate the un- normalized scores and replace the inside-outside algorithm with a simple softmax function to ob- tain the probability distribution over all candidate spans. We also introduce a pipelined baseline where we extract constituents from trees parsed by the CoreNLP ( ) constituency parser, and use the Simple Span Alignment model to only align these constituents.</p><p>As shown in <ref type="table">Table 1</ref>, we use two variants of the Structured Alignment model, since the structure of the question and the answer sentence may be dif- ferent; the first model shares parameters across the question and the answer for computing the struc- tures, while the second one uses separate param- eters. We view the sentence selection task as a binary classification problem and the final ranking is based on the predicted probability of the sen- tence containing the correct answer (positive la- bel). We apply dropout to the output of the BiL- STM with dropout ratio set to 0.2. All param- eters (including word embeddings) are updated with AdaGrad ( <ref type="bibr" target="#b11">Duchi et al., 2011)</ref>, and the learn- ing rate is set to 0.05. <ref type="table">Table 1</ref> (second block) also reports the perfor- mance of various comparison systems and state- of-the-art models. As can be seen, on both MAP and MRR metrics, structured alignment models perform better than the decomposable attention model, showing that structural bias is helpful for matching a question to the correct answer sen- tence. We also observe that using separate param- eters achieves higher scores on both metrics. The simple span alignment model obtains results simi- lar to the decomposable attention model, suggest- ing that the shallow softmax distribution is ineffec- tive for capturing structural information and may even introduce redundant noise. The pipelined model with an external parser also slightly im-</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Models</head><p>Accuracy # Parameters Word-level Attention 85.8 1.1M Simple Span Alignment 85.4</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>1.26M Simple Span Alignment + External Parser 85.6 1.17M Structured Alignment</head><p>86.3 1.44M Classifier with handcrafted features <ref type="bibr" target="#b0">(Bowman et al., 2015)</ref> 78.2 - LSTM encoders <ref type="figure" target="#fig_0">(Bowman et al., 2015)</ref> 80.6 3.0M LSTM with inter-attention ( <ref type="bibr" target="#b36">Rocktäschel et al., 2016)</ref> 83.5 252K Matching LSTMs ( <ref type="bibr">Wang and Jiang, 2015)</ref> 86.1 1.9M LSTMN with deep attention fusion <ref type="figure" target="#fig_0">(Cheng et al., 2016)</ref> 86.3 3.4M Enhanced BiLSTM Inference Model ( <ref type="bibr" target="#b3">Chen et al., 2016)</ref> 88.0 4.3M Densely Interactive Inference Network ( <ref type="bibr" target="#b13">Gong et al., 2017)</ref> 88.0 - proves upon the baseline, but still cannot outper- form the end-to-end trained structured alignment model which achieves results comparable with several strong baselines with fewer parameters. As mentioned earlier, our model could be used as a plug-in component for other more complex mod- els, and may boost their performance by modeling the latent structures. At the same time, the struc- tured alignment can provide better interpretability for sentence matching tasks, which is a defect of most neural models.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.2">Natural Language Inference</head><p>The second task we consider is natural language inference, where the input is a pair of premise and hypothesis sentences, and the goal is to pre- dict whether the premise entails the hypothesis, contradicts the hypothesis, or neither. For this task, we use the Stanford NLI dataset <ref type="bibr" target="#b0">(Bowman et al., 2015)</ref>. After removing sentences with un- known labels, we obtain 549,367 pairs for train- ing, 9,842 for development and 9,824 for testing. We compare our model against the same base- lines used in the question answering task. All parameters (including word embeddings) are up- dated with AdaGrad ( <ref type="bibr" target="#b11">Duchi et al., 2011)</ref>, and the learning rate is set to 0.05. Dropout is used with ratio 0.2. The structured alignment model in this experiment uses shared parameters for computing latent tree structures, since both the premise and hypothesis are declarative sentences.</p><p>The results of our experiments are shown in <ref type="table" target="#tab_1">Table 2</ref>. Similar to the answer selection task, the tree matching model outperforms the decom- posable model. Our structured alignment model gains 0.5% in accuracy over the baseline word- level comparison model without any additional an- notation, simply from introducing a structural bias in the alignment between the sentences. Simple span alignment, however, is not helpfult and even slightly degrades the performance over the word- level model.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.3">Analysis of Learned Tree Structures</head><p>In this section, we give a brief qualitative analysis of the learned tree structures. We present the CKY charts for two randomly-selected sentence pairs in the SNLI test set in <ref type="figure">Figure 3</ref>. Recall that the CKY chart shows the likelihood of each span appear- ing as a constituent in the parse of the sentence, marginalized over all possible parses. By visu- alizing these span probabilities, we can see that the model learns structures which correspond to known syntactic structures.</p><p>In subfigure (a), we can see that band is play- ing is a very-likely span, as is at a large venue. In subfigure (b), the phrases performing at a lo- cal bar and at a local bar or club also receive high probabilities. For the second sentence pair, we see that the model can even resolve some at- tachment ambiguities correctly. The prepositional phrase with green feathers, has a very low score for being attached to women. Instead, the model prefers to attach it to lingerie, forming the span lingerie with green feathers. We also present the top-5 spans and their alignments in subfigures (c) and (d), which can be used to interpret model de- cisions for sentence matching tasks.</p><p>The analysis above and our experimental re- sults in the previous section suggest that our b a n d model is able to learn tree structures which are closely related to syntax, and in addition reflect the semantic-level characteristics of the task at hand. In both question answering and natural language inference tasks, we observe that struc- tured alignment leads to performance improve- ments over word-level models. This is in con- trast to prior work ( <ref type="bibr" target="#b31">Williams et al., 2017)</ref>, where the discovery of tree structures based on a seman- tic objective is not helpful. Although we use the same supervision signal in our model, a difference between the two approaches is that they are try- ing to learn tree structures for each sentence in- dependently, performing comparisons at the sen- tence level only. Comparing spans directly forces the model to induce trees with comparable con- stituents, giving the model a stronger inductive bias.</p><note type="other">is p la y in g m u s ic a t a la r g e v e n u e the band is playing music at a large (a) Premise Sentence b a n d p e r f o r m in g a t a lo c a l b a r o r c</note><p>Although our main goal is not to induce a gram- mar, we perform some simple experiments to com- pare the learned latent trees with parser-generated ones. We parse the sentences in both test-sets with the CoreNLP ( ) con- stituency parser to obtain silver trees. Based on the parsing part of the trained structured align- ment model, we compute the marginal probabil- ities of test sentences and feed them into CKY al- gorithm <ref type="bibr">(Younger, 1967)</ref> to find the most likely constituency trees. We then convert both silver and latent trees to sets of constituent brackets, and calculate the accuracy of the learned brack- ets against the silver parses. We use different combinations of training-and test-sets to examine the transferability of the learned tree structures. The results are shown in <ref type="table">Table 3</ref>. We can see that although our model does not have any tree- structured input during training, it can still outper- form the left-branching (LB) and right-branching baselines (RB) and achieve some consistency with the parser generated trees.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5">Related Work</head><p>Sentence comparison models The Stanford natural language inference dataset <ref type="bibr" target="#b0">(Bowman et al., 2015)</ref>, and the expanded multi-genre natural lan- guage inference dataset ( <ref type="bibr" target="#b31">Nangia et al., 2017)</ref>, are tested on trained on SNLI TREC LB RB SNLI 15.1 10.7 12.8 6.0 TREC 12.3 11.4 10.5 3.2 <ref type="table">Table 3</ref>: Brackets accuracy of latent learned trees against silver trees from CoreNLP parser. We show the transferability of the learned parser by applying it on a test-set different from the training- set. For example, we train the structured align- ment model on the TREC-QA data, and apply it on SNLI to obtain the tree distributions. LB and RB are left-and right-branching baselines.</p><p>the most well-known recent sentence comparison tasks. The literature on this comparison task is far too extensive to include here, although the re- cent shared task on Multi-NLI gives a good sur- vey of sentence-level comparison models <ref type="bibr" target="#b31">(Nangia et al., 2017)</ref>. Some of these models use sen- tence structures, which are obtained either in a la- tent fashion <ref type="bibr" target="#b1">(Bowman et al., 2016)</ref> or during pre- processing ( <ref type="bibr">Zhao et al., 2016</ref>), but they squash all of the structure into a single vector, losing the abil- ity to easily compare substructures between the two sentences. For models doing a word-level comparison, the decomposable attention model ( <ref type="bibr" target="#b32">Parikh et al., 2016)</ref>, which we have discussed already in this pa- per, is the most salient example, although many similar models exist in the literature ( <ref type="bibr" target="#b2">Chen et al., 2017;</ref><ref type="bibr">Wang et al., 2017b</ref>). The idea of word-level alignments between a question and a passage is also pervasive in the recent question answering lit- erature ( <ref type="bibr" target="#b38">Seo et al., 2017;</ref><ref type="bibr">Wang et al., 2017a)</ref>.</p><p>Finally, and most similar to our approach, sev- eral models have been proposed that directly compare subtrees between two sentences <ref type="bibr" target="#b2">(Chen et al., 2017;</ref><ref type="bibr">Zhao et al., 2016)</ref>. However, all of these models are pipelined; they obtain the sen- tence structure in a non-differentiable preprocess- ing step, losing the benefits of end-to-end train- ing. Ours is the first model to allow comparison between latent tree structures, trained end-to-end on the comparison objective.</p><p>Structured attention While it has long been known that inference in graphical models is dif- ferentiable ( <ref type="bibr" target="#b24">Li and Eisner, 2009;</ref><ref type="bibr" target="#b10">Domke, 2011)</ref>, and using inference in, e.g., a CRF ( <ref type="bibr" target="#b22">Lafferty et al., 2001</ref>) as the last layer in a neural network is com- mon practice ( <ref type="bibr" target="#b26">Liu and Lapata, 2017;</ref><ref type="bibr" target="#b23">Lample et al., 2016)</ref>, the use of inference algorithms as interme- diate layers in end-to-end neural networks is a re- cent development. <ref type="bibr" target="#b19">Kim et al. (2017)</ref> were the first to use inference to compute structured attentions over latent sentence variables, inducing tree struc- tures trained on the end-to-end objective. <ref type="bibr" target="#b27">Liu and Lapata (2018)</ref> showed how to do this more effi- ciently, although their work is still limited to struc- tured attention over a single sentence. Our model is the first to include latent structured alignments between two sentences.</p><p>Grammar Induction Unsupervised grammar induction is a well-studied problem <ref type="bibr" target="#b7">(Cohen and Smith, 2009</ref>). The most recent work in this di- rection was the Neural E-DMV model of . While our goal is not to induce a grammar, we do produce a probabilistic grammar as a byproduct of our model. Our results suggest that training on more complex objectives may be a good way to pursue grammar induction in the future; forcing the model to construct consistent, comparable subtrees between the two sentences is a strong signal for grammar induction. Very re- cently, a few models attempt to infer latent depen- dency tree structures with neural models in sen- tence modeling tasks ( <ref type="bibr">Yogatama et al., 2017;</ref><ref type="bibr" target="#b5">Choi et al., 2018</ref>).</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6">Conclusions</head><p>In this paper we have considered the problem of comparing two sentences in natural language pro- cessing models. We have shown how to move beyond word-and sentence-level comparison to comparing spans between two sentences, without the need for an external parser. Through experi- ments on sentence comparison datasets, we have seen that span comparisons consistently outper- form word-level comparisons, with no additional supervision. The proposed model can be trained effectively, in an end-to-end fashion and is able to induce plausible tree structures.</p><p>Our results have several implications for future work. First, the success of span comparisons over word-level comparisons suggests that it may be advantageous to include such comparisons in more complex models, either for comparing two sen- tences directly, or as intermediate parts of models for more complex tasks, such as reading compre- hension. Second, our model's ability to infer trees from a semantic objective is intriguing, and sug- gestive of future opportunities in grammar induc-tion research. The use of the inside-outside algo- rithm unavoidably renders the full model er (by 5- 8 times) compared to the decomposable attention model. We hope to find a more efficient way to accelerate this dynamic programming method on a GPU.</p></div><figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_0"><head>Figure 2 :</head><label>2</label><figDesc>Figure 2: The inside-outside algorithm. (a) is the process for calculating the inside score α ij. Three yellow spaces indicate α i(k−1) , α kj and δ ikj. (b) is a part of the process for calculating the outside score β ij , with target span span ij as the right child of a non-terminal. The blue space indicates β kj and two yellow spaces indicate α k(i−1) and δ kij .</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_1"><head>(</head><label></label><figDesc>Figure 3: (a), (b), (d), and (e) are CKY charts showing marginalized span probabilities for sentence pairs in the SNLI test set. Each cell uses depth of the color to represent the probability of the span (from the i-th word to the j-th word) forming a proper constituent. (c) and (f) are the alignments of the top-5 spans from hypothesis sentence to the premise sentence, where the boldness of the lines indicates the probability of spans being aligned.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_1" validated="false"><head>Table 2 :</head><label>2</label><figDesc></figDesc><table>Test accuracy (%) on the SNLI dataset. Wherever available we also provide the number of 
+parameters (excluding embeddings). 
+
+</table></figure>
+
+			<note place="foot">Ming Tan, Cicero dos Santos, Bing Xiang, and Bowen</note>
+		</body>
+		<back>
+
+			<div type="acknowledgement">
+			</div>
+
+			<div type="annex">
+			</div>
+			<div type="references">
+
+				<listBibl>
+
+<biblStruct xml:id="b0">
+	<analytic>
+		<title level="a" type="main">A large annotated corpus for learning natural language inference</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">R</forename><surname>Samuel</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Gabor</forename><surname>Bowman</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Christopher</forename><surname>Angeli</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Christopher</forename><forename type="middle">D</forename><surname>Potts</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Manning</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2015 Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>the 2015 Conference on Empirical Methods in Natural Language Processing<address><addrLine>Lisbon, Portugal</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2015" />
+			<biblScope unit="page" from="632" to="642" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b1">
+	<analytic>
+		<title level="a" type="main">A fast unified model for parsing and sentence understanding</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">R</forename><surname>Samuel</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jon</forename><surname>Bowman</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Abhinav</forename><surname>Gauthier</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Raghav</forename><surname>Rastogi</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Christopher</forename><forename type="middle">D</forename><surname>Gupta</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Christopher</forename><surname>Manning</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Potts</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 54th Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 54th Annual Meeting of the Association for Computational Linguistics<address><addrLine>Berlin, Germany</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2016" />
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="1466" to="1477" />
+		</imprint>
+	</monogr>
+	<note>Long Papers)</note>
+</biblStruct>
+
+<biblStruct xml:id="b2">
+	<analytic>
+		<title level="a" type="main">Enhanced LSTM for natural language inference</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Qian</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Xiaodan</forename><surname>Zhu</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Zhen-Hua</forename><surname>Ling</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Si</forename><surname>Wei</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Hui</forename><surname>Jiang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Diana</forename><surname>Inkpen</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 55th Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 55th Annual Meeting of the Association for Computational Linguistics<address><addrLine>Vancouver, Canada</addrLine></address></meeting>
+		<imprint>
+			<publisher>Long Papers</publisher>
+			<date type="published" when="2017" />
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="1657" to="1668" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b3">
+	<monogr>
+		<title level="m" type="main">Enhancing and combining sequential and tree LSTM for natural language inference</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Qian</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Xiaodan</forename><surname>Zhu</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Zhenhua</forename><surname>Ling</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Si</forename><surname>Wei</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Hui</forename><surname>Jiang</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1609.06038</idno>
+		<imprint>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b4">
+	<analytic>
+		<title level="a" type="main">Long short-term memory-networks for machine reading</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jianpeng</forename><surname>Cheng</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Li</forename><surname>Dong</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Mirella</forename><surname>Lapata</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2016 Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>the 2016 Conference on Empirical Methods in Natural Language Processing<address><addrLine>Austin, Texas</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2016" />
+			<biblScope unit="page" from="551" to="561" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b5">
+	<analytic>
+		<title level="a" type="main">Learning to compose task-specific tree structures</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jihun</forename><surname>Choi</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Sang</forename><surname>Kang Min Yoo</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Lee</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 32nd AAAI Conference on Artificial Intelligence</title>
+		<meeting>the 32nd AAAI Conference on Artificial Intelligence<address><addrLine>New Orleans, Louisiana</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2018" />
+			<biblScope unit="page" from="5094" to="5101" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b6">
+	<monogr>
+		<title level="m" type="main">Syntactic structures</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Noam</forename><surname>Chomsky</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2002" />
+			<publisher>Walter de Gruyter</publisher>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b7">
+	<analytic>
+		<title level="a" type="main">Shared logistic normal distributions for soft parameter tying in unsupervised grammar induction</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Shay</forename><surname>Cohen</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Noah</forename><forename type="middle">A</forename><surname>Smith</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of Human Language Technologies: The</title>
+		<meeting>Human Language Technologies: The</meeting>
+		<imprint>
+			<date type="published" when="2009" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b8">
+	<monogr>
+				<title level="m">Annual Conference of the North American Chapter of the Association for Computational Linguistics</title>
+		<meeting><address><addrLine>Boulder, Colorado</addrLine></address></meeting>
+		<imprint>
+			<biblScope unit="page" from="74" to="82" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b9">
+	<analytic>
+		<title level="a" type="main">Span-based constituency parsing with a structure-label system and provably optimal dynamic oracles</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">James</forename><surname>Cross</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Liang</forename><surname>Huang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2016 Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>the 2016 Conference on Empirical Methods in Natural Language Processing<address><addrLine>Austin, Texas</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2016" />
+			<biblScope unit="page" from="1" to="11" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b10">
+	<analytic>
+		<title level="a" type="main">Parameter learning with truncated message-passing</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Justin</forename><surname>Domke</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2011 IEEE Conference on Computer Vision and Pattern Recognition</title>
+		<meeting>the 2011 IEEE Conference on Computer Vision and Pattern Recognition<address><addrLine>Colorado Springs, Colorado</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2011" />
+			<biblScope unit="page" from="2937" to="2943" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b11">
+	<analytic>
+		<title level="a" type="main">Adaptive subgradient methods for online learning and stochastic optimization</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">John</forename><surname>Duchi</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Elad</forename><surname>Hazan</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yoram</forename><surname>Singer</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Journal of Machine Learning Research</title>
+		<imprint>
+			<biblScope unit="volume">12</biblScope>
+			<biblScope unit="page" from="2121" to="2159" />
+			<date type="published" when="2011" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b12">
+	<analytic>
+		<title level="a" type="main">Efficient, feature-based, conditional random field parsing</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jenny</forename><forename type="middle">Rose</forename><surname>Finkel</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Alex</forename><surname>Kleeman</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Christopher</forename><forename type="middle">D</forename><surname>Manning</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of ACL08: HLT</title>
+		<meeting>ACL08: HLT<address><addrLine>Columbus, Ohio</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2008" />
+			<biblScope unit="page" from="959" to="967" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b13">
+	<monogr>
+		<title level="m" type="main">Natural language inference over interaction space</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yichen</forename><surname>Gong</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Heng</forename><surname>Luo</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jian</forename><surname>Zhang</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1709.04348</idno>
+		<imprint>
+			<date type="published" when="2017" />
+		</imprint>
+	</monogr>
+<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b14">
+	<analytic>
+		<title level="a" type="main">Approximation-aware dependency parsing by belief propagation</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Matthew</forename><surname>Gormley</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Mark</forename><surname>Dredze</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jason</forename><surname>Eisner</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Transactions of the Association for Computational Linguistics</title>
+		<imprint>
+			<biblScope unit="volume">3</biblScope>
+			<biblScope unit="page" from="489" to="501" />
+			<date type="published" when="2015" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b15">
+	<analytic>
+		<title level="a" type="main">Pairwise word interaction modeling with deep neural networks for semantic similarity measurement</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Hua</forename><surname>He</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jimmy</forename><surname>Lin</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2016 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies</title>
+		<meeting>the 2016 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies<address><addrLine>San Diego, California</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2016" />
+			<biblScope unit="page" from="937" to="948" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b16">
+	<analytic>
+		<title level="a" type="main">Long short-term memory</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Sepp</forename><surname>Hochreiter</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jürgen</forename><surname>Schmidhuber</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Neural computation</title>
+		<imprint>
+			<biblScope unit="volume">9</biblScope>
+			<biblScope unit="issue">8</biblScope>
+			<biblScope unit="page" from="1735" to="1780" />
+			<date type="published" when="1997" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b17">
+	<analytic>
+		<title level="a" type="main">Unsupervised neural dependency parsing</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yong</forename><surname>Jiang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Wenjuan</forename><surname>Han</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kewei</forename><surname>Tu</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2016 Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>the 2016 Conference on Empirical Methods in Natural Language Processing<address><addrLine>Austin, Texas</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2016" />
+			<biblScope unit="page" from="763" to="771" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b18">
+	<analytic>
+		<title level="a" type="main">Triviaqa: A large scale distantly supervised challenge dataset for reading comprehension</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Mandar</forename><surname>Joshi</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Eunsol</forename><surname>Choi</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Daniel</forename><surname>Weld</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Luke</forename><surname>Zettlemoyer</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 55th Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 55th Annual Meeting of the Association for Computational Linguistics<address><addrLine>Vancouver, Canada</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2017" />
+			<biblScope unit="page" from="1601" to="1611" />
+		</imprint>
+	</monogr>
+	<note>Long Papers)</note>
+</biblStruct>
+
+<biblStruct xml:id="b19">
+	<analytic>
+		<title level="a" type="main">Structured attention networks</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yoon</forename><surname>Kim</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Carl</forename><surname>Denton</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Luong</forename><surname>Hoang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Alexander M</forename><surname>Rush</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 5th International Cofnerence on Learning Representations</title>
+		<meeting>the 5th International Cofnerence on Learning Representations<address><addrLine>Toulon, France</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2017" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b20">
+	<analytic>
+		<title level="a" type="main">Corpusbased induction of syntactic structure: Models of dependency and constituency</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Dan</forename><surname>Klein</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Christopher</forename><surname>Manning</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 42nd Meeting of the Association for Computational Linguistics, Main Volume</title>
+		<meeting>the 42nd Meeting of the Association for Computational Linguistics, Main Volume<address><addrLine>Barcelona, Spain</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2004" />
+			<biblScope unit="page" from="478" to="485" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b21">
+	<analytic>
+		<title level="a" type="main">Fast exact inference with a factored model for natural language parsing</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Dan</forename><surname>Klein</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Christopher</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Manning</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Advances in Neural Information Processing Systems</title>
+		<imprint>
+			<publisher>MIT Press</publisher>
+			<date type="published" when="2003" />
+			<biblScope unit="volume">15</biblScope>
+			<biblScope unit="page" from="3" to="10" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b22">
+	<analytic>
+		<title level="a" type="main">Conditional random fields: Probabilistic models for segmenting and labeling sequence data</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">John</forename><surname>Lafferty</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Andrew</forename><surname>Mccallum</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Fernando</forename><forename type="middle">C N</forename><surname>Pereira</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 18th International Conference on Machine Learning</title>
+		<meeting>the 18th International Conference on Machine Learning<address><addrLine>Williamstown, Massachusetts</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2001" />
+			<biblScope unit="page" from="282" to="289" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b23">
+	<analytic>
+		<title level="a" type="main">Neural architectures for named entity recognition</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Guillaume</forename><surname>Lample</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Miguel</forename><surname>Ballesteros</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Sandeep</forename><surname>Subramanian</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kazuya</forename><surname>Kawakami</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Chris</forename><surname>Dyer</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2016 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies</title>
+		<meeting>the 2016 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies<address><addrLine>San Diego, California</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2016" />
+			<biblScope unit="page" from="260" to="270" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b24">
+	<analytic>
+		<title level="a" type="main">First-and secondorder expectation semirings with applications to minimum-risk training on translation forests</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Zhifei</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jason</forename><surname>Eisner</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2009 Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>the 2009 Conference on Empirical Methods in Natural Language Processing<address><addrLine>Singapore</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2009" />
+			<biblScope unit="page" from="40" to="51" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b25">
+	<monogr>
+		<title level="m" type="main">A structured self-attentive sentence embedding</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Zhouhan</forename><surname>Lin</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Minwei</forename><surname>Feng</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Cicero</forename><surname>Nogueira</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Mo</forename><surname>Santos</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Bing</forename><surname>Yu</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Bowen</forename><surname>Xiang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yoshua</forename><surname>Zhou</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Bengio</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1703.03130</idno>
+		<imprint>
+			<date type="published" when="2017" />
+		</imprint>
+	</monogr>
+<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b26">
+	<analytic>
+		<title level="a" type="main">Learning contextually informed representations for linear-time discourse parsing</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yang</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Mirella</forename><surname>Lapata</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2017 Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>the 2017 Conference on Empirical Methods in Natural Language Processing<address><addrLine>Copenhagen, Denmark</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2017" />
+			<biblScope unit="page" from="1289" to="1298" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b27">
+	<analytic>
+		<title level="a" type="main">Learning structured text representations</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yang</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Mirella</forename><surname>Lapata</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Transactions of the Association for Computational Linguistics</title>
+		<imprint>
+			<biblScope unit="volume">6</biblScope>
+			<biblScope unit="page" from="63" to="75" />
+			<date type="published" when="2018" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b28">
+	<analytic>
+		<title level="a" type="main">An extended model of natural logic</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Bill</forename><surname>Maccartney</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Christopher</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Manning</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the international conference on computational semantics</title>
+		<meeting>the international conference on computational semantics</meeting>
+		<imprint>
+			<date type="published" when="2009" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b29">
+	<analytic>
+		<title level="a" type="main">The stanford corenlp natural language processing toolkit</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Christopher</forename><surname>Manning</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Mihai</forename><surname>Surdeanu</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">John</forename><surname>Bauer</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jenny</forename><surname>Finkel</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Steven</forename><surname>Bethard</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">David</forename><surname>Mcclosky</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of 52nd Annual Meeting of the Association for Computational Linguistics: System Demonstrations</title>
+		<meeting>52nd Annual Meeting of the Association for Computational Linguistics: System Demonstrations<address><addrLine>Maryland</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2014" />
+			<biblScope unit="page" from="55" to="60" />
+		</imprint>
+	</monogr>
+	<note>Baltimore</note>
+</biblStruct>
+
+<biblStruct xml:id="b30">
+	<monogr>
+		<title level="m" type="main">Foundations of statistical natural language processing</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Hinrich</forename><surname>Christopher D Manning</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Schütze</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="1999" />
+			<publisher>MIT Press</publisher>
+			<biblScope unit="volume">999</biblScope>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b31">
+	<monogr>
+				<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Nikita</forename><surname>Nangia</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Adina</forename><surname>Williams</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Angeliki</forename><surname>Lazaridou</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Samuel R</forename><surname>Bowman</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1707.08172</idno>
+		<title level="m">The repeval 2017 shared task: Multi-genre natural language inference with sentence representations</title>
+		<imprint>
+			<date type="published" when="2017" />
+		</imprint>
+	</monogr>
+<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b32">
+	<analytic>
+		<title level="a" type="main">A decomposable attention model for natural language inference</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ankur</forename><surname>Parikh</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Oscar</forename><surname>Täckström</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Dipanjan</forename><surname>Das</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jakob</forename><surname>Uszkoreit</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2016 Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>the 2016 Conference on Empirical Methods in Natural Language Processing<address><addrLine>Austin, Texas</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2016" />
+			<biblScope unit="page" from="2249" to="2255" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b33">
+	<analytic>
+		<title level="a" type="main">Glove: Global vectors for word representation</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jeffrey</forename><surname>Pennington</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Richard</forename><surname>Socher</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Christopher</forename><surname>Manning</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2014 Conference on Empirical Methods in Natural Language Processing (EMNLP)</title>
+		<meeting>the 2014 Conference on Empirical Methods in Natural Language Processing (EMNLP)<address><addrLine>Doha, Qatar</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2014" />
+			<biblScope unit="page" from="1532" to="1543" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b34">
+	<analytic>
+		<title level="a" type="main">Squad: 100,000+ questions for machine comprehension of text</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Pranav</forename><surname>Rajpurkar</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jian</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Konstantin</forename><surname>Lopyrev</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Percy</forename><surname>Liang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2016 Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>the 2016 Conference on Empirical Methods in Natural Language Processing<address><addrLine>Austin, Texas</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2016" />
+			<biblScope unit="page" from="2383" to="2392" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b35">
+	<analytic>
+		<title level="a" type="main">Noisecontrastive estimation for answer selection with deep neural networks</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jinfeng</forename><surname>Rao</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Hua</forename><surname>He</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jimmy</forename><surname>Lin</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 25th ACM International on Conference on Information and Knowledge Management Conference</title>
+		<meeting>the 25th ACM International on Conference on Information and Knowledge Management Conference<address><addrLine>Indianapolis, Indiana</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2016" />
+			<biblScope unit="page" from="1913" to="1916" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b36">
+	<analytic>
+		<title level="a" type="main">Reasoning about entailment with neural attention</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Tim</forename><surname>Rocktäschel</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Edward</forename><surname>Grefenstette</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Karl</forename><forename type="middle">Moritz</forename><surname>Hermann</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Tomáš</forename><surname>Kočisk</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 4th International Cofnerence on Learning Representations</title>
+		<meeting>the 4th International Cofnerence on Learning Representations<address><addrLine>San Juan, Puerto Rico</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+	<note>Kočisk`y, and Phil Blunsom</note>
+</biblStruct>
+
+<biblStruct xml:id="b37">
+	<monogr>
+				<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ming</forename><surname>Cicero Dos Santos</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Bing</forename><surname>Tan</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Bowen</forename><surname>Xiang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Zhou</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1602.03609</idno>
+		<title level="m">Attentive pooling networks</title>
+		<imprint>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b38">
+	<analytic>
+		<title level="a" type="main">Bidirectional attention flow for machine comprehension</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Minjoon</forename><surname>Seo</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Aniruddha</forename><surname>Kembhavi</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ali</forename><surname>Farhadi</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Hannaneh</forename><surname>Hajishirzi</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceeding of the 5th International Cofnerence on Learning Representations</title>
+		<meeting>eeding of the 5th International Cofnerence on Learning Representations<address><addrLine>Toulon, France</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2017" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b39">
+	<analytic>
+		<title level="a" type="main">Improved semantic representations from tree-structured long short-term memory networks</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kai Sheng</forename><surname>Tai</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Richard</forename><surname>Socher</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Christopher</forename><forename type="middle">D</forename><surname>Manning</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 53rd Annual Meeting of the Association for Computational Linguistics and the 7th International Joint Conference on Natural Language Processing</title>
+		<meeting>the 53rd Annual Meeting of the Association for Computational Linguistics and the 7th International Joint Conference on Natural Language Processing<address><addrLine>Beijing, China</addrLine></address></meeting>
+		<imprint>
+			<publisher>Long Papers</publisher>
+			<date type="published" when="2015" />
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="1556" to="1566" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b40">
+	<analytic>
+		<title level="a" type="main">Improved representation learning for question answer matching</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ming</forename><surname>Tan</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Bing</forename><surname>Cicero Dos Santos</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Bowen</forename><surname>Xiang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Zhou</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 54th Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 54th Annual Meeting of the Association for Computational Linguistics<address><addrLine>Berlin, Germany</addrLine></address></meeting>
+		<imprint>
+			<publisher>Long Papers</publisher>
+			<date type="published" when="2016" />
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="464" to="473" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+				</listBibl>
+			</div>
+		</back>
+	</text>
+</TEI>

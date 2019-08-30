@@ -1,0 +1,1005 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<TEI xmlns="http://www.tei-c.org/ns/1.0" 
+xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+xsi:schemaLocation="http://www.tei-c.org/ns/1.0 /home/ana/installs/grobid/grobid-0.5.1/grobid-home/schemas/xsd/Grobid.xsd"
+ xmlns:xlink="http://www.w3.org/1999/xlink">
+	<teiHeader xml:lang="en">
+		<encodingDesc>
+			<appInfo>
+				<application version="0.5.1-SNAPSHOT" ident="GROBID" when="2019-04-18T12:59+0000">
+					<ref target="https://github.com/kermitt2/grobid">GROBID - A machine learning software for extracting information from scholarly documents</ref>
+				</application>
+			</appInfo>
+		</encodingDesc>
+		<fileDesc>
+			<titleStmt>
+				<title level="a" type="main">Investigating LSTMs for Joint Extraction of Opinion Entities and Relations</title>
+			</titleStmt>
+			<publicationStmt>
+				<publisher/>
+				<availability status="unknown"><licence/></availability>
+				<date>August 7-12, 2016</date>
+			</publicationStmt>
+			<sourceDesc>
+				<biblStruct>
+					<analytic>
+						<author>
+							<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Arzoo</forename><surname>Katiyar</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="department">Department of Computer Science</orgName>
+								<orgName type="institution">Cornell University Ithaca</orgName>
+								<address>
+									<postCode>14853</postCode>
+									<region>NY</region>
+									<country key="US">USA</country>
+								</address>
+							</affiliation>
+						</author>
+						<author>
+							<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Claire</forename><surname>Cardie</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="department">Department of Computer Science</orgName>
+								<orgName type="institution">Cornell University Ithaca</orgName>
+								<address>
+									<postCode>14853</postCode>
+									<region>NY</region>
+									<country key="US">USA</country>
+								</address>
+							</affiliation>
+						</author>
+						<title level="a" type="main">Investigating LSTMs for Joint Extraction of Opinion Entities and Relations</title>
+					</analytic>
+					<monogr>
+						<title level="m">Proceedings of the 54th Annual Meeting of the Association for Computational Linguistics</title>
+						<meeting>the 54th Annual Meeting of the Association for Computational Linguistics <address><addrLine>Berlin, Germany</addrLine></address>
+						</meeting>
+						<imprint>
+							<biblScope unit="page" from="919" to="929"/>
+							<date type="published">August 7-12, 2016</date>
+						</imprint>
+					</monogr>
+				</biblStruct>
+			</sourceDesc>
+		</fileDesc>
+		<profileDesc>
+			<abstract>
+				<p>We investigate the use of deep bi-directional LSTMs for joint extraction of opinion entities and the IS-FROM and IS-ABOUT relations that connect them-the first such attempt using a deep learning approach. Perhaps surprisingly, we find that standard LSTMs are not competitive with a state-of-the-art CRF+ILP joint inference approach (Yang and Cardie, 2013) to opinion entities extraction, performing below even the standalone sequence-tagging CRF. Incorporating sentence-level and a novel relation-level optimization, however, allows the LSTM to identify opinion relations and to perform within 1-3% of the state-of-the-art joint model for opinion entities and the IS-FROM relation; and to perform as well as the state-of-the-art for the IS-ABOUT relation-all without access to opinion lexicons, parsers and other preprocessing components required for the feature-rich CRF+ILP approach.</p>
+			</abstract>
+		</profileDesc>
+	</teiHeader>
+	<text xml:lang="en">
+		<body>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="1">Introduction</head><p>There has been much research in recent years in the area of fine-grained opinion analysis where the goal is to identify subjective expressions in text along with their associated sources and tar- gets. More specifically, fine-grained opinion anal- ysis aims to identify three types of opinion enti- ties:</p><p>• opinion expressions, O, which are direct subjective expressions (i.e., explicit mentions of otherwise private states or speech events expressing private states <ref type="bibr" target="#b27">(Wiebe and Cardie, 2005)</ref>);</p><p>• opinion targets, T , which are the entities or topics that the opinion is about; and</p><p>• opinion holders, H, which are the entities expressing the opinion.</p><p>In addition, the task involves identifying the IS- FROM and IS-ABOUT relations between an opinion expression and its holder and target, respectively.</p><p>In the sample sentences, numerical subscripts in- dicate an IS-FROM or IS-ABOUT relation.</p><p>S1 In S1, for example, "infuriated" indicates that there is an (negative) opinion from "Beijing" re- garding "the sale." 1 Traditionally, the task of extracting opinion entities and opinion relations was handled in a pipelined manner, i.e., extracting the opinion ex- pressions first and then extracting opinion tar- gets and opinion holders based on their syntac- tic and semantic associations with the opinion ex- pressions ( <ref type="bibr" target="#b17">Kim and Hovy, 2006;</ref><ref type="bibr" target="#b18">Kobayashi et al., 2007)</ref>. More recently, methods that jointly in- fer the opinion entity and relation extraction tasks (e.g., using Integer Linear Programming (ILP)) have been introduced ( <ref type="bibr" target="#b6">Choi et al., 2006;</ref><ref type="bibr" target="#b32">Yang and Cardie, 2013)</ref> and show that the existence of opin- ion relations provides clues for the identification of opinion entities and vice-versa, and thus results in better performance than a pipelined approach. However, the success of these methods depends critically on the availability of opinion lexicons, dependency parsers, named-entity taggers, etc.</p><p>Alternatively, neural network-based methods have been employed. In these approaches, the required latent features are automatically learned as dense vectors of the hidden layers. <ref type="bibr" target="#b19">Liu et al. (2015)</ref>, for example, compare several variations of recurrent neural network methods and find that long short-term memory networks (LSTMs) per- form the best in identifying opinion expressions and opinion targets for the specific case of prod- uct/service reviews. Motivated by the recent success of LSTMs on this and other problems in NLP, we investigate here the use of deep bi-directional LSTMs for joint extraction of opinion expressions, holders, targets and the relations that connect them. This is the first attempt to handle the full opinion entity and relation extraction task using a deep learning ap- proach.</p><p>In experiments on the MPQA dataset for opin- ion entities <ref type="bibr" target="#b27">(Wiebe and Cardie, 2005;</ref><ref type="bibr" target="#b29">Wilson, 2008)</ref>, we find that standard LSTMs are not com- petitive with the state-of-the-art CRF+ILP joint inference approach of <ref type="bibr" target="#b32">Yang and Cardie (2013)</ref>, performing below even the standalone sequence- tagging CRF. Inspired by <ref type="bibr" target="#b14">Huang et al. (2015)</ref>, we show that incorporating sentence-level, and our newly proposed relation-level optimization, allows the LSTM to perform within 1-3% of the ILP joint model for all three opinion entity types and to do so without access to opinion lexicons, parsers or other preprocessing components.</p><p>For the primary task of identifying opinion en- tities together with their IS-FROM and IS-ABOUT relations, we show that the LSTM with sentence- and relation-level optimizations outperforms an LSTM baseline that does not employ joint infer- ence. When compared to the CRF+ILP-based joint inference approach, the optimized LSTM performs slightly better for the IS-ABOUT 2 rela- tion and within 3% for the IS-FROM relation.</p><p>In the sections that follow, we describe: related work (Section 2) and the multi-layer bi-directional LSTM (Section 3); the LSTM extensions (Sec- tion 4); the experiments on the MPQA corpus (Sections 5 and 6) and error analysis (Section 7).</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2">Related Work</head><p>LSTM-RNNs <ref type="bibr" target="#b13">(Hochreiter and Schmidhuber, 1997)</ref> have recently been applied to many se- quential modeling and prediction tasks, such as machine translation ( <ref type="bibr" target="#b0">Bahdanau et al., 2014;</ref>), speech recognition ( <ref type="bibr" target="#b9">Graves et al., 2013)</ref>, NER <ref type="bibr" target="#b10">(Hammerton, 2003)</ref>. The bi-directional variant of RNNs has been found to perform better as it incorporates infor- mation from both the past and the future <ref type="bibr" target="#b23">(Schuster and Paliwal, 1997;</ref><ref type="bibr" target="#b9">Graves et al., 2013)</ref>. Deep RNNs (stacked RNNs) <ref type="bibr" target="#b22">(Schmidhuber, 1992;</ref><ref type="bibr" target="#b12">Hihi and Bengio, 1996</ref>) capture more abstract and higher-level representation in different layers and benefit sequence modeling tasks <ref type="bibr" target="#b16">( ˙ Irsoy and Cardie, 2014</ref>). <ref type="bibr" target="#b8">Collobert et al. (2011)</ref> found that adding dependencies between the tags in the output layer improves the performance of Semantic Role Labeling task. Later, <ref type="bibr" target="#b14">Huang et al. (2015)</ref> also found that adding a CRF layer on top of bi-directional LSTMs to capture these depen- dencies can produce state-of-the-art performance on part-of-speech (POS), chunking and NER.</p><p>For fine-grained opinion extraction, earlier work ( <ref type="bibr" target="#b28">Wilson et al., 2005;</ref><ref type="bibr" target="#b4">Breck et al., 2007;</ref><ref type="bibr" target="#b31">Yang and Cardie, 2012</ref>) focused on extracting subjective phrases using a CRF-based approach from open- domain text such as news articles. <ref type="bibr" target="#b5">Choi et al. (2005)</ref> extended the task to jointly extract opin- ion holders and these subjective expressions. <ref type="bibr" target="#b32">Yang and Cardie (2013)</ref> proposed a ILP-based joint- inference model to jointly extract the opinion en- tities and opinion relations, which performed bet- ter than the pipelined based approaches <ref type="bibr" target="#b17">(Kim and Hovy, 2006</ref>).</p><p>In the neural network domain, ˙ <ref type="bibr" target="#b16">Irsoy and Cardie (2014)</ref> proposed a deep bi-directional recurrent neural network for identifying subjective expres- sions, outperforming the previous CRF-based models. <ref type="bibr" target="#b15">Irsoy and Cardie (2013)</ref> additionally pro- posed a bi-directional recursive neural network over a binary parse tree to jointly identify opinion entities, but performed significantly worse than the feature-rich CRF+ILP approach of <ref type="bibr" target="#b32">Yang and Cardie (2013)</ref>. <ref type="bibr" target="#b19">Liu et al. (2015)</ref> used several vari- ants of recurrent neural networks for joint opin- ion expression and aspect/target identification on customer reviews for restaurants and laptops, out- performing the feature-rich CRF based baseline. In the product reviews domain, however, the opin- ion holder is generally the reviewer and the task does not involve identification of relations be- tween opinion entities. Hence, standard LSTMs are applicable in this domain. None of the above neural network based models can jointly model opinion entities and opinion relations.</p><p>In the relation extraction domain, several neu- ral networks have been proposed for relation clas- sification, such as RNN-based models <ref type="bibr" target="#b24">(Socher et al., 2012</ref>) and LSTM-based models ( ). These models depend on constituent or dependency tree structures for relation classifica- tion, and also do not model entities jointly. Re- cently, <ref type="bibr" target="#b21">Miwa and Bansal (2016)</ref> proposed a model to jointly represent both entities and relations with shared parameters, but it is not a joint-inference framework.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3">Methodology</head><p>For our task, we propose the use of multi-layer bi-directional LSTMs, a type of recurrent neural network. Recurrent neural networks have recently been used for modeling sequential tasks. They are capable of modeling sequences of arbitrary length by repetitive application of a recurrent unit along the tokens in the sequence. However, re- current neural networks are known to have sev- eral disadvantages like the problem of vanishing and exploding gradients. Because of these prob- lems, it has been found that recurrent neural net- works are not sufficient for modeling long term de- pendencies. <ref type="bibr" target="#b13">Hochreiter and Schmidhuber (1997)</ref>, thus proposed long short term memory (LSTMs), a variant of recurrent neural networks.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.1">Long Short Term Memory (LSTM)</head><p>Long short term memory networks are capable of learning long-term dependencies. The recurrent unit is replaced by a memory block. The mem- ory block contains two cell states -memory cell C t and hidden state h t ; and three multiplicative gates -input gate i t , forget gate f t and output gate o t . These gates regulate the addition or removal of information to the cell state thus overcoming van- ishing and exploding gradients.</p><formula xml:id="formula_0">f t = σ(W f x t + U f h t−1 + b f ) i t = σ(W i x t + U i h t−1 + b i )</formula><p>The forget gate f t and input gate i t above decides what part of the information we are going to throw away from the cell state and what new information we are going to store in the cell state. The sigmoid outputs a number between 0 and 1 where 0 im- plies that the information is completely lost and 1 means that the information is completely retained.</p><formula xml:id="formula_1">C t = tanh(W c x t + U c h t−1 + b c ) C t = i t * C t + f t * C t−1</formula><p>Thus, the intermediate cell state C t and previous cell state C t−1 are used to update the new cell state C t .</p><formula xml:id="formula_2">o t = σ(W o x t + U o h t−1 + V o C t + b o ) h t = o t * tanh(C t )</formula><p>Next, we update the hidden state h t based on the output gate o t and the cell state C t . We pass both the cell state C t and the hidden state h t to the next time step.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.2">Multi-layer Bi-directional LSTM</head><p>In sequence tagging problems, it has been found that only using past information for computing the hidden state h t may not be sufficient. Hence, pre- vious works ( <ref type="bibr" target="#b9">Graves et al., 2013;</ref><ref type="bibr" target="#b16">˙ Irsoy and Cardie, 2014)</ref> proposed the use of bi-directional recurrent neural networks for speech and NLP tasks, respec- tively. The idea is to also process the sequence in the backward direction. Hence, we can compute the hidden state − → h t in the forward direction and ← − h t in the backward direction for every token.</p><p>Also, in more traditional feed-forward net- works, deep networks have been found to learn abstract and hierarchical representations of the in- put in different layers <ref type="bibr" target="#b3">(Bengio, 2009)</ref>. The multi- layer LSTMs have been proposed <ref type="bibr" target="#b11">(Hermans and Schrauwen, 2013)</ref> to capture long-term dependen- cies of the input sequences in different layers.</p><p>For the first hidden layer, the computation pro- ceeds similar to that described in Section 3.1. However, for higher hidden layers i the input to the memory block is the hidden state and memory cell from the previous layer i − 1 instead of the input vector representation.</p><p>For this paper, we only use the hidden state from the last layer L to compute the output state y t .</p><formula xml:id="formula_3">z t = − → V − → h t (L) + ← − V ← − h t (L) + c y t = g(z t )</formula></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4">Network Training</head><p>For our problem, we wish to predict a label y from a discrete set of classes Y for every word in a sen- tence. As is the norm, we train the network by maximizing the log-likelihood</p><formula xml:id="formula_4">(x,y)∈T log p(y|x, θ)</formula><p>over the training data T, with respect to the pa- rameters θ, where x is the input sentence and y is the corresponding tag sequence. We propose three alternatives for the log-likelihood computation.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.1">Word-Level Log-Likelihood (WLL)</head><p>We first formulate a word-level log-likelihood (WLL) (adapted from Collobert et al. <ref type="formula">(2011)</ref>) that considers all words in a sentence indepen- dently. We interpret the score z t corresponding to the i th tag [z t ] i as a conditional tag probability log p(i|x, θ) by applying a softmax operation.</p><formula xml:id="formula_5">p(i|x, θ) = sof tmax(z i t ) = e z i t j e z j t</formula><p>For the tag sequence y given the input sentence x the log-likelihood is :</p><formula xml:id="formula_6">log p(y|x, θ) = z y − logadd j z j 4.2 Sentence-Level Log-Likelihood (SLL)</formula><p>In the word-level approach above, we discard the dependencies between the tags in a tag sequence. In our sentence-level log-likelihood (SLL) formu- lation (also adapted from Collobert et al. (2011)) we incorporate these dependencies: we introduce a transition score <ref type="bibr">[A]</ref> i,j for jumping from tag i to tag j of adjacent words in the tag sequence to the set of parameters θ. These transition scores are going to be trained.</p><p>We use both the transition scores <ref type="bibr">[A]</ref> and the output scores z to compute the sentence score</p><formula xml:id="formula_7">s(x| T t=1 , y| T t=1 , θ). s(x, y, θ) = T t=1 [A] y t−1 ,yt + z yt t</formula><p>We normalize this sentence score over all possible paths of tag sequences y to get the log conditional probability as below :</p><formula xml:id="formula_8">log p sent (y|x, θ) = s(x, y, θ) − logadd y s(x, y, θ)</formula><p>Even though the number of tag sequences grows exponentially with the length of the sentence, we can compute the normalization factor in linear time <ref type="bibr" target="#b8">(Collobert et al., 2011)</ref>. At inference time, we find the best tag sequence</p><formula xml:id="formula_9">argmax y s(x, y, θ)</formula><p>for an input sentence x using Viterbi decoding. In this case, we basically maximize the same likeli- hood as in a CRF except that a CRF is a linear model. The above sentence-level log-likelihood is use- ful for sequential tagging, but it cannot be directly used for modeling relations between non-adjacent words in the sentence. In the next subsection, we extend the above idea to also model relations be- tween non-adjacent words.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.3">Relation-Level Log-Likelihood (RLL)</head><p>For every word x t in the sentence x, we output the tag y t and a distance d t . If a word at position t is related to a word at position k and k &lt; t, then d t = (t − k). If word t is not related to any other word to its left, then d t = 0. Let D Lef t be the maximum distance we model for such left-relations 3 .</p><formula xml:id="formula_10">z t = − → V r − → h t (L) + ← − V r ← − h t (L) + c r We let − → V r ∈ R (D Lef t +1)×Y ×d h (</formula><p>where d h is the dimensionality of hidden units) such that the out- put state z t ∈ R (D Lef t +1)×Y as compared to z t ∈ R (1)×Y in case of sentence-level log-likelihood.</p><p>In order to add dependencies between tags and relations, we introduce a transition score <ref type="bibr">[A]</ref> i,j,d ,d " for jumping from tag i and relation dis- tance d</p><p>to tag j and relation distance d " of adja- cent words in the tag sequence, to the set of pa- rameters θ . These transition scores are also go- ing to be trained similar to the transition scores in sentence-level log-likelihood.</p><p>The sentence score s(x|</p><formula xml:id="formula_11">T t=1 , y| T t=1 , d| T t=1 , θ ) is: s(x, y, d, θ ) = T t=1 [A] y t−1 ,yt,d t−1 ,dt + z yt,dt t</formula><p>We normalize this sentence score over all possi- ble paths of tag y and relation sequences d to get the log conditional probability as below :</p><formula xml:id="formula_12">log p rel,Lef t (y, d|x, θ) =s(x, y, d, θ ) − logadd y, d s(x, y, d, θ )</formula><p>The sale infuriated Beijing which regards Taiwan an integral part ... Entity tags <ref type="figure">Figure 1</ref>: Gold standard annotation for an example sentence from MPQA dataset. O represents the 'Other' tag in the BIO scheme.</p><formula xml:id="formula_13">B T I T B O B H O B O B T O O O ... Left Rel (d lef t ) 0 0 0 0 0 2 1 0 0 0 ... Right Rel (d right ) 2 1 1 0 0 0 0 0 0 0 ... IS-ABOUT IS-FROM IS-FROM IS-ABOUT</formula><p>We can still compute the normalization fac- tor in linear time similar to sentence-level log- likelihood.</p><p>At inference time, we jointly find the best tag and relation sequence</p><formula xml:id="formula_14">argmax y, d s(x, y, d, θ )</formula><p>for an input sentence x using Viterbi decoding. For our task of joint extraction of opinion en- tities and relations, we train our model to pre- dict tag y and relation distance d for every word in the sentence by maximizing the log-likelihood (SLL+RLL) below using Adadelta <ref type="bibr" target="#b33">(Zeiler, 2012)</ref>.</p><formula xml:id="formula_15">(x,y)∈T log p sent (y|x, θ )+ log p rel,Lef t (y, d|x, θ )</formula><p>+ log p rel,Right (y, d|x, θ )</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5">Experiments</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.1">Data</head><p>We use the MPQA 2.0 corpus ( <ref type="bibr" target="#b27">Wiebe and Cardie, 2005;</ref><ref type="bibr" target="#b29">Wilson, 2008)</ref>. It contains news articles and editorials from a wide variety of news sources. There are a total of 482 documents in our dataset containing 9471 sentences with phrase-level anno- tations. We set aside 132 documents as a devel- opment set and use the remaining 350 documents as the evaluation set. We report the results us- ing 10-fold cross validation at the document level to mimic the methodology of <ref type="bibr" target="#b32">Yang and Cardie (2013)</ref>. The dataset contains gold-standard annotations for opinion entities -expressions, targets, hold- ers. We use only the direct subjective/opinion ex- pressions. There are also annotations for opin- ion relations -IS-FROM between opinion holders and opinion expressions; and IS-ABOUT between opinion targets and opinion expressions. These re- lations can overlap but we discard all relations that contain sub-relations similar to <ref type="bibr" target="#b32">Yang and Cardie (2013)</ref>. We also leave identification of overlap- ping relations for future work. <ref type="figure">Figure 1</ref> gives an example of an annotated sen- tence from the dataset: boxes denote opinion enti- ties and opinion relations are shown by arcs. We interpret these relations arcs as directed -from an opinion expression towards an opinion holder, and from an opinion target towards an opinion ex- pression.</p><p>In order to use the RLL formulation as de- fined in Section 4.3, we pre-process these relation arcs to obtain the left-relation distances (d lef t ) and right-relation distances (d right ) as shown in <ref type="figure">Fig- ure 1</ref>. For each word in an entity, we find its distance to the nearest word in the related entity. These distances become our relation tags. The en- tity tags are interpreted using the BIO scheme, also shown in the figure. Our RLL model jointly mod- els the entity tags and relation tags. At inference time, these entity tags and relation tags are used to- gether to determine IS-FROM and IS-ABOUT rela- tions. We use a simple majority vote to determine the final entity tag from SLL+RLL model.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.2">Evaluation Metrics</head><p>We use precision, recall and F-measure (as in <ref type="bibr" target="#b32">Yang and Cardie (2013)</ref>) as evaluation metrics. Since the identification of exact boundaries for opin- ion entities is hard even for humans <ref type="bibr" target="#b27">(Wiebe and Cardie, 2005</ref>), soft evaluation methods such as Binary Overlap and Proportional Overlap are re- ported. Binary Overlap counts every overlapping predicted and gold entity as correct, while Propor- tional Overlap assigns a partial score proportional to the ratio of overlap span and the correct span (Recall) or the ratio of overlap span and the pre- dicted span (Precision).</p><p>For the case of opinion relations, we report pre- cision, recall and F-measure according to the Bi- nary Overlap. It considers a relation correct if there is an overlap between the predicted opin- ion expression and the gold opinion expression as well as an overlap between the predicted entity (holder/target) and the gold entity (holder/target).</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.3">Baselines</head><p>CRF+ILP. We use the ILP-based joint inference model <ref type="bibr" target="#b32">(Yang and Cardie, 2013)</ref> as baseline for both the entity and relation extraction tasks. It rep- resents the state-of-the-art for fine-grained opin- ion extraction. Their method first identifies opin- ion entities using CRFs (an additional baseline) with a variety of features such as words, POS tags, and lexicon features (the subjectivity strength of the word in the Subjectivity Lexicon). They also train a relation classifier (logistic regression) by over-generating candidates from the CRFs (50- best paths) using local features such as word, POS tags, subjectivity lexicons as well as semantic and syntactic features such as semantic frames, depen- dency paths, WordNet hypernyms, etc. Finally, they use ILP for joint-inference to find the opti- mal prediction for both opinion entity and opinion relation extraction.</p><p>LSTM+SLL+Softmax. As an additional base- line for relation extraction, we train a softmax classifier on top of our SLL framework. We jointly learn the relation classifier and SLL model. For every entity pair <ref type="bibr">[x]</ref>  </p><formula xml:id="formula_16">y rel = sof tmax(W [z t ] i + [z t ] j [z t ] k + [z t ] l )</formula><p>The inference is pipelined in this case. At the time of inference, we first predict the entity spans and then use these spans for relation classification.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.4">Hyperparameter and Training Details</head><p>We use multi-layer bi-directional LSTMs for all the experiments such that the number of hidden layers is 3 and the dimensionality of hidden units (d h ) is 50. We use Adadelta for training. We initialize our word representation using publicly available word2vec ( <ref type="bibr" target="#b20">Mikolov et al., 2013</ref>) trained on Google News dataset and keep them fixed dur- ing training. For RLL, we keep D Lef t and D Right as 15. All the weights in the network are initial- ized from small random uniform noise. We train all our models for 200 epochs. We do not pre- train our network. We regularize our network us- ing dropout ( <ref type="bibr" target="#b25">Srivastava et al., 2014</ref>) with the drop- out rate tuned using the development set. We se- lect the final model based on development-set per- formance (average of Proportional Overlap for en- tities and Binary Overlap for relations). <ref type="table">Table 1</ref> shows the performance of opinion entity identification using the Binary Overlap and Pro- portional Overlap evaluation metrics. We discuss specific results in the paragraphs below. WLL vs. SLL. SLL performs better than WLL on all entity types, particularly with respect to Pro- portional Overlap on opinion holder and target en- tities. A similar trend can be seen for the exam- ple sentences in <ref type="table" target="#tab_5">Table 3</ref>. In S1, SLL extracts "has been in doubt" as the opinion expression whereas WLL only identifies "has". Similarly in S2, WLL annotates "Saudi Arabia's request on a case-by- case" as the target while SLL correctly includes "basis" in its annotation.  <ref type="table">Table 2</ref>: Performance on opinion relation extraction using Binary Overlap on the opinion entities. Su- perscripts designate one standard deviation.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6">Results</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6.1">Opinion Entities</head><p>SLL to find entire opinion entity phrases better than WLL, leading to better Proportional Overlap scores.</p><p>SLL vs. SLL+RLL. From <ref type="table">Table 1</ref>, we see that the joint-extraction model (SLL+RLL) performs better than SLL as expected. More specifically, SLL+RLL model has better recall for all opinion entity types. The example sentences from <ref type="table" target="#tab_5">Table 3</ref> corroborate these results. In S1, SLL+RLL identi- fies "announced" as an opinion expression, which was missing in both WLL and SLL. In S3, neither the WLL nor the SLL model can annotate opin- ion holder (H 1 ) or the target (T 1 ), but SLL+RLL correctly identifies the opinion entities because of modeling the relations between the opinion ex- pression "will decide" and the holder/target enti- ties.</p><p>CRF vs. LSTM-based Models. From the anal- ysis of the performance in <ref type="table">Table 1</ref>, we find that our WLL and SLL models perform worse while our best SLL+RLL model can only match the per- formance of the CRF baseline on opinion expres- sions. Even though the recall of all our LSTM- based models is higher than the recall of the CRF- baseline for opinion expressions, we cannot match the precision of CRF baseline. We suspect that the reason for such high precision on the part of the CRF is its access to carefully prepared subjectivity-lexicons 4 . Our LSTM-based models do not rely on such features except via the word- vectors. With respect to holders and targets, we find that our SLL model performs similar to the CRF baseline. However, the SLL+RLL model outperforms CRF baseline.</p><p>CRF+ILP vs. SLL+RLL. Even though we find that our LSTM-based joint-model (SLL+RLL) outperforms our LSTM-based only-entity extrac- tion model (SLL), the performance is still below the ILP-based joint-model (CRF+ILP). However, we perform comparably with respect to target en- 4 http://mpqa.cs.pitt.edu/lexicons/ subj lexicon/ tities (Binary Overlap). Also, our recall on tar- gets is much better than all other models whereas the recall on holders is very similar to CRF+ILP. Our SLL+RLL model can identify targets such as "Australia's involvement in Kyoto" which the ILP- based model cannot, as observed for S1 in <ref type="table" target="#tab_5">Ta- ble 3</ref>. In S3, the ILP-based model also erroneously divides the target "consider Saudi Arabia's re- quest on a case-by-case basis" into a holder "Saudi Arabia's" and opinion expression "request", while SLL+RLL model can correctly identify it. We will compare the two models in detail in Section 7.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6.2">Opinion Relations</head><p>The extraction of opinion relations is our primary task. <ref type="table">Table 2 5</ref> shows the performance on opinion relation extraction task using Binary Overlap.</p><p>SLL+Softmax vs. SLL+RLL. The opinion en- tities and relations are jointly modeled in both the models, but we see a significant improvement in performance by adding relation level dependen- cies to the model vs. learning a classifier on top of sentence-level dependencies to learn the rela- tion between entities. LSTM+SLL+RLL performs much better in terms of both precision and recall on both IS-FROM and IS-ABOUT relations.</p><p>CRF+ILP vs. SLL+RLL. We find that our SLL+RLL model performs comparably and even slightly better on IS-ABOUT relations. Such performance is encouraging because our LSTM- based model does not rely on features such as dependency paths, semantic frames or subjectiv- ity lexicons for our model. Our sequential LSTM model is able to learn these relations thus validat- ing that LSTMs can model long-term dependen- cies. However, for IS-FROM relations, we find that our recall is lower than the ILP-based joint model.   </p><note type="other">[ Australia's involvement in Kyoto ] T 1 [ has been in doubt ] O 1 ever since [ the US President, George Bush ] H</note></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="7">Discussion</head><p>In this section, we discuss the various advan- tages and disadvantages of the LSTM-based SLL+RLL model as compared to the joint- inference (CRF+ILP) model. We provide exam- ples from the dataset in <ref type="table" target="#tab_7">Table 4</ref>.</p><p>From <ref type="table">Table 2</ref>, we find that SLL+RLL model performs worse with respect to the opinion ex- pression entities and opinion holder entities. On careful analysis of the output, we found cases such as S1 in <ref type="table" target="#tab_7">Table 4</ref>. For such sentences SLL+RLL model prefers to annotate the opinion target (T 3 ) "US requests for more oil exports", whereas the ILP model annotates the embedded opinion holder (H 4 ) "US" and opinion expression (T 4 ) "requests". Both models are valid with re- spect to the gold-standard. In order to simplify our problem, we discard these embedded rela- tions during training similar to <ref type="bibr" target="#b32">Yang and Cardie (2013)</ref>. However, for future work we would like to model these overlapping relations which could potentially improve our performance on opinion holders and opinion expressions.</p><p>We also found several cases such as S2, where the SLL+RLL model fails to annotate "said" as an opinion expression. The gold standard opinion ex- pressions include speech events like "said" or "a statement", but not all occurrences of these speech events are opinion expressions, some are merely objective events. In S2, "was martyred" is an indi- cation of an opinion being expressed, so "said" is annotated as an opinion expression. From our ob- servation, the ILP model is more relaxed in anno- tating most of these speech events as opinion ex- pressions and thus likely to identify corresponding S1 :  opinion holders and opinion targets as compared to SLL+RLL model.</p><formula xml:id="formula_17">However, [ Chavez ] T 1 who [ is known for ] O 1 [ his ] H 2 [ ala Fidel Castro left-leaning anti-American</formula><p>There were also instances such as S3 and S4 in <ref type="table" target="#tab_7">Table 4</ref> for which the gold standard does not have an annotation but the SLL+RLL output looks rea- sonable with respect to our task. In S3, SLL+RLL identifies "is no criticism" as an opinion expres- sion for the target "This". However, it fails to identify the relation-link between "known and appreciated" and the target "This". Similarly, SLL+RLL also identifies reasonable opinion enti- ties in S4, whereas the ILP model erroneously an- notates "mothers" as the opinion holder and "care" as the opinion expression.</p><p>We handle the task of joint-extraction of opin- ion entities and opinion relations as a sequence labeling task in this paper and report the perfor- mance of the 1-best path at the time of Viterbi in- ference. However, there are approaches such as discriminative reranking <ref type="bibr" target="#b7">(Collins and Koo, 2005)</ref> to rerank the output of an existing system that of- fer a means for further improving the performance of our SLL+RLL model. In particular, the oracle performance using the top-10 Viterbi paths from our SLL+RLL model has an F-score of 82.11 for opinion expressions, 76.77 for targets and 78.10 for holders. Similarly, IS-ABOUT relations have an F-score of 65.99 and IS-FROM relations, an F- score of 70.80. These scores are on average 10 points better than the performance of the current SLL+RLL model, indicating that substantial gains might be attained via reranking.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="8">Conclusion</head><p>In this paper, we explored LSTM-based models for the joint extraction of opinion entities and re- lations. Experimentally, we found that adding sentence-level and relation-level dependencies on the output layer improves the performance on opinion entity extraction, obtaining results within 1-3% of the ILP-based joint model on opinion en- tities, within 3% for IS-FROM relation and compa- rable for IS-ABOUT relation.</p><p>In future work, we plan to explore the effects of pre-training ( ) and sched- uled sampling ( <ref type="bibr" target="#b2">Bengio et al., 2015</ref>) for training our LSTM network. We would also like to explore re-ranking methods for our problem. With respect to the fine-grained opinion mining task, a poten- tial future direction to be able to model overlap- ping and embedded entities and relations and also to extend this model to handle cross-sentential re- lations.</p></div><figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_1" validated="false"><head>923</head><label>923</label><figDesc>Table 1: Performance on opinion entity extraction. Top table shows Binary Overlap performance; bottom table shows Proportional Overlap performance. Superscripts designate one standard deviation.</figDesc><table>Opinion Expression 
+
+Opinion Target 
+Opinion Holder 
+Method 
+P 
+R 
+F1 
+P 
+R 
+F1 
+P 
+R 
+F1 
+
+CRF 
+84.42 3.24 61.61 3.20 71.17 2.66 80.38 2.72 46.80 4.41 59.10 4.06 73.37 4.09 49.71 3.46 59.21 3.49 
+CRF+ILP 
+73.53 3.90 74.89 2.51 74.11 2.49 77.27 3.49 56.94 3.94 65.40 3.07 67.00 3.17 67.22 3.50 67.22 2.54 
+
+LSTM+WLL 
+67.88 4.49 66.13 3.20 66.87 2.66 58.71 4.87 54.92 3.23 56.50 1.51 60.33 4.54 63.34 2.33 61.65 2.37 
+LSTM+SLL 
+70.45 5.12 66.65 3.46 68.37 3.14 63.02 4.61 56.77 3.98 59.65 3.61 61.85 3.82 63.12 3.59 62.35 2.46 
+LSTM+SLL+RLL 71.73 5.35 70.92 3.96 71.11 2.71 64.52 5.52 65.94 4.74 64.84 1.44 62.75 3.75 67.17 4.37 64.71 2.23 
+
+CRF 
+80.78 3.27 57.62 3.24 67.19 2.63 71.81 3.22 42.36 3.78 53.23 3.69 71.56 3.54 48.61 3.51 57.86 3.43 
+CRF+ILP 
+71.03 4.03 69.72 2.37 70.22 2.44 71.94 3.25 49.83 3.24 58.72 2.80 65.70 3.07 65.91 3.63 65.68 2.61 
+
+LSTM+WLL 
+64.47 4.79 59.45 3.52 61.67 2.26 52.72 5.01 44.21 2.54 47.85 1.41 58.41 4.72 59.72 2.52 52.45 2.23 
+LSTM+SLL 
+65.97 5.46 61.76 3.69 63.60 3.05 54.46 4.49 50.16 4.38 52.01 3.05 59.80 3.29 61.27 3.75 60.40 2.26 
+LSTM+SLL+RLL 65.48 4.92 65.54 3.65 65.56 2.71 52.75 6.81 60.54 4.78 55.81 1.96 59.44 3.56 65.51 4.22 62.18 2.50 
+
+</table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_4" validated="false"><head>2 , [ announced ] O 2 last year that [ ratifying the protocol ] T 2 would hurt the US economy. CRF+ILP Australia's involvement in Kyoto [ has been in doubt ] O 1 ever since the US President, George Bush, announced last year that [ ratifying the protocol ] T 1 would hurt the US economy. WLL [ Australia's involvement in Kyoto ] T [ has ] O been in doubt ever since the US [ President ] H , [ George Bush ] H , announced last year that ratifying the protocol would hurt the US economy.</head><label></label><figDesc></figDesc><table>SLL 
+[ Australia's involvement in Kyoto ] T [ has been in doubt ] O ever since the US President, George Bush, an-
+nounced last year that ratifying the protocol would hurt the US economy. 
+
+SLL+RLL 
+[ Australia's involvement in Kyoto ] T [ has been in doubt ] O ever since the US President, [ George Bush ] H 2 , 
+
+[ announced ] O 2 last year that [ ratifying the protocol ] T 2 would hurt the US economy. 
+
+S2 : 
+Bush said last week [ he ] H 1,2 [ was willing ] O 1 [ to consider ] O 2 [ Saudi Arabia's request on a case-by-case basis ] T 2 
+
+but [ U.S. officials ] H 3 [ doubted ] O 3 [ it would happen any time soon ] T 3 . 
+
+CRF+ILP 
+[ Bush ] H 1 [ said ] O 1 last week [ he ] H 2 [ was willing to consider ] O 2 [ Saudi Arabia's ] H 3 [ request ] O 3 on a 
+
+case-by-case basis but [ U.S. officials ] H 4 [ doubted ] O 4 [ it ] T 4 would happen any time soon. 
+
+WLL 
+Bush said last week [ he ] H [ was willing ] O to [ consider ] O [ Saudi Arabia's request on a case-by-case ] T basis 
+
+but [ U.S. officials ] H [ doubted ] O [ it ] T would [ happen any time soon ] T . 
+
+SLL 
+Bush said last week [ he ] H [ was willing ] O to [ consider Saudi Arabia's request on a case-by-case basis ] T but 
+
+[ U.S. officials ] H [ doubted ] O [ it ] T would happen any time soon. 
+
+SLL+RLL 
+Bush said last week [ he ] H 1 [ was willing to consider ] O 1 [ Saudi Arabia's request on a case-by-case basis ] T 1 
+
+but [ U.S. officials ] H 2 [ doubted ] O 2 [ it would happen any time soon ] T 2 . 
+
+S3 : 
+Hence, [ the Organization of Petroleum Exporting Countries (OPEC) ] H 1 , [ will decide ] O 1 at its meeting on 
+
+Wednesday [ whether or not to cut its worldwide crude production in an effort to shore up energy prices ] T 1 . 
+
+CRF+ILP 
+Hence, the Organization of Petroleum Exporting Countries (OPEC), [ will decide ] O 1 at its meeting on Wednes-
+day whether [ or not to cut its worldwide crude production in an effort to shore up energy prices ] T 1 . 
+
+WLL 
+Hence, the Organization of Petroleum Exporting Countries (OPEC), will [ decide ] O at its meeting on Wednes-
+day whether or not to cut its worldwide crude production in an effort to shore up energy prices. 
+
+SLL 
+Hence, the Organization of Petroleum Exporting Countries (OPEC), [ will decide ] O at its meeting on Wednes-
+day whether or not to cut its worldwide crude production in an effort to shore up energy prices. 
+
+SLL+RLL 
+Hence, [ the Organization of Petroleum Exporting Countries (OPEC) ] H 1 , [ will decide ] O 1 at its meeting on 
+
+Wednesday whether [ or not to cut its worldwide crude production in an effort to shore up energy prices ] T 1 . 
+
+</table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_5" validated="false"><head>Table 3 : Output from different models. The first row for each example is the gold standard.</head><label>3</label><figDesc></figDesc><table></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_6" validated="false"><head>philosophy ]O 2 had on a number of occasions [ rebuffed ]O 3 [ [ US ] H 4 [ requests ] O 4 for [ more oil exports ] T 4 ] T 3 . CRF+ILP However, [ Chavez ] H 1 who [ is known ] O for [ his ala Fidel Castro ] H 2 [ left-leaning anti-American philosophy ] O 2 had on a number of occasions [ rebuffed ] O 1 [ US ] H 3 [ requests ] O 3 for more oil exports. SLL+RLL However, Chavez who [ is known ] O for his ala Fidel Castro left-leaning anti-American [ philosophy ] O had on</head><label></label><figDesc></figDesc><table>a number of occasions [ rebuffed ] O 1 [ US requests for more oil exports ] T 1 . 
+
+S2 : 
+A short while ago, [ our correspondent in Bethlehem ] H 1 [ said ] O 1 that [ Ra'fat al-Bajjali ] T 1 was martyred of 
+wounds sustained in the explosion. 
+
+CRF+ILP 
+A short while ago, [ our correspondent ] H 1 in Bethlehem [ said ] O 1 that [ Ra'fat al-Bajjali ]T 1 was martyred of 
+wounds sustained in the explosion. 
+
+SLL+RLL 
+A short while ago, our correspondent in Bethlehem said that Ra'fat al-Bajjali was martyred of wounds sustained 
+in the explosion. 
+S3 : 
+This is no criticism, and is widely known and appreciated. 
+CRF+ILP 
+This is no criticism, and is widely known and appreciated. 
+SLL+RLL [ This ] T 1 [ is no criticism ] O 1 , and is widely [ known and appreciated ] O . 
+
+S4 : 
+From the fact that mothers care for their young, we can not deduce that they ought to do so, Hume argued. 
+
+CRF+ILP 
+From the fact that [ mothers ] H 1 [ care ] O 1 for their young, we can not deduce that they ought to do so, 
+[ Hume ] H 2 [ argued ] O 2 . 
+
+SLL+RLL 
+From the fact that mothers care for their young, [ we ] H 1 [ can not deduce ] O 1 that [ they ] T 1 ought to do so, 
+
+[ Hume ] H 2 [ argued ] O 2 . 
+
+</table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_7" validated="false"><head>Table 4 :</head><label>4</label><figDesc>Examples from the dataset with label annotations from CRF+ILP and SLL+RLL models for comparison. The first row for each example is the gold standard.</figDesc><table></table></figure>
+
+			<note place="foot" n="1"> This paper does not attempt to determine the sentiment, i.e., the positive or negative polarity, of an opinion.</note>
+
+			<note place="foot" n="2"> Target and IS-ABOUT relation identification is one important aspect of opinion analysis that hasn&apos;t been much addressed in previous work and has proven to be difficult for existing methods.</note>
+
+			<note place="foot" n="3"> Later in this section, we will also add a similar likelihood in the objective function for right-relations, i.e., for each word the related words are in its right context.</note>
+
+			<note place="foot" n="5"> Yang and Cardie (2013) omitted a subset of targets and IS-ABOUT relations. We fixed this and re-ran their models on the updated dataset, obtaining the lower F-score 54.39 for IS-ABOUT relations.</note>
+		</body>
+		<back>
+			<div type="references">
+
+				<listBibl>
+
+<biblStruct xml:id="b0">
+	<monogr>
+		<title level="m" type="main">Neural machine translation by jointly learning to align and translate</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Dzmitry</forename><surname>Bahdanau</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kyunghyun</forename><surname>Cho</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yoshua</forename><surname>Bengio</surname></persName>
+		</author>
+		<idno>abs/1409.0473</idno>
+		<imprint>
+			<date type="published" when="2014" />
+			<publisher>CoRR</publisher>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b1">
+	<analytic>
+		<title level="a" type="main">Curriculum learning</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yoshua</forename><surname>Bengio</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jérôme</forename><surname>Louradour</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ronan</forename><surname>Collobert</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jason</forename><surname>Weston</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 26th Annual International Conference on Machine Learning, ICML &apos;09</title>
+		<meeting>the 26th Annual International Conference on Machine Learning, ICML &apos;09<address><addrLine>New York, NY, USA</addrLine></address></meeting>
+		<imprint>
+			<publisher>ACM</publisher>
+			<date type="published" when="2009" />
+			<biblScope unit="page" from="41" to="48" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b2">
+	<monogr>
+		<title level="m" type="main">Scheduled sampling for sequence prediction with recurrent neural networks</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Samy</forename><surname>Bengio</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Oriol</forename><surname>Vinyals</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Navdeep</forename><surname>Jaitly</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Noam</forename><surname>Shazeer</surname></persName>
+		</author>
+		<idno>abs/1506.03099</idno>
+		<imprint>
+			<date type="published" when="2015" />
+			<publisher>CoRR</publisher>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b3">
+	<analytic>
+		<title level="a" type="main">Learning deep architectures for ai</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yoshua</forename><surname>Bengio</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Found. Trends Mach. Learn</title>
+		<imprint>
+			<biblScope unit="volume">2</biblScope>
+			<biblScope unit="issue">1</biblScope>
+			<biblScope unit="page" from="1" to="127" />
+			<date type="published" when="2009-01" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b4">
+	<analytic>
+		<title level="a" type="main">Identifying expressions of opinion in context</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Eric</forename><surname>Breck</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yejin</forename><surname>Choi</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Claire</forename><surname>Cardie</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 20th International Joint Conference on Artifical Intelligence, IJCAI&apos;07</title>
+		<meeting>the 20th International Joint Conference on Artifical Intelligence, IJCAI&apos;07<address><addrLine>San Francisco, CA, USA</addrLine></address></meeting>
+		<imprint>
+			<publisher>Morgan Kaufmann Publishers Inc</publisher>
+			<date type="published" when="2007" />
+			<biblScope unit="page" from="2683" to="2688" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b5">
+	<analytic>
+		<title level="a" type="main">Identifying sources of opinions with conditional random fields and extraction patterns</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yejin</forename><surname>Choi</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Claire</forename><surname>Cardie</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ellen</forename><surname>Riloff</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Siddharth</forename><surname>Patwardhan</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Conference on Human Language Technology and Empirical Methods in Natural Language Processing, HLT &apos;05</title>
+		<meeting>the Conference on Human Language Technology and Empirical Methods in Natural Language Processing, HLT &apos;05<address><addrLine>Stroudsburg, PA, USA</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2005" />
+			<biblScope unit="page" from="355" to="362" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b6">
+	<analytic>
+		<title level="a" type="main">Joint extraction of entities and relations for opinion recognition</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yejin</forename><surname>Choi</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Eric</forename><surname>Breck</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Claire</forename><surname>Cardie</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2006 Conference on Empirical Methods in Natural Language Processing, EMNLP &apos;06</title>
+		<meeting>the 2006 Conference on Empirical Methods in Natural Language Processing, EMNLP &apos;06<address><addrLine>Stroudsburg, PA, USA</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2006" />
+			<biblScope unit="page" from="431" to="439" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b7">
+	<analytic>
+		<title level="a" type="main">Discriminative reranking for natural language parsing</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Michael</forename><surname>Collins</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Terry</forename><surname>Koo</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Comput. Linguist</title>
+		<imprint>
+			<biblScope unit="volume">31</biblScope>
+			<biblScope unit="issue">1</biblScope>
+			<biblScope unit="page" from="25" to="70" />
+			<date type="published" when="2005-03" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b8">
+	<analytic>
+		<title level="a" type="main">Natural language processing (almost) from scratch</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ronan</forename><surname>Collobert</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jason</forename><surname>Weston</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Léon</forename><surname>Bottou</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Michael</forename><surname>Karlen</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Koray</forename><surname>Kavukcuoglu</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Pavel</forename><surname>Kuksa</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">J. Mach. Learn. Res</title>
+		<imprint>
+			<biblScope unit="volume">12</biblScope>
+			<biblScope unit="page" from="2493" to="2537" />
+			<date type="published" when="2011-11" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b9">
+	<analytic>
+		<title level="a" type="main">Hybrid speech recognition with deep bidirectional LSTM</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Alex</forename><surname>Graves</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Navdeep</forename><surname>Jaitly</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Abdel-Rahman</forename><surname>Mohamed</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">IEEE Workshop on Automatic Speech Recognition and Understanding</title>
+		<imprint>
+			<biblScope unit="page" from="273" to="278" />
+			<date type="published" when="2013-12-08" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b10">
+	<analytic>
+		<title level="a" type="main">Named entity recognition with long short-term memory</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">James</forename><surname>Hammerton</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Seventh Conference on Natural Language Learning at HLT-NAACL 2003</title>
+		<meeting>the Seventh Conference on Natural Language Learning at HLT-NAACL 2003<address><addrLine>Stroudsburg, PA, USA</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2003" />
+			<biblScope unit="volume">4</biblScope>
+			<biblScope unit="page" from="172" to="175" />
+		</imprint>
+	</monogr>
+	<note>CONLL &apos;03</note>
+</biblStruct>
+
+<biblStruct xml:id="b11">
+	<analytic>
+		<title level="a" type="main">Training and analysing deep recurrent neural networks</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Michiel</forename><surname>Hermans</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Benjamin</forename><surname>Schrauwen</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Advances in Neural Information Processing Systems 26: 27th Annual Conference on Neural Information Processing Systems</title>
+		<meeting><address><addrLine>Lake Tahoe, Nevada, United States</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2013-12-05" />
+			<biblScope unit="page" from="190" to="198" />
+		</imprint>
+	</monogr>
+	<note>Proceedings of a meeting held</note>
+</biblStruct>
+
+<biblStruct xml:id="b12">
+	<monogr>
+		<title level="m" type="main">Hierarchical recurrent neural networks for long-term dependencies</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">El</forename><surname>Salah</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yoshua</forename><surname>Hihi</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Bengio</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="1996" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b13">
+	<analytic>
+		<title level="a" type="main">Long short-term memory</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Sepp</forename><surname>Hochreiter</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jürgen</forename><surname>Schmidhuber</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Neural Comput</title>
+		<imprint>
+			<biblScope unit="volume">9</biblScope>
+			<biblScope unit="issue">8</biblScope>
+			<biblScope unit="page" from="1735" to="1780" />
+			<date type="published" when="1997-11" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b14">
+	<monogr>
+		<title level="m" type="main">Bidirectional LSTM-CRF models for sequence tagging</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Zhiheng</forename><surname>Huang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Wei</forename><surname>Xu</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kai</forename><surname>Yu</surname></persName>
+		</author>
+		<idno>abs/1508.01991</idno>
+		<imprint>
+			<date type="published" when="2015" />
+			<publisher>CoRR</publisher>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b15">
+	<monogr>
+				<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ozan</forename><surname>Irsoy</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Claire</forename><surname>Cardie</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1312.0493</idno>
+		<title level="m">Bidirectional recursive neural networks for token-level labeling with structure</title>
+		<imprint>
+			<date type="published" when="2013" />
+		</imprint>
+	</monogr>
+<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b16">
+	<analytic>
+		<title level="a" type="main">Opinion mining with deep recurrent neural networks</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">˙</forename><surname>Ozan</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Claire</forename><surname>Irsoy</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Cardie</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>the Conference on Empirical Methods in Natural Language Processing</meeting>
+		<imprint>
+			<date type="published" when="2014" />
+			<biblScope unit="page" from="720" to="728" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b17">
+	<analytic>
+		<title level="a" type="main">Extracting opinions, opinion holders, and topics expressed in online news media text</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Min</forename><surname>Soo-</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Eduard</forename><surname>Kim</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Hovy</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Workshop on Sentiment and Subjectivity in Text, SST &apos;06</title>
+		<meeting>the Workshop on Sentiment and Subjectivity in Text, SST &apos;06<address><addrLine>Stroudsburg, PA, USA</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2006" />
+			<biblScope unit="page" from="1" to="8" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b18">
+	<analytic>
+		<title level="a" type="main">Extracting aspect-evaluation and aspect-of relations in opinion mining</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Nozomi</forename><surname>Kobayashi</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kentaro</forename><surname>Inui</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yuji</forename><surname>Matsumoto</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2007 Joint Conference on Empirical Methods in Natural Language Processing and Computational Natural Language Learning</title>
+		<meeting>the 2007 Joint Conference on Empirical Methods in Natural Language Processing and Computational Natural Language Learning</meeting>
+		<imprint>
+			<publisher>EMNLP-CoNLL</publisher>
+			<date type="published" when="2007" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b19">
+	<analytic>
+		<title level="a" type="main">Finegrained opinion mining with recurrent neural networks and word embeddings</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Pengfei</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Shafiq</forename><surname>Joty</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Helen</forename><surname>Meng</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2015 Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>the 2015 Conference on Empirical Methods in Natural Language Processing<address><addrLine>Lisbon, Portugal</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2015-09" />
+			<biblScope unit="page" from="1433" to="1443" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b20">
+	<analytic>
+		<title level="a" type="main">Distributed representations of words and phrases and their compositionality</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Tomas</forename><surname>Mikolov</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ilya</forename><surname>Sutskever</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kai</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Greg</forename><forename type="middle">S</forename><surname>Corrado</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jeff</forename><surname>Dean</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Advances in Neural Information Processing Systems</title>
+		<editor>C.J.C. Burges, L. Bottou, M. Welling, Z. Ghahramani, and K.Q. Weinberger</editor>
+		<imprint>
+			<publisher>Curran Associates, Inc</publisher>
+			<date type="published" when="2013" />
+			<biblScope unit="volume">26</biblScope>
+			<biblScope unit="page" from="3111" to="3119" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b21">
+	<monogr>
+		<title level="m" type="main">End-to-end relation extraction using lstms on sequences and tree structures</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Makoto</forename><surname>Miwa</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Mohit</forename><surname>Bansal</surname></persName>
+		</author>
+		<idno>abs/1601.00770</idno>
+		<imprint>
+			<date type="published" when="2016" />
+			<publisher>CoRR</publisher>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b22">
+	<analytic>
+		<title level="a" type="main">Learning complex, extended sequences using the principle of history compression</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jürgen</forename><surname>Schmidhuber</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Neural Comput</title>
+		<imprint>
+			<biblScope unit="volume">4</biblScope>
+			<biblScope unit="issue">2</biblScope>
+			<biblScope unit="page" from="234" to="242" />
+			<date type="published" when="1992-03" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b23">
+	<analytic>
+		<title level="a" type="main">Bidirectional recurrent neural networks</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">M</forename><surname>Schuster</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">K</forename><forename type="middle">K</forename><surname>Paliwal</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Trans. Sig. Proc</title>
+		<imprint>
+			<biblScope unit="volume">45</biblScope>
+			<biblScope unit="issue">11</biblScope>
+			<biblScope unit="page" from="2673" to="2681" />
+			<date type="published" when="1997-11" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b24">
+	<analytic>
+		<title level="a" type="main">Semantic compositionality through recursive matrix-vector spaces</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Richard</forename><surname>Socher</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Brody</forename><surname>Huval</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Christopher</forename><forename type="middle">D</forename><surname>Manning</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Andrew</forename><forename type="middle">Y</forename><surname>Ng</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2012 Joint Conference on Empirical Methods in Natural Language Processing and Computational Natural Language Learning</title>
+		<meeting>the 2012 Joint Conference on Empirical Methods in Natural Language Processing and Computational Natural Language Learning<address><addrLine>Stroudsburg, PA, USA</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2012" />
+			<biblScope unit="volume">12</biblScope>
+			<biblScope unit="page" from="1201" to="1211" />
+		</imprint>
+	</monogr>
+	<note>Association for Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b25">
+	<analytic>
+		<title level="a" type="main">Dropout: A simple way to prevent neural networks from overfitting</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Nitish</forename><surname>Srivastava</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Geoffrey</forename><surname>Hinton</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Alex</forename><surname>Krizhevsky</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ilya</forename><surname>Sutskever</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ruslan</forename><surname>Salakhutdinov</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Journal of Machine Learning Research</title>
+		<imprint>
+			<biblScope unit="volume">15</biblScope>
+			<biblScope unit="page" from="1929" to="1958" />
+			<date type="published" when="2014" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b26">
+	<analytic>
+		<title level="a" type="main">Sequence to sequence learning with neural networks</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ilya</forename><surname>Sutskever</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Oriol</forename><surname>Vinyals</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Quoc V</forename><surname>Le</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Advances in Neural Information Processing Systems</title>
+		<editor>Z. Ghahramani, M. Welling, C. Cortes, N. D. Lawrence, and K. Q. Weinberger</editor>
+		<imprint>
+			<publisher>Curran Associates, Inc</publisher>
+			<date type="published" when="2014" />
+			<biblScope unit="volume">27</biblScope>
+			<biblScope unit="page" from="3104" to="3112" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b27">
+	<analytic>
+		<title level="a" type="main">Annotating expressions of opinions and emotions in language. language resources and evaluation</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Janyce</forename><surname>Wiebe</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Claire</forename><surname>Cardie</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Language Resources and Evaluation (formerly Computers and the Humanities</title>
+		<imprint>
+			<date type="published" when="2005" />
+			<biblScope unit="page">2005</biblScope>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b28">
+	<analytic>
+		<title level="a" type="main">Recognizing contextual polarity in phraselevel sentiment analysis</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Theresa</forename><surname>Wilson</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Janyce</forename><surname>Wiebe</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Paul</forename><surname>Hoffmann</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Conference on Human Language Technology and Empirical Methods in Natural Language Processing, HLT &apos;05</title>
+		<meeting>the Conference on Human Language Technology and Empirical Methods in Natural Language Processing, HLT &apos;05<address><addrLine>Stroudsburg, PA, USA</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2005" />
+			<biblScope unit="page" from="347" to="354" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b29">
+	<monogr>
+		<title level="m" type="main">Fine-grained Subjectivity and Sentiment Analysis: Recognizing the intensity, polarity, and attitudes of private states</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Wilson</forename><surname>Theresa Ann</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2008-06" />
+		</imprint>
+		<respStmt>
+			<orgName>The University of Pittsburgh</orgName>
+		</respStmt>
+	</monogr>
+<note type="report_type">Ph.D. thesis</note>
+</biblStruct>
+
+<biblStruct xml:id="b30">
+	<analytic>
+		<title level="a" type="main">Classifying relations via long short term memory networks along shortest dependency paths</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yan</forename><surname>Xu</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Lili</forename><surname>Mou</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ge</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yunchuan</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Hao</forename><surname>Peng</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Zhi</forename><surname>Jin</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>Conference on Empirical Methods in Natural Language Processing</meeting>
+		<imprint>
+			<date type="published" when="2015" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b31">
+	<analytic>
+		<title level="a" type="main">Extracting opinion expressions with semi-markov conditional random fields</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Bishan</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Claire</forename><surname>Cardie</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2012 Joint Conference on Empirical Methods in Natural Language Processing and Computational Natural Language Learning</title>
+		<meeting>the 2012 Joint Conference on Empirical Methods in Natural Language Processing and Computational Natural Language Learning<address><addrLine>Stroudsburg, PA, USA</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2012" />
+			<biblScope unit="volume">12</biblScope>
+			<biblScope unit="page" from="1335" to="1345" />
+		</imprint>
+	</monogr>
+	<note>Association for Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b32">
+	<analytic>
+		<title level="a" type="main">Joint inference for fine-grained opinion extraction</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Bishan</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Claire</forename><surname>Cardie</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 51st Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 51st Annual Meeting of the Association for Computational Linguistics<address><addrLine>Sofia, Bulgaria</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2013-08" />
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="1640" to="1649" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b33">
+	<monogr>
+		<title level="m" type="main">ADADELTA: an adaptive learning rate method</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">D</forename><surname>Matthew</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Zeiler</surname></persName>
+		</author>
+		<idno>abs/1212.5701</idno>
+		<imprint>
+			<date type="published" when="2012" />
+			<publisher>CoRR</publisher>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+				</listBibl>
+			</div>
+		</back>
+	</text>
+</TEI>

@@ -1,0 +1,728 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<TEI xmlns="http://www.tei-c.org/ns/1.0" 
+xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+xsi:schemaLocation="http://www.tei-c.org/ns/1.0 /home/ana/installs/grobid/grobid-0.5.1/grobid-home/schemas/xsd/Grobid.xsd"
+ xmlns:xlink="http://www.w3.org/1999/xlink">
+	<teiHeader xml:lang="en">
+		<encodingDesc>
+			<appInfo>
+				<application version="0.5.1-SNAPSHOT" ident="GROBID" when="2019-04-18T11:00+0000">
+					<ref target="https://github.com/kermitt2/grobid">GROBID - A machine learning software for extracting information from scholarly documents</ref>
+				</application>
+			</appInfo>
+		</encodingDesc>
+		<fileDesc>
+			<titleStmt>
+				<title level="a" type="main">Speeding Up Neural Machine Translation Decoding by Shrinking Run-time Vocabulary</title>
+			</titleStmt>
+			<publicationStmt>
+				<publisher>Association for Computational Linguistics</publisher>
+				<availability status="unknown"><p>Copyright Association for Computational Linguistics</p>
+				</availability>
+				<date>July 30-August 4, 2017. July 30-August 4, 2017</date>
+			</publicationStmt>
+			<sourceDesc>
+				<biblStruct>
+					<analytic>
+						<author>
+							<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Xing</forename><surname>Shi</surname></persName>
+						</author>
+						<author>
+							<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kevin</forename><surname>Knight</surname></persName>
+						</author>
+						<title level="a" type="main">Speeding Up Neural Machine Translation Decoding by Shrinking Run-time Vocabulary</title>
+					</analytic>
+					<monogr>
+						<title level="m">Proceedings of the 55th Annual Meeting of the Association for Computational Linguistics (Volume 2: Short Papers)</title>
+						<meeting>the 55th Annual Meeting of the Association for Computational Linguistics (Volume 2: Short Papers) <address><addrLine>Vancouver, Canada; Vancouver, Canada</addrLine></address>
+						</meeting>
+						<imprint>
+							<publisher>Association for Computational Linguistics</publisher>
+							<biblScope unit="page" from="574" to="579"/>
+							<date type="published">July 30-August 4, 2017. July 30-August 4, 2017</date>
+						</imprint>
+					</monogr>
+					<idno type="DOI">10.18653/v1/p17-2091</idno>
+				</biblStruct>
+			</sourceDesc>
+		</fileDesc>
+		<profileDesc>
+			<abstract>
+				<p>We speed up Neural Machine Translation (NMT) decoding by shrinking run-time target vocabulary. We experiment with two shrinking approaches: Locality Sensitive Hashing (LSH) and word alignments. Using the latter method, we get a 2x overall speed-up over a highly-optimized GPU implementation, without hurting BLEU. On certain low-resource language pairs, the same methods improve BLEU by 0.5 points. We also report a negative result for LSH on GPUs, due to relatively large overhead, though it was successful on CPUs. Compared with Locality Sensitive Hashing (LSH), decoding with word alignments is GPU-friendly, orthogonal to existing speedup methods and more robust across language pairs.</p>
+			</abstract>
+		</profileDesc>
+	</teiHeader>
+	<text xml:lang="en">
+		<body>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="1">Introduction</head><p>Neural Machine Translation (NMT) has been demonstrated as an effective model and been put into large-scale production ( <ref type="bibr">Wu et al., 2016;</ref><ref type="bibr" target="#b4">He, 2015)</ref>. For online translation services, decoding speed is a crucial factor to achieve a better user experience. Several recently proposed training methods <ref type="bibr" target="#b15">(Shen et al., 2015;</ref><ref type="bibr" target="#b20">Wiseman and Rush, 2016)</ref> aim to solve the exposure bias problem, but require decoding the whole training set multiple times, which is extremely time-consuming for mil- lions of sentences.</p><p>Slow decoding speed is partly due to the large target vocabulary size V, which is usually in the tens of thousands. The first two columns of Ta- ble 1 show the breakdown of the runtimes re- quired by sub-modules to decode 1812 Japanese sentences to English using a sequence-to-sequence model with local attention ( <ref type="bibr" target="#b9">Luong et al., 2015</ref>  <ref type="table">Table 1</ref>: Time breakdown and BLEU score of full vocabulary decoding and our "WA50" decod- ing, both with beam size 12. WA50 means de- coding informed by word alignments, where each source word can select at most 50 relevant target words. The model is a 2-layer, 1000-hidden di- mension, 50,000-target vocabulary LSTM seq2seq model with local attention trained on the AS- PEC Japanese-to-English corpus ( <ref type="bibr" target="#b13">Nakazawa et al., 2016)</ref>. The time is measured on a single Nvidia Tesla K20 GPU.</p><p>Softmax is the most computationally intensive part, where each hidden vector h t ∈ R d needs to dot-product with V target embeddings e i ∈ R d . It occupies 40% of the total decoding time. An- other sub-module whose computation time is pro- portional to V is Beam Expansion, where we need to find the top B words among all V vocabulary ac- cording to their probability. It takes around 17% of the decoding time. Several approaches have proposed to improve decoding speed:</p><p>1. Using special hardware, such as GPU and</p><p>Tensor Processing Unit (TPU), and low- precision calculation ( <ref type="bibr">Wu et al., 2016</ref>).</p><p>2. Compressing deep neural models through knowledge distillation and weight pruning ( <ref type="bibr" target="#b14">See et al., 2016;</ref><ref type="bibr" target="#b6">Kim and Rush, 2016</ref>).</p><p>3. Several variants of Softmax have been pro- posed to solve its poor scaling properties on large vocabularies. <ref type="bibr" target="#b12">Morin and Bengio (2005)</ref> propose hierarchical softmax, where at each step log 2 V binary classifications are performed instead of a single classification on a large number of classes. <ref type="bibr" target="#b3">Gutmann and Hyvärinen (2010)</ref> propose noise-contrastive estimation which discriminate between pos- itive labels and k (k &lt;&lt; V ) negative la- bels sampled from a distribution, and is ap- plied successfully on natural language pro- cessing tasks <ref type="bibr" target="#b11">(Mnih and Teh, 2012;</ref><ref type="bibr" target="#b17">Vaswani et al., 2013;</ref><ref type="bibr" target="#b19">Williams et al., 2015;</ref><ref type="bibr" target="#b24">Zoph et al., 2016)</ref>. Although these two approaches pro- vide good speedups for training, they still suffer at test time. <ref type="bibr" target="#b1">Chen et al. (2016)</ref> in- troduces differentiated softmax, where fre- quent words have more parameters in the em- bedding and rare words have less, offering speedups on both training and testing.</p><p>In this work, we aim to speed up decoding by shrinking the run-time target vocabulary size, and this approach is orthogonal to the methods above. It is important to note that approaches 1 and 2 will maintain or even increase the ratio of target word embedding parameters to the total parame- ters, thus the Beam Expansion and Softmax will occupy the same or greater portion of the decod- ing time. A small run-time vocabulary will dra- matically reduce the time spent on these two por- tions and gain a further speedup even after apply- ing other speedup methods.</p><p>To shrink the run-time target vocabulary, our first method uses Locality Sensitive Hashing. <ref type="bibr" target="#b18">Vijayanarasimhan et al. (2015)</ref> successfully applies it on CPUs and gains speedup on single step prediction tasks such as image classification and video identification. Our second method is to use word alignments to select a very small number of candidate target words given the source sentence. Recent works ( <ref type="bibr" target="#b5">Jean et al., 2015;</ref><ref type="bibr" target="#b10">Mi et al., 2016;</ref><ref type="bibr" target="#b7">L'Hostis et al., 2016</ref>) apply a similar strategy and report speedups for decoding on CPUs on rich- source language pairs.</p><p>Our major contributions are:</p><p>1. To our best of our knowledge, this work is the first attempt to apply LSH technique on sequence generation tasks on GPU other than single-step classification on CPU. We find current LSH algorithms have a poor per- formance/speed trade-off on GPU, due to the large overhead introduced by many hash table lookups and list-merging involved in LSH.</p><p>2. For our word alignment method, we find that only the candidate list derived from lexical translation table of IBM model 4 is adequate to achieve good BLEU/speedup trade-off for decoding on GPU. There is no need to com- bine the top frequent words or words from phrase table, as proposed in <ref type="bibr" target="#b10">Mi et al. (2016)</ref>.</p><p>3. We conduct our experiments on GPU and provide a detailed analysis of BLEU/speedup trade-off on both resource-rich/poor language pairs and both attention/non-attention NMT models. We achieve more than 2x speedup on 4 language pairs with only a tiny BLEU drop, demonstrating the robustness and effi- ciency of our methods.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2">Methods</head><p>At each step during decoding, the softmax function is calculated as:</p><formula xml:id="formula_0">P (y = j|h i ) = e h T i w j +b j V k=1 e h T i w k +b k<label>(1)</label></formula><p>where P (y = j|h i ) is the probability of word j = 1...V given the hidden vector h i ∈ R d , i = 1...B. B represents the beam size. w j ∈ R d is output word embedding and b j ∈ R is the corre- sponding bias. The complexity is O(dBV ). To speed up softmax, we use word frequency, local- ity sensitive hashing, and word alignments respec- tively to select C (C &lt;&lt; V ) potential words and evaluate their probability only, reducing the com- plexity to O(dBC + overhead).</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.1">Word Frequency</head><p>A simple baseline to reduce target vocabulary is to select the top C words based on their frequency in the training corpus. There is no run-time overhead and the overall complexity is O(dBC).</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.2">Locality Sensitive Hashing</head><p>The word j = arg max k P (y = k|h i ) will have the largest value of h T i w j + b j . Thus the arg max problem can be converted to finding the near- est neighbor of vector [h i ; 1] among the vectors [w j ; b j ] under the distance measure of dot-product.</p><p>Locality Sensitive Hashing (LSH) is a powerful technique for the nearest neighbor problem. We employ the winner-take-all (WTA) hashing <ref type="bibr" target="#b23">(Yagnik et al., 2011</ref>) defined as: 3. Given the hidden vector h i , extract a list of word indexes from each table T w using the key W T A band (h i ) <ref type="bibr">[w]</ref>. Then we merge the W lists and count the number of the occur- rences of each word index. Select the top C word indexes with the largest counts, and cal- culate their probability using equation 1.</p><formula xml:id="formula_1">W T A(x ∈ R d ) = [I 1 ; ...; I p ; ...; I P ] (2) I p = arg max K k=1 P ermute p (x)[k]<label>(</label></formula><p>The 4 hyper-parameters that define a WTA-LSH are {K, P, W, C}. The run-time overhead com- prises hashing the hidden vector, W times hash table lookups and W lists merging. The overall complexity is O(B(dC+K * P +W +W * N avg ))), where N avg is the average number of the word in- dexes stored in a hash bin of T w . Although the complexity is much smaller than O(dBV ), the runtime in practice is not guaranteed to be shorter, especially on GPUs, as hash table lookups in- troduce too many small kernel launches and list merging is hard to parallelize.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.3">Word Alignment</head><p>Intuitively, LSH shrinks the search space utilizing the spatial relationship between the query vector and database vectors in high dimension space. It is a task-independent technique. However, when focusing on our specific task (MT), we can employ translation-related heuristics to prune the run-time vocabulary precisely and efficiently.</p><p>One simple heuristic relies on the fact that each source word can only be translated to a small set of target words. The word alignment model, a foun- dation of phrase-base machine translation, also follows the same spirit in its generative story: each source word is translated to zero, one, or more tar- get words and then reordered to form target sen- tences. Thus, we apply the following algorithm to reduce the run-time vocabulary size:</p><p>1. Apply IBM Model 4 and the grow-diag-final heuristic on the training data to get word alignments. Calculate the lexical translation </p><formula xml:id="formula_2">O(dB|V new |+(L s +L s M )/L t )</formula><p>, where L t is the maximum number of decoding steps. Un- like LSH, these table lookups and list mergings are performed once per sentence, and do not depend on the any hidden vectors. Thus, we can overlap the computation with source side forward propa- gation.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3">Experiments</head><p>To examine the robustness of these decoding methods, we vary experiment settings in dif- ferent ways: 1) We train both attention ( <ref type="bibr" target="#b9">Luong et al., 2015</ref>) and non-attention (Sutskever et al., 2014) models; 2) We train models on <ref type="table" target="#tab_3">J2E   E2J  F2E  U2E  TC BLEU  X  TC BLEU  X  TC BLEU  X  TC</ref>   <ref type="table" target="#tab_3">Table 2</ref>: Word type coverage (TC), BLEU score, and speedups (X) for full-vocabulary decoding (Full), top frequency vocabulary decoding (TF*), LSH decoding (LSH*), and decoding with word align- ments(WA*). TF10K represents decoding with top 10,000 frequent target vocabulary (C = 10, 000). WA10 means decoding with word alignments, where each source word can select at most 10 candidate target words (M = 10). For LSH decoding, we choose (32, 5000, 1000) for (K,P ,W ), and vary C.</p><p>both resource-rich language pairs, French to En- glish (F2E) and Japanese to English (J2E), and a resource-poor language pair, Uzbek to English (U2E); 3) We translate both to English (F2E, J2E, and U2E) and from English (E2J). We use 2- layer LSTM seq2seq models with different at- tention settings, hidden dimension sizes, dropout rates, and initial learning rates, as shown in <ref type="table" target="#tab_4">Ta- ble 3</ref>. We use the ASPEC Japanese-English Cor- pus ( <ref type="bibr" target="#b13">Nakazawa et al., 2016)</ref>, French-English Cor- pus from WMT2014 ( <ref type="bibr" target="#b0">Bojar et al., 2014</ref>), and Uzbek-English Corpus (Linguistic Data Consor- tium, 2016).  follows:</p><p>T C = |{run-time vocab} ∩ {word types in test}| |{word types in test}|</p><p>The top 1000 words only cover 14% word types of J2E test data, whereas WA10 covers 75%, whose run-time vocabulary is no more than 200 for a 20 words source sentence. The speedup of English-to-Uzbek translation is relatively low (around 1.7x). This is because the original full vocabulary size is small (25k), leaving less room for shrinkage.</p><p>LSH achieves better BLEU than decoding with top frequent words of the same run-time vocabu- lary size C on attention models. However, it in-troduces too large an overhead (50 times slower), especially when softmax is highly optimized on GPU. When doing sequential beam search, search error accumulates rapidly. To reach reasonable performance, we have to apply an adequately large number of permutations (P = 5000).</p><p>We also find that decoding with word align- ments can even improve BLEU on resource-poor languages <ref type="bibr">(12.17 vs. 11.67)</ref>. Our conjecture is that rare words are not trained enough, so neural mod- els confuse them, and word alignments can pro- vide a hard constraint to rule out the unreasonable word choices.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4">Conclusion</head><p>We apply word alignments to shrink run-time vocabulary to speed up neural machine transla- tion decoding on GPUs, and achieve more than 2x speedup on 4 translation directions without hurting BLEU. We also compare with two other speedup methods: decoding with top frequent words and decoding with LSH. Experiments and analyses demonstrate that word alignments pro- vides accurate candidate target words and in- troduces only a tiny overhead over a highly- optimized GPU implementation.</p></div><figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_0"><head>3 )</head><label>3</label><figDesc>W T A band (x) = [B 1 ; ...; B w ; ...; B W ] (4) B w = [I (w−1) * u+1 ; ...; I (w−1) * u+i ; ...; I w * u ] (5) u = P/W (6) where P distinct permutations are applied and the index of the maximum value of the first K ele- ments of each permutations is recorded. To per- form approximate nearest neighbor searching, we follow the scheme used in (Dean et al., 2013; Vi- jayanarasimhan et al., 2015): 1. Split the hash code W T A(x) into W bands (as shown in equation 4), with each band P W log 2 (K) bits long. 2. Create W hash tables [T 1 , ..., T w , ..., T W ], and hash every word index j into every table T w using W T A band (w j )[w] as the key.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_0" validated="false"><head>) .</head><label>.</label><figDesc></figDesc><table>Sub-module 
+Full vocab 
+WA50 Speedup 
+Total 
+1002.78 s 481.52 s 
+2.08 
+-Beam 
+expansion 
+174.28 s 
+76.52 s 
+2.28 
+
+-Source-side 
+83.67 s 
+83.44 s 
+1 
+-Target-side 
+743.25 s 354.52 s 
+2.1 
+--Softmax 
+402.77 s 
+20.68 s 
+19.48 
+--Attention 
+123.05 s 123.12 s 
+1 
+--2nd layer 
+64.72 s 
+64.76 s 
+1 
+--1st layer 
+88.02 s 
+87.96 s 
+1 
+Shrink vocab 
+-
+0.39 s 
+-
+BLEU 
+25.16 
+25.13 
+-
+
+</table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_3" validated="false"><head>Table 2 shows</head><label>2</label><figDesc>the decoding results of the three methods. Decoding with word alignments achieves the best performance/speedup trade-off across all four translation directions. It can halve the overall decoding time with less than 0.17 BLEU drop. Table 1 compares the detailed time breakdown of full-vocabulary decoding and WA50 decoding. WA50 can gain a speedup of 19.48x and 2.28x on softmax and beam expansion respec- tively, leading to an overall 2.08x speedup with only 0.03 BLEU drop. In contrast, decoding with top frequent words will hurt the BLEU rapidly as the speedup goes higher. We calculate the word type coverage (TC) for the test reference data as</figDesc><table>J2E 
+E2J 
+F2E 
+U2E 
+Source Vocab 
+80K 
+88K 
+200K 
+50K 
+Target Vocab 
+50K 
+66K 
+40K 
+25K 
+#Tokens 
+70.4M 70.4M 652M 3.3M 
+#Sent pairs 
+1.4M 
+1.4M 
+12M 88.7K 
+Attention 
+Yes 
+Yes 
+No 
+Yes 
+Dimension 
+1000 
+1000 
+1000 
+500 
+Dropout 
+0.2 
+0.2 
+0.2 
+0.5 
+Learning rate 
+0.5 
+1 
+0.35 
+0.5 
+
+</table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_4" validated="false"><head>Table 3 :</head><label>3</label><figDesc></figDesc><table>Training configurations on different lan-
+guage pairs. 
+
+</table></figure>
+		</body>
+		<back>
+			<div type="references">
+
+				<listBibl>
+
+<biblStruct xml:id="b0">
+	<monogr>
+				<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ondrej</forename><surname>Bojar</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Christian</forename><surname>Buck</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Christian</forename><surname>Federmann</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Barry</forename><surname>Haddow</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Philipp</forename><surname>Koehn</surname></persName>
+		</author>
+		<title level="m">Proc. Ninth Workshop on Statistical Machine Translation</title>
+		<editor>Matous Machacek, Christof Monz, Pavel Pecina, Matt Post, Herv SaintAmand, Radu Soricut, and Lucia Specia</editor>
+		<meeting>Ninth Workshop on Statistical Machine Translation</meeting>
+		<imprint>
+			<date type="published" when="2014" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b1">
+	<analytic>
+		<title level="a" type="main">Strategies for training large vocabulary neural language models</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Welin</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">David</forename><surname>Grangier</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Michael</forename><surname>Auli</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. ACL</title>
+		<meeting>ACL</meeting>
+		<imprint>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b2">
+	<analytic>
+		<title level="a" type="main">Jonathon Shlens, Sudheendra Vijayanarasimhan, and Jay Yagnik. 2013. Fast, accurate detection of 100,000 object classes on a single machine</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Thomas</forename><surname>Dean</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Mark</forename><surname>Mark A Ruzon</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Segal</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. CVPR</title>
+		<meeting>CVPR</meeting>
+		<imprint/>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b3">
+	<analytic>
+		<title level="a" type="main">Noisecontrastive estimation: A new estimation principle for unnormalized statistical models</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Michael</forename><surname>Gutmann</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Aapo</forename><surname>Hyvärinen</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. AISTATS</title>
+		<meeting>AISTATS</meeting>
+		<imprint>
+			<date type="published" when="2010" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b4">
+	<analytic>
+		<title level="a" type="main">Baidu translate: research and products</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Zhongjun</forename><surname>He</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. ACL-IJCNLP</title>
+		<meeting>ACL-IJCNLP</meeting>
+		<imprint>
+			<date type="published" when="2015" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b5">
+	<analytic>
+		<title level="a" type="main">On using very large target vocabulary for neural machine translation</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Sébastien</forename><surname>Jean</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kyunghyun</forename><surname>Cho</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Roland</forename><surname>Memisevic</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yoshua</forename><surname>Bengio</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. ACL</title>
+		<meeting>ACL</meeting>
+		<imprint>
+			<date type="published" when="2015" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b6">
+	<analytic>
+		<title level="a" type="main">Sequencelevel knowledge distillation</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yoon</forename><surname>Kim</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Alexander M</forename><surname>Rush</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. EMNLP</title>
+		<meeting>EMNLP</meeting>
+		<imprint>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b7">
+	<monogr>
+		<title level="m" type="main">Vocabulary Selection Strategies for Neural Machine Translation</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">David</forename><surname>Gurvan L&amp;apos;hostis</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Michael</forename><surname>Grangier</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Auli</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1610.00072</idno>
+		<imprint>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+<note type="report_type">Arxiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b8">
+	<monogr>
+		<title level="m" type="main">Linguistic Data Consortium</title>
+		<imprint>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+	<note>bolt lrl uzbek representative language pack v1.0. ldc2016e29</note>
+</biblStruct>
+
+<biblStruct xml:id="b9">
+	<analytic>
+		<title level="a" type="main">Effective approaches to attentionbased neural machine translation</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Minh-Thang</forename><surname>Luong</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Hieu</forename><surname>Pham</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Christopher</forename><forename type="middle">D</forename><surname>Manning</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. EMNLP</title>
+		<meeting>EMNLP</meeting>
+		<imprint>
+			<date type="published" when="2015" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b10">
+	<analytic>
+		<title level="a" type="main">Vocabulary Manipulation for Neural Machine Translation</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Haitao</forename><surname>Mi</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Zhiguo</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Abraham</forename><surname>Ittycheriah</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. ACL</title>
+		<meeting>ACL</meeting>
+		<imprint>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b11">
+	<analytic>
+		<title level="a" type="main">A fast and simple algorithm for training neural probabilistic language models</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Andriy</forename><surname>Mnih</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yee</forename><forename type="middle">Whye</forename><surname>Teh</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. ICML</title>
+		<meeting>ICML</meeting>
+		<imprint>
+			<date type="published" when="2012" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b12">
+	<analytic>
+		<title level="a" type="main">Hierarchical probabilistic neural network language model</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Frederic</forename><surname>Morin</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yoshua</forename><surname>Bengio</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. AISTATS</title>
+		<meeting>AISTATS</meeting>
+		<imprint>
+			<date type="published" when="2005" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b13">
+	<analytic>
+		<title level="a" type="main">ASPEC: Asian Scientific Paper Excerpt Corpus</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Toshiaki</forename><surname>Nakazawa</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Manabu</forename><surname>Yaguchi</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kiyotaka</forename><surname>Uchimoto</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Masao</forename><surname>Utiyama</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Eiichiro</forename><surname>Sumita</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Sadao</forename><surname>Kurohashi</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Hitoshi</forename><surname>Isahara</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. LREC</title>
+		<meeting>LREC</meeting>
+		<imprint>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b14">
+	<monogr>
+		<title level="m" type="main">Compression of neural machine translation models via pruning</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Abigail</forename><surname>See</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Minh-Thang</forename><surname>Luong</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Christopher D</forename><surname>Manning</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b15">
+	<analytic>
+		<title level="a" type="main">Minimum risk training for neural machine translation</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Shiqi</forename><surname>Shen</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yong</forename><surname>Cheng</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Zhongjun</forename><surname>He</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Wei</forename><surname>He</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Hua</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Maosong</forename><surname>Sun</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yang</forename><surname>Liu</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. ACL</title>
+		<meeting>ACL</meeting>
+		<imprint>
+			<date type="published" when="2015" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b16">
+	<analytic>
+		<title level="a" type="main">Sequence to sequence learning with neural networks</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ilya</forename><surname>Sutskever</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Oriol</forename><surname>Vinyals</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Quoc V</forename><surname>Le</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. NIPS</title>
+		<meeting>NIPS</meeting>
+		<imprint>
+			<date type="published" when="2014" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b17">
+	<analytic>
+		<title level="a" type="main">Decoding with large-scale neural language models improves translation</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ashish</forename><surname>Vaswani</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yinggong</forename><surname>Zhao</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Victoria</forename><surname>Fossum</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">David</forename><surname>Chiang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. EMNLP</title>
+		<meeting>EMNLP</meeting>
+		<imprint>
+			<date type="published" when="2013" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b18">
+	<analytic>
+		<title level="a" type="main">Deep networks with large output spaces</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Sudheendra</forename><surname>Vijayanarasimhan</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jonathon</forename><surname>Shlens</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Rajat</forename><surname>Monga</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jay</forename><surname>Yagnik</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. ICLR</title>
+		<meeting>ICLR</meeting>
+		<imprint>
+			<date type="published" when="2015" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b19">
+	<analytic>
+		<title level="a" type="main">Scaling recurrent neural network language models</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Will</forename><surname>Williams</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Niranjani</forename><surname>Prasad</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">David</forename><surname>Mrva</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Tom</forename><surname>Ash</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Tony</forename><surname>Robinson</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. ICASSP</title>
+		<meeting>ICASSP</meeting>
+		<imprint>
+			<date type="published" when="2015" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b20">
+	<analytic>
+		<title level="a" type="main">Sequence-to-sequence learning as beam-search optimization</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Sam</forename><surname>Wiseman</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Alexander M</forename><surname>Rush</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. EMNLP</title>
+		<meeting>EMNLP</meeting>
+		<imprint>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b21">
+	<monogr>
+		<title/>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yonghui</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Mike</forename><surname>Schuster</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Zhifeng</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">V</forename><surname>Quoc</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Mohammad</forename><surname>Le</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Wolfgang</forename><surname>Norouzi</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Maxim</forename><surname>Macherey</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yuan</forename><surname>Krikun</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Cao</surname></persName>
+		</author>
+		<imprint>
+			<pubPlace>Qin Gao, Klaus</pubPlace>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b22">
+	<monogr>
+		<title level="m" type="main">Google&apos;s neural machine translation system: Bridging the gap between human and machine translation</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Macherey</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1609.08144</idno>
+		<imprint>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b23">
+	<analytic>
+		<title level="a" type="main">The power of comparative reasoning</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jay</forename><surname>Yagnik</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Dennis</forename><surname>Strelow</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Rueisung</forename><surname>David A Ross</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Lin</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. ICCV</title>
+		<meeting>ICCV</meeting>
+		<imprint>
+			<date type="published" when="2011" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b24">
+	<analytic>
+		<title level="a" type="main">Simple, fast noise-contrastive estimation for large rnn vocabularies</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Barret</forename><surname>Zoph</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ashish</forename><surname>Vaswani</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jonathan</forename><surname>May</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kevin</forename><surname>Knight</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. NAACL-HLT</title>
+		<meeting>NAACL-HLT</meeting>
+		<imprint>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+				</listBibl>
+			</div>
+		</back>
+	</text>
+</TEI>

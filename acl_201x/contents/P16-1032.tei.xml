@@ -1,0 +1,930 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<TEI xmlns="http://www.tei-c.org/ns/1.0" 
+xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+xsi:schemaLocation="http://www.tei-c.org/ns/1.0 /home/ana/installs/grobid/grobid-0.5.1/grobid-home/schemas/xsd/Grobid.xsd"
+ xmlns:xlink="http://www.w3.org/1999/xlink">
+	<teiHeader xml:lang="en">
+		<encodingDesc>
+			<appInfo>
+				<application version="0.5.1-SNAPSHOT" ident="GROBID" when="2019-04-18T10:16+0000">
+					<ref target="https://github.com/kermitt2/grobid">GROBID - A machine learning software for extracting information from scholarly documents</ref>
+				</application>
+			</appInfo>
+		</encodingDesc>
+		<fileDesc>
+			<titleStmt>
+				<title level="a" type="main">Document-level Sentiment Inference with Social, Faction, and Discourse Context</title>
+			</titleStmt>
+			<publicationStmt>
+				<publisher/>
+				<availability status="unknown"><licence/></availability>
+				<date>August 7-12, 2016</date>
+			</publicationStmt>
+			<sourceDesc>
+				<biblStruct>
+					<analytic>
+						<author>
+							<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Eunsol</forename><surname>Choi</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="department">Computer Science &amp; Engineering</orgName>
+								<orgName type="institution">University of Washington</orgName>
+							</affiliation>
+						</author>
+						<author>
+							<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Hannah</forename><surname>Rashkin</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="department">Computer Science &amp; Engineering</orgName>
+								<orgName type="institution">University of Washington</orgName>
+							</affiliation>
+						</author>
+						<author>
+							<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Luke</forename><surname>Zettlemoyer</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="department">Computer Science &amp; Engineering</orgName>
+								<orgName type="institution">University of Washington</orgName>
+							</affiliation>
+						</author>
+						<author>
+							<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yejin</forename><surname>Choi</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="department">Computer Science &amp; Engineering</orgName>
+								<orgName type="institution">University of Washington</orgName>
+							</affiliation>
+						</author>
+						<title level="a" type="main">Document-level Sentiment Inference with Social, Faction, and Discourse Context</title>
+					</analytic>
+					<monogr>
+						<title level="m">Proceedings of the 54th Annual Meeting of the Association for Computational Linguistics</title>
+						<meeting>the 54th Annual Meeting of the Association for Computational Linguistics <address><addrLine>Berlin, Germany</addrLine></address>
+						</meeting>
+						<imprint>
+							<biblScope unit="page" from="333" to="343"/>
+							<date type="published">August 7-12, 2016</date>
+						</imprint>
+					</monogr>
+				</biblStruct>
+			</sourceDesc>
+		</fileDesc>
+		<profileDesc>
+			<abstract>
+				<p>We present a new approach for document-level sentiment inference, where the goal is to predict directed opinions (who feels positively or negatively towards whom) for all entities mentioned in a text. To encourage more complete and consistent predictions , we introduce an ILP that jointly models (1) sentence-and discourse-level sentiment cues, (2) factual evidence about entity factions, and (3) global constraints based on social science theories such as homophily, social balance, and reciprocity. Together, these cues allow for rich inference across groups of entities, including for example that CEOs and the companies they lead are likely to have similar sentiment towards others. We evaluate performance on new, densely labeled data that provides supervision for all pairs, complementing previous work that only labeled pairs mentioned in the same sentence. Experiments demonstrate that the global model outperforms sentence-level baselines, by providing more coherent predictions across sets of related entities.</p>
+			</abstract>
+		</profileDesc>
+	</teiHeader>
+	<text xml:lang="en">
+		<body>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="1">Introduction</head><p>Documents often present a complex web of facts and opinions that hold among the entities they de- scribe. Consider the international relations story in <ref type="figure" target="#fig_0">Figure 1</ref>. Representatives from three countries form factions and create a network of sentiment. While some opinions are relatively directly stated (e.g., Russia criticizes Belarus), many others must be inferred based on the factual ties among enti- ties (e.g., Moscow, Gryzlov, and Russia probably share the same sentiment towards other entities) and known social context (e.g., Russia probably Russia criticized Belarus for permitting Georgian Presi- dent Mikheil Saakhashvili to appear on Belorussian tele- vision. "The appearance was an unfriendly step towards Russia," the speaker of Russian parliament Boris Gry- zlov said. . . . Saakhashvili announced Thursday that he did not understand Russia's claims. Moscow refused to have any business with Georgia's president after the armed conflict in 2008 . . . level sentiment graph we aim to recover. The graph includes edges with direct textual support (e.g., from Russian to Be- larus given the verb "criticized") as well as ones that must be inferred at the whole-document level (e.g., from Gryzlov to Saakhashvili given the web of relationships and opinions between them, Georgia, Russian, and Belarus).</p><p>dislikes Saakhashvili since Russia criticized Be- larus for supporting him). In this paper, we show that jointly reasoning about all of these factors can provide more complete and consistent document- level sentiment predictions.</p><p>More concretely, we present a global model for document-level entity-to-entity sentiment, i.e., who feels positively (or negatively) towards whom. Our goal is to make exhaustive predictions over all entity pairs, including those that require cross- sentence inference. We present a Integer Lin- ear Programming (ILP) model that combines three complementary types of evidence: entity-pair sen- timent classification, template-based faction ex- traction, and sentiment dynamics in social groups. Together, they allow for recovering more complete predictions of both the explicitly stated and im- (a) shows explicitly stated sentiment, (b) shows faction re- lationships and (c) shows all edges for Georgia and its rep- resentative Saakhashvili. Through Saakhasvili's relationship with Belarus, Georgia forms an alliance with Belarus, provid- ing evidence for an inferred negative stance towards Russia. Green dotted edges represent positive sentiment, red are neg- ative, and blue dashed lines show faction relationship. plicit sentiment, while preserving consistency.</p><p>The sentiment dynamics in social groups, moti- vated by social science theories, are encoded as soft ILP constraints. They include a notion of homophily, that entities in the same group tend to have similar opinions <ref type="bibr" target="#b16">(Lazarsfeld and Merton, 1954)</ref>. For example, <ref type="figure" target="#fig_1">Figure 2b</ref> shows di- rected faction edges, where one entity is likely to agree with the other's opinions. They also encode dyadic social constraints (i.e., the likely reciprocity of opinions <ref type="bibr" target="#b9">(Gouldner, 1960)</ref>) and tri- adic social dynamics following social balance the- ory <ref type="bibr" target="#b11">(Heider, 1946)</ref>. For example, from Russia's criticism on Belarus and Belarus' positive attitude towards Saakhashvilli (in <ref type="figure" target="#fig_1">Figure 2a)</ref>, we can in- fer that Russia is negative towards Saakhashvilli (in <ref type="figure" target="#fig_1">Figure 2c)</ref>. When considered in aggregate, these constraints can greatly improve the consis- tency over the overall document-level predictions.</p><p>Our work stands in contrast to previous ap- proaches in three aspects. First, we apply so- cial dynamics motivated by social science theories to entity-entity sentiment analysis in unstructured text. In contrast, most previous studies focused on social media or dialogue data with overt so- cial network structure when integrating social dy- namics <ref type="bibr" target="#b25">(Tan et al., 2011;</ref><ref type="bibr" target="#b12">Hu et al., 2013;</ref><ref type="bibr" target="#b26">West et al., 2014</ref>). Second, we aim to recover sentiment that can be inferred through partial evidence that spans multiple sentences. This complements prior efforts for accessing implied sentiment where the key evidence is, by and large, at the sentence level ( <ref type="bibr" target="#b30">Zhang and Liu, 2011;</ref><ref type="bibr" target="#b28">Yang and Cardie, 2013;</ref><ref type="bibr" target="#b4">Deng and Wiebe, 2015a</ref>). Finally, we present the first approach to model the relationship between factual and subjective relations.</p><p>We evaluate the approach on a newly gathered corpus with dense document-level sentiment la- bels in news articles. 1 This data includes compre- hensively annotated sentiment between all entity pairs, including those that do not appear together in any single sentence. Experiments demon- strate that the global model significantly improves performance over a pairwise classifier and other strong baselines. We also perform a detailed ab- lation and error analysis, showing cases where the global constraints contribute and pointing towards important areas for future work.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2">A Document-level Sentiment Model</head><p>Given a news document d, and named entities e 1 ,...,e n in d, where each entity e i has mentions m i1 · · · m ik , the task is to decide directed senti- ment between all pairs of entities. We predict the directed sentiment from e i to e j at the document level, i.e., sent(e i →e j ) ∈ {positive, unbiased, neg- ative}, for all e i , e j ∈ d where i = j, assuming that sentiment is consistent within the document.</p><p>We introduce a document-level ILP that in- cludes base models and soft social constraints. ILP has been used successfully for a wide range of NLP tasks <ref type="bibr" target="#b21">(Roth and Yih, 2004)</ref>, perhaps because they easily support incorporating different types of global constraints. We use two base models: (1) a learned pairwise sentiment classifier (Sec 3.1) that combines sentence-and discourse-level fea- tures to make predictions for each entity pair and (2) a pattern-based faction extractor (Sec 3.2) that detects alliances among a subset of the entities.</p><p>The ILP is solved by maximizing:</p><formula xml:id="formula_0">F =ψ social + ψ f act + n i=1 n j=1 ψij</formula><p>where F combines soft constraints (ψ social , ψ f act defined in detail in this section) with pairwise po- tentials ψ ij defined as:   </p><formula xml:id="formula_1">ψij =φpos ij · pos ij + φneg ij · neg ij + φneu ij · neuij</formula><p>Each potential ψ ij includes the sentiment clas- sifier scores (φ pos , φ neg , φ neu ) with binary vari- ables pos ij , neu ij and neg ij where, for exam- ple, neg ij =1 indicates that e i is negative towards e j . Decision variables pos ij and neu ij are defined analogously for positive and neutral opinion. Fi- nally, we introduce a hard constraint:</p><formula xml:id="formula_2">∀i, j pos ij + neg ij + neuij = 1</formula><p>to ensure a single prediction is made per pair.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.1">Inference with factions</head><p>Our first soft ILP constraint ψ f act models that fact that entities in supportive social relations tend to share similar sentiment toward others <ref type="bibr" target="#b16">(Lazarsfeld and Merton, 1954)</ref>, and are often positive towards each other. For now, we assume access to a base extractor to provide such faction relations (Sec. 3.2 provides details of our pattern-based extractor). <ref type="figure" target="#fig_3">Figure 3a</ref> illustrates sample detections.</p><p>We introduce a binary variable tie ij , where tie ij =1 denotes an extracted faction relationship. These variables are tied to the variables regarding sentiment via the variables</p><formula xml:id="formula_3">tie same ijk = tieij ∧ pos ik ∧ pos jk + tieij ∧ neg ik ∧ neg jk tie diff ijk = tieij ∧ pos ik ∧ neg jk + tieij ∧ neg ik ∧ pos jk itselfij = tieij ∧ pos ij − tieij ∧ neg ij</formula><p>which are used in the following objective term:</p><formula xml:id="formula_4">ψ f act = n i=1 n j=1 (α itself · itselfij + n k=1 (α fact · (tie same ijk − tie diff ijk )))</formula><p>This formulation enables the model to predict im- plicit sentiment by jointly considering factual and <ref type="figure">Figure 4</ref>: Balance Theory Constraints. When i is positive towards j, sharing same sentiment to- wards k define a balanced state. When i is nega- tive towards j, differing opinions towards k define a balanced state. sentiment relations among other entity pairs, es- sentially drawing a connection between sentiment analysis and information extraction. <ref type="figure" target="#fig_3">Figure 3</ref> vi- sualizes this inference pattern.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.2">Inference with sentiment relations</head><p>We also include constraints ψ social in the objective that model social balance and reciprocity.</p><p>Balance theory constraints: Social balance theory <ref type="bibr" target="#b11">(Heider, 1946</ref>) models the sentiment dy- namics in an interpersonal network. In particular, in balanced states, entities on positive terms have similar opinions towards other entities and those on negative terms have opposing opinions. We in- troduce a set of variables to capture this insight: for example, the case where e i is positive towards e j is shown below (analogous when negative).</p><formula xml:id="formula_5">pos same ijk = pos ij ∧ pos ik ∧ pos jk + pos ij ∧ neg ik ∧ neg jk pos diff ijk = pos ij ∧ neg ik ∧ pos ik + pos ij ∧ pos ik ∧ neg ik</formula><p>and add the term ψ bl to ψ social .</p><formula xml:id="formula_6">ψ bl = n i=1 n j=1 n k=1 (α bl · (pos same ijk + neg diff ijk ) + α bad bl · (pos diff ijk + neg same ijk ))</formula><p>A visualization of these constraints is in <ref type="figure">Figure 4</ref>. Faction Balance Reciprocity POS 57% 64% 73% NEG 60% 61% 78% <ref type="table">Table 1</ref>: Percentage of labels where each con- straint holds. For example, positive on reciprocity means when pos(e i , e j ) is true, 73% of times pos(e j , e i ) is also true.</p><p>Reciprocity constraint: Reciprocity of senti- ment has been recognized as a key aspect of so- cial stability <ref type="bibr" target="#b14">(Johnston, 1916;</ref><ref type="bibr" target="#b9">Gouldner, 1960)</ref>. To model reciprocity among the real world entities, we introduce variables:</p><formula xml:id="formula_7">r sameij = pos ij ∧ pos ji + neg ij ∧ neg ji r diffij = pos ij ∧ neg ji + neg ij ∧ pos ji ψr = n i=1 n j=1 αr(r sameij) + α badr (r diffij)</formula><p>and add the term ψ r to the ψ social .</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.3">Discussion</head><p>While many studies exist on homophily, social balance, and reciprocity, no prior work has re- ported quantitative analysis on the sentiment dy- namics among the real world entities that appear in unstructured text. Thus we report the data statis- tics based on the development set in <ref type="table">Table 1</ref>. We find that the global constraints hold commonly but are not universal, motivating the use of soft con- straints (see Sec. 6).</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3">Pairwise Base Models</head><p>The global model in Sec. 2 uses two base models, one for pairwise sentiment classification and the other for detecting faction relationships.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.1">Sentiment Classifier</head><p>The entity-pair classifier considers a holder en- tity e i , its mentions m i1 · · · m ip , a target entity e j , its mentions m j1 · · · m jq , and document d. It predicts sent(e i →e j ) ∈ {positive, unbiased, nega- tive}. The input is plain text and no gold labels are assumed; entity detection, dependency parse and co-reference resolution are automatic, and include common nouns and pronoun mentions (details in Sec. 4.1). We trained separate classifiers for pairs that co-occur in a sentence and those that do not, using a linear class-weighted SVM classifier with crowd-sourced data described in <ref type="bibr">Sec. 4.2.</ref> In what follows, we describe three different types of features we developed: dependency fea- tures, document features, and quotation features. Many of the features test the overall sentiment of a set of words (e.g., the complete document, a de- pendency path, or a quotation). In each case, we define the sentiment label for the text to be pos- itive if it contains more words that appear in the positive sentiment lexicon than that appear in the negative one (and similarly for the negative label). We used MPQA sentiment lexicon ( <ref type="bibr" target="#b27">Wilson et al., 2005</ref>) for our study, which contains 2,718 positive and 4,912 negative lexicons.</p><p>Dependency Features We consider all depen- dency paths between the head word of e i and e j in each sentence, and aggregate over all co-occurring sentences. The features compute: (1) The sentiment label of the path contain- ing dobj and nsubj rev, up to length three if the path contains sentiment lexicon words (e.g., Olympic hero Skah accuses Norway over custody battle.) (2) The sentiment label of the path e i ↑ nsubj ↓ ccomp ↓ nsubj ↓ e j , when it exists (e.g., McCully said any action against Henry is a matter entirely for TVNZ) (3) The sentiment label of path when the path does not contain any named entity (e.g., Nobel winner , Shirin Ebadi) (4) An indicator for the link nmod:against.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Document Features</head><p>Previous work has shown that notions related to salience (e.g., proximity to sentiment words) can help to detect sentiment tar- gets <ref type="bibr" target="#b0">(Ben-Ami et al., 2014</ref>). In our data, we found that an entity's occurrence pattern is highly indica- tive of being involved in sentiment, for example the most frequently mentioned entity is 3.4 times more likely to be polarized and an entity in the headline is two times more likely to be polarized.</p><p>Pairwise features include the NER type of e i and e j and the percentage of sentences they co- occur in. We also use features indicating whether e i and e j (1) are mentioned in the headline and (2) appear only once in the document. When they are the two most frequent entities, we add the docu- ment sentiment label as a feature. For entity pairs that do not appear together in any sentence, we also include the rank of holder and target in terms of overall number of mentions in the document.</p><p>Quotation Features Quotations often involve subjective opinions towards prominent entities in news articles. Thus we include document-level features encoding this intuition. For example, the sentence "We're pleased to put this behind us," said Michael DuVally implies positive sentiment from DuVally. We extract direct quotations using regular expressions. We include the sentiment la- bel of the direct quotation from the speaker to the entities in it, excluding entities that appear less than three times in the document. We add the sentiment label of the quotation as a feature to (speaker, the most frequent entity) pair as well.</p><p>To extract indirect quotations, we follow stud- ies ( <ref type="bibr" target="#b1">Bethard et al., 2004;</ref><ref type="bibr" target="#b18">Lu, 2010)</ref> and use a list of 20 verbs indicating speech events (e.g., say, speak, and announce) to detect direct quotations and their opinion holders. We then add the sentiment label of words connected to e j via a dependency path of length up to two that also includes the subject of quotation verb to e j (e.g. Hassanal said that coop- eration between Brunei and China were fruitful). We also include an indicator feature for whether e i is the subject of the quotation verb.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.2">Faction Detector</head><p>We use a simple pattern-based detector that ex- tracts a faction relationship between a pair of enti- ties if the dependency path between them either: 1. contains only one link of modifier or com- pound label (nmod, nmod : poss, amod, nn, or compound). 2. or contains less than three links and has a pos- sessive or appositive label (poss or appos).</p><p>Example extractions for this approach, which we adopted for its simplicity and the fact that it works reasonably well in practice, are shown in <ref type="figure" target="#fig_3">Figure 3a</ref>. On average we detect 1.7 ties per doc- ument on a small development set with roughly 30% recall and 60% precision. Improving perfor- mance and adding more relation types is an impor- tant area for future work. <ref type="bibr">2</ref> </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4">Data</head><p>We collected new datasets that densely label sen- timent among entities in news articles, including: 208 documents, 2,226 sentences, and 15,185 en- tity pair labels. It complements existing datasets such as MPQA which provides rich annotations at the sentence-level (Deng and Wiebe, 2015b) and the recent KBP challenge which provides sparse  <ref type="table">Table 2</ref>: Corpus Statistics annotations at the corpus-level ( <ref type="bibr" target="#b7">Ellis et al., 2014</ref>), by providing document-level annotations for all entity pairs (see Sec. 7 for discussion).</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.1">Document Preprocessing</head><p>All-pair annotation can be expensive, as there are N 2 pairs to annotate for each document with N entities. We determined that it would be more cost efficient to cover a large number of short doc- uments than a small number of very long docu- ments. We therefore selected articles with less than eleven entities from KBP and less than fifteen from MPQA and took the first 15 sentences for an- notation. We used Stanford CoreNLP ( <ref type="bibr" target="#b19">Manning et al., 2014</ref>) for sentence splitting, part-of-speech tagging, named entity recognition, co-reference resolution and dependency parsing. We discarded entities of type date, duration, money, time and number and merged named entities using several heuristics, such as merging acronyms, merging named entity of person type with the same last name (e.g., Tiger Woods to Woods). We merged names listed as alias in when there is an exact match from Freebase. We included all mentions in a co-reference chain with the named entity, dis- carding chains with more than one entity. The cor- pus statistics are shown in <ref type="table">Table 2</ref>.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.2">Sentiment Data Collection</head><p>We annotated data using two methods: freelancers ($  Here, we introduced the NOTPOS and NOT- NEG classes to mark more subjective cases where we expect agreement might be lower. For exam- ple, one assigned NOTPOS to sentiment(Goldman, FINRA), The FINRA said Goldman lacked ad- equate procedures to . . . and another assigned NOTNEG to sentiment(Macalintal, Arroyo) in the next example. . . . Arroyo's election lawyer, Ro- mulo Macalintal. Arguments could be made for NEG or POS, respectively, but the decision is in- herently subjective and requires careful reading. <ref type="bibr">4</ref> We also asked annotators to mark the label as inferred when not explicitly stated but implied from the context or world knowledge. Allowing for inferred labels and finer-grained labels encour- aged annotators to capture implicit sentiment. For each judgement, we acquired two labels. Inter- annotator agreement, in <ref type="table" target="#tab_5">Table 4</ref>, is high for the re- laxed metrics, confirming our intuitions about the ambiguity of the NOTNEG and NOTPOS labels.</p><p>For experiments, we combine the fine grained labels as follows: POS or NEG is assigned when both marked it as such. When only one of the an- notators marked it, we assigned the weaker senti- ment (POS to NOTNEG, NEG to NOTPOS). NOT- NEG and NOTPOS are assigned when either an- notator marked it without 'Inferred' label. When the labels contradict in polarity or the labels are inferred weaker sentiment, UNB was assigned.</p><p>Crowdsourced Dataset We also randomly se- lected news articles from the Gigaword corpus, <ref type="bibr">5</ref> and collected labels to train the base sentiment <ref type="bibr">4</ref> In the construction of MPQA3.0 dataset, entity- entity/event sentiment corpus, even with iterative expert an- notation, 31% of disagreements are caused by negligence.     <ref type="bibr">6</ref> where annotators were randomly presented test questions for quality con- trol. We collected labels from three annotators for each entity pair, and considered labels when at least two agreed. The resulting annotation con- tains total 2,995 labels on 914 documents, 682 positive, 836 negative and 474 without sentiment, which we discarded.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.3">Insights Into Data</head><p>This data supports the study of sentiment-laden entity pairs across sentence boundaries and in- ferred labels among entities, as we show here.</p><p>Sentiment Beyond Sentence Boundary Ap- proximately 25% of polarized sentiment labels are between entities that do not co-occur 7 in a sen- tence (see <ref type="table" target="#tab_6">Table 5</ref>). For example, in the article with headline 'Russia heat, smog trigger health problems', . . . "We never care to work with a future per- spective in mind," Alexei Skripkov of the Fed- eral Medical and Biological Agency said. "It's a big systemic mistake." Skripkov never appears together with Russia in any sentence, but he manifests negative sentiment towards it. When a document revolves around a theme (in this example Russia), sentiment is often directed to it without being explicitly mentioned.</p><p>Inferred sentiment Annotators marked labels as inferred frequently, especially on less polarized sentiment (see <ref type="table" target="#tab_7">Table 6</ref>). Various clues led to sen- timent inference. For example, in the following document, we can read Sam Lake's positive atti- tude towards Paul Auster from his 'citing' action:</p><p>Ask most video-game designers about their in- spirations . . . Sam Lake cites Paul Auster's "The Book of Illusions" Sentiment can also be inferred through reasoning over another entity.</p><p>The U.N. imposed an embargo against Eritrea for helping insurgents opposed to the Somali government. By considering relations with Eritrea, we can infer U.N. would be positive towards Somalia.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5">Experimental Setup</head><p>Data and Metrics We randomly split the densely labeled KBP document set, using half as a test data and half as a development data. One half of the development set was used to tune hy- per parameters, 8 and the other for error analysis and ablations. After development, we ran on the test sets composed of KBP documents and MPQA documents. For MPQA we did not create a sep- arate development set and reserved all of the rel- atively modest amount of data for a more reliable test set. For the pairwise classifier, we report de- velopment results using five-fold cross validation on the training data.</p><p>We report macro-averaged precision, recall, and F-measure for both sentiment labels.</p><p>Comparison Systems We compare per- formance to two simple baselines and two adaptations of existing sentiment classifiers. The baselines include our base pairwise classifier (Pair) and randomly assigning labels according to their empirical distribution (Random).</p><p>The first existing method adaptation (Sentence) uses the publicly released sentence-level RNN sentiment model from Socher et al <ref type="bibr">(2013)</ref>. For each entity pair, we collect sentiment labels from sentences they co-occur in and assign a positive label if a positive-labeled sentence exists, negative if there exists more than one sentence with a neg- ative label and no positives. <ref type="bibr">9</ref> We also report a proxy for doing similar ag- gregation over a state-of-the-art entity-entity sen- timent classifier. Here, because we added our new labels to the original KBP and MPQA3.0 annota- tions, we can simply predict the union of the orig- inal gold annotations using mention string overlap to align the entities (KM Gold). This provides a reasonable upper bound on the performance of any extractor trained on this data. 10 Implementation Details We use CPLEX4 11 to solve the ILP described in Sec. 2. For compu- tational efficiency and to avoid erroneous propa- gation, soft constraints associated with reciprocity and balance theory are introduced only on pairs for which a high-precision classifier assigned po- larity. For the pairwise classifier, we use a class- weighted linear SVM. <ref type="bibr">12</ref> We include annotated pairs, and randomly sample negative examples from pairs without a label in the crowd-sourced training dataset. We made two versions of pair- wise classifiers by tuning weight on polarized classes and negative sampling ratio by grid search. One is tuned for high precision to be used as a base classifier for ILP (ILP base), and the other is tuned for the best F1 (Pairwise). <ref type="bibr">13</ref>  <ref type="table" target="#tab_9">Table 7</ref> shows results on the evaluation datasets. The global model achieves the best F1 on both la- bels. All systems do significantly better than the random baseline but, overall, we see that entity- entity sentiment detection is challenging, requir-Development Set <ref type="table">(KBP)   KBP  MPQA  Positive  Negative  Positive  Negative  Positive  Negative  P  R  F1  P  R  F1  P  R  F1  P  R  F1  P  R  F1  P  R  F1</ref>     <ref type="table">Table 9</ref>: Pairwise classifier feature ablation study.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6">Results</head><p>ing identification of holders, targets, and sentiment jointly. While the numbers are not directly com- parable, the best performing system for KBP 2014 sentiment task achieved F1 score of 25.7.</p><p>The first row (KM Gold) shows the comparison against gold annotations from different datasets, highlighting the differences between the task def- initions. Our annotations are much more dense, while KBP focuses on specific query entities and MPQA has a much broader focus with less em- phasis on covering all entity pairs. The high preci- sion suggests that all of the approaches agree when considering the same entity pairs.</p><p>The global model also improves performance over the pairwise classifier (Pairwise) for both datasets, but we see very different behavior due to the different sentiment label distributions (see <ref type="table" target="#tab_3">Ta- ble 3</ref>). The KBP data has many fewer unbiased pairs and many mistakes are from choosing the wrong polarity. For the pairwise classifier 17% of all predictions were assigned the opposite po- larity. After the global inference, it is reduced to 11%, contributing to the gain in overall precision. For MPQA the base classifier has a more challeng- ing detection task, due to relatively large amount of the unbaised pairs. Here, the best base classifier misses many pairs and the global model helps to fill in some of these gaps in recall.</p><p>In both cases, the document-level model often propagates correct labels by detecting easier, ex-  We also did ablation studies to measure the con- tributions of different components. <ref type="table" target="#tab_10">Table 8</ref> shows ablations of each soft constraint. The faction con- straint is the most helpful, improving both preci- sion and recall for both labels. The reciprocity and social balance constraints tend to improve re- call at the cost of precision. <ref type="table">Table 9</ref> shows ab- lations of the base classifier features. All features are helpful, with dependency features most helpful for positive labels, and quotation and document- level features more with negatives.</p><p>Error Analysis We manually analyzed errors on 20 articles from the development set <ref type="table" target="#tab_12">(Table  10)</ref>. Our system failed when there were senti- ment words not in the lexicon, or negated senti- ment words. Capturing subtle sentiment expres- sions beyond sentiment lexicon should improve the performance. Preprocessing, as a whole, was the largest source of error. It includes co-reference failure and named entity error. Co-reference mis- takes happen as a result of not resolving pro- nouns, referring expressions, as well as named en- tities co-references (e.g., Financial Industry Regu- latory Authority to FINRA), or erroneously merg- ing them. Lengthy quotations or nested mentions triggered co-reference error, affecting mostly re- call. Named entity errors includes incorrect named entity detection (e.g., pro-Israel) and mention de- tection boundary errors. For example, we detected negative sentiment from Mexico to Pakistan from Mexico condemns Pakistan series suicide bomb at- tacks. While actual sentiment is positive. Finally, the ILP propagates sentiment labels erroneously at times. Our constraints often hold among entities of the same type, but are less predictive among entities of different types. For example, when a person supports a peace treaty, the treaty does not have sentiment towards him/her. For future work refining constraints based on entity type should help performance.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="7">Related Work</head><p>Sentiment Inference Our sentiment inference task is related to the recent KBP sentiment task, <ref type="bibr">14</ref> in that we aim to find opinion target and holder. While we study the complete document-level anal- ysis over all entity pairs, the KBP task is for- mulated as query-focused retrieval of entity sen- timent from a large pool of potentially relevant documents. Thus, their annotations focus only on query entities and relatively sparse compared to ours (see Sec. 6). Another recent dataset is MPQA 3.0 (Deng and Wiebe, 2015b), which cap- tures various aspects of sentiment. Their senti- ment pair annotations are only at the sentence- level and are therefore much sparser than we pro- vide (see Sec. 6) for entity-entity relation analysis.</p><p>Several recent studies focused on various as- pects of implied sentiment ( <ref type="bibr" target="#b10">Greene and Resnik, 2009;</ref><ref type="bibr" target="#b20">Mohammad and Turney, 2010;</ref><ref type="bibr" target="#b30">Zhang and Liu, 2011;</ref><ref type="bibr" target="#b8">Feng et al., 2013;</ref>). Deng and Wiebe (2015a) in particular introduced sentiment im- plicature rules relevant for sentence-level entity- entity sentiment. Our work contributes to these re- cent efforts by presenting a new model and dataset for document-level sentiment inference over all entity pairs. Document-level Analysis Stoyanov and Claire (2011) also studied document-level sentiment analysis based on fine-grained detection of di- rected sentiment. They aggregate sentence-level detections to make document-level predictions, while our we model global coherency among en- tities and can discover implied sentiment with- out direct sentence-level evidence. In the event extraction domain, previous research showed the effectiveness of jointly considering multiple sen- tences. <ref type="bibr" target="#b29">Yang and Mitchell (2016)</ref> proposed joint extraction of entities and events with the document context, improving on the event extraction. Most work focuses on events, while we primarily study sentiment relations.</p><p>Social Network Analysis While many previous studies considered the effect of social dynamics for social media analysis, most relied on an explic- itly available social network structure or consid- ered dialogues and speech acts for which opinion holders are given <ref type="bibr" target="#b25">(Tan et al., 2011;</ref><ref type="bibr" target="#b12">Hu et al., 2013;</ref><ref type="bibr" target="#b17">Li et al., 2014;</ref><ref type="bibr" target="#b26">West et al., 2014;</ref><ref type="bibr" target="#b15">Krishnan and Eisenstein, 2015</ref>). Compared to the recent work that focused on relationships among fictional char- acters in movie summaries and stories <ref type="bibr" target="#b13">Iyyer et al., 2016)</ref>, we consider a broader types of named enti- ties on news domains.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="8">Conclusion</head><p>We presented an approach to interpreting senti- ment among entities in news articles, with global constraints provided by social, faction and dis- course context. Experiments demonstrated that the approach can infer implied sentiment and point toward potential directions for future work, in- cluding joint entity detection and incorporation of more varied types of factual relationships.</p></div><figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_0"><head>Figure 1 :</head><label>1</label><figDesc>Figure 1: Example text excerpt paired with the document</figDesc><graphic url="image-1.png" coords="1,307.28,322.25,224.48,122.82" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_1"><head>Figure 2 :</head><label>2</label><figDesc>Figure 2: Entity subgraphs for the example in Figure 1:</figDesc><graphic url="image-2.png" coords="2,72.74,62.80,216.80,210.80" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_2"><head>Sentence</head><label></label><figDesc></figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_3"><head>Figure 3 :</head><label>3</label><figDesc>Figure 3: An example sentiment inference from faction relationships. Pairs in factions are encouraged to share opinions, and to be positive towards other tied entities. On the right, sentiment edges can be both positive or both negative.</figDesc><graphic url="image-4.png" coords="3,349.65,207.97,130.80,56.70" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_3" validated="false"><head>Table 3 :</head><label>3</label><figDesc></figDesc><table>Sentiment Label Statistics. Each count 
+represents the average number per document. 
+
+UNB: unbiased towards the target 
+NOTPOS: negative or unbiased towards the tar-
+get. 
+NEG: negative towards the target. 
+
+</table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_5" validated="false"><head>Table 4 : Inter-annotator Agreement. Cohen's kappa score: Exact counts only exact matches, Strict counts allows NOT NEG labels to match</head><label>4</label><figDesc></figDesc><table>POS, and Relaxed allows NOT NEG to match POS 
+or UNBIASED (analogously for negative). 
+
+POS NOT NEG NOT POS NEG 
+KBP 
+25% 
+29% 
+30% 
+28% 
+MPQA 35% 
+49% 
+46% 
+50% 
+
+</table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_6" validated="false"><head>Table 5 :</head><label>5</label><figDesc></figDesc><table>Percentage of entity pairs that do not co-
+occur in a sentence. 
+
+POS NOTNEG NOTPOS NEG 
+KBP 
+70% 
+94% 
+88% 
+58% 
+MPQA 68% 
+74% 
+83% 
+66% 
+
+</table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_7" validated="false"><head>Table 6 :</head><label>6</label><figDesc></figDesc><table>Percentage of labels marked as inferred. 
+
+classifier (Sec. 3.1). We designed a pipelined ap-
+proach, with three steps: 
+1. Document selection: Is there sentiment among 
+entities in this document? 
+2. Entity selection: (1) Select all entities holding 
+sentiment towards any other entities., and (2) 
+Select all entities which are the target of senti-
+ment by any other entity. 
+3. Sentiment label collection: Choose the senti-
+ment A has towards B, from {Positive, No Sen-
+timent, Negative} 
+We used CrowdFlower, </table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_9" validated="true"><head>Table 7 : Performance on the evaluation datasets: including implicit and explicit sentiment.</head><label>7</label><figDesc></figDesc><table>Positive 
+Negative 
+P 
+R 
+F1 
+P 
+R 
+F1 
+ILP base 
+56.7 25.2 34.9 36.9 27.6 31.6 
++ Reci. 
+53.5 30.0 38.4 33.9 33.9 33.9 
++ Balance 49.6 30.4 37.7 32.0 32.8 32.4 
++ Faction 
+58.9 30.2 39.9 37.6 33.9 35.6 
+
+</table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_10" validated="true"><head>Table 8 : ILP constraints ablation study.</head><label>8</label><figDesc></figDesc><table>Positive 
+Negative 
+P 
+R 
+F1 
+P 
+R 
+F1 
+All 
+34.5 39.7 36.9 35.7 37.6 36.6 
+-Depend. 
+32.9 32.1 32.5 31.7 38.5 34.8 
+-Doc. 
+32.6 41.0 35.8 39.4 23.8 28.0 
+-Quotation 33.6 39.5 36.3 34.5 34.6 34.6 
+
+</table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_12" validated="false"><head>Table 10 :</head><label>10</label><figDesc></figDesc><table>Error Analysis on the development set. 
+
+plicit expressions. For example, given the sen-
+tence Buphavanh said Laos creates favorable con-
+ditions for Vietnamese companies, the base classi-
+fier detected positive sentiment from Buphavanh 
+to Vietnam, but not between Vietnam and Laos. 
+By detecting the fact that Buphavanh is the prime 
+minister of Laos, it infers the extra sentiment pairs. 
+</table></figure>
+
+			<note place="foot" n="1"> All data will be made publicly available. You can browse it at http://homes.cs.washington. edu/ ˜ eunsol/project_page/acl16, and download it from the author&apos;s webpage.</note>
+
+			<note place="foot" n="2"> We experimented with using relations from an external knowledge base (Freebase), but KB sparsity and entity linking errors posed major challenges.</note>
+
+			<note place="foot" n="3"> https://www.upwork.com</note>
+
+			<note place="foot" n="6"> http://www.crowdflower.com 7 This is an estimate due to co-reference resolution errors.</note>
+
+			<note place="foot" n="8"> We used the following values (αr, α badr , α itself , α faction , α bl , α bad bl ) = (0.7,-0.8, 0.4, 0.5, 0.1,-0.5).</note>
+
+			<note place="foot" n="9"> Due to domain difference, the system predicted negative labels more (73% of sentences were classified as negative). 10 We consider this gold evaluation a direct proxy for the recent work Deng and Wiebe (2015a), which is the most related recent entity-entity sentiment model trained on the gold data whose predictions we are evaluating against. 11 http://tinyurl.com/joccfqy 12 http://scikit-learn.org/ 13 We use 10 as the weights for the polarized classes. Pairwise and base classifier for MPQA sampled 4%, base classifier for KBP sampled 10% of unlabeled pairs.</note>
+
+			<note place="foot" n="14"> http://www.nist.gov/tac/2014/KBP/ Sentiment</note>
+		</body>
+		<back>
+
+			<div type="acknowledgement">
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Acknowledgments</head><p>This research was supported in part by the NSF <ref type="bibr">(IIS-1252835, IIS-1408287, IIS-1524371)</ref>, DARPA under the DEFT program through the AFRL (FA8750-13-2-0019), an Allen Distin-guished Investigator Award, and a gift from Google. This material is also based upon work supported by the National Science Foundation Graduate Research Fellowship Program under Grant No. DGE-1256082. The authors thank the members of UW NLP group for discussions and support. We also thank the anonymous reviewers for insightful comments. Finally, we thank the an-notators from the CrowdFlower and UpWork.</p></div>
+			</div>
+
+			<div type="references">
+
+				<listBibl>
+
+<biblStruct xml:id="b0">
+	<analytic>
+		<title level="a" type="main">Entities&apos; sentiment relevance</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Zvi</forename><surname>Ben-Ami</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ronen</forename><surname>Feldman</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Binyamin</forename><surname>Rosenfeld</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the Annual Meeting of the Association for Computational Linguistics</meeting>
+		<imprint>
+			<date type="published" when="2014" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b1">
+	<analytic>
+		<title level="a" type="main">Automatic extraction of opinion propositions and their holders</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Steven</forename><surname>Bethard</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Hong</forename><surname>Yu</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ashley</forename><surname>Thornton</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Vasileios</forename><surname>Hatzivassiloglou</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Dan</forename><surname>Jurafsky</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the AAAI Spring Symposium on Exploring Attitude and Affect in Text: Theories and Applications</title>
+		<meeting>the AAAI Spring Symposium on Exploring Attitude and Affect in Text: Theories and Applications</meeting>
+		<imprint>
+			<date type="published" when="2004" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b2">
+	<analytic>
+		<title level="a" type="main">Modeling evolving relationships between characters in literary novels</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Snigdha</forename><surname>Chaturvedi</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Shashank</forename><surname>Srivastava</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Hal</forename><surname>Daumé</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Iii</forename></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Chris</forename><surname>Dyer</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the National Conference on Artificial Intelligence</title>
+		<meeting>the National Conference on Artificial Intelligence</meeting>
+		<imprint>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b3">
+	<analytic>
+		<title level="a" type="main">Sentiment propagation via implicature constraints</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Lingjia</forename><surname>Deng</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Janyce</forename><surname>Wiebe</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Conference of the European Chapter</title>
+		<meeting>the Conference of the European Chapter</meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2014" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b4">
+	<analytic>
+		<title level="a" type="main">Joint prediction for entity/event-level sentiment analysis using probabilistic soft logic models</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Lingjia</forename><surname>Deng</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Janyce</forename><surname>Wiebe</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>the Conference on Empirical Methods in Natural Language Processing</meeting>
+		<imprint>
+			<date type="published" when="2015" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b5">
+	<analytic>
+		<title level="a" type="main">Mpqa 3.0: An entity/event-level sentiment corpus</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Lingjia</forename><surname>Deng</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Janyce</forename><surname>Wiebe</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>Annual Meeting of the Association for Computational Linguistics</meeting>
+		<imprint>
+			<date type="published" when="2015" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b6">
+	<analytic>
+		<title level="a" type="main">Joint inference and disambiguation of implicit sentiments via implicature constraints</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Lingjia</forename><surname>Deng</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Janyce</forename><surname>Wiebe</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yoonjung</forename><surname>Choi</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of International Conference on Computational Linguistics</title>
+		<meeting>International Conference on Computational Linguistics</meeting>
+		<imprint>
+			<date type="published" when="2014" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b7">
+	<analytic>
+		<title level="a" type="main">Overview of linguistic resources for the tac kbp 2014 evaluations: Planning, execution, and results</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Joe</forename><surname>Ellis</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jeremy</forename><surname>Getman</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Stephanie</forename><forename type="middle">M</forename><surname>Strassel</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of TAC KBP 2014 Workshop</title>
+		<meeting>TAC KBP 2014 Workshop</meeting>
+		<imprint>
+			<date type="published" when="2014" />
+			<biblScope unit="page" from="17" to="18" />
+		</imprint>
+		<respStmt>
+			<orgName>National Institute of Standards and Technology</orgName>
+		</respStmt>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b8">
+	<analytic>
+		<title level="a" type="main">Connotation lexicon: A dash of sentiment beneath the surface meaning</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Song</forename><surname>Feng</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jun</forename><forename type="middle">Seok</forename><surname>Kang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Polina</forename><surname>Kuznetsova</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yejin</forename><surname>Choi</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 51st Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 51st Annual Meeting of the Association for Computational Linguistics<address><addrLine>Sofia, Bulgaria, August</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2013" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b9">
+	<monogr>
+		<title level="m" type="main">The norm of reciprocity: A preliminary statement</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Alvin</forename><forename type="middle">W</forename><surname>Gouldner</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="1960" />
+			<publisher>American Sociological Review</publisher>
+			<biblScope unit="volume">25</biblScope>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b10">
+	<analytic>
+		<title level="a" type="main">More than words: Syntactic packaging and implicit sentiment</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Stephan</forename><surname>Greene</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Philip</forename><surname>Resnik</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings the North American Chapter of the Association for Computational Linguistics</title>
+		<meeting>the North American Chapter of the Association for Computational Linguistics<address><addrLine>Boulder, Colorado</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2009-06" />
+		</imprint>
+	</monogr>
+	<note>Association for Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b11">
+	<analytic>
+		<title level="a" type="main">Attitudes and cognitive organization</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Fritz</forename><surname>Heider</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">The Journal of psychology</title>
+		<imprint>
+			<biblScope unit="volume">21</biblScope>
+			<biblScope unit="issue">1</biblScope>
+			<date type="published" when="1946" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b12">
+	<analytic>
+		<title level="a" type="main">Exploiting social relations for sentiment analysis in microblogging</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Xia</forename><surname>Hu</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Lei</forename><surname>Tang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jiliang</forename><surname>Tang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Huan</forename><surname>Liu</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the ACM international conference on Web search and data mining</title>
+		<meeting>the ACM international conference on Web search and data mining</meeting>
+		<imprint>
+			<publisher>ACM</publisher>
+			<date type="published" when="2013" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b13">
+	<analytic>
+		<title level="a" type="main">Feuding families and former friends: Unsupervised learning for dynamic fictional relationships</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Mohit</forename><surname>Iyyer</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Anupam</forename><surname>Guha</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Snigdha</forename><surname>Chaturvedi</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jordan</forename><surname>Boyd-Graber</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Hal</forename><surname>Daumé</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Iii</forename></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of North American Association for Computational Linguistics</title>
+		<meeting>North American Association for Computational Linguistics</meeting>
+		<imprint>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b14">
+	<analytic>
+		<title/>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">G</forename><forename type="middle">A</forename><surname>Johnston</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">International Journal of Ethics</title>
+		<imprint>
+			<biblScope unit="volume">26</biblScope>
+			<biblScope unit="issue">2</biblScope>
+			<date type="published" when="1916" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b15">
+	<analytic>
+		<title level="a" type="main">You&apos;re Mr. Lebowski, I&apos;m The Dude&quot;: Inducing address term formality in signed social networks</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Vinodh</forename><surname>Krishnan</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jacob</forename><surname>Eisenstein</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the North American Chapter of the Association for Computational Linguistics</title>
+		<meeting>the North American Chapter of the Association for Computational Linguistics</meeting>
+		<imprint>
+			<date type="published" when="2015" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b16">
+	<monogr>
+		<title level="m" type="main">Friendship as a social process: A substantive and methodological analysis. Freedom and control in modern society</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">F</forename><surname>Paul</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Lazarsfeld</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Robert K Merton</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="1954" />
+			<biblScope unit="volume">18</biblScope>
+			<biblScope unit="page" from="18" to="66" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b17">
+	<analytic>
+		<title level="a" type="main">Weakly supervised user profile extraction from twitter</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jiwei</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Alan</forename><surname>Ritter</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Eduard</forename><surname>Hovy</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the Annual Meeting of the Association for Computational Linguistics</meeting>
+		<imprint>
+			<date type="published" when="2014" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b18">
+	<analytic>
+		<title level="a" type="main">Identifying opinion holders and targets with dependency parser in chinese news texts</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Bin</forename><surname>Lu</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the NAACL HLT Student Research Workshop</title>
+		<meeting>the NAACL HLT Student Research Workshop</meeting>
+		<imprint>
+			<date type="published" when="2010" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b19">
+	<analytic>
+		<title level="a" type="main">The Stanford CoreNLP natural language processing toolkit</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Christopher</forename><forename type="middle">D</forename><surname>Manning</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Mihai</forename><surname>Surdeanu</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">John</forename><surname>Bauer</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jenny</forename><surname>Finkel</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Steven</forename><forename type="middle">J</forename><surname>Bethard</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">David</forename><surname>Mcclosky</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of Annual Meeting of the Association for Computational Linguistics: System Demonstrations</title>
+		<meeting>Annual Meeting of the Association for Computational Linguistics: System Demonstrations</meeting>
+		<imprint>
+			<date type="published" when="2014" />
+			<biblScope unit="page" from="55" to="60" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b20">
+	<analytic>
+		<title level="a" type="main">Emotions evoked by common words and phrases: Using mechanical turk to create an emotion lexicon</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">M</forename><surname>Saif</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Mohammad</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">D</forename><surname>Peter</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Turney</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the NAACL HLT 2010 Workshop on Computational Approaches to Analysis and Generation of Emotion in Text, CAAGET &apos;10</title>
+		<meeting>the NAACL HLT 2010 Workshop on Computational Approaches to Analysis and Generation of Emotion in Text, CAAGET &apos;10</meeting>
+		<imprint>
+			<date type="published" when="2010" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b21">
+	<analytic>
+		<title level="a" type="main">A linear programming formulation for global inference in natural language tasks</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">D</forename><surname>Roth</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">W</forename><surname>Yih</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of Conference on Natural Language Learning</title>
+		<meeting>Conference on Natural Language Learning</meeting>
+		<imprint>
+			<date type="published" when="2004" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b22">
+	<analytic>
+		<title level="a" type="main">Recursive deep models for semantic compositionality over a sentiment treebank</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Richard</forename><surname>Socher</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Alex</forename><surname>Perelygin</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Y</forename><surname>Jean</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jason</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Chuang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">D</forename><surname>Christopher</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Manning</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Y</forename><surname>Andrew</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Christopher Potts</forename><surname>Ng</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Potts</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Empirical Methods in Natural Language Processing</title>
+		<meeting>the Empirical Methods in Natural Language Processing</meeting>
+		<imprint>
+			<date type="published" when="2013" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b23">
+	<analytic>
+		<title level="a" type="main">Inferring interpersonal relations in narrative summaries</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Shashank</forename><surname>Srivastava</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Snigdha</forename><surname>Chaturvedi</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Tom</forename><surname>Mitchell</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the National Conference on Artificial Intelligence</title>
+		<meeting>the National Conference on Artificial Intelligence</meeting>
+		<imprint>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b24">
+	<analytic>
+		<title level="a" type="main">Automatically Creating General-Purpose Opinion Summaries from Text</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Veselin</forename><surname>Stoyanov</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Claire</forename><surname>Cardie</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of Recent Advances in Natural Language Processing</title>
+		<meeting>Recent Advances in Natural Language Processing</meeting>
+		<imprint>
+			<date type="published" when="2011" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b25">
+	<analytic>
+		<title level="a" type="main">User-level sentiment analysis incorporating social networks</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Chenhao</forename><surname>Tan</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Lillian</forename><surname>Lee</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jie</forename><surname>Tang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Long</forename><surname>Jiang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ming</forename><surname>Zhou</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ping</forename><surname>Li</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of Knowldege Discovery and Data Mining</title>
+		<meeting>Knowldege Discovery and Data Mining</meeting>
+		<imprint>
+			<date type="published" when="2011" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b26">
+	<analytic>
+		<title level="a" type="main">Exploiting social network structure for person-to-person sentiment analysis</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Robert</forename><surname>West</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">S</forename><surname>Hristo</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jure</forename><surname>Paskov</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Christopher</forename><surname>Leskovec</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Potts</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">the Proceedings of Transactions of the Association for Computational Linguistics</title>
+		<imprint>
+			<date type="published" when="2014" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b27">
+	<analytic>
+		<title level="a" type="main">Recognizing contextual polarity in phrase-level sentiment analysis</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Theresa</forename><surname>Wilson</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Janyce</forename><surname>Wiebe</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Paul</forename><surname>Hoffmann</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Human Language Technologies Conference/Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>the Human Language Technologies Conference/Conference on Empirical Methods in Natural Language Processing</meeting>
+		<imprint>
+			<date type="published" when="2005" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b28">
+	<analytic>
+		<title level="a" type="main">Joint inference for fine-grained opinion extraction</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Bishan</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Claire</forename><surname>Cardie</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of Association for Computational Linguistics</title>
+		<meeting>Association for Computational Linguistics</meeting>
+		<imprint>
+			<date type="published" when="2013" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b29">
+	<analytic>
+		<title level="a" type="main">Joint extraction of events and entities within a document context</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Bishan</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Tom</forename><surname>Mitchell</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">North American Association for Computational Linguistics</title>
+		<imprint>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b30">
+	<analytic>
+		<title level="a" type="main">Identifying noun product features that imply opinions</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Lei</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Bing</forename><surname>Liu</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the Annual Meeting of the Association for Computational Linguistics</meeting>
+		<imprint>
+			<date type="published" when="2011" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+				</listBibl>
+			</div>
+		</back>
+	</text>
+</TEI>

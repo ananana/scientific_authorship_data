@@ -1,0 +1,1646 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<TEI xmlns="http://www.tei-c.org/ns/1.0" 
+xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+xsi:schemaLocation="http://www.tei-c.org/ns/1.0 /home/ana/installs/grobid/grobid-0.5.1/grobid-home/schemas/xsd/Grobid.xsd"
+ xmlns:xlink="http://www.w3.org/1999/xlink">
+	<teiHeader xml:lang="en">
+		<encodingDesc>
+			<appInfo>
+				<application version="0.5.1-SNAPSHOT" ident="GROBID" when="2019-04-18T10:28+0000">
+					<ref target="https://github.com/kermitt2/grobid">GROBID - A machine learning software for extracting information from scholarly documents</ref>
+				</application>
+			</appInfo>
+		</encodingDesc>
+		<fileDesc>
+			<titleStmt>
+				<title level="a" type="main">Mapping Instructions and Visual Observations to Actions with Reinforcement Learning</title>
+			</titleStmt>
+			<publicationStmt>
+				<publisher/>
+				<availability status="unknown"><licence/></availability>
+				<date>September 7-11, 2017</date>
+			</publicationStmt>
+			<sourceDesc>
+				<biblStruct>
+					<analytic>
+						<author>
+							<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Dipendra</forename><surname>Misra</surname></persName>
+						</author>
+						<author>
+							<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">John</forename><surname>Langford</surname></persName>
+						</author>
+						<author>
+							<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yoav</forename><surname>Artzi</surname></persName>
+						</author>
+						<author>
+							<affiliation key="aff0">
+								<orgName type="department">Dept. of Computer Science and Cornell Tech</orgName>
+								<orgName type="institution">Cornell University</orgName>
+								<address>
+									<postCode>10044</postCode>
+									<settlement>New York</settlement>
+									<region>NY</region>
+								</address>
+							</affiliation>
+						</author>
+						<author>
+							<affiliation key="aff1">
+								<orgName type="institution">Microsoft Research</orgName>
+								<address>
+									<postCode>10011</postCode>
+									<region>New York, NY</region>
+								</address>
+							</affiliation>
+						</author>
+						<title level="a" type="main">Mapping Instructions and Visual Observations to Actions with Reinforcement Learning</title>
+					</analytic>
+					<monogr>
+						<title level="m">Natural Language Processing</title>
+						<meeting> <address><addrLine>Copenhagen, Denmark</addrLine></address>
+						</meeting>
+						<imprint>
+							<biblScope unit="page" from="1004" to="1015"/>
+							<date type="published">September 7-11, 2017</date>
+						</imprint>
+					</monogr>
+				</biblStruct>
+			</sourceDesc>
+		</fileDesc>
+		<profileDesc>
+			<abstract>
+				<p>We propose to directly map raw visual observations and text input to actions for instruction execution. While existing approaches assume access to structured environment representations or use a pipeline of separately trained models, we learn a single model to jointly reason about linguistic and visual input. We use reinforcement learning in a contextual bandit setting to train a neural network agent. To guide the agent&apos;s exploration, we use reward shaping with different forms of supervision. Our approach does not require intermediate representations, planning procedures, or training different models. We evaluate in a simulated environment , and show significant improvements over supervised learning and common reinforcement learning variants.</p>
+			</abstract>
+		</profileDesc>
+	</teiHeader>
+	<text xml:lang="en">
+		<body>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="1">Introduction</head><p>An agent executing natural language instructions requires robust understanding of language and its environment. Existing approaches addressing this problem assume structured environment represen- tations (e.g.,. <ref type="bibr" target="#b13">Chen and Mooney, 2011;</ref><ref type="bibr" target="#b36">Mei et al., 2016)</ref>, or combine separately trained models (e.g., <ref type="bibr" target="#b34">Matuszek et al., 2010;</ref><ref type="bibr" target="#b49">Tellex et al., 2011</ref>), includ- ing for language understanding and visual reason- ing. We propose to directly map text and raw im- age input to actions with a single learned model. This approach offers multiple benefits, such as not requiring intermediate representations, plan- ning procedures, or training multiple models. <ref type="figure">Figure 1</ref> illustrates the problem in the Blocks environment <ref type="bibr" target="#b9">(Bisk et al., 2016</ref>). The agent ob- serves the environment as an RGB image using a camera sensor. Given the RGB input, the agent</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>North</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>South</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>East West</head><p>Put the Toyota block in the same row as the SRI block, in the first open space to the right of the SRI block Move Toyota to the immediate right of SRI, evenly aligned and slightly separated Move the Toyota block around the pile and place it just to the right of the SRI block Place Toyota block just to the right of The SRI Block Toyota, right side of SRI <ref type="figure">Figure 1</ref>: Instructions in the Blocks environment. The instructions all describe the same task. Given the ob- served RGB image of the start state (large image), our goal is to execute such instructions. In this task, the direct-line path to the target position is blocked, and the agent must plan and move the Toyota block around. The small image marks the target and an example path, which includes 34 steps. must recognize the blocks and their layout. To un- derstand the instruction, the agent must identify the block to move (Toyota block) and the destina- tion (just right of the SRI block). This requires solving semantic and grounding problems. For example, consider the topmost instruction in the figure. The agent needs to identify the phrase re- ferring to the block to move, Toyota block, and ground it. It must resolve and ground the phrase SRI block as a reference position, which is then modified by the spatial meaning recovered from the same row as or first open space to the right of, to identify the goal position. Finally, the agent needs to generate actions, for example moving the Toyota block around obstructing blocks.</p><p>To address these challenges with a single model, we design a neural network agent. The agent exe- cutes instructions by generating a sequence of ac- tions. At each step, the agent takes as input the instruction text, observes the world as an RGB im- age, and selects the next action. Action execution changes the state of the world. Given an obser- vation of the new world state, the agent selects the next action. This process continues until the agent indicates execution completion. When se- lecting actions, the agent jointly reasons about its observations and the instruction text. This enables decisions based on close interaction between ob- servations and linguistic input.</p><p>We train the agent with different levels of su- pervision, including complete demonstrations of the desired behavior and annotations of the goal state only. While the learning problem can be eas- ily cast as a supervised learning problem, learning only from the states observed in the training data results in poor generalization and failure to recover from test errors. We use reinforcement learn- ing <ref type="bibr" target="#b47">(Sutton and Barto, 1998</ref>) to observe a broader set of states through exploration. Following recent work in robotics (e.g., <ref type="bibr" target="#b30">Levine et al., 2016;</ref><ref type="bibr" target="#b42">Rusu et al., 2016)</ref>, we assume the training environment, in contrast to the test environment, is instrumented and provides access to the state. This enables a simple problem reward function that uses the state and provides positive reward on task completion only. This type of reward offers two important ad- vantages: (a) it is a simple way to express the ideal agent behavior we wish to achieve, and (b) it cre- ates a platform to add training data information.</p><p>We use reward shaping ( ) to ex- ploit the training data and add to the reward ad- ditional information. The modularity of shap- ing allows varying the amount of supervision, for example by using complete demonstrations for only a fraction of the training examples. Shap- ing also naturally associates actions with imme- diate reward. This enables learning in a contex- tual bandit setting <ref type="bibr" target="#b8">(Auer et al., 2002;</ref><ref type="bibr" target="#b29">Langford and Zhang, 2007)</ref>, where optimizing the immedi- ate reward is sufficient and has better sample com- plexity than unconstrained reinforcement learn- ing ( <ref type="bibr" target="#b0">Agarwal et al., 2014</ref>).</p><p>We evaluate with the block world environment and data of <ref type="bibr" target="#b9">Bisk et al. (2016)</ref>, where each instruc- tion moves one block <ref type="figure">(Figure 1</ref>). While the orig- inal task focused on source and target prediction only, we build an interactive simulator and formu- late the task of predicting the complete sequence of actions. At each step, the agent must select be- tween 81 actions with 15.4 steps required to com- plete a task on average, significantly more than existing environments (e.g., <ref type="bibr" target="#b13">Chen and Mooney, 2011)</ref>. Our experiments demonstrate that our re- inforcement learning approach effectively reduces execution error by 24% over standard supervised learning and 34-39% over common reinforcement learning techniques. Our simulator, code, models, and execution videos are available at: https: //github.com/clic-lab/blocks.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2">Technical Overview</head><p>Task Let X be the set of all instructions, S the set of all world states, and A the set of all actions. An instruction ¯ x ∈ X is a sequence x 1 , . . . , x n , where each x i is a token. The agent executes instructions by generating a sequence of actions, and indicates execution completion with the special action STOP. Action execution mod- ifies the world state following a transition func- tion T : S × A → S. The execution ¯ e of an instruction ¯ x starting from s 1 is an m-length se- quence (s 1 , a 1 ), . . . , (s m , a m ), where s j ∈ S, a j ∈ A, T (s j , a j ) = s j+1 and a m = STOP. In Blocks <ref type="figure">(Figure 1</ref>), a state specifies the positions of all blocks. For each action, the agent moves a single block on the plane in one of four direc- tions (north, south, east, or west). There are 20 blocks, and 81 possible actions at each step, in- cluding STOP. For example, to correctly execute the instructions in the figure, the agent's likely first action is TOYOTA-WEST, which moves the Toyota block one step west. Blocks can not move over or through other blocks. Model The agent observes the world state via a visual sensor (i.e., a camera). Given a world state s, the agent observes an RGB image I gen- erated by the function IMG(s). We distinguish be- tween the world state s and the agent context 1 ˜ s, which includes the instruction, the observed image IMG(s), images of previous states, and the pre- vious action. To map instructions to actions, the agent reasons about the agent context˜scontext˜ context˜s to generate a sequence of actions. At each step, the agent gen- erates a single action. We model the agent with a neural network policy. At each step j, the network takes as input the current agent context˜scontext˜ context˜s j , and pre- dicts the next action to execute a j . We formally define the agent context and model in Section 4. Learning We assume access to training data with N examples {(¯ x (i) , s</p><formula xml:id="formula_0">(i) 1 , ¯ e (i) )} N i=1 , where ¯ x (i) is an instruction, s (i)</formula><p>1 is a start state, and ¯ e (i) is an execution demonstration of ¯ x (i) starting at s</p><p>1 . We use policy gradient (Section 5) with reward shaping derived from the training data to increase learning speed and exploration effectiveness (Sec- tion 6). Following work in robotics (e.g., <ref type="bibr" target="#b30">Levine et al., 2016)</ref>, we assume an instrumented environ- ment with access to the world state to compute the reward during training only. We define our ap- proach in general terms with demonstrations, but also experiment with training using goal states. Evaluation We evaluate task completion error on a test set {(¯ x (i) , s</p><formula xml:id="formula_2">(i) 1 , s (i) g )} M i=1 , where ¯ x (i) is an instruction, s (i)</formula><p>1 is a start state, and s</p><formula xml:id="formula_3">(i)</formula><p>g is the goal state. We measure execution error as the distance between the final execution state and s </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3">Related Work</head><p>Learning to follow instructions was studied ex- tensively with structured environment represen- tations, including with semantic parsing ( <ref type="bibr" target="#b13">Chen and Mooney, 2011;</ref><ref type="bibr">Mooney, 2012, 2013;</ref><ref type="bibr" target="#b7">Artzi and Zettlemoyer, 2013;</ref><ref type="bibr">Artzi et al., 2014a,b;</ref><ref type="bibr">Misra et al., 2015</ref><ref type="bibr" target="#b37">Misra et al., , 2016</ref>), alignment models ( <ref type="bibr" target="#b1">Andreas and Klein, 2015)</ref>, reinforcement learning ( <ref type="bibr" target="#b10">Branavan et al., 2009</ref><ref type="bibr" target="#b11">Branavan et al., , 2010</ref><ref type="bibr" target="#b50">Vogel and Jurafsky, 2010)</ref>, and neural network models ( <ref type="bibr" target="#b36">Mei et al., 2016)</ref>. In contrast, we study the problem of an agent that takes as input instructions and raw vi- sual input. Instruction following with visual input was studied with pipeline approaches that use sep- arately learned models for visual reasoning <ref type="bibr" target="#b34">(Matuszek et al., 2010</ref><ref type="bibr" target="#b35">(Matuszek et al., , 2012</ref><ref type="bibr" target="#b49">Tellex et al., 2011;</ref><ref type="bibr" target="#b41">Paul et al., 2016)</ref>. Rather than decomposing the prob- lem, we adopt a single-model approach and learn from instructions paired with demonstrations or goal states. Our work is related to <ref type="bibr" target="#b46">Sung et al. (2015)</ref>. While they use sensory input to select and adjust a trajectory observed during training, we are not restricted to training sequences. Executing instructions in non-learning settings has also re- ceived significant attention (e.g., <ref type="bibr" target="#b55">Winograd, 1972;</ref><ref type="bibr" target="#b51">Webber et al., 1995;</ref><ref type="bibr" target="#b33">MacMahon et al., 2006</ref>).</p><p>Our work is related to a growing interest in problems that combine language and vision, in- cluding visual question answering (e.g., <ref type="bibr" target="#b4">Antol et al., 2015;</ref><ref type="bibr">Andreas et al., 2016b,a)</ref>, caption gen- eration (e.g., <ref type="bibr" target="#b15">Chen et al., 2015</ref><ref type="bibr" target="#b56">Xu et al., 2015)</ref>, and visual reasoning <ref type="bibr" target="#b20">(Johnson et al., 2016;</ref><ref type="bibr" target="#b45">Suhr et al., 2017)</ref>. We address the prediction of the next action given a world image and an instruction.</p><p>Reinforcement learning with neural networks has been used for various NLP tasks, including text-based games <ref type="bibr">(Narasimhan et al., 2015;</ref><ref type="bibr" target="#b18">He et al., 2016)</ref>, information extraction ( <ref type="bibr" target="#b38">Narasimhan et al., 2016)</ref>, co-reference resolution <ref type="bibr" target="#b16">(Clark and Manning, 2016)</ref>, and dialog ( .</p><p>Neural network reinforcement learning tech- niques have been recently studied for behavior learning tasks, including playing games ( <ref type="bibr">Mnih et al., 2013</ref><ref type="bibr">Mnih et al., , 2015</ref><ref type="bibr">Mnih et al., , 2016</ref><ref type="bibr" target="#b44">Silver et al., 2016)</ref> and solving memory puzzles ( <ref type="bibr" target="#b40">Oh et al., 2016</ref>). In con- trast to this line of work, our data is limited. Ob- serving new states in a computer game simply re- quires playing it. However, our agent also consid- ers natural language instructions. As the set of in- structions is limited to the training data, the set of agent contexts seen during learning is constrained. We address the data efficiency problem by learn- ing in a contextual bandit setting, which is known to be more tractable ( <ref type="bibr" target="#b0">Agarwal et al., 2014</ref>), and us- ing reward shaping to increase exploration effec- tiveness. <ref type="bibr" target="#b57">Zhu et al. (2017)</ref> address generalization of reinforcement learning to new target goals in vi- sual search by providing the agent an image of the goal state. We address a related problem. How- ever, we provide natural language and the agent must learn to recognize the goal state.</p><p>Reinforcement learning is extensively used in robotics ( <ref type="bibr" target="#b27">Kober et al., 2013)</ref>. Similar to recent work on learning neural network policies for robot control ( <ref type="bibr" target="#b30">Levine et al., 2016;</ref><ref type="bibr" target="#b43">Schulman et al., 2015;</ref><ref type="bibr" target="#b42">Rusu et al., 2016)</ref>, we assume an instrumented training environment and use the state to compute rewards during learning. Our approach adds the ability to specify tasks using natural language.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4">Model</head><p>We model the agent policy π with a neural net- work. The agent observes the instruction and an RGB image of the world. Given a world state s, the image I is generated using the function IMG(s). The instruction execution is generated one step at a time. At each step j, the agent observes an image I j of the current world state s j and the instruction ¯ x, predicts the action a j , and executes it to transition to the next state s j+1 .</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Place the Toyota east of SRI</head><formula xml:id="formula_4">¯ x : h 1 SOUTH Visual State v10 LSTM h d h b TOYOTA SoftMax Layers Task Specific TOYOTA-SOUTH Action a10 TOYOTA-SOUTH CNN l1 l2 l3 l4 l5 l6 Instruction Representation ¯ x I10 I8 I9</formula><p>Previous Action a9 This process continues until STOP is predicted and the agent stops, indicating instruction completion. The agent also has access to K images of previ- ous states and the previous action to distinguish between different stages of the execution ( <ref type="bibr">Mnih et al., 2015)</ref>. <ref type="figure" target="#fig_1">Figure 2</ref> illustrates our architecture.</p><p>Formally, 2 at step j, the agent consid- ers an agent context˜scontext˜ context˜s j , which is a tuple (¯ x, I j , I j−1 , . . . , I j−K , a j−1 ), where ¯ x is the natu- ral language instruction, I j is an image of the cur- rent world state, the images I j−1 , . . . , I j−K repre- sent K previous states, and a j−1 is the previous action. The agent context includes information about the current state and the execution. Consid- ering the previous action a j−1 allows the agent to avoid repeating failed actions, for example when trying to move in the direction of an obstacle. In <ref type="figure" target="#fig_1">Figure 2</ref>, the agent is given the instruction Place the Toyota east of SRI, is at the 10-th execution step, and considers K = 2 previous images.</p><p>We generate continuous vector representations for all inputs, and jointly reason about both text and image modalities to select the next action. We use a recurrent neural network (RNN; Elman, 1990) with a long short-term memory (LSTM; Hochreiter and Schmidhuber, 1997) recurrence to map the instruction ¯ x = x 1 , . . . , x n to a vector representation ¯ x. Each token x i is mapped to a fixed dimensional vector with the learned embedding function ψ(x i ). The instruc- tion representation ¯ x is computed by applying the LSTM recurrence to generate a sequence of hid- den states l i = LSTM(ψ(x i ), l i−1 ), and comput- ing the mean ¯ x </p><formula xml:id="formula_5">j = [v j , ¯ x, ψ a (a j−1 )].</formula><p>To compute the action to execute, we use a feed- forward perceptron that decomposes according to the domain actions. This computation selects the next action conditioned on the instruction text and observations from both the current world state and recent history. In the block world domain, where actions decompose to selecting the block to move and the direction, the network computes block and direction probabilities. Formally, we decompose an action a to direction a D and block a B . We com- pute the feedforward network:</p><formula xml:id="formula_6">h 1 = max(W (1) ˜ sj + b (1) , 0) h D = W (D) h 1 + b (D) h B = W (B) h 1 + b (B) ,</formula><p>and the action probability is a product of the com- ponent probabilities:</p><formula xml:id="formula_7">P (a D j = d | ¯ x, sj, aj−1) ∝ exp(h D d ) P (a B j = b | ¯ x, sj, aj−1) ∝ exp(h B b ) .</formula><p>At the beginning of execution, the first action a 0 is set to the special value NONE, and previous im- ages are zero matrices. The embedding function ψ is a learned matrix. The function ψ a concatenates the embeddings of a D j−1 and a B j−1 , which are ob- tained from learned matrices, to compute the em- bedding of a j−1 . The model parameters θ include</p><formula xml:id="formula_8">W (1) , b (1) , W (D) , b (D) , W (B) , b (B)</formula><p>, the param- eters of the LSTM recurrence, the parameters of the convolutional network CNN, and the embed- ding matrices. In our experiments (Section 7), all parameters are learned without external resources.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5">Learning</head><p>We use policy gradient for reinforcement learn- ing <ref type="bibr" target="#b53">(Williams, 1992)</ref> to estimate the parameters θ of the agent policy. We assume access to a training set of N examples {(¯ x (i) , s</p><formula xml:id="formula_9">(i) 1 , ¯ e (i) )} N i=1 , where ¯ x (i) is an instruction, s<label>(i)</label></formula><p>1 is a start state, and ¯ e (i) is an execution demonstration starting from s</p><formula xml:id="formula_10">(i) 1 of instruction ¯ x (i) .</formula><p>The main learning chal- lenge is learning how to execute instructions given raw visual input from relatively limited data. We learn in a contextual bandit setting, which provides theoretical advantages over general reinforcement learning. In Section 8, we verify this empirically. Reward Function The instruction execution problem defines a simple problem reward to mea- sure task completion. The agent receives a posi- tive reward when the task is completed, a negative reward for incorrect completion (i.e., STOP in the wrong state) and actions that fail to execute (e.g., when the direction is blocked), and a small penalty otherwise, which induces a preference for shorter trajectories. To compute the reward, we assume access to the world state. This learning setup is inspired by work in robotics, where it is achieved by instrumenting the training environment (Sec- tion 3). The agent, on the other hand, only uses the agent context (Section 4). When deployed, the system relies on visual observations and natural language instructions only. The reward function R (i) : S × A → R is defined for each training ex- ample (¯ x (i) , s where m (i) is the length of ¯ e (i) . The reward function does not provide interme- diate positive feedback to the agent for actions that bring it closer to its goal. When the agent explores randomly early during learning, it is unlikely to encounter the goal state due to the large number of steps required to execute tasks. As a result, the agent does not observe positive reward and fails to learn. In Section 6, we describe how reward shaping, a method to augment the reward with ad- ditional information, is used to take advantage of the training data and address this challenge. Policy Gradient Objective We adapt the policy gradient objective defined by <ref type="bibr" target="#b48">Sutton et al. (1999)</ref> to multiple starting states and reward functions:</p><formula xml:id="formula_11">J = 1 N N i=1 V (i) π (s (i) 1 ) ,</formula><p>where</p><formula xml:id="formula_12">V (i) π (s (i)</formula><p>1 ) is the value given by R (i) start- ing from s (i) 1 under the policy π. The summation expresses the goal of learning a behavior parame- terized by natural language instructions. Contextual Bandit Setting In contrast to most policy gradient approaches, we apply the objec- tive to a contextual bandit setting where immedi- ate reward is optimized rather than total expected reward. The primary theoretical advantage of con- textual bandits is much tighter sample complexity bounds when comparing upper bounds for contex- tual bandits <ref type="bibr" target="#b29">(Langford and Zhang, 2007)</ref> even with an adversarial sequence of contexts ( <ref type="bibr" target="#b8">Auer et al., 2002</ref>) to lower bounds ( <ref type="bibr" target="#b28">Krishnamurthy et al., 2016</ref>) or upper bounds ( <ref type="bibr" target="#b22">Kearns et al., 1999</ref>) for total reward maximization. This property is par- ticularly suitable for the few-sample regime com- mon in natural language problems. While re- inforcement learning with neural network poli- cies is known to require large amounts of train- ing data <ref type="bibr">(Mnih et al., 2015)</ref>, the limited number of training sentences constrains the diversity and volume of agent contexts we can observe during training. Empirically, this translates to poor results when optimizing the total reward (REINFORCE baseline in Section 8). To derive the approximate gradient, we use the likelihood ratio method:</p><formula xml:id="formula_13">θ J = 1 N N i=1 E[ θ log π(˜ s, a)R (i) (s, a)] ,</formula><p>where reward is computed from the world state but policy is learned on the agent context. We approx- imate the gradient using sampling. This training regime, where immediate reward optimization is sufficient to optimize policy pa- rameters θ, is enabled by the shaped reward we introduce in Section 6. While the objective is de- signed to work best with the shaped reward, the al- gorithm remains the same for any choice of reward definition including the original problem reward or several possibilities formed by reward shaping. Entropy Penalty We observe that early in train- ing, the agent is overwhelmed with negative re- ward and rarely completes the task. This results in the policy π rapidly converging towards a subopti- mal deterministic policy with an entropy of 0. To delay premature convergence we add an entropy term to the objective ( <ref type="bibr" target="#b54">Williams and Peng, 1991;</ref><ref type="bibr">Mnih et al., 2016</ref>). The entropy term encourages a uniform distribution policy, and in practice stimu- lates exploration early during training. The regu- larized gradient is:</p><formula xml:id="formula_14">θ J = 1 N N i=1 E[ θ log π(˜ s, a)R (i) (s, a) + λ θ H(π(˜ s, ·))] ,</formula></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Algorithm 1 Policy gradient learning</head><p>Input: Training set {(¯ x (i) , s</p><formula xml:id="formula_15">(i) 1 , ¯ e (i) )} N i=1</formula><p>, learning rate µ, epochs T , horizon J, and entropy regularization term λ. Definitions: IMG(s) is a camera sensor that reports an RGB image of state s. π is a probabilistic neural network policy parameterized by θ, as described in Section 4. EXECUTE(s, a) executes the action a at the state s, and returns the new state. R (i) is the reward function for example i. ADAM(∆) applies a per-feature learning rate to the gradient ∆ ( <ref type="bibr" target="#b26">Kingma and Ba, 2014</ref>). Output: Policy parameters θ.</p><p>1: » Iterate over the training data. 2: for t = 1 to T , i = 1 to N do 3: I1−K , . . . , I0 = 0 4: a0 = NONE, s1 = s (i) 1</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>5: j = 1 6:</head><p>» Rollout up to episode limit. 7:</p><p>while j ≤ J and aj = STOP do 8:</p><p>» Observe world and construct agent context. 9: Ij = IMG(sj) 10:</p><formula xml:id="formula_16">˜ sj = (¯ x (i) , Ij, Ij−1, . . . , Ij−K , a d j−1 ) 11:</formula><p>» Sample an action from the policy. 12:</p><p>aj ∼ π(˜ sj, a) 13: sj+1 = EXECUTE(sj , aj) 14:</p><p>» Compute the approximate gradient.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>15:</head><p>∆j ← θ log π(˜ sj, aj)R (i) (sj, aj) +λ θ H(π(˜ sj, ·)) 16:</p><formula xml:id="formula_17">j+ = 1 17: θ ← θ + µADAM( 1 j j j =1 ∆ j ) 18: return θ</formula><p>where H(π(˜ s, ·)) is the entropy of π given the agent context˜scontext˜ context˜s, λ is a hyperparameter that con- trols the strength of the regularization. While the entropy term delays premature convergence, it does not eliminate it. Similar issues are observed for vanilla policy gradient <ref type="bibr">(Mnih et al., 2016)</ref>. Algorithm Algorithm 1 shows our learning al- gorithm. We iterate over the data T times. In each epoch, for each training example <ref type="bibr">(¯ x (i)</ref> , s (i) 1 , ¯ e (i) ), i = 1 . . . N , we perform a rollout using our policy to generate an execution (lines 7 -16). The length of the rollout is bound by J, but may be shorter if the agent selected the STOP action. At each step j, the agent updates the agent context˜scontext˜ context˜s j (lines 9 - 10), samples an action from the policy π (line 12), and executes it to generate the new world state s j+1 (line 13). The gradient is approximated us- ing the sampled action with the computed reward R (i) (s j , a j ) (line 15). Following each rollout, we update the parameters θ with the mean of the gra- dients using ADAM ( <ref type="bibr" target="#b26">Kingma and Ba, 2014</ref>).</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6">Reward Shaping</head><p>Reward shaping is a method for transforming a reward function by adding a shaping term to the problem reward. The goal is to generate more in- formative updates by adding information to the re- ward. We use this method to leverage the train- ing demonstrations, a common form of supervi- sion for training systems that map language to ac- tions. Reward shaping allows us to fully use this type of supervision in a reinforcement learning framework, and effectively combine learning from demonstrations and exploration.</p><p>Adding an arbitrary shaping term can change the optimality of policies and modify the orig- inal problem, for example by making bad poli- cies according to the problem reward optimal ac- cording to the shaped function. 3  and <ref type="bibr" target="#b52">Wiewiora et al. (2003)</ref> outline potential-based terms that realize sufficient conditions for safe shaping. <ref type="bibr">4</ref> Adding a shaping term is safe if the order of policies according to the shaped reward is identical to the order according to the original problem reward. While safe shaping only applies to optimizing the total reward, we show empiri- cally the effectiveness of the safe shaping terms we design in a contextual bandit setting.</p><p>We introduce two shaping terms. The final shaped reward is a sum of them and the problem reward. Similar to the problem reward, we define example-specific shaping terms. We modify the reward function signature as required.</p><p>Distance-based Shaping (F 1 ) The first shaping term measures if the agent moved closer to the goal state. We design it to be a safe potential-based term ( :</p><formula xml:id="formula_18">F (i) 1 (sj, aj, sj+1) = φ (i) 1 (sj+1) − φ (i) 1 (sj) .</formula><p>The potential φ (i) 1 (s) is proportional to the nega- tive distance from the goal state s</p><formula xml:id="formula_19">(i) g . Formally, φ (i) 1 (s) = −ηs − s (i)</formula><p>g , where η is a constant scaling factor, and . is a distance metric. In the block world, the distance between two states is the sum of the Euclidean distances between the posi- tions of each block in the two states, and η is the inverse of block width. The middle column in <ref type="figure" target="#fig_4">Fig- ure 3</ref> visualizes the potential φ (i)</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="1">.</head><p>Trajectory-based Shaping (F 2 ) Distance- based shaping may lead the agent to sub-optimal states, for example when an obstacle blocks the direct path to the goal state, and the agent must temporarily increase its distance from the goal to bypass it. We incorporate complete trajectories by using a simplification of the shaping term introduced by <ref type="bibr" target="#b12">Brys et al. (2015)</ref>. Unlike F 1 , it requires access to the previous state and action. It is based on the look-back advice shaping term of <ref type="bibr" target="#b52">Wiewiora et al. (2003)</ref>, who introduced safe potential-based shaping that considers the previous state and action. The second term is:</p><formula xml:id="formula_20">F (i) 2 (sj−1, aj−1, sj, aj) = φ (i) 2 (sj, aj)−φ (i) 2 (sj−1, aj−1) .</formula><p>Given ¯ e (i) = (s 1 , a 1 ), . . . , (s m , a m ), to com- pute the potential φ 2 (s, a) = −δ f , where δ f is a penalty parameter. We use the same distance computation and parameter η as in F 1 . When the agent is in a state close to a demonstration state, this term encourages taking the action taken in the related demonstration state. The right column in <ref type="figure" target="#fig_4">Figure 3</ref> visualizes the effect of the potential φ (i) 2 .</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="7">Experimental Setup</head><p>Environment We use the environment of <ref type="bibr" target="#b9">Bisk et al. (2016)</ref>. The original task required predicting the source and target positions for a single block given an instruction. In contrast, we address the task of moving blocks on the plane to execute in- structions given visual input. This requires gen- erating the complete sequence of actions needed to complete the instruction. The environment con- tains up to 20 blocks marked with logos or digits. Each block can be moved in four directions. In- cluding the STOP action, in each step, the agent selects between 81 actions. The set of actions is constant and is not limited to the blocks present.</p><p>The transition function is deterministic. The size of each block step is 0.04 of the board size. The agent observes the board from above. We adopt a relatively challenging setup with a large action space. While a simpler setup, for example decom- posing the problem to source and target prediction and using a planner, is likely to perform better, we aim to minimize task-specific assumptions and en- gineering of separate modules. However, to better understand the problem, we also report results for the decomposed task with a planner.</p><p>Data <ref type="bibr" target="#b9">Bisk et al. (2016)</ref> collected a corpus of in- structions paired with start and goal states. <ref type="figure">Fig- ure 1</ref> shows example instructions. The original data includes instructions for moving one block or multiple blocks. Single-block instructions are rel- atively similar to navigation instructions and re- ferring expressions. While they present much of the complexity of natural language understanding and grounding, they rarely display the planning complexity of multi-block instructions, which are beyond the scope of this paper. Furthermore, the original data does not include demonstrations. While generating demonstrations for moving a single block is straightforward, disambiguating action ordering when multiple blocks are moved is challenging. Therefore, we focus on instructions where a single block changes its position between the start and goal states, and restrict demonstra- tion generation to move the changed block. The remaining data, and the complexity it introduces, provide an important direction for future work.</p><p>To create demonstrations, we compute the shortest paths. While this process may introduce noise for instructions that specify specific trajecto- ries (e.g., move SRI two steps north and . . . ) rather than only describing the goal state, analysis of the data shows this issue is limited. Out of 100 sam- pled instructions, 92 describe the goal state rather than the trajectory. A secondary source of noise is due to discretization of the state space. As a re- sult, the agent often can not reach the exact target position. The demonstrations error illustrates this problem <ref type="table" target="#tab_3">(Table 3)</ref>. To provide task completion re- ward during learning, we relax the state compari- son, and consider states to be equal if the sum of block distances is under the size of one block.  <ref type="formula">(2016)</ref>     plexity ( <ref type="bibr" target="#b22">Kearns et al., 1999;</ref><ref type="bibr" target="#b28">Krishnamurthy et al., 2016</ref>). We also report results using ensembles of the three models.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="8">Results</head><p>We ablate different parts of our approach. Ab- lations of supervised initialization (our approach w/o sup. init) or the previous action (our ap- proach w/o prev. action) result in increase in er- ror. While the contribution of initialization is mod- est, it provides faster learning. On average, af- ter two epochs, we observe an error of 3.94 with initialization and 6.01 without. We hypothesize that the F 2 shaping term, which uses full demon- strations, helps to narrow the gap at the end of learning. Without supervised initialization and F 2 , the error increases to 5.45 (the 0% point in <ref type="figure" target="#fig_7">Fig- ure 4)</ref>. We observe the contribution of each shap- ing term and their combination. To study the bene- fit of potential-based shaping, we experiment with a negative distance-to-goal reward. This reward replaces the problem reward and encourages get- ting closer to the goal (our approach w/distance reward). With this reward, learning fails to con- verge, leading to a relatively high error.  amount of supervision. We remove demonstra- tions from both supervised initialization and the F 2 shaping term. For example, when only 25% are available, only 25% of the data is available for initialization and the F 2 term is only present for this part of the data. While some demonstrations are necessary for effective learning, we get most of the benefit with only 12.5%. <ref type="table" target="#tab_3">Table 3</ref> provides test results, using the ensem- bles to decrease the risk of overfitting the develop- ment. We observe similar trends to development result with our approach outperforming all base- lines. The remaining gap to the demonstrations upper bound illustrates the need for future work.</p><p>To understand performance better, we measure minimal distance (min. distance in <ref type="table" target="#tab_1">Tables 2 and  3</ref>), the closest the agent got to the goal. We ob- serve a strong trend: the agent often gets close to the goal and fails to stop. This behavior is also reflected in the number of steps the agent takes. While the mean number of steps in development demonstrations is 15.2, the agent generates on av- erage 28.7 steps, and 55.2% of the time it takes the maximum number of allowed steps (40). Test- ing on the training data shows an average 21.75 steps and exhausts the number of steps 29.3% of the time. The mean number of steps in training demonstrations is 15.5. This illustrates the chal- lenge of learning how to be behave at an absorbing state, which is observed relatively rarely during training. This behavior also shows in our video. <ref type="bibr">5</ref> We also evaluate a supervised learning variant that assumes a perfect planner. <ref type="bibr">6</ref> This setup is sim- ilar to <ref type="bibr" target="#b9">Bisk et al. (2016)</ref>, except using raw image input. It allows us to roughly understand how well the agent generates actions. We observe a mean error of 2.78 on the development set, an improve- ment of almost two points over supervised learn- ing with our approach. This illustrates the com-plexity of the complete problem.</p><p>We conduct a shallow linguistic analysis to un- derstand the agent behavior with regard to dif- ferences in the language input. As expected, the agent is sensitive to unknown words. For instruc- tions without unknown words, the mean develop- ment error is 3.49. It increases to 3.97 for instruc- tions with a single unknown word, and to 4.19 for two. <ref type="bibr">7</ref> We also study the agent behavior when ob- serving new phrases composed of known words by looking at instructions with new n-grams and no unknown words. We observe no significant corre- lation between performance and new bi-grams and tri-grams. We also see no meaningful correlation between instruction length and performance. Al- though counterintuitive given the linguistic com- plexities of longer instructions, it aligns with re- sults in machine translation ( <ref type="bibr" target="#b32">Luong et al., 2015</ref>).</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="9">Conclusions</head><p>We study the problem of learning to execute in- structions in a situated environment given only raw visual observations. Supervised approaches do not explore adequately to handle test time er- rors, and reinforcement learning approaches re- quire a large number of samples for good conver- gence. Our solution provides an effective combi- nation of both approaches: reward shaping to cre- ate relatively stable optimization in a contextual bandit setting, which takes advantage of a signal similar to supervised learning, with a reinforce- ment basis that admits substantial exploration and easy avenues for smart initialization. This com- bination is designed for a few-samples regime, as we address. When the number of samples is un- bounded, the drawbacks observed in this scenario for optimizing longer term reward do not hold.</p></div><figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_1"><head>Figure 2 :</head><label>2</label><figDesc>Figure 2: Illustration of the policy architecture showing the 10th step in the execution of the instruction Place the Toyota east of SRI in the state from Figure 1. The network takes as input the instruction ¯ x, image of the current state I 10 , images of previous states I 8 and I 9 (with K = 2), and the previous action a 9. The text and images are embedded with LSTM and CNN. The actions are selected with the task specific multi-layer perceptron.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_2"><head></head><label></label><figDesc>= 1 n n i=1 l i (Narasimhan et al., 2015). The current image I j and previous im- ages I j−1 ,. . . ,I j−K are concatenated along the channel dimension and embedded with a convolu- tional neural network (CNN) to generate the vi-sual state v (Mnih et al., 2013). The last ac- tion a j−1 is embedded with the function ψ a (a j−1 ). The vectors v j , ¯ x, and ψ a (a j−1 ) are concatenated to create the agent context vector representatioñrepresentatioñ s</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_3"><head></head><label></label><figDesc>if s = s m (i) and a = STOP −1.0 s = s m (i) and a = STOP −1.0 a fails to execute −δ else ,</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_4"><head>Figure 3 :</head><label>3</label><figDesc>Figure 3: Visualization of the shaping potentials for two tasks. We show demonstrations (blue arrows), but omit instructions. To visualize the potentials intensity, we assume only the target block can be moved, while rewards and potentials are computed for any block movement. We illustrate the sparse problem reward (left column) as a potential function and consider only its positive component, which is focused on the goal. The middle column adds the distance-based potential. The right adds both potentials.</figDesc><graphic url="image-14.png" coords="6,311.04,114.62,92.42,69.31" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_5"><head></head><label></label><figDesc>(s, a), we identify the closest state s j in ¯ e (i) to s. If ηs j − s &lt; 1 and a j = a, φ (i) 2 (s, a) = 1.0, else φ (i)</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_6"><head></head><label></label><figDesc>evaluate the selection of the source and target positions independently. Systems We report performance of ablations, the upper bound of following the demonstrations (Demonstrations), and five baselines: (a) STOP: the agent immediately stops, (b) RANDOM: the agent takes random actions, (c) SUPERVISED: su- pervised learning with maximum-likelihood es- timate using demonstration state-action pairs, (d) DQN: deep Q-learning with both shaping terms (Mnih et al., 2015), and (e) REINFORCE: policy gradient with cumulative episodic reward with both shaping terms (Sutton et al., 1999). Full system details are given in Appendix B. Parameters and Initialization Full details are in Appendix C. We consider K = 4 previous im- ages, and horizon length J = 40. We initialize our model with the SUPERVISED model.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_7"><head>Figure 4</head><label>4</label><figDesc></figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_8"><head>Figure 4 :</head><label>4</label><figDesc>Figure 4: Mean distance error as a function of the ratio of training examples that include complete trajectories. The rest of the data includes the goal state only.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_1" validated="false"><head>Table 2 shows</head><label>2</label><figDesc></figDesc><table>development results. We run each 
+experiment three times and report the best result. 
+The RANDOM and STOP baselines illustrate the 
+task complexity of the task. Our approach, includ-
+ing both shaping terms in a contextual bandit set-
+ting, significantly outperforms the other methods. 
+SUPERVISED learning demonstrates lower perfor-
+mance. A likely explanation is test-time execution 
+errors leading to unfamiliar states with poor later 
+performance (Kakade and Langford, 2002), a form 
+of the covariate shift problem. The low perfor-
+mance of REINFORCE and DQN illustrates the 
+challenge of general reinforcement learning with 
+limited data due to relatively high sample com-
+
+</table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_2" validated="false"><head>Table 2 :</head><label>2</label><figDesc></figDesc><table>Mean and median (Med.) development results. 
+
+Algorithm 
+Distance Error Min. Distance 
+Mean 
+Med. 
+Mean Med. 
+Demonstrations 
+0.37 
+0.31 
+0.37 
+0.31 
+STOP 
+6.23 
+6.12 
+6.23 
+6.12 
+RANDOM 
+15.11 
+15.35 
+6.21 
+6.09 
+Ensembles 
+SUPERVISED 
+4.95 
+4.53 
+3.82 
+3.33 
+REINFORCE 
+5.69 
+5.57 
+5.11 
+4.99 
+DQN 
+6.15 
+5.97 
+5.86 
+5.77 
+Our Approach 
+3.78 
+3.14 
+2.83 
+2.07 
+
+</table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_3" validated="false"><head>Table 3 :</head><label>3</label><figDesc></figDesc><table>Mean and median (Med.) test results. 
+
+</table></figure>
+
+			<note place="foot" n="1"> We use the term context similar to how it is used in the contextual bandit literature to refer to the information available for decision making. While agent contexts capture information about the world state, they do not include physical information, except as captured by observed images.</note>
+
+			<note place="foot" n="2"> We use bold-face capital letters for matrices and boldface lowercase letters for vectors. Computed input and state representations use bold versions of the symbols. For example, ¯ x is the computed representation of an instruction ¯ x.</note>
+
+			<note place="foot" n="3"> For example, adding a shaping term F = −R will result in a shaped reward that is always 0, and any policy will be trivially optimal with respect to it. 4 For convenience, we briefly overview the theorems of Ng et al. (1999) and Wiewiora et al. (2003) in Appendix A.</note>
+
+			<note place="foot" n="5"> https://github.com/clic-lab/blocks 6 As there is no sequence of decisions, our reinforcement approach is not appropriate for the planner experiment. The architecture details are described in Appendix B.</note>
+
+			<note place="foot" n="7"> This trend continues, although the number of instructions is too low (&lt; 20) to be reliable.</note>
+		</body>
+		<back>
+
+			<div type="acknowledgement">
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Acknowledgments</head><p>This research was supported by a Google Fac-ulty Award, an Amazon Web Services Research Grant, and a Schmidt Sciences Research Award. We thank Alane Suhr, Luke Zettlemoyer, and the anonymous reviewers for their helpful feedback, and Claudia Yan for technical help. We also thank the Cornell NLP group and the Microsoft Research Machine Learning NYC group for their support and insightful comments.</p></div>
+			</div>
+
+			<div type="references">
+
+				<listBibl>
+
+<biblStruct xml:id="b0">
+	<analytic>
+		<title level="a" type="main">Taming the monster: A fast and simple algorithm for contextual bandits</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Alekh</forename><surname>Agarwal</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Daniel</forename><forename type="middle">J</forename><surname>Hsu</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Satyen</forename><surname>Kale</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">John</forename><surname>Langford</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Lihong</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Robert</forename><forename type="middle">E</forename><surname>Schapire</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the International Conference on Machine Learning</title>
+		<meeting>the International Conference on Machine Learning</meeting>
+		<imprint>
+			<date type="published" when="2014" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b1">
+	<analytic>
+		<title level="a" type="main">Alignmentbased compositional semantics for instruction following</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jacob</forename><surname>Andreas</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Dan</forename><surname>Klein</surname></persName>
+		</author>
+		<idno type="doi">10.18653/v1/D15-1138</idno>
+		<ptr target="https://doi.org/10.18653/v1/D15-1138" />
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2015 Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>the 2015 Conference on Empirical Methods in Natural Language Processing</meeting>
+		<imprint>
+			<date type="published" when="2015" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b2">
+	<analytic>
+		<title level="a" type="main">Learning to compose neural networks for question answering</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jacob</forename><surname>Andreas</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Marcus</forename><surname>Rohrbach</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Trevor</forename><surname>Darrell</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Dan</forename><surname>Klein</surname></persName>
+		</author>
+		<idno type="doi">10.18653/v1/N16-1181</idno>
+		<ptr target="https://doi.org/10.18653/v1/N16-1181" />
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2016 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies</title>
+		<meeting>the 2016 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies</meeting>
+		<imprint>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b3">
+	<analytic>
+		<title level="a" type="main">Neural module networks</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jacob</forename><surname>Andreas</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Marcus</forename><surname>Rohrbach</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Trevor</forename><surname>Darrell</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Dan</forename><surname>Klein</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Conference on Computer Vision and Pattern Recognition</title>
+		<imprint>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b4">
+	<analytic>
+		<title level="a" type="main">VQA: Visual question answering</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Stanislaw</forename><surname>Antol</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Aishwarya</forename><surname>Agrawal</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jiasen</forename><surname>Lu</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Margaret</forename><surname>Mitchell</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Dhruv</forename><surname>Batra</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">C</forename><forename type="middle">Lawrence</forename><surname>Zitnick</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Devi</forename><surname>Parikh</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">In International Journal of Computer Vision</title>
+		<imprint>
+			<date type="published" when="2015" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b5">
+	<analytic>
+		<title level="a" type="main">Learning compact lexicons for CCG semantic parsing</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yoav</forename><surname>Artzi</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Dipanjan</forename><surname>Das</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Slav</forename><surname>Petrov</surname></persName>
+		</author>
+		<idno type="doi">10.3115/v1/D14-1134</idno>
+		<ptr target="https://doi.org/10.3115/v1/D14-1134" />
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2014 Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>the 2014 Conference on Empirical Methods in Natural Language Processing</meeting>
+		<imprint>
+			<date type="published" when="2014" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b6">
+	<analytic>
+		<title level="a" type="main">Programming by demonstration with situated semantic parsing</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yoav</forename><surname>Artzi</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Maxwell</forename><surname>Forbes</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kenton</forename><surname>Lee</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Maya</forename><surname>Cakmak</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">AAAI Fall Symposium Series</title>
+		<imprint>
+			<date type="published" when="2014" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b7">
+	<analytic>
+		<title level="a" type="main">Weakly supervised learning of semantic parsers for mapping instructions to actions</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yoav</forename><surname>Artzi</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Luke</forename><surname>Zettlemoyer</surname></persName>
+		</author>
+		<ptr target="http://aclweb.org/anthology/Q13-1005" />
+	</analytic>
+	<monogr>
+		<title level="j">Transactions of the Association of Computational Linguistics</title>
+		<imprint>
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="49" to="62" />
+			<date type="published" when="2013" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b8">
+	<analytic>
+		<title level="a" type="main">The nonstochastic multiarmed bandit problem</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Peter</forename><surname>Auer</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Nicolò</forename><surname>Cesa-Bianchi</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yoav</forename><surname>Freund</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Robert</forename><forename type="middle">E</forename><surname>Schapire</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">SIAM J. Comput</title>
+		<imprint>
+			<biblScope unit="volume">32</biblScope>
+			<biblScope unit="issue">1</biblScope>
+			<biblScope unit="page" from="48" to="77" />
+			<date type="published" when="2002" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b9">
+	<analytic>
+		<title level="a" type="main">Natural language communication with robots</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yonatan</forename><surname>Bisk</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Deniz</forename><surname>Yuret</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Daniel</forename><surname>Marcu</surname></persName>
+		</author>
+		<idno type="doi">10.18653/v1/N16-1089</idno>
+		<ptr target="https://doi.org/10.18653/v1/N16-1089" />
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2016 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies</title>
+		<meeting>the 2016 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies</meeting>
+		<imprint>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b10">
+	<analytic>
+		<title level="a" type="main">Reinforcement learning for mapping instructions to actions</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">S</forename><forename type="middle">R K</forename><surname>Branavan</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Harr</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Luke</forename><surname>Zettlemoyer</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Regina</forename><surname>Barzilay</surname></persName>
+		</author>
+		<ptr target="http://aclweb.org/anthology/P09-1010" />
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Joint Conference of the 47th Annual Meeting of the ACL and the 4th International Joint Conference on Natural Language Processing of the AFNLP</title>
+		<meeting>the Joint Conference of the 47th Annual Meeting of the ACL and the 4th International Joint Conference on Natural Language Processing of the AFNLP</meeting>
+		<imprint>
+			<date type="published" when="2009" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b11">
+	<analytic>
+		<title level="a" type="main">Reading between the lines: Learning to map high-level instructions to commands</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">S</forename><forename type="middle">R K</forename><surname>Branavan</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Luke</forename><surname>Zettlemoyer</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Regina</forename><surname>Barzilay</surname></persName>
+		</author>
+		<ptr target="http://aclweb.org/anthology/P10-1129" />
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 48th Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 48th Annual Meeting of the Association for Computational Linguistics</meeting>
+		<imprint>
+			<date type="published" when="2010" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b12">
+	<analytic>
+		<title level="a" type="main">Reinforcement learning from demonstration through shaping</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Tim</forename><surname>Brys</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Anna</forename><surname>Harutyunyan</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Halit</forename><surname>Bener Suay</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Sonia</forename><surname>Chernova</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Matthew</forename><forename type="middle">E</forename><surname>Taylor</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ann</forename><surname>Nowé</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the International Joint Conference on Artificial Intelligence</title>
+		<meeting>the International Joint Conference on Artificial Intelligence</meeting>
+		<imprint>
+			<date type="published" when="2015" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b13">
+	<analytic>
+		<title level="a" type="main">Learning to interpret natural language navigation instructions from observations</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">L</forename><surname>David</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Raymond</forename><forename type="middle">J</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Mooney</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the National Conference on Artificial Intelligence</title>
+		<meeting>the National Conference on Artificial Intelligence</meeting>
+		<imprint>
+			<date type="published" when="2011" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b14">
+	<monogr>
+		<title level="m" type="main">Bootstrap, review, decode: Using out-ofdomain textual data to improve image captioning</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Wenhu</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Aurélien</forename><surname>Lucchi</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Thomas</forename><surname>Hofmann</surname></persName>
+		</author>
+		<idno>CoRR abs/1611.05321</idno>
+		<imprint>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b15">
+	<monogr>
+		<title level="m" type="main">Microsoft COCO captions: Data collection and evaluation server</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Xinlei</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Hao</forename><surname>Fang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Tsung-Yi</forename><surname>Lin</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ramakrishna</forename><surname>Vedantam</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Saurabh</forename><surname>Gupta</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Piotr</forename><surname>Dollár</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">C</forename><forename type="middle">Lawrence</forename><surname>Zitnick</surname></persName>
+		</author>
+		<idno>CoRR abs/1504.00325</idno>
+		<imprint>
+			<date type="published" when="2015" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b16">
+	<analytic>
+		<title level="a" type="main">Deep reinforcement learning for mention-ranking coreference models</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kevin</forename><surname>Clark</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">D. Christopher</forename><surname>Manning</surname></persName>
+		</author>
+		<ptr target="http://aclweb.org/anthology/D16-1245" />
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2016 Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>the 2016 Conference on Empirical Methods in Natural Language Processing</meeting>
+		<imprint>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b17">
+	<analytic>
+		<title level="a" type="main">Finding structure in time</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jeffrey</forename><forename type="middle">L</forename><surname>Elman</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Cognitive Science</title>
+		<imprint>
+			<biblScope unit="volume">14</biblScope>
+			<biblScope unit="page" from="179" to="211" />
+			<date type="published" when="1990" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b18">
+	<analytic>
+		<title level="a" type="main">Deep reinforcement learning with a natural language action space</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ji</forename><surname>He</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jianshu</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Xiaodong</forename><surname>He</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jianfeng</forename><surname>Gao</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Lihong</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Li</forename><surname>Deng</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Mari</forename><surname>Ostendorf</surname></persName>
+		</author>
+		<idno type="doi">10.18653/v1/P16-1153</idno>
+		<ptr target="https://doi.org/10.18653/v1/P16-1153" />
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 54th Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 54th Annual Meeting of the Association for Computational Linguistics</meeting>
+		<imprint>
+			<publisher>Long Papers</publisher>
+			<date type="published" when="2016" />
+			<biblScope unit="volume">1</biblScope>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b19">
+	<analytic>
+		<title level="a" type="main">Long short-term memory</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Sepp</forename><surname>Hochreiter</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jürgen</forename><surname>Schmidhuber</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Neural computation</title>
+		<imprint>
+			<biblScope unit="volume">9</biblScope>
+			<date type="published" when="1997" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b20">
+	<monogr>
+		<title level="m" type="main">CLEVR: A diagnostic dataset for compositional language and elementary visual reasoning</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Justin</forename><surname>Johnson</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Bharath</forename><surname>Hariharan</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Laurens</forename><surname>Van Der Maaten</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Li</forename><surname>Fei-Fei</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">C</forename><forename type="middle">Lawrence</forename><surname>Zitnick</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ross</forename><forename type="middle">B</forename><surname>Girshick</surname></persName>
+		</author>
+		<idno>CoRR abs/1612.06890</idno>
+		<imprint>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b21">
+	<analytic>
+		<title level="a" type="main">Approximately optimal approximate reinforcement learning</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Sham</forename><surname>Kakade</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">John</forename><surname>Langford</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Machine Learning, Proceedings of the Nineteenth International Conference</title>
+		<meeting><address><addrLine>Sydney, Australia</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2002-07-08" />
+		</imprint>
+		<respStmt>
+			<orgName>University of New South Wales</orgName>
+		</respStmt>
+	</monogr>
+	<note>ICML 2002</note>
+</biblStruct>
+
+<biblStruct xml:id="b22">
+	<analytic>
+		<title level="a" type="main">A sparse sampling algorithm for near-optimal planning in large markov decision processes</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Michael</forename><surname>Kearns</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yishay</forename><surname>Mansour</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Andrew</forename><forename type="middle">Y</forename><surname>Ng</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proeceediings of the International Joint Conference on Artificial Intelligence</title>
+		<imprint>
+			<date type="published" when="1999" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b23">
+	<analytic>
+		<title level="a" type="main">Unsupervised PCFG induction for grounded language learning with highly ambiguous supervision</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Joohyun</forename><surname>Kim</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Raymond</forename><surname>Mooney</surname></persName>
+		</author>
+		<ptr target="http://aclweb.org/anthology/D12-1040" />
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2012 Joint Conference on Empirical Methods in Natural Language Processing and Computational Natural Language Learning</title>
+		<meeting>the 2012 Joint Conference on Empirical Methods in Natural Language Processing and Computational Natural Language Learning</meeting>
+		<imprint>
+			<date type="published" when="2012" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b24">
+	<analytic>
+		<title level="a" type="main">Adapting discriminative reranking to grounded language learning</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Joohyun</forename><surname>Kim</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Raymond</forename><surname>Mooney</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 51st</title>
+		<meeting>the 51st</meeting>
+		<imprint>
+			<date type="published" when="2013" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b25">
+	<monogr>
+				<title level="m">Annual Meeting of the Association for Computational Linguistics</title>
+		<imprint>
+			<publisher>Long Papers</publisher>
+			<biblScope unit="volume">1</biblScope>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b26">
+	<analytic>
+		<title level="a" type="main">Adam: A method for stochastic optimization</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Diederik</forename><surname>Kingma</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jimmy</forename><surname>Ba</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the International Conference on Learning Representations</title>
+		<meeting>the International Conference on Learning Representations</meeting>
+		<imprint>
+			<date type="published" when="2014" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b27">
+	<analytic>
+		<title level="a" type="main">Reinforcement learning in robotics: A survey</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jens</forename><surname>Kober</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">J</forename><forename type="middle">Andrew</forename><surname>Bagnell</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jan</forename><surname>Peters</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">International Journal of Robotics Research</title>
+		<imprint>
+			<biblScope unit="volume">32</biblScope>
+			<biblScope unit="page" from="1238" to="1274" />
+			<date type="published" when="2013" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b28">
+	<analytic>
+		<title level="a" type="main">PAC reinforcement learning with rich observations</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Akshay</forename><surname>Krishnamurthy</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Alekh</forename><surname>Agarwal</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">John</forename><surname>Langford</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Advances in Neural Information Processing Systems</title>
+		<imprint>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b29">
+	<analytic>
+		<title level="a" type="main">The epochgreedy algorithm for multi-armed bandits with side information</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">John</forename><surname>Langford</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Tong</forename><surname>Zhang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Advances in Neural Information Processing Systems 20, Proceedings of the TwentyFirst Annual Conference on Neural Information Processing Systems</title>
+		<meeting><address><addrLine>Vancouver, British Columbia, Canada</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2007-12-03" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b30">
+	<analytic>
+		<title level="a" type="main">End-to-end training of deep visuomotor policies</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Sergey</forename><surname>Levine</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Chelsea</forename><surname>Finn</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Trevor</forename><surname>Darrell</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Pieter</forename><surname>Abbeel</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Journal of Machine Learning Re</title>
+		<imprint>
+			<biblScope unit="page">17</biblScope>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b31">
+	<analytic>
+		<title level="a" type="main">Deep reinforcement learning for dialogue generation</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jiwei</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Will</forename><surname>Monroe</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Alan</forename><surname>Ritter</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Dan</forename><surname>Jurafsky</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Michel</forename><surname>Galley</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jianfeng</forename><surname>Gao</surname></persName>
+		</author>
+		<ptr target="http://aclweb.org/anthology/D16-1127" />
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2016 Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>the 2016 Conference on Empirical Methods in Natural Language Processing</meeting>
+		<imprint>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b32">
+	<analytic>
+		<title level="a" type="main">Effective approaches to attention-based neural machine translation</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Thang</forename><surname>Luong</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Hieu</forename><surname>Pham</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Christopher</forename><forename type="middle">D</forename><surname>Manning</surname></persName>
+		</author>
+		<ptr target="http://aclweb.org/anthology/D15-1166" />
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>the Conference on Empirical Methods in Natural Language Processing</meeting>
+		<imprint>
+			<date type="published" when="2015" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b33">
+	<analytic>
+		<title level="a" type="main">Walk the talk: Connecting language, knowledge, action in route instructions</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Matthew</forename><surname>Macmahon</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Brian</forename><surname>Stankiewics</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Benjamin</forename><surname>Kuipers</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the National Conference on Artificial Intelligence</title>
+		<meeting>the National Conference on Artificial Intelligence</meeting>
+		<imprint>
+			<date type="published" when="2006" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b34">
+	<analytic>
+		<title level="a" type="main">Following directions using statistical machine translation</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Cynthia</forename><surname>Matuszek</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Dieter</forename><surname>Fox</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Karl</forename><surname>Koscher</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the international conference on Human-robot interaction</title>
+		<meeting>the international conference on Human-robot interaction</meeting>
+		<imprint>
+			<date type="published" when="2010" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b35">
+	<analytic>
+		<title level="a" type="main">Learning to parse natural language commands to a robot control system</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Cynthia</forename><surname>Matuszek</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Evan</forename><surname>Herbst</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Luke</forename><forename type="middle">S</forename><surname>Zettlemoyer</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Dieter</forename><surname>Fox</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the International Symposium on Experimental Robotics</title>
+		<meeting>the International Symposium on Experimental Robotics</meeting>
+		<imprint>
+			<date type="published" when="2012" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b36">
+	<analytic>
+		<title level="a" type="main">What to talk about and how? selective generation using lstms with coarse-to-fine alignment</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Hongyuan</forename><surname>Mei</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Mohit</forename><surname>Bansal</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">R</forename><forename type="middle">Matthew</forename><surname>Walter</surname></persName>
+		</author>
+		<idno type="doi">10.18653/v1/N16-1086</idno>
+		<ptr target="https://doi.org/10.18653/v1/N16-1086" />
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2016 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies</title>
+		<meeting>the 2016 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies</meeting>
+		<imprint>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b37">
+	<analytic>
+		<title level="a" type="main">Tell me dave: Contextsensitive grounding of natural language to manipulation instructions</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">K</forename><surname>Dipendra</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jaeyong</forename><surname>Misra</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kevin</forename><surname>Sung</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ashutosh</forename><surname>Lee</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Saxena</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">The International Journal of Robotics Research</title>
+		<imprint>
+			<biblScope unit="volume">35</biblScope>
+			<biblScope unit="issue">1-3</biblScope>
+			<biblScope unit="page" from="281" to="300" />
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b38">
+	<analytic>
+		<title level="a" type="main">Improving information extraction by acquiring external evidence with reinforcement learning</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Karthik</forename><surname>Narasimhan</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Adam</forename><surname>Yala</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Regina</forename><surname>Barzilay</surname></persName>
+		</author>
+		<ptr target="http://aclweb.org/anthology/D16-1261" />
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2016 Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>the 2016 Conference on Empirical Methods in Natural Language Processing</meeting>
+		<imprint>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b39">
+	<analytic>
+		<title level="a" type="main">Policy invariance under reward transformations: Theory and application to reward shaping</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Andrew</forename><forename type="middle">Y</forename><surname>Ng</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Daishi</forename><surname>Harada</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Stuart</forename><forename type="middle">J</forename><surname>Russell</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the International Conference on Machine Learning</title>
+		<meeting>the International Conference on Machine Learning</meeting>
+		<imprint>
+			<date type="published" when="1999" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b40">
+	<analytic>
+		<title level="a" type="main">Control of memory, active perception, and action in minecraft</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Junhyuk</forename><surname>Oh</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Valliappa</forename><surname>Chockalingam</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">P</forename><surname>Satinder</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Honglak</forename><surname>Singh</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Lee</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the International Conference on Machine Learning</title>
+		<meeting>the International Conference on Machine Learning</meeting>
+		<imprint>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b41">
+	<analytic>
+		<title level="a" type="main">Efficient grounding of abstract spatial concepts for natural language interaction with robot manipulators</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Rohan</forename><surname>Paul</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jacob</forename><surname>Arkin</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Nicholas</forename><surname>Roy</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Thomas</forename><forename type="middle">M</forename><surname>Howard</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Robotics: Science and Systems</title>
+		<imprint>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b42">
+	<monogr>
+		<title level="m" type="main">Sim-to-real robot learning from pixels with progressive nets</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Andrei</forename><forename type="middle">A</forename><surname>Rusu</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Matej</forename><surname>Vecerik</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Thomas</forename><surname>Rothörl</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Nicolas</forename><surname>Heess</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Razvan</forename><surname>Pascanu</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Raia</forename><surname>Hadsell</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2016" />
+			<publisher>CoRR</publisher>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b43">
+	<monogr>
+				<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">John</forename><surname>Schulman</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Sergey</forename><surname>Levine</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Philipp</forename><surname>Moritz</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Michael</forename><forename type="middle">I</forename><surname>Jordan</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Pieter</forename><surname>Abbeel</surname></persName>
+		</author>
+		<title level="m">Trust region policy optimization</title>
+		<imprint>
+			<date type="published" when="2015" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b44">
+	<analytic>
+		<title level="a" type="main">Mastering the game of go with deep neural networks and tree search</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">David</forename><surname>Silver</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Aja</forename><surname>Huang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Chris</forename><forename type="middle">J</forename><surname>Maddison</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Arthur</forename><surname>Guez</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Laurent</forename><surname>Sifre</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">George</forename><surname>Van Den Driessche</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Julian</forename><surname>Schrittwieser</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ioannis</forename><surname>Antonoglou</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Veda</forename><surname>Panneershelvam</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Marc</forename><surname>Lanctot</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Sander</forename><surname>Dieleman</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Dominik</forename><surname>Grewe</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">John</forename><surname>Nham</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Nal</forename><surname>Kalchbrenner</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ilya</forename><surname>Sutskever</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Timothy</forename><surname>Lillicrap</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Madeleine</forename><surname>Leach</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Koray</forename><surname>Kavukcuoglu</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Thore Graepel, and Demis Hassabis</title>
+		<imprint>
+			<date type="published" when="2016" />
+			<biblScope unit="volume">529</biblScope>
+			<biblScope unit="page" from="484" to="493" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b45">
+	<analytic>
+		<title level="a" type="main">A corpus of compositional language for visual reasoning</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Alane</forename><surname>Suhr</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Mike</forename><surname>Lewis</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">James</forename><surname>Yeh</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yoav</forename><surname>Artzi</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 55th Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 55th Annual Meeting of the Association for Computational Linguistics</meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2017" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b46">
+	<analytic>
+		<title level="a" type="main">Robobarista: Object part based transfer of manipulation trajectories from crowd-sourcing in 3d pointclouds</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jaeyong</forename><surname>Sung</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ashutosh</forename><surname>Seok Hyun Jin</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Saxena</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">International Symposium on Robotics Research</title>
+		<imprint>
+			<date type="published" when="2015" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b47">
+	<analytic>
+		<title level="a" type="main">Reinforcement learning: An introduction</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Richard</forename><forename type="middle">S</forename><surname>Sutton</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Andrew</forename><forename type="middle">G</forename><surname>Barto</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">IEEE Trans. Neural Networks</title>
+		<imprint>
+			<biblScope unit="volume">9</biblScope>
+			<biblScope unit="page" from="1054" to="1054" />
+			<date type="published" when="1998" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b48">
+	<analytic>
+		<title level="a" type="main">Policy gradient methods for reinforcement learning with function approximation</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Richard</forename><forename type="middle">S</forename><surname>Sutton</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">David</forename><forename type="middle">A</forename><surname>Mcallester</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">P</forename><surname>Satinder</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yishay</forename><surname>Singh</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Mansour</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Advances in Neural Information Processing Systems</title>
+		<imprint>
+			<date type="published" when="1999" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b49">
+	<analytic>
+		<title level="a" type="main">Understanding natural language commands for robotic navigation and mobile manipulation</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Stefanie</forename><surname>Tellex</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Thomas</forename><surname>Kollar</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Steven</forename><surname>Dickerson</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Matthew</forename><surname>Walter</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ashis</forename><forename type="middle">G</forename><surname>Banerjee</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Seth</forename><surname>Teller</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Nicholas</forename><surname>Roy</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the National Conference on Artificial Intelligence</title>
+		<meeting>the National Conference on Artificial Intelligence</meeting>
+		<imprint>
+			<date type="published" when="2011" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b50">
+	<analytic>
+		<title level="a" type="main">Learning to follow navigational directions</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Adam</forename><surname>Vogel</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Daniel</forename><surname>Jurafsky</surname></persName>
+		</author>
+		<ptr target="http://aclweb.org/anthology/P10-1083" />
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 48th Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 48th Annual Meeting of the Association for Computational Linguistics</meeting>
+		<imprint>
+			<date type="published" when="2010" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b51">
+	<analytic>
+		<title level="a" type="main">Instructions, intentions and expectations</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Bonnie</forename><surname>Webber</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Norman</forename><surname>Badler</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Barbara</forename><forename type="middle">Di</forename><surname>Eugenio</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Christopher</forename><surname>Geib</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Libby</forename><surname>Levison</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Michael</forename><surname>Moore</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Artificial Intelligence</title>
+		<imprint>
+			<biblScope unit="volume">73</biblScope>
+			<biblScope unit="issue">1</biblScope>
+			<biblScope unit="page" from="253" to="269" />
+			<date type="published" when="1995" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b52">
+	<analytic>
+		<title level="a" type="main">Principled methods for advising reinforcement learning agents</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Eric</forename><surname>Wiewiora</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">W</forename><surname>Garrison</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Charles</forename><surname>Cottrell</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Elkan</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the International Conference on Machine Learning</title>
+		<meeting>the International Conference on Machine Learning</meeting>
+		<imprint>
+			<date type="published" when="2003" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b53">
+	<analytic>
+		<title level="a" type="main">Simple statistical gradientfollowing algorithms for connectionist reinforcement learning</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ronald</forename><forename type="middle">J</forename><surname>Williams</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Machine Learning</title>
+		<imprint>
+			<biblScope unit="volume">8</biblScope>
+			<date type="published" when="1992" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b54">
+	<analytic>
+		<title level="a" type="main">Function optimization using connectionist reinforcement learning algorithms</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">J</forename><surname>Ronald</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jing</forename><surname>Williams</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Peng</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Connection Science</title>
+		<imprint>
+			<biblScope unit="volume">3</biblScope>
+			<biblScope unit="issue">3</biblScope>
+			<biblScope unit="page" from="241" to="268" />
+			<date type="published" when="1991" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b55">
+	<analytic>
+		<title level="a" type="main">Understanding natural language</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Terry</forename><surname>Winograd</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Cognitive Psychology</title>
+		<imprint>
+			<biblScope unit="volume">3</biblScope>
+			<biblScope unit="issue">1</biblScope>
+			<biblScope unit="page" from="1" to="191" />
+			<date type="published" when="1972" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b56">
+	<analytic>
+		<title level="a" type="main">Show, attend and tell: Neural image caption generation with visual attention</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kelvin</forename><surname>Xu</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jimmy</forename><surname>Ba</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jamie</forename><forename type="middle">Ryan</forename><surname>Kiros</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kyunghyun</forename><surname>Cho</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Aaron</forename><forename type="middle">C</forename><surname>Courville</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ruslan</forename><surname>Salakhutdinov</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Richard</forename><forename type="middle">S</forename><surname>Zemel</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yoshua</forename><surname>Bengio</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the International Conference on Machine Learning</title>
+		<meeting>the International Conference on Machine Learning</meeting>
+		<imprint>
+			<date type="published" when="2015" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b57">
+	<monogr>
+		<title level="m" type="main">Target-driven visual navigation in indoor scenes using deep reinforcement learning</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yuke</forename><surname>Zhu</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Roozbeh</forename><surname>Mottaghi</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Eric</forename><surname>Kolve</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Joseph</forename><forename type="middle">J</forename><surname>Lim</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Abhinav</forename><surname>Gupta</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Li</forename><surname>Fei-Fei</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ali</forename><surname>Farhadi</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2017" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+				</listBibl>
+			</div>
+		</back>
+	</text>
+</TEI>

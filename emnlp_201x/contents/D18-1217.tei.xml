@@ -1,0 +1,1622 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<TEI xmlns="http://www.tei-c.org/ns/1.0" 
+xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+xsi:schemaLocation="http://www.tei-c.org/ns/1.0 /home/ana/installs/grobid/grobid-0.5.1/grobid-home/schemas/xsd/Grobid.xsd"
+ xmlns:xlink="http://www.w3.org/1999/xlink">
+	<teiHeader xml:lang="en">
+		<encodingDesc>
+			<appInfo>
+				<application version="0.5.1-SNAPSHOT" ident="GROBID" when="2019-04-18T11:22+0000">
+					<ref target="https://github.com/kermitt2/grobid">GROBID - A machine learning software for extracting information from scholarly documents</ref>
+				</application>
+			</appInfo>
+		</encodingDesc>
+		<fileDesc>
+			<titleStmt>
+				<title level="a" type="main">Semi-Supervised Sequence Modeling with Cross-View Training</title>
+			</titleStmt>
+			<publicationStmt>
+				<publisher>Association for Computational Linguistics</publisher>
+				<availability status="unknown"><p>Copyright Association for Computational Linguistics</p>
+				</availability>
+				<date>October 31-November 4, 2018. 2018</date>
+			</publicationStmt>
+			<sourceDesc>
+				<biblStruct>
+					<analytic>
+						<author role="corresp">
+							<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kevin</forename><surname>Clark</surname></persName>
+							<email>kevclark@cs.stanford.edu, thangluong@google.com, manning@cs.stanford.edu, qvl@google.com</email>
+							<affiliation key="aff0">
+								<orgName type="department">Computer Science Department</orgName>
+								<orgName type="institution">Stanford University</orgName>
+							</affiliation>
+						</author>
+						<author>
+							<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Minh-Thang</forename><surname>Luong</surname></persName>
+							<affiliation key="aff1">
+								<orgName type="department">Google Brain</orgName>
+							</affiliation>
+						</author>
+						<author>
+							<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Christopher</forename><forename type="middle">D</forename><surname>Manning</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="department">Computer Science Department</orgName>
+								<orgName type="institution">Stanford University</orgName>
+							</affiliation>
+						</author>
+						<author>
+							<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Quoc</forename><forename type="middle">V</forename><surname>Le</surname></persName>
+							<affiliation key="aff1">
+								<orgName type="department">Google Brain</orgName>
+							</affiliation>
+						</author>
+						<title level="a" type="main">Semi-Supervised Sequence Modeling with Cross-View Training</title>
+					</analytic>
+					<monogr>
+						<title level="m">Proceedings of the 2018 Conference on Empirical Methods in Natural Language Processing</title>
+						<meeting>the 2018 Conference on Empirical Methods in Natural Language Processing <address><addrLine>Brussels, Belgium</addrLine></address>
+						</meeting>
+						<imprint>
+							<publisher>Association for Computational Linguistics</publisher>
+							<biblScope unit="page" from="1914" to="1925"/>
+							<date type="published">October 31-November 4, 2018. 2018</date>
+						</imprint>
+					</monogr>
+					<note>1914</note>
+				</biblStruct>
+			</sourceDesc>
+		</fileDesc>
+		<profileDesc>
+			<abstract>
+				<p>Unsupervised representation learning algorithms such as word2vec and ELMo improve the accuracy of many supervised NLP models , mainly because they can take advantage of large amounts of unlabeled text. However, the supervised models only learn from task-specific labeled data during the main training phase. We therefore propose Cross-View Training (CVT), a semi-supervised learning algorithm that improves the representations of a Bi-LSTM sentence encoder using a mix of labeled and unlabeled data. On labeled examples , standard supervised learning is used. On unlabeled examples, CVT teaches auxiliary prediction modules that see restricted views of the input (e.g., only part of a sentence) to match the predictions of the full model seeing the whole input. Since the auxiliary modules and the full model share intermediate representations, this in turn improves the full model. Moreover, we show that CVT is particularly effective when combined with multi-task learning. We evaluate CVT on five sequence tagging tasks, machine translation, and dependency parsing, achieving state-of-the-art results. 1</p>
+			</abstract>
+		</profileDesc>
+	</teiHeader>
+	<text xml:lang="en">
+		<body>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="1">Introduction</head><p>Deep learning models work best when trained on large amounts of labeled data. However, acquir- ing labels is costly, motivating the need for ef- fective semi-supervised learning techniques that leverage unlabeled examples. A widely successful semi-supervised learning strategy for neural NLP is pre-training word vectors ( <ref type="bibr" target="#b38">Mikolov et al., 2013</ref>). More recent work trains a Bi-LSTM sentence en- coder to do language modeling and then incorpo- rates its context-sensitive representations into su- pervised models <ref type="bibr" target="#b10">(Dai and Le, 2015</ref>; Peters et al., <ref type="bibr">1</ref> Code will be made available at https: //github.com/tensorflow/models/tree/ master/research/cvt_text 2018). Such pre-training methods perform unsu- pervised representation learning on a large corpus of unlabeled data followed by supervised training.</p><p>A key disadvantage of pre-training is that the first representation learning phase does not take advantage of labeled data -the model attempts to learn generally effective representations rather than ones that are targeted towards a particular task. Older semi-supervised learning algorithms like self-training do not suffer from this prob- lem because they continually learn about a task on a mix of labeled and unlabeled data. Self- training has historically been effective for NLP <ref type="bibr" target="#b64">(Yarowsky, 1995;</ref><ref type="bibr" target="#b37">McClosky et al., 2006</ref>), but is less commonly used with neural models. This pa- per presents Cross-View Training (CVT), a new self-training algorithm that works well for neural sequence models.</p><p>In self-training, the model learns as normal on labeled examples. On unlabeled examples, the model acts as both a teacher that makes predictions about the examples and a student that is trained on those predictions. Although this process has shown value for some tasks, it is somewhat tau- tological: the model already produces the predic- tions it is being trained on. Recent research on computer vision addresses this by adding noise to the student's input, training the model so it is ro- bust to input perturbations ( <ref type="bibr" target="#b51">Sajjadi et al., 2016;</ref><ref type="bibr" target="#b61">Wei et al., 2018)</ref>. However, applying noise is dif- ficult for discrete inputs like text.</p><p>As a solution, we take inspiration from multi- view learning <ref type="bibr" target="#b2">(Blum and Mitchell, 1998;</ref><ref type="bibr" target="#b63">Xu et al., 2013</ref>) and train the model to produce consistent predictions across different views of the input. In- stead of only training the full model as a student, CVT adds auxiliary prediction modules -neu- ral networks that transform vector representations into predictions -to the model and also trains them as students. The input to each student prediction module is a subset of the model's intermediate rep-resentations corresponding to a restricted view of the input example. For example, one auxiliary pre- diction module for sequence tagging is attached to only the "forward" LSTM in the model's first Bi- LSTM layer, so it makes predictions without see- ing any tokens to the right of the current one.</p><p>CVT works by improving the model's represen- tation learning. The auxiliary prediction modules can learn from the full model's predictions be- cause the full model has a better, unrestricted view of the input. As the auxiliary modules learn to make accurate predictions despite their restricted views of the input, they improve the quality of the representations they are built on top of. This in turn improves the full model, which uses the same shared representations. In short, our method com- bines the idea of representation learning on unla- beled data with classic self-training.</p><p>CVT can be applied to a variety of tasks and neural architectures, but we focus on sequence modeling tasks where the prediction modules are attached to a shared Bi-LSTM encoder. We propose auxiliary prediction modules that work well for sequence taggers, graph-based depen- dency parsers, and sequence-to-sequence mod- els. We evaluate our approach on English de- pendency parsing, combinatory categorial gram- mar supertagging, named entity recognition, part- of-speech tagging, and text chunking, as well as English to Vietnamese machine translation. CVT improves over previously published results on all these tasks. Furthermore, CVT can easily and ef- fectively be combined with multi-task learning: we just add additional prediction modules for the different tasks on top of the shared Bi-LSTM en- coder. Training a unified model to jointly perform all of the tasks except machine translation im- proves results (outperforming a multi-task ELMo model) while decreasing the total training time.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2">Cross-View Training</head><p>We first present Cross-View Training and describe how it can be combined effectively with multi-task learning. See <ref type="figure">Figure 1</ref> for an overview of the train- ing method.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.1">Method</head><formula xml:id="formula_0">Let D l = {(x 1 , y 1 ), (x 2 , y 2 ), ..., (x N , y N )} repre- sent a labeled dataset and D ul = {x 1 , x 2 , ..., x M } represent an unlabeled dataset We use p θ (y|x i )</formula><p>to denote the output distribution over classes pro-  <ref type="figure">Figure 1</ref>: An overview of Cross-View Training. The model is trained with standard supervised learning on labeled examples. On unlabeled examples, auxiliary prediction modules with different views of the input are trained to agree with the primary prediction mod- ule. This particular example shows CVT applied to named entity recognition. From the labeled example, the model can learn that "Washington" usually refers to a location. Then, on unlabeled data, auxiliary pre- diction modules are trained to reach the same predic- tion without seeing some of the input. In doing so, they improve the contextual representations produced by the model, for example, learning that "traveled to" is usu- ally followed by a location. duced by the model with parameters θ on input x i . During CVT, the model alternates learning on a minibatch of labeled examples and learning on a minibatch of unlabeled examples. For labeled ex- amples, CVT uses standard cross-entropy loss:</p><formula xml:id="formula_1">L sup (θ) = 1 |D l | x i ,y i ∈D l CE(y i , p θ (y|x i ))</formula><p>CVT adds k auxiliary prediction modules to the model, which are used when learning on unlabeled examples. A prediction module is usually a small neural network (e.g., a hidden layer followed by a softmax layer). Each one takes as input an in- termediate representation h j (x i ) produced by the model (e.g., the outputs of one of the LSTMs in a Bi-LSTM model). It outputs a distribution over la- bels p j θ (y|x i ). Each h j is chosen such that it only uses a part of the input x i ; the particular choice can depend on the task and model architecture. We propose variants for several tasks in Section 3. The auxiliary prediction modules are only used during training; the test-time prediction come from the primary prediction module that produces p θ .</p><p>On an unlabeled example, the model first pro- duces soft targets p θ (y|x i ) by performing infer- ence. CVT trains the auxiliary prediction modules to match the primary prediction module on the un- labeled data by minimizing</p><formula xml:id="formula_2">L CVT (θ) = 1 |D ul | x i ∈D ul k j=1 D(p θ (y|x i ), p j θ (y|x i ))</formula><p>where D is a distance function between probabil- ity distributions (we use KL divergence). We hold the primary module's prediction p θ (y|x i ) fixed during training (i.e., we do not back-propagate through it) so the auxiliary modules learn to im- itate the primary one, but not vice versa. CVT works by enhancing the model's representation learning. As the auxiliary modules train, the rep- resentations they take as input improve so they are useful for making predictions even when some of the model's inputs are not available. This in turn improves the primary prediction module, which is built on top of the same shared representations. We combine the supervised and CVT losses into the total loss, L = L sup + L CVT , and minimize it with stochastic gradient descent. In particular, we alternate minimizing L sup over a minibatch of la- beled examples and minimizing L CVT over a mini- batch of unlabeled examples.</p><p>For most neural networks, adding a few ad- ditional prediction modules is computationally cheap compared to the portion of the model build- ing up representations (such as an RNN or CNN). Therefore our method contributes little overhead to training time over other self-training approaches for most tasks. CVT does not change inference time or the number of parameters in the fully- trained model because the auxiliary prediction modules are only used during training.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.2">Combining CVT with Multi-Task Learning</head><p>CVT can easily be combined with multi-task learning by adding additional prediction modules for the other tasks on top of the shared Bi-LSTM encoder. During supervised learning, we ran- domly select a task and then update L sup using a minibatch of labeled data for that task. When learning on the unlabeled data, we optimize L CVT jointly across all tasks at once, first running infer- ence with all the primary prediction modules and then learning from the predictions with all the aux- iliary prediction modules. As before, the model alternates training on minibatches of labeled and unlabeled examples. Examples labeled across many tasks are use- ful for multi-task systems to learn from, but most datasets are only labeled with one task. A benefit of multi-task CVT is that the model creates (ar- tificial) all-tasks-labeled examples from unlabeled data. This significantly improves the model's data efficiency and training time. Since running pre- diction modules is computationally cheap, com- puting L CVT is not much slower for many tasks than it is for a single one. However, we find the all-tasks-labeled examples substantially speed up model convergence. For example, our model trained on six tasks takes about three times as long to converge as the average model trained on one task, a 2x decrease in total training time.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3">Cross-View Training Models</head><p>CVT relies on auxiliary prediction modules that have restricted views of the input. In this section, we describe specific constructions of the auxiliary prediction modules that are effective for sequence tagging, dependency parsing, and sequence-to- sequence learning.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.1">Bi-LSTM Sentence Encoder</head><p>All of our models use a two-layer CNN-BiLSTM ( <ref type="bibr" target="#b6">Chiu and Nichols, 2016;</ref><ref type="bibr" target="#b33">Ma and Hovy, 2016)</ref> sentence encoder. It takes as input a sequence of words</p><formula xml:id="formula_3">x i = [x 1 i , x 2 i , ..., x T i ].</formula><p>First, each word is represented as the sum of an embedding vector and the output of a character-level Convolutional Neural Network, resulting in a sequence of vectors</p><formula xml:id="formula_4">v = [v 1 , v 2 , ..., v T ].</formula><p>The encoder applies a two- layer bidirectional LSTM ( <ref type="bibr" target="#b13">Graves and Schmidhuber, 2005</ref>) to these representations. The first layer runs a Long Short-Term Memory unit (Hochre- iter and <ref type="bibr" target="#b17">Schmidhuber, 1997</ref>) in the forward di- rection (taking v t as input at each step t) and the backward direction (taking v T −t+1 at each step) to produce vector sequences</p><formula xml:id="formula_5">[ − → h 1 1 , − → h 2 1 , ... − → h T 1 ] and [ ← − h 1 1 , ← − h 2 1 , ... ← − h T 1 ].</formula><p>The output of the Bi-LSTM is the concatenation of these vectors:</p><formula xml:id="formula_6">h 1 = [ − → h 1 1 ⊕ ← − h 1 1 , ..., − → h T 1 ⊕ ← − h T 1 ].</formula><p>The second Bi-LSTM layer works the same, producing outputs h 2 , except it takes h 1 as input instead of v.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.2">CVT for Sequence Tagging</head><p>In sequence tagging, each token x t i has a corre- sponding label y t i . The primary prediction module for sequence tagging produces a probability distri- bution over classes for the t th label using a one- hidden-layer neural network applied to the corre- sponding encoder outputs:</p><formula xml:id="formula_7">p(y t |x i ) = NN(h t 1 ⊕ h t 2 ) = softmax(U · ReLU(W (h t 1 ⊕ h t 2 )) + b)</formula><p>The auxiliary prediction modules take</p><formula xml:id="formula_8">− → h 1 (x i ) and ← − h 1 (x i )</formula><p>, the outputs of the forward and back- ward LSTMs in the first 2 Bi-LSTM layer, as in- puts. We add the following four auxiliary predic- tion modules to the model (see <ref type="figure" target="#fig_0">Figure 2</ref>):</p><formula xml:id="formula_9">p fwd θ (y t |x i ) = NN fwd ( − → h t 1 (x i )) p bwd θ (y t |x i ) = NN bwd ( ← − h t 1 (x i )) p future θ (y t |x i ) = NN future ( − → h t−1 1 (x i )) p past θ (y t |x i ) = NN past ( ← − h t+1 1 (x i ))</formula><p>The "forward" module makes each prediction without seeing the right context of the current to- ken. The "future" module makes each predic- tion without the right context or the current to- ken itself. Therefore it works like a neural lan- guage model that, instead of predicting which to- ken comes next in the sequence, predicts which class of token comes next. The "backward" and "past" modules are analogous.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.3">CVT for Dependency Parsing</head><p>In a dependency parse, words in a sentence are treated as nodes in a graph. Typed directed edges connect the words, forming a tree struc- ture describing the syntactic structure of the sen- tence. In particular, each word x t i in a sentence</p><formula xml:id="formula_10">x i = x 1 i , ..</formula><p>., x T i receives exactly one in-going edge (u, t, r) going from word x u i (called the "head") to it (the "dependent") of type r (the "relation"). We use a graph-based dependency parser similar to the one from <ref type="bibr" target="#b12">Dozat and Manning (2017)</ref>. This treats dependency parsing as a classification task where the goal is to predict which in-going edge y t i = (u, t, r) connects to each word x t i . First, the representations produced by the en- coder for the candidate head and dependent are <ref type="bibr">2</ref> Modules taking inputs from the second Bi-LSTM layer would not have restricted views because information about the whole sentence gets propagated through the first layer. passed through separate hidden layers. A bilin- ear classifier applied to these representations pro- duces a score for each candidate edge. Lastly, these scores are passed through a softmax layer to produce probabilities. Mathematically, the proba- bility of an edge is given as:</p><formula xml:id="formula_11">x 1 x 2 x 3 Embed Backward LSTM Forward LSTM p θ Predict p fwd θ p future θ p bwd θ p past θ Auxiliary Prediction Modules</formula><formula xml:id="formula_12">p θ ((u, t, r)|x i ) ∝ e s(h u 1 (x i )⊕h u 2 (x i ),h t 1 (x i )⊕h t 2 (x i ),r)</formula><p>where s is the scoring function:</p><formula xml:id="formula_13">s(z 1 , z 2 , r) = ReLU(W head z 1 + b head )(W r + W ) ReLU(W dep z 2 + b dep )</formula><p>The bilinear classifier uses a weight matrix W r specific to the candidate relation as well as a weight matrix W shared across all relations. Note that unlike in most prior work, our dependency parser only takes words as inputs, not words and part-of-speech tags. We add four auxiliary prediction modules to our model for cross-view training:</p><formula xml:id="formula_14">p fwd-fwd θ ((u, t, r)|x i ) ∝ e s fwd-fwd ( − → h u 1 (x i ), − → h t 1 (x i ),r) p fwd-bwd θ ((u, t, r)|x i ) ∝ e s fwd-bwd ( − → h u 1 (x i ), ← − h t 1 (x i ),r) p bwd-fwd θ ((u, t, r)|x i ) ∝ e s bwd-fwd ( ← − h u 1 (x i ), − → h t 1 (x i ),r) p bwd-bwd θ ((u, t, r)|x i ) ∝ e s bwd-bwd ( ← − h u 1 (x i ), ← − h t 1 (x i ),r)</formula><p>Each one has some missing context (not seeing ei- ther the preceding or following words) for the can- didate head and candidate dependent.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.4">CVT for Sequence-to-Sequence Learning</head><p>We use an encoder-decoder sequence-to-sequence model with attention <ref type="bibr" target="#b57">(Sutskever et al., 2014;</ref><ref type="bibr" target="#b1">Bahdanau et al., 2015)</ref>. Each example consists of an input (source) sequence x i = x 1 i , ..., x T i and out- put (target) sequence y i = y 1 i , ..., y</p><note type="other">K i . The en- coder's representations are passed into an LSTM decoder using a bilinear attention mechanism (Lu- ong et al., 2015). In particular, at each time step t the decoder computes an attention distribu- tion over source sequence hidden states as α j ∝ e h j Wα ¯ h t where ¯ h t is the decoder's current hid- den state. The source hidden states weighted by the attention distribution form a context vector: c t = j α j h j . Next, the context vector and current hidden state are combined into an atten- tion vector a t = tanh(W a [c t , h t ]). Lastly, a soft- max layer predicts the next token in the output se- quence: p(y t i |y &lt;t i , x i</note><p>) = softmax(W s a t ). We add two auxiliary decoders when apply- ing CVT. The auxiliary decoders share embed- ding and LSTM parameters with the primary de- coder, but have different parameters for the atten- tion mechanisms and softmax layers. For the first one, we restrict its view of the input by applying attention dropout, randomly zeroing out a fraction of its attention weights. The second one is trained to predict the next word in the target sequence rather than the current one: p future θ (y t i |y &lt;t i , x i ) = softmax(W future s a future t−1 ). Since there is no target se- quence for unlabeled examples, we cannot apply teacher forcing to get an output distribution over the vocabulary from the primary decoder at each time step. Instead, we produce hard targets for the auxiliary modules by running the primary decoder with beam search on the input sequence. This idea has previously been applied to sequence-level knowledge distillation by <ref type="bibr" target="#b23">Kim and Rush (2016)</ref>.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4">Experiments</head><p>We compare Cross-View Training against several strong baselines on seven tasks:</p><p>Combinatory Categorial Grammar (CCG) Su- pertagging: We use data from CCGBank <ref type="bibr" target="#b18">(Hockenmaier and Steedman, 2007)</ref>.</p><p>Text Chunking: We use the CoNLL-2000 data <ref type="bibr" target="#b59">(Tjong Kim Sang and Buchholz, 2000</ref>).</p><p>Named Entity Recognition (NER): We use the CoNLL-2003 data <ref type="bibr" target="#b60">(Tjong Kim Sang and De Meulder, 2003</ref>).</p><p>Fine-Grained NER (FGN): We use the OntoNotes ( <ref type="bibr" target="#b19">Hovy et al., 2006</ref>) dataset.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Part-of-Speech (POS) Tagging: We use the Wall Street Journal portion of the Penn Treebank (Mar- cus et al., 1993).</head><p>Dependency Parsing: We use the Penn Treebank converted to Stanford Dependencies version 3.3.0.</p><p>Machine Translation: We use the English- Vietnamese translation dataset from IWSLT 2015 ( <ref type="bibr" target="#b4">Cettolo et al., 2015)</ref>. We report (tokenized) BLEU scores on the tst2013 test set.</p><p>We use the 1 Billion Word Language Model Benchmark ( <ref type="bibr" target="#b5">Chelba et al., 2014</ref>) as a pool of un- labeled sentences for semi-supervised learning.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.1">Model Details and Baselines</head><p>We apply dropout during training, but not when running the primary prediction module to produce soft targets on unlabeled examples. In addition to the auxiliary prediction modules listed in Sec- tion 3, we find it slightly improves results to add another one that sees the whole input rather than a subset (but unlike the primary prediction mod- ule, does have dropout applied to its representa- tions). Unless indicated otherwise, our models have LSTMs with 1024-sized hidden states and 512-sized projection layers. See the supplemen- tary material for full training details and hyperpa- rameters. We compare CVT with the following other semi-supervised learning algorithms:</p><p>Word Dropout. In this method, we only train the primary prediction module. When acting as a teacher it is run as normal, but when acting as a student, we randomly replace some of the input words with a REMOVED token. This is similar to CVT in that it exposes the model to a restricted view of the input. However, it is less data effi- cient. By carefully designing the auxiliary pre- diction modules, it is possible to train the auxil- iary prediction modules to match the primary one across many different views of the input a once, rather than just one view at a time.</p><p>Virtual Adversarial Training (VAT). VAT (Miy- ato et al., 2016) works like word dropout, but adds noise to the word embeddings of the stu- dent instead of dropping out words. Notably, the noise is chosen adversarially so it most changes the model's prediction. This method was applied successfully to semi-supervised text classification  by <ref type="bibr" target="#b39">Miyato et al. (2017)</ref>.</p><p>ELMo. ELMo incorporates the representations from a large separately-trained language model into a task-specific model. Our implementaiton follows <ref type="bibr" target="#b44">Peters et al. (2018)</ref>. When combining ELMo with multi-task learning, we allow each task to learn its own weights for the ELMo em- beddings going into each prediction module. We found applying dropout to the ELMo embeddings was crucial for achieving good performance.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.2">Results</head><p>Results are shown in <ref type="table">Table 1</ref>. CVT on its own out- performs or is comparable to the best previously published results on all tasks. <ref type="figure">Figure 3</ref> shows an example win for CVT over supervised learning.</p><p>Of the prior results listed in <ref type="table">Table 1</ref>, only TagLM and ELMo are semi-supervised. These methods first train an enormous language model on unlabeled data and incorporate the representa- tions produced by the language model into a su- pervised classifier. Our base models use 1024 hid- den units in their LSTMs (compared to 4096 in ELMo), require fewer training steps (around one pass over the billion-word benchmark rather than An NER example that CVT classifies cor- rectly but supervised learning does not. "Warner" only occurs as a last name in the train set, so the supervised model classifies "Warner Bros" as a person. The CVT model also mistakenly classifies "Warner Bros" as a person to start with, but as it sees more of the unlabeled data (in which "Warner" occurs thousands of times) it learns that "Warner Bros" is an organization. many passes), and do not require a pipelined train- ing procedure. Therefore, although they perform on par with ELMo, they are faster and simpler to train. Increasing the size of our CVT+Multi- task model so it has 4096 units in its LSTMs like ELMo improves results further so they are signifi- cantly better than the ELMo+Multi-task ones. We suspect there could be further gains from combin- ing our method with language model pre-training, which we leave for future work.</p><p>CVT + Multi-Task. We train a single shared- encoder CVT model to perform all of the tasks except machine translation (as it is quite differ- ent and requires more training time than the other ones). Multi-task learning improves results on all of the tasks except fine-grained NER, some- times by large margins. Prior work on many-task NLP such as <ref type="bibr" target="#b14">Hashimoto et al. (2017)</ref> uses compli- cated architectures and training algorithms. Our result shows that simple parameter sharing can be enough for effective many-task learning when the model is big and trained on a large amount of data. Interestingly, multi-task learning works better in conjunction with CVT than with ELMo. We hypothesize that the ELMo models quickly fit to the data primarily using the ELMo vectors, which perhaps hinders the model from learning effective representations that transfer across tasks. We also believe CVT alleviates the danger of the model "forgetting" one task while training on the other ones, a well-known problem in many-task learn- ing ( <ref type="bibr">Kirkpatrick et al., 2017</ref>). During multi-task CVT, the model makes predictions about unla- beled examples across all tasks, creating (artifi- cial) all-tasks-labeled examples, so the model does not only see one task at a time. In fact, multi-task learning plus self training is similar to the Learn- ing without Forgetting algorithm ( <ref type="bibr" target="#b28">Li and Hoiem, 2016)</ref>, which trains the model to keep its predic- tions on an old task unchanged when learning a new task. To test the value of all-tasks-labeled ex- amples, we trained a multi-task CVT model that only computes L CVT on one task at a time (chosen randomly for each unlabeled minibatch) instead of for all tasks in parallel. The one-at-a-time model performs substantially worse (see <ref type="table">Table 2</ref>).  <ref type="table">Table 2</ref>: Dev set performance of multi-task CVT with and without producing all-tasks-labeled examples.</p><p>Model Generalization. In order to evaluate how our models generalize to the dev set from the train set, we plot the dev vs. train accuracy for our dif- ferent methods as they learn (see <ref type="figure" target="#fig_4">Figure 4)</ref>. Both CVT and multi-task learning improve model gen- eralization: for the same train accuracy, the mod- els get better dev accuracy than purely supervised learning. Interestingly, CVT continues to improve  in dev set accuracy while close to 100% train ac- curacy for CCG, Chunking, and NER, perhaps be- cause the model is still learning from unlabeled data even when it has completely fit to the train set. We also show results for a smaller multi-task + CVT model. Although it generalizes at least as well as the larger one, it halts making progress on the train set earlier. This suggests it is important to use sufficiently large neural networks for multi- task learning: otherwise the model does not have the capacity to fit to all the training data.</p><p>Auxiliary Prediction Module Ablation. We briefly explore which auxiliary prediction modules are more important for the sequence tagging tasks in <ref type="table" target="#tab_3">Table 3</ref>. We find that both kinds of auxiliary prediction modules improve performance, but that the future and past modules improve results more than the forward and backward ones, perhaps be- cause they see a more restricted and challenging view of the input.   cess to. Unsurprisingly, the improvement of CVT over purely supervised learning grows larger as the amount of labeled data decreases (see <ref type="figure" target="#fig_6">Figure 5</ref>, left). Using only 25% of the labeled data, our ap- proach already performs as well or better than a fully supervised model using 100% of the training data, demonstrating that CVT is particularly use- ful on small datasets.</p><p>Training Larger Models. Most sequence taggers and dependency parsers in prior work use small LSTMs (hidden state sizes of around 300) because larger models yield little to no gains in perfor- mance <ref type="bibr" target="#b48">(Reimers and Gurevych, 2017)</ref>. We found our own supervised approaches also do not ben- efit greatly from increasing the model size. In contrast, when using CVT accuracy scales better with model size (see <ref type="figure" target="#fig_6">Figure 5</ref>, right). This finding suggests the appropriate semi-supervised learning methods may enable the development of larger, more sophisticated models for NLP tasks with lim- ited amounts of labeled data.</p><p>Generalizable Representations. Lastly, we ex- plore training the CVT+multi-task model on five tasks, freezing the encoder, and then only training a prediction module on the sixth task. This tests whether the encoder's representations generalize to a new task not seen during its training. Only training the prediction module is very fast because (1) the encoder (which is by far the slowest part of the model) has to be run over each example only once and (2) we do not back-propagate into the encoder. Results are shown in  <ref type="table" target="#tab_4">Table 4</ref>: Comparison of single-task models on the dev sets. "CVT-MT frozen" means we pretrain a CVT + multi-task model on five tasks, and then train only the prediction module for the sixth. "ELMo frozen" means we train prediction modules (but no LSTMs) on top of ELMo embeddings.</p><p>outperforming ELMo embeddings and sometimes even a vanilla supervised model, showing the multi-task model is building up effective repre- sentations for language. In particular, the repre- sentations could be used like skip-thought vectors ( <ref type="bibr" target="#b25">Kiros et al., 2015)</ref> to quickly train models on new tasks without slow representation learning.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5">Related Work</head><p>Unsupervised Representation Learning. Early approaches to deep semi-supervised learning pre- train neural models on unlabeled data, which has been successful for applications in computer vi- sion ( <ref type="bibr" target="#b22">Jarrett et al., 2009;</ref><ref type="bibr" target="#b27">LeCun et al., 2010)</ref> and NLP. Particularly noteworthy for NLP are al- gorithms for learning effective word embeddings <ref type="bibr" target="#b8">(Collobert et al., 2011;</ref><ref type="bibr" target="#b38">Mikolov et al., 2013;</ref><ref type="bibr" target="#b42">Pennington et al., 2014</ref>) and language model pretrain- ing ( <ref type="bibr" target="#b10">Dai and Le, 2015;</ref><ref type="bibr" target="#b46">Ramachandran et al., 2017;</ref><ref type="bibr" target="#b44">Peters et al., 2018;</ref><ref type="bibr" target="#b20">Howard and Ruder, 2018;</ref><ref type="bibr" target="#b45">Radford et al., 2018)</ref>. Pre-training on other tasks such as machine translation has also been stud- ied ( <ref type="bibr" target="#b36">McCann et al., 2017</ref>). Other approaches train "thought vectors" representing sentences through unsupervised ( <ref type="bibr" target="#b25">Kiros et al., 2015;</ref><ref type="bibr" target="#b15">Hill et al., 2016)</ref> or supervised ( <ref type="bibr" target="#b9">Conneau et al., 2017</ref>) learning.</p><p>Self-Training. One of the earliest approaches to semi-supervised learning is self-training <ref type="bibr" target="#b52">(Scudder, 1965)</ref>, which has been successfully applied to NLP tasks such as word-sense disambiguation <ref type="bibr" target="#b64">(Yarowsky, 1995)</ref> and parsing ( <ref type="bibr" target="#b37">McClosky et al., 2006</ref>). In each round of training, the classifier, acting as a "teacher," labels some of the unlabeled data and adds it to the training set. Then, acting as a "student," it is retrained on the new training set. Many recent approaches (including the consisten- tency regularization methods discussed below and our own method) train the student with soft tar- gets from the teacher's output distribution rather than a hard label, making the procedure more akin to knowledge distillation ( <ref type="bibr" target="#b16">Hinton et al., 2015)</ref>. It is also possible to use multiple models or predic- tion modules for the teacher, such as in tri-training ( <ref type="bibr" target="#b66">Zhou and Li, 2005;</ref><ref type="bibr" target="#b50">Ruder and Plank, 2018)</ref>.</p><p>Consistency Regularization. Recent works add noise (e.g., drawn from a Gaussian distribution) or apply stochastic transformations (e.g., horizon- tally flipping an image) to the student's inputs. This trains the model to give consistent predictions to nearby data points, encouraging distributional smoothness in the model. Consistency regular- ization has been very successful for computer vi- sion applications ( <ref type="bibr" target="#b0">Bachman et al., 2014;</ref><ref type="bibr" target="#b26">Laine and Aila, 2017;</ref><ref type="bibr" target="#b58">Tarvainen and Valpola, 2017)</ref>. How- ever, stochastic input alterations are more difficult to apply to discrete data like text, making consis- tency regularization less used for natural language processing. One solution is to add noise to the model's word embeddings ( <ref type="bibr" target="#b39">Miyato et al., 2017)</ref>; we compare against this approach in our experi- ments. CVT is easily applicable to text because it does not require changing the student's inputs.</p><p>Multi-View Learning. Multi-view learning on data where features can be separated into distinct subsets has been well studied ( <ref type="bibr" target="#b63">Xu et al., 2013)</ref>. Particularly relevant are co-training <ref type="bibr" target="#b2">(Blum and Mitchell, 1998</ref>) and co-regularization ( <ref type="bibr" target="#b53">Sindhwani and Belkin, 2005</ref>), which trains two models with disjoint views of the input. On unlabeled data, each one acts as a "teacher" for the other model. In contrast to these methods, our approach trains a single unified model where auxiliary prediction modules see different, but not necessarily indepen- dent views of the input.</p><p>Self Supervision. Self-supervised learning meth- ods train auxiliary prediction modules on tasks where performance can be measured without human-provided labels. Recent work has jointly trained image classifiers with tasks like relative position and colorization <ref type="bibr" target="#b11">(Doersch and Zisserman, 2017)</ref>, sequence taggers with language modeling <ref type="bibr" target="#b47">(Rei, 2017)</ref>, and reinforcement learning agents with predicting changes in the environment <ref type="bibr" target="#b21">(Jaderberg et al., 2017)</ref>. Unlike these approaches, our auxiliary losses are based on self-labeling, not la- bels deterministically constructed from the input.</p><p>Multi-Task Learning. There has been extensive prior work on multi-task learning <ref type="bibr" target="#b3">(Caruana, 1997;</ref><ref type="bibr" target="#b49">Ruder, 2017)</ref>. For NLP, most work has focused on a small number of closely related tasks ( <ref type="bibr" target="#b30">Luong et al., 2016;</ref><ref type="bibr" target="#b65">Zhang and Weiss, 2016;</ref><ref type="bibr" target="#b54">Søgaard and Goldberg, 2016;</ref><ref type="bibr" target="#b41">Peng et al., 2017</ref>). Many- task systems are less commonly developed. Col- lobert and Weston <ref type="formula">(2008)</ref>  </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6">Conclusion</head><p>We propose Cross-View Training, a new method for semi-supervised learning. Our approach al- lows models to effectively leverage their own pre- dictions on unlabeled data, training them to pro- duce effective representations that yield accurate predictions even when some of the input is not available. We achieve excellent results across seven NLP tasks, especially when CVT is com- bined with multi-task learning.</p></div><figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_0"><head>Figure 2 :</head><label>2</label><figDesc>Figure 2: Auxiliary prediction modules for sequence tagging models. Each one sees a restricted view of the input. For example, the "forward" prediction module does not see any context to the right of the current token when predicting that token's label. For simplicity, we only show a one layer Bi-LSTM encoder and only show the model's predictions for a single time step.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_1"><head>Method</head><label></label><figDesc></figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_2"><head>p</head><label></label><figDesc>Figure 3: An NER example that CVT classifies correctly but supervised learning does not. "Warner" only occurs as a last name in the train set, so the supervised model classifies "Warner Bros" as a person. The CVT model also mistakenly classifies "Warner Bros" as a person to start with, but as it sees more of the unlabeled data (in which "Warner" occurs thousands of times) it learns that "Warner Bros" is an organization.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_4"><head>Figure 4 :</head><label>4</label><figDesc>Figure 4: Dev set vs. Train set accuracy for various methods. The "small" model has 1/4 the LSTM hidden state size of the other ones (256 instead of 1024).</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_6"><head>Figure 5 :</head><label>5</label><figDesc>Figure 5: Left: Dev set performance vs. percent of the training set provided to the model. Right: Dev set performance vs. model size. The x axis shows the number of hidden units in the LSTM layers; the projection layers and other hidden layers in the network are half that size. Points correspond to the mean of three runs.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_7"><head></head><label></label><figDesc>propose a many-task system sharing word embeddings between the tasks, Hashimoto et al. (2017) train a many-task model where the tasks are arranged hierarchically according to their linguistic level, and Subrama- nian et al. (2018) train a shared-encoder many-task model for the purpose of learning better sentence representations for use in downstream tasks, not for improving results on the original tasks.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_1" validated="false"><head></head><label></label><figDesc>05 for the other tasks. See the supplementary materials for results with them included. The +Large model has four times as many hidden units as the others, making it similar in size to the models when ELMo is included. * denotes semi-supervised and † denotes multi-task.</figDesc><table>CCG Chunk NER FGN POS Dep. Parse Translate 
+Acc. F1 
+F1 
+F1 
+Acc. UAS LAS BLEU 
+
+Shortcut LSTM (Wu et al., 2017) 
+95.1 
+97.53 
+ID-CNN-CRF (Strubell et al., 2017) 
+90.7 86.8 
+JMT  † (Hashimoto et al., 2017) 
+95.8 
+97.55 94.7 92.9 
+TagLM* (Peters et al., 2017) 
+96.4 
+91.9 
+ELMo* (Peters et al., 2018) 
+92.2 
+
+Biaffine (Dozat and Manning, 2017) 
+95.7 94.1 
+Stack Pointer (Ma et al., 2018) 
+95.9 94.2 
+
+Stanford (Luong and Manning, 2015) 
+23.3 
+Google (Luong et al., 2017) 
+26.1 
+
+Supervised 
+94.9 95.1 
+91.2 87.5 97.60 95.1 93.3 28.9 
+Virtual Adversarial Training* 
+95.1 95.1 
+91.8 87.9 97.64 95.4 93.7 -
+Word Dropout* 
+95.2 95.8 
+92.1 88.1 97.66 95.6 93.8 29.3 
+ELMo (our implementation)* 
+95.8 96.5 
+92.2 88.5 97.72 96.2 94.4 29.3 
+ELMo + Multi-task*  † 
+95.9 96.8 
+92.3 88.4 97.79 96.4 94.8 -
+CVT* 
+95.7 96.6 
+92.3 88.7 97.70 95.9 94.1 29.6 
+CVT + Multi-task*  † 
+96.0 96.9 
+92.4 88.4 97.76 96.4 94.8 -
+CVT + Multi-task + Large*  † 
+96.1 97.0 
+92.6 88.8 97.74 96.6 95.0 -
+
+Table 1: Results on the test sets. We report the mean score over 5 runs. Standard deviations in score are around 0.1 
+for NER, FGN, and translation, 0.02 for POS, and 0.</table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_3" validated="false"><head>Table 3 :</head><label>3</label><figDesc></figDesc><table>Ablation study on auxiliary prediction mod-
+ules for sequence tagging. 
+
+Training Models on Small Datasets. We ex-
+plore how CVT scales with dataset size by vary-
+ing the amount of training data the model has ac-</table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_4" validated="false"><head>Table 4 .</head><label>4</label><figDesc></figDesc><table>Training only a prediction module on top of 
+multi-task representations works remarkably well, 
+
+</table></figure>
+		</body>
+		<back>
+
+			<div type="acknowledgement">
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Acknowledgements</head><p>We thank Abi See, Christopher Clark, He He, Peng Qi, Reid Pryzant, Yuaho Zhang, and the anonymous reviewers for their thoughtful com-ments and suggestions. We thank Takeru Miyato for help with his virtual adversarial training code and Emma Strubell for answering our questions about OntoNotes NER. Kevin is supported by a Google PhD Fellowship.</p></div>
+			</div>
+
+			<div type="references">
+
+				<listBibl>
+
+<biblStruct xml:id="b0">
+	<analytic>
+		<title level="a" type="main">Learning with pseudo-ensembles</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Philip</forename><surname>Bachman</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ouais</forename><surname>Alsharif</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Doina</forename><surname>Precup</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">NIPS</title>
+		<imprint>
+			<date type="published" when="2014" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b1">
+	<analytic>
+		<title level="a" type="main">Neural machine translation by jointly learning to align and translate</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Dzmitry</forename><surname>Bahdanau</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kyunghyun</forename><surname>Cho</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yoshua</forename><surname>Bengio</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">ICLR</title>
+		<imprint>
+			<date type="published" when="2015" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b2">
+	<analytic>
+		<title level="a" type="main">Combining labeled and unlabeled data with co-training</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Avrim</forename><surname>Blum</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Tom</forename><surname>Mitchell</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">COLT</title>
+		<imprint>
+			<publisher>ACM</publisher>
+			<date type="published" when="1998" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b3">
+	<monogr>
+				<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Rich</forename><surname>Caruana</surname></persName>
+		</author>
+		<title level="m">Multitask learning. Machine Learning</title>
+		<imprint>
+			<date type="published" when="1997" />
+			<biblScope unit="volume">28</biblScope>
+			<biblScope unit="page" from="41" to="75" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b4">
+	<monogr>
+				<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Mauro</forename><surname>Cettolo</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jan</forename><surname>Niehues</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Sebastian</forename><surname>Stüker</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Luisa</forename><surname>Bentivogli</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Roldano</forename><surname>Cattoni</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Marcello</forename><surname>Federico</surname></persName>
+		</author>
+		<title level="m">The IWSLT 2015 evaluation campaign. In International Workshop on Spoken Language Translation</title>
+		<imprint>
+			<date type="published" when="2015" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b5">
+	<analytic>
+		<title level="a" type="main">One billion word benchmark for measuring progress in statistical language modeling</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ciprian</forename><surname>Chelba</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Tomas</forename><surname>Mikolov</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Mike</forename><surname>Schuster</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Qi</forename><surname>Ge</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">INTERSPEECH</title>
+		<imprint>
+			<date type="published" when="2014" />
+		</imprint>
+	</monogr>
+	<note>Thorsten Brants, Phillipp Koehn, and Tony Robinson</note>
+</biblStruct>
+
+<biblStruct xml:id="b6">
+	<monogr>
+				<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">P</forename><forename type="middle">C</forename><surname>Jason</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Eric</forename><surname>Chiu</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Nichols</surname></persName>
+		</author>
+		<title level="m">Named entity recognition with bidirectional LSTM-CNNs. Transactions of the Association for Computational Linguistics</title>
+		<imprint>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b7">
+	<analytic>
+		<title level="a" type="main">A unified architecture for natural language processing: deep neural networks with multitask learning</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ronan</forename><surname>Collobert</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jason</forename><surname>Weston</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">ICML</title>
+		<imprint>
+			<date type="published" when="2008" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b8">
+	<analytic>
+		<title level="a" type="main">Natural language processing (almost) from scratch</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ronan</forename><surname>Collobert</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jason</forename><surname>Weston</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Léon</forename><surname>Bottou</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Michael</forename><surname>Karlen</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Koray</forename><surname>Kavukcuoglu</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Pavel</forename><surname>Kuksa</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Journal of Machine Learning Research</title>
+		<imprint>
+			<date type="published" when="2011" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b9">
+	<analytic>
+		<title level="a" type="main">Supervised learning of universal sentence representations from natural language inference data</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Alexis</forename><surname>Conneau</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Douwe</forename><surname>Kiela</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Holger</forename><surname>Schwenk</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Lo¨ıclo¨ıc</forename><surname>Barrault</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Antoine</forename><surname>Bordes</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">EMNLP</title>
+		<imprint>
+			<date type="published" when="2017" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b10">
+	<analytic>
+		<title level="a" type="main">Semi-supervised sequence learning</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">M</forename><surname>Andrew</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Quoc V</forename><surname>Dai</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Le</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">NIPS</title>
+		<imprint>
+			<date type="published" when="2015" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b11">
+	<monogr>
+		<title level="m" type="main">Multitask self-supervised visual learning</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Carl</forename><surname>Doersch</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Andrew</forename><surname>Zisserman</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1708.07860</idno>
+		<imprint>
+			<date type="published" when="2017" />
+		</imprint>
+	</monogr>
+<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b12">
+	<monogr>
+		<title level="m" type="main">Deep biaffine attention for neural dependency parsing</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Timothy</forename><surname>Dozat</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Christopher</forename><forename type="middle">D</forename><surname>Manning</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2017" />
+		</imprint>
+	</monogr>
+	<note>In ICLR</note>
+</biblStruct>
+
+<biblStruct xml:id="b13">
+	<analytic>
+		<title level="a" type="main">Framewise phoneme classification with bidirectional LSTM and other neural network architectures</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Alex</forename><surname>Graves</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jürgen</forename><surname>Schmidhuber</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Neural Networks</title>
+		<imprint>
+			<date type="published" when="2005" />
+			<biblScope unit="volume">18</biblScope>
+			<biblScope unit="page" from="602" to="610" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b14">
+	<analytic>
+		<title level="a" type="main">A joint many-task model: Growing a neural network for multiple nlp tasks</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kazuma</forename><surname>Hashimoto</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Caiming</forename><surname>Xiong</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yoshimasa</forename><surname>Tsuruoka</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Richard</forename><surname>Socher</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">EMNLP</title>
+		<imprint>
+			<date type="published" when="2017" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b15">
+	<analytic>
+		<title level="a" type="main">Learning distributed representations of sentences from unlabelled data</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Felix</forename><surname>Hill</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kyunghyun</forename><surname>Cho</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Anna</forename><surname>Korhonen</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">HLT-NAACL</title>
+		<imprint>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b16">
+	<monogr>
+				<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Geoffrey</forename><surname>Hinton</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Oriol</forename><surname>Vinyals</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jeff</forename><surname>Dean</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1503.02531</idno>
+		<title level="m">Distilling the knowledge in a neural network</title>
+		<imprint>
+			<date type="published" when="2015" />
+		</imprint>
+	</monogr>
+<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b17">
+	<analytic>
+		<title level="a" type="main">Long short-term memory</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Sepp</forename><surname>Hochreiter</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jürgen</forename><surname>Schmidhuber</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Neural computation</title>
+		<imprint>
+			<biblScope unit="volume">9</biblScope>
+			<biblScope unit="issue">8</biblScope>
+			<biblScope unit="page" from="1735" to="1780" />
+			<date type="published" when="1997" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b18">
+	<analytic>
+		<title level="a" type="main">CCGbank: a corpus of CCG derivations and dependency structures extracted from the Penn treebank</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Julia</forename><surname>Hockenmaier</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Mark</forename><surname>Steedman</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Computational Linguistics</title>
+		<imprint>
+			<biblScope unit="volume">33</biblScope>
+			<biblScope unit="issue">3</biblScope>
+			<biblScope unit="page" from="355" to="396" />
+			<date type="published" when="2007" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b19">
+	<analytic>
+		<title level="a" type="main">Ontonotes: the 90% solution</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Eduard</forename><surname>Hovy</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Mitchell</forename><surname>Marcus</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Martha</forename><surname>Palmer</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Lance</forename><surname>Ramshaw</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ralph</forename><surname>Weischedel</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">HLT-NAACL</title>
+		<imprint>
+			<date type="published" when="2006" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b20">
+	<analytic>
+		<title level="a" type="main">Universal language model fine-tuning for text classification</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jeremy</forename><surname>Howard</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Sebastian</forename><surname>Ruder</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">ACL</title>
+		<imprint>
+			<date type="published" when="2018" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b21">
+	<analytic>
+		<title level="a" type="main">Reinforcement learning with unsupervised auxiliary tasks</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Max</forename><surname>Jaderberg</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Volodymyr</forename><surname>Mnih</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Wojciech</forename><forename type="middle">Marian</forename><surname>Czarnecki</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Tom</forename><surname>Schaul</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Joel</forename><forename type="middle">Z</forename><surname>Leibo</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">David</forename><surname>Silver</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Koray</forename><surname>Kavukcuoglu</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">ICLR</title>
+		<imprint>
+			<date type="published" when="2017" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b22">
+	<analytic>
+		<title level="a" type="main">What is the best multi-stage architecture for object recognition</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kevin</forename><surname>Jarrett</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Koray</forename><surname>Kavukcuoglu</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yann</forename><surname>Lecun</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">IEEE Conference on Computer Vision</title>
+		<imprint>
+			<date type="published" when="2009" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b23">
+	<analytic>
+		<title level="a" type="main">Sequencelevel knowledge distillation</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yoon</forename><surname>Kim</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Alexander</forename><forename type="middle">M</forename><surname>Rush</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">EMNLP</title>
+		<imprint>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b24">
+	<analytic>
+		<title level="a" type="main">Tiago Ramalho, Agnieszka Grabska-Barwinska, Demis Hassabis, Claudia Clopath, Dharshan Kumaran, and Raia Hadsell. 2017. Overcoming catastrophic forgetting in neural networks</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">James</forename><surname>Kirkpatrick</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Razvan</forename><surname>Pascanu</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Neil</forename><forename type="middle">C</forename><surname>Rabinowitz</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Joel</forename><surname>Veness</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Guillaume</forename><surname>Desjardins</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Andrei</forename><forename type="middle">A</forename><surname>Rusu</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kieran</forename><surname>Milan</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">John</forename><surname>Quan</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the National Academy of Sciences of the United States of America</title>
+		<meeting>the National Academy of Sciences of the United States of America</meeting>
+		<imprint>
+			<biblScope unit="volume">114</biblScope>
+			<biblScope unit="page" from="3521" to="3526" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b25">
+	<analytic>
+		<title level="a" type="main">Skip-thought vectors</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ryan</forename><surname>Kiros</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yukun</forename><surname>Zhu</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">R</forename><surname>Ruslan</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Richard</forename><surname>Salakhutdinov</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Raquel</forename><surname>Zemel</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Antonio</forename><surname>Urtasun</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Sanja</forename><surname>Torralba</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Fidler</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Advances in neural information processing systems</title>
+		<imprint>
+			<date type="published" when="2015" />
+			<biblScope unit="page" from="3294" to="3302" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b26">
+	<analytic>
+		<title level="a" type="main">Temporal ensembling for semi-supervised learning</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Samuli</forename><surname>Laine</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Timo</forename><surname>Aila</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">ICLR</title>
+		<imprint>
+			<date type="published" when="2017" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b27">
+	<monogr>
+		<title level="m" type="main">Convolutional networks and applications in vision</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yann</forename><surname>Lecun</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Koray</forename><surname>Kavukcuoglu</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Clément</forename><surname>Farabet</surname></persName>
+		</author>
+		<editor>ISCAS. IEEE</editor>
+		<imprint>
+			<date type="published" when="2010" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b28">
+	<analytic>
+		<title level="a" type="main">Learning without forgetting</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Zhizhong</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Derek</forename><surname>Hoiem</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">ECCV</title>
+		<imprint>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b29">
+	<monogr>
+		<title level="m" type="main">Neural machine translation (seq2seq) tutorial</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Minh-Thang</forename><surname>Luong</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Eugene</forename><surname>Brevdo</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Rui</forename><surname>Zhao</surname></persName>
+		</author>
+		<ptr target="https://github.com/tensorflow/nmt" />
+		<imprint>
+			<date type="published" when="2017" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b30">
+	<analytic>
+		<title level="a" type="main">Multi-task sequence to sequence learning</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Minh-Thang</forename><surname>Luong</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Quoc</forename><forename type="middle">V</forename><surname>Le</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ilya</forename><surname>Sutskever</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Oriol</forename><surname>Vinyals</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Lukasz</forename><surname>Kaiser</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">ICLR</title>
+		<imprint>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b31">
+	<analytic>
+		<title level="a" type="main">Stanford neural machine translation systems for spoken language domains</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Minh-Thang</forename><surname>Luong</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Christopher</forename><forename type="middle">D</forename><surname>Manning</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">IWSLT</title>
+		<imprint>
+			<date type="published" when="2015" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b32">
+	<analytic>
+		<title level="a" type="main">Effective approaches to attention-based neural machine translation</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Thang</forename><surname>Luong</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Hieu</forename><surname>Pham</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Christopher</forename><forename type="middle">D</forename><surname>Manning</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">EMNLP</title>
+		<imprint>
+			<date type="published" when="2015" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b33">
+	<analytic>
+		<title level="a" type="main">End-to-end sequence labeling via bi-directional LSTM-CNNCRF</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Xuezhe</forename><surname>Ma</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Eduard</forename><surname>Hovy</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">ACL</title>
+		<imprint>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b34">
+	<analytic>
+		<title level="a" type="main">Stackpointer networks for dependency parsing</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Xuezhe</forename><surname>Ma</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Zecong</forename><surname>Hu</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jingzhou</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Nanyun</forename><surname>Peng</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Graham</forename><surname>Neubig</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Eduard</forename><surname>Hovy</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">ACL</title>
+		<imprint>
+			<date type="published" when="2018" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b35">
+	<analytic>
+		<title level="a" type="main">Building a large annotated corpus of english: The Penn treebank</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Mary</forename><forename type="middle">Ann</forename><surname>Mitchell P Marcus</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Beatrice</forename><surname>Marcinkiewicz</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Santorini</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Computational linguistics</title>
+		<imprint>
+			<biblScope unit="volume">19</biblScope>
+			<biblScope unit="issue">2</biblScope>
+			<biblScope unit="page" from="313" to="330" />
+			<date type="published" when="1993" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b36">
+	<analytic>
+		<title level="a" type="main">Learned in translation: Contextualized word vectors</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Bryan</forename><surname>Mccann</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">James</forename><surname>Bradbury</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Caiming</forename><surname>Xiong</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Richard</forename><surname>Socher</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">NIPS</title>
+		<imprint>
+			<date type="published" when="2017" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b37">
+	<analytic>
+		<title level="a" type="main">Effective self-training for parsing</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">David</forename><surname>Mcclosky</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Eugene</forename><surname>Charniak</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Mark</forename><surname>Johnson</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">ACL</title>
+		<imprint>
+			<date type="published" when="2006" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b38">
+	<analytic>
+		<title level="a" type="main">Distributed representations of words and phrases and their compositionality</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Tomas</forename><surname>Mikolov</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ilya</forename><surname>Sutskever</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kai</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Gregory</forename><forename type="middle">S</forename><surname>Corrado</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jeffrey</forename><surname>Dean</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">NIPS</title>
+		<imprint>
+			<date type="published" when="2013" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b39">
+	<analytic>
+		<title level="a" type="main">Adversarial training methods for semisupervised text classification</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Takeru</forename><surname>Miyato</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">M</forename><surname>Andrew</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ian</forename><surname>Dai</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Goodfellow</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">ICLR</title>
+		<imprint>
+			<date type="published" when="2017" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b40">
+	<analytic>
+		<title level="a" type="main">Distributional smoothing with virtual adversarial training</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Takeru</forename><surname>Miyato</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Masanori</forename><surname>Shin-Ichi Maeda</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ken</forename><surname>Koyama</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Shin</forename><surname>Nakae</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Ishii</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">ICLR</title>
+		<imprint>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b41">
+	<analytic>
+		<title level="a" type="main">Deep multitask learning for semantic dependency parsing</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Hao</forename><surname>Peng</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Sam</forename><surname>Thomson</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Noah</forename><forename type="middle">A</forename><surname>Smith</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">ACL</title>
+		<imprint>
+			<date type="published" when="2017" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b42">
+	<analytic>
+		<title level="a" type="main">Glove: Global vectors for word representation</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jeffrey</forename><surname>Pennington</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Richard</forename><surname>Socher</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Christopher</forename><surname>Manning</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">EMNLP</title>
+		<imprint>
+			<date type="published" when="2014" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b43">
+	<analytic>
+		<title level="a" type="main">Semi-supervised sequence tagging with bidirectional language models</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Waleed</forename><surname>Matthew E Peters</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Chandra</forename><surname>Ammar</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Russell</forename><surname>Bhagavatula</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Power</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">ACL</title>
+		<imprint>
+			<date type="published" when="2017" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b44">
+	<monogr>
+				<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Mark</forename><surname>Matthew E Peters</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Mohit</forename><surname>Neumann</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Matt</forename><surname>Iyyer</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Christopher</forename><surname>Gardner</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kenton</forename><surname>Clark</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Luke</forename><surname>Lee</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Zettlemoyer</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1802.05365</idno>
+		<title level="m">Deep contextualized word representations</title>
+		<imprint>
+			<date type="published" when="2018" />
+		</imprint>
+	</monogr>
+<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b45">
+	<monogr>
+		<title level="m" type="main">Improving language understanding by generative pre-training</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Alec</forename><surname>Radford</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Karthik</forename><surname>Narasimhan</surname></persName>
+		</author>
+		<ptr target="https://blog.openai.com/language-unsupervised" />
+		<imprint>
+			<date type="published" when="2018" />
+		</imprint>
+	</monogr>
+	<note>Tim Salimans, and Ilya Sutskever</note>
+</biblStruct>
+
+<biblStruct xml:id="b46">
+	<analytic>
+		<title level="a" type="main">Unsupervised pretraining for sequence to sequence learning</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Prajit</forename><surname>Ramachandran</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">J</forename><surname>Peter</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Quoc V</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Le</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">EMNLP</title>
+		<imprint>
+			<date type="published" when="2017" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b47">
+	<analytic>
+		<title level="a" type="main">Semi-supervised multitask learning for sequence labeling</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Marek</forename><surname>Rei</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">ACL</title>
+		<imprint>
+			<date type="published" when="2017" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b48">
+	<analytic>
+		<title level="a" type="main">Reporting score distributions makes a difference: Performance study of LSTM-networks for sequence tagging</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Nils</forename><surname>Reimers</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Iryna</forename><surname>Gurevych</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">EMNLP</title>
+		<imprint>
+			<date type="published" when="2017" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b49">
+	<monogr>
+				<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Sebastian</forename><surname>Ruder</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1706.05098</idno>
+		<title level="m">An overview of multi-task learning in deep neural networks</title>
+		<imprint>
+			<date type="published" when="2017" />
+		</imprint>
+	</monogr>
+<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b50">
+	<analytic>
+		<title level="a" type="main">Strong baselines for neural semi-supervised learning under domain shift</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Sebastian</forename><surname>Ruder</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Barbara</forename><surname>Plank</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">ACL</title>
+		<imprint>
+			<date type="published" when="2018" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b51">
+	<analytic>
+		<title level="a" type="main">Regularization with stochastic transformations and perturbations for deep semisupervised learning</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Mehdi</forename><surname>Sajjadi</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Mehran</forename><surname>Javanmardi</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Tolga</forename><surname>Tasdizen</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">NIPS</title>
+		<imprint>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b52">
+	<analytic>
+		<title level="a" type="main">Probability of error of some adaptive pattern-recognition machines</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">H</forename><surname>Scudder</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">IEEE Transactions on Information Theory</title>
+		<imprint>
+			<biblScope unit="volume">11</biblScope>
+			<biblScope unit="issue">3</biblScope>
+			<biblScope unit="page" from="363" to="371" />
+			<date type="published" when="1965" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b53">
+	<analytic>
+		<title level="a" type="main">A coregularization approach to semi-supervised learning with multiple views</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Vikas</forename><surname>Sindhwani</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Mikhail</forename><surname>Belkin</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">ICML Workshop on Learning with Multiple Views</title>
+		<imprint>
+			<date type="published" when="2005" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b54">
+	<analytic>
+		<title level="a" type="main">Deep multi-task learning with low level tasks supervised at lower layers</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Anders</forename><surname>Søgaard</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yoav</forename><surname>Goldberg</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">ACL</title>
+		<imprint>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b55">
+	<analytic>
+		<title level="a" type="main">Fast and accurate sequence labeling with iterated dilated convolutions</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Emma</forename><surname>Strubell</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Patrick</forename><surname>Verga</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">David</forename><surname>Belanger</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Andrew</forename><surname>Mccallum</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">EMNLP</title>
+		<imprint>
+			<date type="published" when="2017" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b56">
+	<analytic>
+		<title level="a" type="main">Learning general purpose distributed sentence representations via large scale multi-task learning</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Sandeep</forename><surname>Subramanian</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Adam</forename><surname>Trischler</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yoshua</forename><surname>Bengio</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Christopher J</forename><surname>Pal</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">ICLR</title>
+		<imprint>
+			<date type="published" when="2018" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b57">
+	<analytic>
+		<title level="a" type="main">Sequence to sequence learning with neural networks</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ilya</forename><surname>Sutskever</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Oriol</forename><surname>Vinyals</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Quoc V</forename><surname>Le</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">NIPS</title>
+		<imprint>
+			<date type="published" when="2014" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b58">
+	<analytic>
+		<title level="a" type="main">Weightaveraged consistency targets improve semisupervised deep learning results</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Antti</forename><surname>Tarvainen</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Harri</forename><surname>Valpola</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Workshop on Learning with Limited Labeled Data, NIPS</title>
+		<imprint>
+			<date type="published" when="2017" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b59">
+	<monogr>
+				<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Erik F Tjong Kim</forename><surname>Sang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Sabine</forename><surname>Buchholz</surname></persName>
+		</author>
+		<title level="m">Introduction to the CoNLL-2000 shared task: Chunking. In CoNLL</title>
+		<imprint>
+			<date type="published" when="2000" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b60">
+	<analytic>
+		<title level="a" type="main">Introduction to the CoNLL-2003 shared task: Language-independent named entity recognition</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Erik F Tjong Kim</forename><surname>Sang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Fien De</forename><surname>Meulder</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">HLT-NAACL</title>
+		<imprint>
+			<date type="published" when="2003" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b61">
+	<analytic>
+		<title level="a" type="main">Improving the improved training of Wasserstein GANs</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Xiang</forename><surname>Wei</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Zixia</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Liqiang</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Boqing</forename><surname>Gong</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">ICLR</title>
+		<imprint>
+			<date type="published" when="2018" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b62">
+	<monogr>
+		<title/>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Huijia</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jiajun</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Chengqing</forename><surname>Zong</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1701.00576</idno>
+		<imprint>
+			<date type="published" when="2017" />
+		</imprint>
+	</monogr>
+<note type="report_type">Shortcut sequence tagging. arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b63">
+	<monogr>
+				<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Chang</forename><surname>Xu</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Dacheng</forename><surname>Tao</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Chao</forename><surname>Xu</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1304.5634</idno>
+		<title level="m">A survey on multi-view learning</title>
+		<imprint>
+			<date type="published" when="2013" />
+		</imprint>
+	</monogr>
+<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b64">
+	<analytic>
+		<title level="a" type="main">Unsupervised word sense disambiguation rivaling supervised methods</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">David</forename><surname>Yarowsky</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">ACL</title>
+		<imprint>
+			<date type="published" when="1995" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b65">
+	<analytic>
+		<title level="a" type="main">Stackpropagation: Improved representation learning for syntax</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yuan</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">David</forename><surname>Weiss</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">ACL</title>
+		<imprint>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b66">
+	<analytic>
+		<title level="a" type="main">Tri-training: Exploiting unlabeled data using three classifiers</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Zhi-Hua</forename><surname>Zhou</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ming</forename><surname>Li</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">IEEE Transactions on knowledge and Data Engineering</title>
+		<imprint>
+			<date type="published" when="2005" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+				</listBibl>
+			</div>
+		</back>
+	</text>
+</TEI>

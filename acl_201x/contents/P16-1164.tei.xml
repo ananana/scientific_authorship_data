@@ -1,0 +1,700 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<TEI xmlns="http://www.tei-c.org/ns/1.0" 
+xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+xsi:schemaLocation="http://www.tei-c.org/ns/1.0 /home/ana/installs/grobid/grobid-0.5.1/grobid-home/schemas/xsd/Grobid.xsd"
+ xmlns:xlink="http://www.w3.org/1999/xlink">
+	<teiHeader xml:lang="en">
+		<encodingDesc>
+			<appInfo>
+				<application version="0.5.1-SNAPSHOT" ident="GROBID" when="2019-04-18T10:27+0000">
+					<ref target="https://github.com/kermitt2/grobid">GROBID - A machine learning software for extracting information from scholarly documents</ref>
+				</application>
+			</appInfo>
+		</encodingDesc>
+		<fileDesc>
+			<titleStmt>
+				<title level="a" type="main">Model Architectures for Quotation Detection</title>
+			</titleStmt>
+			<publicationStmt>
+				<publisher/>
+				<availability status="unknown"><licence/></availability>
+				<date>August 7-12, 2016</date>
+			</publicationStmt>
+			<sourceDesc>
+				<biblStruct>
+					<analytic>
+						<author>
+							<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Christian</forename><surname>Scheible</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="department">Institut für Maschinelle</orgName>
+								<orgName type="institution">Sprachverarbeitung Universität Stuttgart</orgName>
+							</affiliation>
+						</author>
+						<author>
+							<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Roman</forename><surname>Klinger</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="department">Institut für Maschinelle</orgName>
+								<orgName type="institution">Sprachverarbeitung Universität Stuttgart</orgName>
+							</affiliation>
+						</author>
+						<author>
+							<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Sebastian</forename><surname>Padó</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="department">Institut für Maschinelle</orgName>
+								<orgName type="institution">Sprachverarbeitung Universität Stuttgart</orgName>
+							</affiliation>
+						</author>
+						<title level="a" type="main">Model Architectures for Quotation Detection</title>
+					</analytic>
+					<monogr>
+						<title level="m">Proceedings of the 54th Annual Meeting of the Association for Computational Linguistics</title>
+						<meeting>the 54th Annual Meeting of the Association for Computational Linguistics <address><addrLine>Berlin, Germany</addrLine></address>
+						</meeting>
+						<imprint>
+							<biblScope unit="page" from="1736" to="1745"/>
+							<date type="published">August 7-12, 2016</date>
+						</imprint>
+					</monogr>
+				</biblStruct>
+			</sourceDesc>
+		</fileDesc>
+		<profileDesc>
+			<abstract>
+				<p>Quotation detection is the task of locating spans of quoted speech in text. The state of the art treats this problem as a sequence labeling task and employs linear-chain conditional random fields. We question the efficacy of this choice: The Markov assumption in the model prohibits it from making joint decisions about the begin, end, and internal context of a quotation. We perform an extensive analysis with two new model architectures. We find that (a), simple boundary classification combined with a greedy prediction strategy is competitive with the state of the art; (b), a semi-Markov model significantly outperforms all others, by relaxing the Markov assumption.</p>
+			</abstract>
+		</profileDesc>
+	</teiHeader>
+	<text xml:lang="en">
+		<body>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="1">Introduction</head><p>Quotations are occurrences of reported speech, thought, and writing in text. They play an impor- tant role in computational linguistics and digital humanities, providing evidence for, e.g., speaker relationships ( <ref type="bibr" target="#b5">Elson et al., 2010)</ref>, inter-speaker sen- timent <ref type="bibr" target="#b14">(Nalisnick and Baird, 2013)</ref> or politeness <ref type="bibr" target="#b6">(Faruqui and Pado, 2012</ref>). Due to a lack of general- purpose automatic systems, such information is often obtained through manual annotation (e.g., <ref type="bibr" target="#b2">Agarwal et al. (2012)</ref>), which is labor-intensive and costly. Thus, models for automatic quotation detec- tion form a growing research area (e.g., <ref type="bibr" target="#b18">Pouliquen et al. (2007)</ref>; <ref type="bibr" target="#b16">Pareti et al. (2013)</ref>).</p><p>Quotation detection looks deceptively simple, but is challenging, as the following example shows: <ref type="bibr">[</ref>The pipeline], the company said, [would be built by a proposed joint venture . . . , and Trunkline . . . will "build and operate" the system . . . ]. 1 <ref type="bibr">1</ref> </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Penn Attributions Relation Corpus (PARC), wsj 0260</head><p>Note that quotations can (i) be signalled by lexi- cal cues (e.g., communication verbs) without quota- tion marks, (ii) contain misleading quotation marks; (iii) be discontinuous, and (iv) be arbitrarily long.</p><p>Early approaches to quotation detection use hand-crafted rules based on syntactic mark- ers ( <ref type="bibr" target="#b18">Pouliquen et al., 2007;</ref><ref type="bibr" target="#b10">Krestel et al., 2008)</ref>. While yielding high precision, they suffered from low recall. The state of the art ( <ref type="bibr" target="#b16">Pareti et al., 2013;</ref><ref type="bibr" target="#b17">Pareti, 2015)</ref> treats the task as a sequence classifi- cation problem and uses a linear-chain conditional random field (CRF). This approach works well for the prediction of the approximate location of quo- tations, but yields a lower performance detecting their exact span.</p><p>In this paper, we show that linear-chain sequence models are a sub-optimal choice for this task. The main reason is their length, as remarked above: Most sequence labeling tasks in NLP (such as most cases of named entity recognition) deal with spans of a few tokens. In contrast, the median quotation length on the Penn Attributions Relation Corpus (PARC, <ref type="bibr" target="#b16">Pareti et al. (2013)</ref>) is 16 tokens and the longest span has over 100 tokens. As a result of the strong Markov assumptions that linear-chain CRFs make to ensure tractability, they cannot capture "global" properties of (almost all) quotations and are unable to make joint decisions about the begin point, end point, and content of quotations.</p><p>As our first main contribution in this paper, we propose two novel model architectures designed to investigate this claim. The first is simpler than the CRF. It uses token-level classifiers to predict quotation boundaries and combines the boundaries greedily to predict spans. The second model is more expressive. It is a semi-Markov sequence model which relaxes the Markov assumption, en- abling it to consider global features of quotation spans. In our second main contribution, an analysis of the models' performances, we find that the sim-pler model is competitive with the state-of-the-art CRF. The semi-Markov model outperforms both of them significantly by 3 % F 1 . This demonstrates that the relaxed Markov assumptions help improve performance. Our final contribution is to make implementations of all models publicly available. <ref type="bibr">2</ref> </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2">The Task: Quotation Detection</head><p>Problem Definition Following the terminology established by <ref type="bibr" target="#b16">Pareti et al. (2013)</ref>, we deal with the detection of content spans, the parts of the text that are being quoted. To locate such spans, it is helpful to first detect cues which often mark the begin- ning or end of a quotation. The following example shows an annotated sentence from the PARC cor- pus; each content span (CONT) is associated with exactly one cue span (CUE):</p><p>Mr.</p><p>Kaye  <ref type="bibr" target="#b16">Pareti et al. (2013)</ref> distinguish three types of quo- tations. Direct quotations are fully enclosed in quotation marks and are a verbatim reproduction of the original utterance. Indirect quotations para- phrase the original utterance and have no quotation marks. Mixed quotations contain both verbatim and paraphrase content and may thus contain quo- tation marks. Note that the type of a content span is assigned automatically based on its surface form using the definitions just given.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Quotation Detection as Sequence Modeling</head><p>In this paper, we compare our new model architec- tures to the state-of-the-art approach by <ref type="bibr" target="#b17">Pareti (2015)</ref>, an extension of <ref type="bibr" target="#b16">Pareti et al. (2013)</ref>. Their system is a pipeline: Its first component is the cue model, a token-level k-NN classifier applied to the syntactic heads of all verb groups. After cues are detected, content spans are localized using the con- tent model, a linear-chain conditional random field (CRF) which makes use of the location of cues in the document through features.</p><p>As their system is not publicly available, we re- implement it. Our cue classifier is an averaged perceptron <ref type="bibr" target="#b4">(Collins, 2002</ref>) which we describe in more detail in the following section. It uses the C1. Surface form, lemma, and PoS tag for all tokens within a window of ±5. C2. Bigrams of surface form, lemma, and PoS tag C3. Shape of ti C4. Is any token in a window of ±5 a named entity? C5. Does a quotation mark open or close at ti (determined by counting)? Is ti within quotation marks? C6. Is ti in the list of reporting verbs, noun cue verbs, titles, WordNet persons or organizations, and its VerbNet class C7. Do a sentence, paragraph, or the document begin or end at ti, ti−1, or ti+1? C8. Distance to sentence begin and end; sentence length C9. Does the sentence contain ti a pronoun/named en- tity/quotation mark? C10. Does a syntactic constituent starts or ends at ti? C11. Level of ti in the constituent tree C12. Label and level of the highest constituent in the tree starting at ti; label of ti's the parent node C13. Dependency relation with parent or any child of ti (with and without parent surface form) C14. Any conjunction of C5, C9, C10  </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3">New Model Architectures</head><p>While Pareti (2015) apply sequence modeling for quotation detection, they do not provide an analysis what the model learns. In this paper, we follow the intuition that a linear-chain CRF mostly makes local decisions about spans, while ignoring their global structure, such as joint information about the context of the begin and end points. If this is true, then (a) a model might work as well as the CRF without learning from label sequences, and (b) a model which makes joint decisions with global information might improve over the CRF.</p><p>This motivates our two new model architectures for the task. We illustrate the way the different architectures make use of information in <ref type="figure">Figure 1</ref>. Our simpler model (GREEDY) makes strictly lo- cal classification decisions, completely ignoring Our intuition about the shortcomings of the CRF is based on an empirical analysis. However, to sim- plify the presentation, we postpone the presentation of this analysis to Section 6 where we can discuss and compare the results of all three models.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.1">Model Decomposition and Formalization</head><p>We first introduce a common formalization for our model descriptions. Our problem of interest is con- tent span detection, the task of predicting a set S of content spans (t b , t e ) delimited by their begin and end tokens. The CRF solves this task by classifying tokens as begin/end/inside/outside tokens and thus solves a proxy problem. The problem is difficult because corresponding begin and end points need to be matched up over long distances, a challenge for probabilistic finite state automata such as CRFs.</p><p>In our model, cue detection, the task of detect- ing cue tokens t c (cf. Section 2), remains the first step. However, we then decompose the content span problem solved by the CRF by introducing the intermediary task of boundary detection. As illustrated in <ref type="figure">Figure 2</ref>, this means identifying the sets of all begin and end tokens, t b and t e , ignoring their interdependencies. We then recombine these</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Algorithm 1 GREEDY content span algorithm</head><p>Input: List of documents D; feature functions f x for cue, begin, and end (x ∈ c, b, e); distance parameter dmax; length parameter max Output: Content span labeling</p><formula xml:id="formula_0">S 1: θc, θ b , θe ← TRAINCLASSIFIERS(D, f c , f b , f e ) 2: for d in D do 3: S ← ∅ 4: for token t in d do 5: if θc · f c (t) &gt; 0 then 6: t b ← next token right of t next begin where θ b · f b (t) &gt; 0 7: te ← next token right of t b next end where θe · f e (t) &gt; 0 8: if |t b − tc| ≤ dmax and |te − t b | ≤ max and OVERLAPPING(t b , te) = ∅ then 9: S ← S ∪{(t b , te)} add span</formula><p>predictions with two different strategies, as detailed in Section 3.2 and Section 3.3. This decomposition has two advantages: (a), we expect that boundary detection is easier than content span detection, as we remove the combinatorial complexity of match- ing begin and end tokens; (b), begin, end, and cue detection are now three identical classification tasks that can be solved by the same machinery. We model each of the three tasks (cue/begin/end detection) with a linear classifier of the form</p><formula xml:id="formula_1">score x (t) = θ x · f x (t)<label>(1)</label></formula><p>for a token t, a class x ∈ {c, b, e} (for cue, begin, and end), a feature extraction function f x (t), and a weight vector θ x . We re-use the feature templates from Section 2 to remain comparable to the CRF. We estimate all parameters θ x with the per- ceptron algorithm, and use parameter averaging <ref type="bibr" target="#b4">(Collins, 2002</ref>). Since class imbalances, which occur in the boundary detection tasks, can have strong effects ( <ref type="bibr" target="#b3">Barandela et al., 2003)</ref>, we train the perceptron with uneven margins ( <ref type="bibr" target="#b11">Li et al., 2002</ref>). This variant introduces two learning margins: τ −1 for the negative class and τ +1 for the positive class.</p><p>Increasing τ +1 at a constant τ −1 increases recall (as failure to predict this class is punished more), potentially at the loss of precision, and vice versa.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.2">Greedy Span Detection</head><p>Our first new model, GREEDY <ref type="figure">(Figure 2</ref>, bottom center), builds on the assumption that the model- ing of sequence properties in a linear-chain CRF is weak enough that sequence learning can be re- placed by a greedy procedure. Algorithm 1 shows how we generate a span labeling based on the out- put of the boundary classifiers. Starting at each cue, we add all spans within a given distance d max from the cue whose length is below a given maximum max . If the candidate span is OVERLAPPING with any existing spans, we discard it. Analogously, we search for spans to the left of the cue. The algo- rithm is motivated by the structure of attribution relations: each content span has one associated cue.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.3">Semi-Markov Span Detection</head><p>Our second model extends the CRF into a semi-Markov architecture which is able to han- dle global features of quotation span candidates (SEMIMARKOV, <ref type="figure">Figure 2</ref> bottom right). Follow- ing previous work ( <ref type="bibr" target="#b19">Sarawagi and Cohen, 2004</ref>), we relax the Markov assumption inside spans. This al- lows for extracting arbitrary features on each span, such as conjunctions of features on the begin and end tokens or occurrence counts within the span.</p><p>Unfortunately, the more powerful model archi- tecture comes at the cost of a more difficult predic- tion problem. <ref type="bibr" target="#b19">Sarawagi and Cohen (2004)</ref> propose a variant of the Viterbi algorithm. This however does not scale to our application, since the maxi- mum length of a span factors into the prediction runtime, and quotations can be arbitrarily long. As an alternative, we propose a sampling-based ap- proach: we draw candidate spans (proposals) from an informed, non-uniform distribution of spans. We score these spans to decide whether they should be added to the document (accepted) or not (rejected). This way, we efficiently traverse the space of po- tential span assignments while still being able to make informed decisions (cf. <ref type="bibr" target="#b21">Wick et al. (2011)</ref>).</p><p>To obtain a distribution over spans, we adapt the approach by <ref type="bibr" target="#b24">Zhang et al. (2015)</ref>. We introduce two independent probability distributions: P b is the distribution of probabilities of a token being a begin token; P e is the distribution of probabilities of a token being an end token. We sample a single content span proposal (DRAWPROPOSAL) by first sampling the order in which the boundaries are to be determined (begin token or end token first) by sampling a binary variable d ∼ Bernoulli(0.5). If the begin token is to be sampled first, we continue by drawing a begin token t b ∼ P b and finally draw an end token t e ∼ P e within a window of up to max tokens to the right of t b . If the end token is to be sampled first, we proceed conversely. We also propose empty spans, i.e., the removal of existing spans without an replacement.</p><p>For the distributions P b and P e , we reuse our</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Algorithm 2 SEMIMARKOV inference algorithm</head><p>Input: Document d; probability distributions for begin and end (P b , Pe); feature function for spans g; maximum span length max; number of proposals N Output: Set of content spans S 1: S ← ∅ 2: θ ← 0 3: for n = 1 to N do 4:</p><formula xml:id="formula_2">(t b , te) ← DRAWPROPOSAL(P b , Pe) 5: score ← θ · g(t b , te) 6: O ← OVERLAPPING(t b , te) 7: scoreO ← (t b ,t e )∈O θ · g(t b , t e ) 8:</formula><p>if score &gt; scoreO then 9:</p><p>S ← S \ O remove overlapping 10:</p><p>S ← S ∪{(t b , te)} accept proposal 11:</p><p>if ISTRAINING and ¬CORRECT(t b , te) then 12:</p><p>PERCEPTRONUPDATE wrongly accepted 13: else 14:</p><p>REJECT(t b , te) 15:</p><p>if ISTRAINING and CORRECT(t b , te) then 16:</p><p>PERCEPTRONUPDATE wrongly rejected boundary detection models from Section 3.1. For each class x ∈ {b, e} we form a distribution</p><formula xml:id="formula_3">P x (t) ∝ exp(score x (t)/T x )<label>(2)</label></formula><p>over the tokens t of a document using the scores from Equation 1. T x is a temperature hyperparam- eter. Temperature controls the pronouncedness of peaks in the distribution. Higher temperature flat- tens the distribution and encourages the selection of tokens with lower scores. This is useful when exploration of the sample space is desired. The proposed candidates enter into the decision algorithm shown in Algorithm 2. As shown, the candidates are scored using a linear model (again as defined in Equation 1). We use the features of the previous models <ref type="table" target="#tab_1">(Table 1</ref> and 2) on the begin and end tokens. As we now judge complete span assignments rather than local label assignments to tokens, we can add a new span-global feature function g(t b , t e ). We introduce the features shown in <ref type="table" target="#tab_5">Table 3</ref>. If the candidate's score is higher than the sum of scores of all spans overlapping with it, we accept it and remove all overlapping ones.</p><p>This model architecture can be seen as a mod- ification of the pipeline of the GREEDY model (cf. <ref type="figure">Figure 2)</ref>. We again detect cues and boundaries, but then make an informed decision for combining begin and end candidates. In addition, the sampler makes "soft" selections of begin and end tokens based on the model scores rather than simply ac- cepting the classifier decisions.</p><p>For training, we again use perceptron updates (cf. Section 3.2). If the model accepts a wrong  <ref type="table" target="#tab_1">Indirect  Mixed  Overall   P  R F  P  R F  P  R F  P  R  F   strict   Pareti (2015) as reported therein  94 88 91  78 56 65  67 60 63  80  63  71  CRF (own re-implementation)  94 93 94  73 58 64  81 68 74  79g 67  72   GREEDY  92 91 91  69 59 64  72 64 68  75  67  71  SEMIMARKOV  93 94 94  73 65 69  81 66</ref>    <ref type="figure">Figure 2</ref>. g: significantly better than GREEDY; c: significantly better than CRF (both with α = 0.05).</p><p>G1. Numbers of named entities, lowercased tokens, commas, and pronouns inside the span G2. Binned percentage of tokens that depend on a cue G3. Location of the closest cue (left/right?), percentage of dependents on that cue G4. Number of cues overlapped by the span G5. Is there a cue before the first token and/or after the last token of the span (within the same sentence)? first or after the last token of the span?, and their conjunction G6. Do both the first and the last token depend on a cue? G7. Binned length of the span G8. Does the span match a sentence exactly/off by one token? G9. Number of sentences covered by the span G10. Does the span match one or more constituents exactly? G11. Is the span direct, indirect, or mixed? G12. Is the # of quotation marks in the span odd or even? G13. Is the span is direct and does it contain more than two quotation marks?  <ref type="bibr">5</ref> Note that the data and thus the results differ from those previously published in ( <ref type="bibr" target="#b16">Pareti et al., 2013</ref>). news documents). As in related work, we use sec- tions 1-22 as training set, section 23 as test set, and section 24 as development set. We perform the same preprocessing as Pareti: We use gold tokenization, lemmatization, part-of-speech tags, constituency parses, gold named entity annotations <ref type="bibr" target="#b20">(Weischedel and Brunstein, 2005)</ref>, and Stanford parser dependency analyses ( <ref type="bibr" target="#b12">Manning et al., 2014</ref>).</p><p>Evaluation We report precision, recall, and micro-averaged F 1 , adopting the two metrics in- troduced by <ref type="bibr" target="#b16">Pareti et al. (2013)</ref>: Strict match con- siders cases as correct where the boundaries of the spans match exactly. Partial match measures cor- rectness as the ratio of overlap of the predicted and true spans. In both cases, we report numbers for each of the three quotation types (direct, indi- rect, mixed) and their micro averages. Like Pareti (2015), we exclude single-token content spans from the evaluation. To test for statistical significance of differences, we use the approximate randomiza- tion test <ref type="bibr" target="#b15">(Noreen, 1989</ref>) at a significance level of α = 0.05.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Implementation and Hyperparameters</head><p>We use the CRF implementation in MALLET <ref type="bibr" target="#b13">(McCallum, 2002</ref>). We optimize all hyperparameters of the models on the development set. Our best models use positive margins of τ + = 25 for the boundary and τ + = 15 for the span models, fa- voring recall. The SEMIMARKOV sampler uses a temperature of T x = 10 for all classes. We per- form 15 epochs of training after which the models have converged, and draw 1,000 samples for each document. For the GREEDY model, we obtain the best results with d max = 30 and max = 55. For the SEMIMARKOV sampler, max = 75 is optimal.</p><p>The high values mirror the presence of very long spans in the data.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5">Results</head><p>Cue We first evaluate the cue classifier. We ob- tain an F 1 of 86 %, with both precision and recall at 86 %, which is very close to the 85 % F 1 of Pareti.</p><p>CRF <ref type="table" target="#tab_4">Table 4</ref> summarizes the content span re- sults. First, we compare Pareti's results to our reim- plementation (the rows denoted with <ref type="bibr" target="#b17">Pareti (2015)</ref> and CRF). There are some differences in how well the model performs on certain types of spans: while our precision is lower for indirect spans, it is higher on mixed spans. Additionally, our implementa- tion generally has higher recall than Pareti's. Her system includes several features using proprietary lists (such as a manually curated list of titles) we were unable to obtain, and complex feature tem- plates that we may interpret differently. We suspect that these differences are due to the typical replica- tion problems in NLP (cf. <ref type="bibr" target="#b7">Fokkens et al. (2013)</ref>). Overall, however, our model performs quite simi- larly to Pareti's, with our model scoring an overall F 1 of 72 % (vs. Pareti's 71 %) and a partial F 1 of 83 % (vs. 82 %).</p><p>GREEDY Next, we compare the GREEDY model to the CRF. We find its overall performance to be comparable to the CRF, confirming our expecta- tions. While strict precision is statistically signif- icantly lower for GREEDY (75 % vs. 79 %), strict recall is not significantly different (bot at 67 %). Considering partial matches, GREEDY has signif- icantly higher recall (81 % vs. 77 %) but signifi- cantly lower precision (88 % vs. 90 %) than the CRF, with an overall comparable F 1 . This result bolsters our hypothesis that the CRF learn only a small amount of useful sequence information. Al- though GREEDY ignores label sequences in train- ing completely, it is able to compete with the CRF. Furthermore, the partial match result that GREEDY is a particularly good choice if the main interest is the approximate location of content spans in a document: The simpler model architecture makes it easier and more efficient to train and apply. The caveat is that GREEDY is particularly bad at locat- ing mixed spans (as indicated by a precision of only 72 %): Quotation marks are generally good indica- tors for span boundaries and are often returned as false positives by the boundary detection models, so GREEDY tends to incorrectly pick them. SEMIMARKOV Overall, the SEMIMARKOV model outperforms the CRF significantly in terms of strict recall (71 % vs. 67 %) and F 1 (75 % vs. 72 %), while precision remains unaffected (at 79 %). The model performs particularly well on indirect quotations (increasing F 1 by 5 points to 69 %), the most difficult category, where local con- text is insufficient. Meanwhile, on partial match, the SEMIMARKOV model has a comparable re- call (80 vs. 77 %), but significantly lower precision (88 % vs. 90 %). The overall partial F 1 results are not significantly different. The improvement on the strict measures supports our intuition that better features help in particular in identifying the exact boundaries of quotations, a task that evidently prof- its from global information.</p><p>Model Combination The complementary strengths of the CRF and SEMIMARKOV (CRF detects direct quotations well, SEMIMARKOV indirect quotations) suggest a simple model combination algorithm based on the surface form of the spans: First take all direct and mixed spans predicted by the CRF; then add all indirect spans from the SEMIMARKOV model (except for those which would overlap). This result is our overall best model under strict evaluation, although it is not significantly better than the SEMIMARKOV model. Considering partial match, its results are essentially identical to the SEMIMARKOV model.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6">Analysis</head><p>We now proceed to a more detailed analysis of the performance of the three models (CRF, GREEDY, and SEMIMARKOV) and their differences in order to gain insights into the nature of the quotation detection task. In the interest of readability, we organize this section by major findings instead of the actual analyses that we have performed, and adduce for each finding all relevant analysis results.</p><p>Finding 1: Variation in length does not explain the differences in model performance. A pos- sible intuition about our models it that the improve- ment of SEMIMARKOV over CRF is due to a better handling of longer quotations. However, this is not the case. <ref type="figure" target="#fig_2">Figure 3</ref> shows the recall of the three models for quotations binned by lengths. The main patterns hold across all three models: Medium- length spans are the easiest to detect. Short spans are difficult to detect as they are often part of dis- continuous content spans. Long spans are also  difficult since any wrong intermediary decision can falsify the prediction. In fact, the CRF model is even the best model among the three for very long spans (which are rare). Those spans exceed the 55 and 75 token limits max of the GREEDY and SEMIMARKOV models. Intuitively, for the CRF, most spans are long: even spans which are short in comparison to other quotations are longer than the window within which the CRF operates. This is why span length does not have an influence.</p><p>Finding 2: Quotations are mostly defined by their immediate external context. A feature analysis of the CRF model reveals that many impor- tant features refer to material outside the quotation itself. For each label (B, I, E), we collect the 50 features with the highest positive and negative val- ues, respectively. We first identify the subset of those features that looks look left or right. As the upper part of <ref type="table" target="#tab_6">Table 5</ref> shows, a substantial number of B (begin) features look to the left, and a number of E (end) features look to the right. Thus, these features do not look at the quotation itself, but at its immediate external context. We next divide the features into four broad cate- gories (cues, other lexical information, structural and syntactic features, and punctuation including quotation marks). The results in the lower part of <ref type="table" target="#tab_6">Table 5</ref> show that the begin and end classes rely on a range of categories, including lexical, cue and punctuation outside the quotation. The situation is different for inside tokens (I), where most features express structural and syntactic properties of the quotation such as the length of a sentence and its syntactic relation to a cue. Together, these observa- tions suggest that one crucial piece of information about quotations is their lexical and orthographic context: the factors that mark a quotation as a quo- tation. Another crucial piece are internal structural properties of the quotation, while lexical proper- ties of the quotation are not very important: which makes sense, since almost anything can be quoted.</p><p>The feature analysis is bolstered by an error anal- ysis of the false negatives in the high-precision low-recall CRF. The first reason for false nega- tives is indeed the occurrence of infrequent cues which the cue model fails to identify (e.g., read or acknowledge). The second one is that the model does attempt to learn syntactic features, but that the structural features that can be learned by the CRF (such as C7, C10 or S4) can model only local windows of the quality of the quotation, but not its global quality. This leads us to our third finding.</p><p>Finding 3: Simple models cannot capture de- pendencies between begin and end boundaries well. Given the importance of cues, as evidenced by our Finding 2, we can ask whether the boundary of the quotation that is adjacent to its associated cue ("cue-near") is easier to identify than the other boundary ("cue-far") whose context is less informa- tive. To assess this question, we evaluate the recall of individual boundary detection at the token level. For the CRF, "cue-far" boundaries of spans indeed tend to be more difficult to detect than "cue-near" ones. The results in <ref type="table">Table 6</ref> show that both the GREEDY and the CRF model show a marked asym-GREEDY CRF SEMIMARKOV <ref type="table" target="#tab_1">cue-near  76  74  76  cue-far  72  71  75   Table 6</ref>: Recall on boundaries by cue position metry and perform considerably worse (3 % and 4 %, respectively) on the cue-far boundary. This asymmetry is considerably weaker for the SEMI- MARKOV model, where both boundary types are recognized almost on par. The reason behind this finding is that neither the GREEDY model nor the CRF can condition the choice of the cue-far bound- ary on the cue-near boundary or on global proper- ties of the quotation -the GREEDY model, because its choices are completely independent, and the CRF model, because its choices are largely inde- pendent due to the Markov assumption.</p><p>Finding 4: The SEMIMARKOV model benefits the most from its ability to handle global fea- tures about content spans. This leads us to our final finding about why the SEMIMARKOV model outperforms the CRF -whether it is the model ar- chitecture itself, or the new global features that it allows us to formulate. We perform an ablation study whose results are shown in <ref type="figure" target="#fig_3">Figure 4</ref>. We be- gin with only the token-level features on the begin, end, and interior tokens of the span, as introduced in Section 2, i.e., the features that the CRF has at its disposal. We find that this model performs on par with the CRF, thus the model architecture on its own does not help. We then incrementally add the feature templates containing count statistics of the internal tokens (Template G1 in <ref type="table" target="#tab_5">Table 3</ref>) and advanced cue information (G2-G6). Both give the model incremental boosts. Adding syntactic coher- ence features (G7-G13) completes our full feature set and yields the best results. Thus, the difference comes from features that describe global properties of the quotation. One of the most informative (negative) features is the conjunction from G6. It enforces the constraint that each content span is associated with a single cue. As in the CRF, the actual content of a content span does not play a large role. The only semantic features the model considers concern the presence of named entities within the span. These observations are completed by analysis of the quotation spans that were correctly detected by the SEMIMARKOV model, but not the CRF (in  terms of strict recall). We find a large amount of spans with highly ambiguous cue-near tokens such as to (10 % of the cases) that (16 %). We find that often the errors are also related to the frequency or location of cues. As an example, in the sentence <ref type="bibr">[...]</ref> he has said [that when he was on the winning side in the 1960s, he knew that the tables might turn in the future] CONT . 6 the CRF model incorrectly splits the content span at the second cue candidate knew. This is, however, an embedded quotation that the model should ignore. In contrast, the SEMIMARKOV model makes use of the fact the tokens of the span depend on the same cue, and predicts the span correctly. For these tokens, the distinction between reported speech and factual descriptions is difficult. Arguably, it is the global features that help the model make its call.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="7">Related Work</head><p>Quotation detection has been tackled with a number of different strategies. <ref type="bibr" target="#b18">Pouliquen et al. (2007)</ref> use a small set of rules which has high precision but low recall on multilingual text. <ref type="bibr" target="#b10">Krestel et al. (2008)</ref> also pursue a rule-based approach, focusing on the roles of cue verbs and syntactic markers. They evaluate on a small set of annotated WSJ documents and again report high precision but low recall. <ref type="bibr" target="#b16">Pareti et al. (2013)</ref> develop the state-of-the-art sequence labeling approach discussed in this paper.</p><p>Our sampling approach builds on that of <ref type="bibr" target="#b24">Zhang et al. (2015)</ref>, who pursue a similar strategy for pars- ing, PoS tagging, and sentence segmentation. Simi- lar semi-Markov model approaches have been used for other applications, e.g. by <ref type="bibr" target="#b22">Yang and Cardie (2012)</ref> and <ref type="bibr" target="#b8">Klinger and Cimiano (2013)</ref> for sen- timent analysis. They also predict spans by sam- pling, but they draw proposals based on the token or syntactic level. This is not suitable for quotation detection as we deal with much longer spans.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="8">Conclusion</head><p>We have considered the task of quotation detection, starting from the hypothesis that linear-chain CRFs cannot take advantage of all available sequence in- formation due to its Markov assumptions. Indeed, our analyses find that the features most important to recognize a quotation consider its direct con- text of orthographic evidence (such as quotation marks) and lexical evidence (such as cue words). A simple, greedy algorithm using non-sequential models of quotation boundaries rivals the CRF's performance. For further improvements, we in- troduce a semi-Markov model capable of taking into account global information about the complete span not available to a linear-chain CRF, such as the presence of cues on both sides of the quotation candidate. This leads to a significant improvement of 3 points F 1 over the state of the art.</p><p>On a more general level, we believe that quota- tion detection is interesting as a representative of tasks involving long sequences, where Markov as- sumptions become inappropriate. Other examples of such tasks include the identification of chemical compound names ( <ref type="bibr" target="#b9">Krallinger et al., 2015</ref>) and the detection of annotator rationales <ref type="bibr" target="#b23">(Zaidan and Eisner, 2008</ref>). We have shown that a more expressive semi-Markov model which avoids these assump- tions can improve performance. More expressive models however come with harder inference prob- lems which are compounded when applied to long- sequence tasks. The informed sampling algorithm we have described performs such efficient inference for our semi-Markov quotation detection model.</p></div><figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_0"><head>Figure 1 :Figure 2 :</head><label>12</label><figDesc>Figure 1: Information usage by model architecture. Frames indicate joint decisions on token labels.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_2"><head>Figure 3 :</head><label>3</label><figDesc>Figure 3: Strict recall by span length for CRF (left), GREEDY (center), and SEMIMARKOV model (right)</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_3"><head>Figure 4 :</head><label>4</label><figDesc>Figure 4: Strict F 1 for different feature sets in the SEMIMARKOV model. *: Difference statistically significant. Dashed line: CRF result.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_1" validated="false"><head>Table 1 :</head><label>1</label><figDesc></figDesc><table>Cue detection features for a token t i at 
+position i, mostly derived from Pareti (2015) 
+
+S1. Is a direct or indirect dependency parent of ti classified 
+as a cue, in the cue list, or the phrase "according to"? 
+S2. Was any token in a window of ±5 classified as a cue? 
+S3. Distance to the previous and next cue 
+S4. Does the sentence containing ti have a cue? 
+S5. Conjunction of S4 and all features from C14 
+
+</table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_2" validated="false"><head>Table 2 :</head><label>2</label><figDesc></figDesc><table>Additional features for content span detec-
+tion, mostly derived from Pareti (2015) 
+
+features in Table 1. 4 Our content model is a CRF 
+with BIOE labels. It uses all features from Table 1 
+plus features that build on the output of the cue 
+classifier, shown in Table 2. 
+
+</table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_4" validated="false"><head>Table 4 :</head><label>4</label><figDesc>Results on the test set of PARC3. Best overall strict results in bold. Models as in</figDesc><table></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_5" validated="false"><head>Table 3 :</head><label>3</label><figDesc></figDesc><table>Global features for content span detection 
+
+span, we perform a negative update (Line 12 in 
+Algorithm 2). If a correct span is rejected, we 
+make a positive update (Line 16). We iterate over 
+the documents in random order for a fixed number 
+E of epochs. As the sampling procedure takes long 
+to fully label documents, we employ GREEDY to 
+make initial assignments. This does not constitute 
+additional supervision, as the sampler can remove 
+any initial span and thus refute the initialization. 
+This reduces runtime without affecting the result in 
+practice. 
+
+4 Experimental Setup 
+
+Data We use the Penn Attribution Relations Cor-
+pus, version 3 (henceforth PARC3), by Pareti 
+(2015). 5 It contains AR annotations on the Wall 
+Street Journal part of the Penn Treebank (2,294 
+
+</table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_6" validated="false"><head>Table 5 :</head><label>5</label><figDesc></figDesc><table>Categories of top positive and negative 
+CRF features for begin (B), inside (I), and end (E) 
+
+</table></figure>
+
+			<note place="foot" n="2"> http://www.ims.uni-stuttgart.de/data/qsample 3 PARC, wsj 2418</note>
+
+			<note place="foot" n="4"> For replicability, we give more detailed definitions of the features in the supplementary notes.</note>
+
+			<note place="foot">t i+1 t i+2 t i+3 t i+4 t i+5 t i+6 t i t i+1 t i+2 t i+3 t i+4 t i+5 t i+6 t i t i+1 t i+2 t i+3 t i+4 t i+5 t i+6</note>
+
+			<note place="foot" n="6"> PARC, wsj 2347</note>
+		</body>
+		<back>
+
+			<div type="acknowledgement">
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Acknowledgments</head><p>This work was funded in part by the DFG through the Sonderforschungsbereich 732. We thank Silvia Pareti for kindly providing the PARC dataset as well as for much information helpful for replicating her results. Further thanks go to Anders Björkelund and Kyle Richardson for discussion and comments.</p></div>
+			</div>
+
+			<div type="references">
+
+				<listBibl>
+
+<biblStruct xml:id="b0">
+	<monogr>
+		<title level="m" type="main">20,30) [30,40</title>
+		<imprint>
+			<biblScope unit="volume">10</biblScope>
+		</imprint>
+	</monogr>
+	<note>40,50</note>
+</biblStruct>
+
+<biblStruct xml:id="b1">
+	<monogr>
+		<title level="m" type="main">20,30) [30,40</title>
+		<imprint>
+			<biblScope unit="volume">10</biblScope>
+		</imprint>
+	</monogr>
+	<note>40,50) [50,100</note>
+</biblStruct>
+
+<biblStruct xml:id="b2">
+	<analytic>
+		<title level="a" type="main">Social network analysis of alice in wonderland</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Apoorv</forename><surname>Agarwal</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Augusto</forename><surname>Corvalan</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jacob</forename><surname>Jensen</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Owen</forename><surname>Rambow</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the NAACLHLT 2012 Workshop on Computational Linguistics for Literature</title>
+		<meeting>the NAACLHLT 2012 Workshop on Computational Linguistics for Literature<address><addrLine>Montréal, Canada</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2012-06" />
+			<biblScope unit="page" from="88" to="96" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b3">
+	<analytic>
+		<title level="a" type="main">Strategies for learning in class imbalance problems</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ricardo</forename><surname>Barandela</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">José</forename><forename type="middle">Salvador</forename><surname>Sánchez</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Vicente</forename><surname>García</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Edgar</forename><surname>Rangel</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Pattern Recognition</title>
+		<imprint>
+			<biblScope unit="volume">36</biblScope>
+			<biblScope unit="issue">3</biblScope>
+			<biblScope unit="page" from="849" to="851" />
+			<date type="published" when="2003" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b4">
+	<analytic>
+		<title level="a" type="main">Discriminative training methods for Hidden Markov Models: Theory and experiments with perceptron algorithms</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Michael</forename><surname>Collins</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>the Conference on Empirical Methods in Natural Language Processing<address><addrLine>Philadelphia, PA</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2002" />
+			<biblScope unit="page" from="1" to="8" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b5">
+	<analytic>
+		<title level="a" type="main">Extracting social networks from literary fiction</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">David</forename><surname>Elson</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Nicholas</forename><surname>Dames</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kathleen</forename><surname>Mckeown</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 48th Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 48th Annual Meeting of the Association for Computational Linguistics<address><addrLine>Uppsala, Sweden</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2010" />
+			<biblScope unit="page" from="138" to="147" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b6">
+	<analytic>
+		<title level="a" type="main">Towards a model of formal and informal address in English</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Manaal</forename><surname>Faruqui</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Sebastian</forename><surname>Pado</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 13th Conference of the European Chapter of the Association for Computational Linguistics</title>
+		<meeting>the 13th Conference of the European Chapter of the Association for Computational Linguistics<address><addrLine>Avignon, France</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2012" />
+			<biblScope unit="page" from="623" to="633" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b7">
+	<analytic>
+		<title level="a" type="main">Offspring from reproduction problems: What replication failure teaches us</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Antske</forename><surname>Fokkens</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Marten</forename><surname>Marieke Van Erp</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ted</forename><surname>Postma</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Pedersen</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 51st Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 51st Annual Meeting of the Association for Computational Linguistics<address><addrLine>Sofia</addrLine></address></meeting>
+		<imprint>
+			<publisher>Bulgaria</publisher>
+			<date type="published" when="2013" />
+			<biblScope unit="page" from="1691" to="1701" />
+		</imprint>
+	</monogr>
+	<note>Piek Vossen, and Nuno Freire</note>
+</biblStruct>
+
+<biblStruct xml:id="b8">
+	<analytic>
+		<title level="a" type="main">Bidirectional inter-dependencies of subjective expressions and targets and their value for a joint model</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Roman</forename><surname>Klinger</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Philipp</forename><surname>Cimiano</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 51st Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 51st Annual Meeting of the Association for Computational Linguistics<address><addrLine>Sofia, Bulgaria</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2013" />
+			<biblScope unit="page" from="848" to="854" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b9">
+	<analytic>
+		<title level="a" type="main">CHEMDNER: The drugs and chemical names extraction challenge</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Martin</forename><surname>Krallinger</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Florian</forename><surname>Leitner</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Obdulia</forename><surname>Rabal</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Miguel</forename><surname>Vazquez</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Journal of Cheminformatics</title>
+		<imprint>
+			<biblScope unit="issue">7</biblScope>
+			<biblScope unit="page">1</biblScope>
+			<date type="published" when="2015" />
+		</imprint>
+	</monogr>
+	<note>Julen Oyarzabal, and Alfonso Valencia. Suppl 1</note>
+</biblStruct>
+
+<biblStruct xml:id="b10">
+	<analytic>
+		<title level="a" type="main">Minding the source: Automatic tagging of reported speech in newspaper articles</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ralf</forename><surname>Krestel</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Sabine</forename><surname>Bergler</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">René</forename><surname>Witte</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the International Conference on Language Resources and Evaluation</title>
+		<meeting>the International Conference on Language Resources and Evaluation<address><addrLine>Marrakech, Morocco</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2008" />
+			<biblScope unit="page" from="2823" to="2828" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b11">
+	<analytic>
+		<title level="a" type="main">The perceptron algorithm with uneven margins</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yaoyong</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Hugo</forename><surname>Zaragoza</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ralf</forename><surname>Herbrich</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">John</forename><surname>Shawe-Taylor</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jaz</forename><forename type="middle">S</forename><surname>Kandola</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Nineteenth International Conference on Machine Learning</title>
+		<meeting>the Nineteenth International Conference on Machine Learning<address><addrLine>Sydney</addrLine></address></meeting>
+		<imprint>
+			<publisher>Australia</publisher>
+			<date type="published" when="2002" />
+			<biblScope unit="page" from="379" to="386" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b12">
+	<analytic>
+		<title level="a" type="main">The Stanford CoreNLP Natural Language Processing Toolkit</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Christopher</forename><forename type="middle">D</forename><surname>Manning</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Mihai</forename><surname>Surdeanu</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">John</forename><surname>Bauer</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jenny</forename><surname>Finkel</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Steven</forename><forename type="middle">J</forename><surname>Bethard</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">David</forename><surname>Mcclosky</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of ACL System Demonstrations</title>
+		<meeting>ACL System Demonstrations<address><addrLine>Baltimore, MD</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2014" />
+			<biblScope unit="page" from="55" to="60" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b13">
+	<monogr>
+		<title level="m" type="main">MALLET: A Machine Learning for Language Toolkit</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Andrew</forename><forename type="middle">K</forename><surname>Mccallum</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2002" />
+		</imprint>
+	</monogr>
+	<note>User&apos;s manual</note>
+</biblStruct>
+
+<biblStruct xml:id="b14">
+	<analytic>
+		<title level="a" type="main">Characterto-character sentiment analysis in shakespeare&apos;s plays</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Eric</forename><forename type="middle">T</forename><surname>Nalisnick</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Henry</forename><forename type="middle">S</forename><surname>Baird</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 51st Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 51st Annual Meeting of the Association for Computational Linguistics<address><addrLine>Sofia, Bulgaria</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2013-08" />
+			<biblScope unit="page" from="479" to="483" />
+		</imprint>
+	</monogr>
+	<note>Short Papers). Association for Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b15">
+	<monogr>
+		<title level="m" type="main">Computer intensive methods for hypothesis testing: An introduction</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Eric</forename><forename type="middle">W</forename><surname>Noreen</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="1989" />
+			<publisher>Wiley</publisher>
+			<pubPlace>New York</pubPlace>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b16">
+	<analytic>
+		<title level="a" type="main">Automatically detecting and attributing indirect quotations</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Silvia</forename><surname>Pareti</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">O&amp;apos;</forename><surname>Tim</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ioannis</forename><surname>Keefe</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">James</forename><forename type="middle">R</forename><surname>Konstas</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Irena</forename><surname>Curran</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Koprinska</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2013 Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>the 2013 Conference on Empirical Methods in Natural Language Processing<address><addrLine>Seattle, WA</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2013" />
+			<biblScope unit="page" from="989" to="999" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b17">
+	<monogr>
+		<title level="m" type="main">Attribution: A Computational Approach</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Silvia</forename><surname>Pareti</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2015" />
+		</imprint>
+		<respStmt>
+			<orgName>University of Edinburgh</orgName>
+		</respStmt>
+	</monogr>
+	<note>Ph.D. thesis</note>
+</biblStruct>
+
+<biblStruct xml:id="b18">
+	<analytic>
+		<title level="a" type="main">Automatic detection of quotations in multilingual news</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Bruno</forename><surname>Pouliquen</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ralf</forename><surname>Steinberger</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Clive</forename><surname>Best</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of Recent Advances in Natural Language Processing</title>
+		<meeting>Recent Advances in Natural Language Processing<address><addrLine>Borovets, Bulgaria</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2007" />
+			<biblScope unit="page" from="487" to="492" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b19">
+	<analytic>
+		<title level="a" type="main">Semimarkov conditional random fields for information extraction</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Sunita</forename><surname>Sarawagi</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">William</forename><forename type="middle">W</forename><surname>Cohen</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of Advances in Neural Information Processing Systems</title>
+		<meeting>Advances in Neural Information Processing Systems<address><addrLine>Vancouver, BC</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2004" />
+			<biblScope unit="page" from="1185" to="1192" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b20">
+	<monogr>
+		<title level="m" type="main">BBN pronoun coreference and entity type corpus. Linguistic Data Consortium</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ralph</forename><surname>Weischedel</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ada</forename><surname>Brunstein</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2005" />
+			<pubPlace>Philadelphia</pubPlace>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b21">
+	<analytic>
+		<title level="a" type="main">Samplerank: Training factor graphs with atomic gradients</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Michael</forename><surname>Wick</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Khashayar</forename><surname>Rohanimanesh</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kedar</forename><surname>Bellare</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Aron</forename><surname>Culotta</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Andrew</forename><surname>Mccallum</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 28th International Conference on Machine Learning</title>
+		<meeting>the 28th International Conference on Machine Learning<address><addrLine>Bellevue, WA</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2011" />
+			<biblScope unit="page" from="777" to="784" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b22">
+	<analytic>
+		<title level="a" type="main">Extracting opinion expressions with semi-Markov conditional random fields</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Bishan</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Claire</forename><surname>Cardie</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2012 Joint Conference on Empirical Methods in Natural Language Processing and Computational Natural Language Learning</title>
+		<meeting>the 2012 Joint Conference on Empirical Methods in Natural Language Processing and Computational Natural Language Learning<address><addrLine>Jeju Island, South Korea</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2012" />
+			<biblScope unit="page" from="1335" to="1345" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b23">
+	<analytic>
+		<title level="a" type="main">Modeling annotators: A generative approach to learning from annotator rationales</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Omar</forename><surname>Zaidan</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jason</forename><surname>Eisner</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2008 Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>the 2008 Conference on Empirical Methods in Natural Language Processing<address><addrLine>Honolulu, HI</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2008" />
+			<biblScope unit="page" from="31" to="40" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b24">
+	<analytic>
+		<title level="a" type="main">Randomized greedy inference for joint segmentation, POS tagging and dependency parsing</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yuan</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Chengtao</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Regina</forename><surname>Barzilay</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kareem</forename><surname>Darwish</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2015 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies</title>
+		<meeting>the 2015 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies<address><addrLine>Denver, CO</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2015" />
+			<biblScope unit="page" from="42" to="52" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+				</listBibl>
+			</div>
+		</back>
+	</text>
+</TEI>

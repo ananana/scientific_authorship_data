@@ -1,0 +1,1354 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<TEI xmlns="http://www.tei-c.org/ns/1.0" 
+xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+xsi:schemaLocation="http://www.tei-c.org/ns/1.0 /home/ana/installs/grobid/grobid-0.5.1/grobid-home/schemas/xsd/Grobid.xsd"
+ xmlns:xlink="http://www.w3.org/1999/xlink">
+	<teiHeader xml:lang="en">
+		<encodingDesc>
+			<appInfo>
+				<application version="0.5.1-SNAPSHOT" ident="GROBID" when="2019-04-18T12:15+0000">
+					<ref target="https://github.com/kermitt2/grobid">GROBID - A machine learning software for extracting information from scholarly documents</ref>
+				</application>
+			</appInfo>
+		</encodingDesc>
+		<fileDesc>
+			<titleStmt>
+				<title level="a" type="main">Neural Machine Translation with Source-Side Latent Graph Parsing</title>
+			</titleStmt>
+			<publicationStmt>
+				<publisher>Association for Computational Linguistics</publisher>
+				<availability status="unknown"><p>Copyright Association for Computational Linguistics</p>
+				</availability>
+				<date>September 7-11, 2017. 2017</date>
+			</publicationStmt>
+			<sourceDesc>
+				<biblStruct>
+					<analytic>
+						<author>
+							<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kazuma</forename><surname>Hashimoto</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="institution">The University of Tokyo</orgName>
+								<address>
+									<addrLine>7-3-1 Hongo, Bunkyo-ku</addrLine>
+									<settlement>Tokyo</settlement>
+									<country key="JP">Japan</country>
+								</address>
+							</affiliation>
+						</author>
+						<author role="corresp">
+							<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yoshimasa</forename><surname>Tsuruoka</surname></persName>
+							<email>{hassy,tsuruoka}@logos.t.u-tokyo.ac.jp</email>
+							<affiliation key="aff0">
+								<orgName type="institution">The University of Tokyo</orgName>
+								<address>
+									<addrLine>7-3-1 Hongo, Bunkyo-ku</addrLine>
+									<settlement>Tokyo</settlement>
+									<country key="JP">Japan</country>
+								</address>
+							</affiliation>
+						</author>
+						<title level="a" type="main">Neural Machine Translation with Source-Side Latent Graph Parsing</title>
+					</analytic>
+					<monogr>
+						<title level="m">Natural Language Processing</title>
+						<meeting> <address><addrLine>Copenhagen, Denmark</addrLine></address>
+						</meeting>
+						<imprint>
+							<publisher>Association for Computational Linguistics</publisher>
+							<biblScope unit="page" from="125" to="135"/>
+							<date type="published">September 7-11, 2017. 2017</date>
+						</imprint>
+					</monogr>
+				</biblStruct>
+			</sourceDesc>
+		</fileDesc>
+		<profileDesc>
+			<abstract>
+				<p>This paper presents a novel neural machine translation model which jointly learns translation and source-side latent graph representations of sentences. Unlike existing pipelined approaches using syntactic parsers, our end-to-end model learns a latent graph parser as part of the encoder of an attention-based neu-ral machine translation model, and thus the parser is optimized according to the translation objective. In experiments, we first show that our model compares favorably with state-of-the-art sequential and pipelined syntax-based NMT models. We also show that the performance of our model can be further improved by pre-training it with a small amount of tree-bank annotations. Our final ensemble model significantly outperforms the previous best models on the standard English-to-Japanese translation dataset.</p>
+			</abstract>
+		</profileDesc>
+	</teiHeader>
+	<text xml:lang="en">
+		<body>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="1">Introduction</head><p>Neural Machine Translation (NMT) is an active area of research due to its outstanding empiri- cal results ( <ref type="bibr" target="#b0">Bahdanau et al., 2015;</ref><ref type="bibr" target="#b40">Sutskever et al., 2014</ref>). Most of the exist- ing NMT models treat each sentence as a sequence of tokens, but recent studies suggest that syntac- tic information can help improve translation accu- racy ( <ref type="bibr" target="#b10">Eriguchi et al., 2016b</ref><ref type="bibr" target="#b11">Eriguchi et al., , 2017</ref><ref type="bibr" target="#b39">Stahlberg et al., 2016</ref>). The exist- ing syntax-based NMT models employ a syntactic parser trained by supervised learning in advance, and hence the parser is not adapted to the transla- tion tasks. An alternative approach for leveraging syntactic structure in a language processing task is to jointly learn syntactic trees of the sentences  along with the target task <ref type="bibr" target="#b38">(Socher et al., 2011;</ref><ref type="bibr" target="#b45">Yogatama et al., 2017)</ref>.</p><p>Motivated by the promising results of recent joint learning approaches, we present a novel NMT model that can learn a task-specific latent graph structure for each source-side sentence. The graph structure is similar to the dependency struc- ture of the sentence, but it can have cycles and is learned specifically for the translation task. Un- like the aforementioned approach of learning sin- gle syntactic trees, our latent graphs are composed of "soft" connections, i.e., the edges have real- valued weights <ref type="figure" target="#fig_1">(Figure 1</ref>). Our model consists of two parts: one is a task-independent parsing com- ponent, which we call a latent graph parser, and the other is an attention-based NMT model. The latent parser can be independently pre-trained with human-annotated treebanks and is then adapted to the translation task.</p><p>In experiments, we demonstrate that our model can be effectively pre-trained by the treebank annotations, outperforming a state-of-the-art se- quential counterpart and a pipelined syntax-based model. Our final ensemble model outperforms the previous best results by a large margin on the WAT English-to-Japanese dataset.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2">Latent Graph Parser</head><p>We model the latent graph parser based on de- pendency parsing. In dependency parsing, a sen- tence is represented as a tree structure where each node corresponds to a word in the sentence and a unique root node (ROOT) is added. Given a sentence of length N , the parent node H w i ∈ {w 1 , . . . , w N , ROOT} (H w i = w i ) of each word w i (1 ≤ i ≤ N ) is called its head. The sentence is thus represented as a set of tuples (w i , H w i , w i ), where w i is a dependency label.</p><p>In this paper, we remove the constraint of us- ing the tree structure and represent a sentence as a set of tuples (w i , p(H w i |w i ), p( w i |w i )), where p(H w i |w i ) is the probability distribution of w i 's parent nodes, and p( w i |w i ) is the probability dis- tribution of the dependency labels. For example, p(H w i = w j |w i ) is the probability that w j is the parent node of w i . Here, we assume that a spe- cial token EOS is appended to the end of the sentence, and we treat the EOS token as ROOT. This approach is similar to that of graph-based de- pendency parsing <ref type="bibr" target="#b27">(McDonald et al., 2005</ref>) in that a sentence is represented with a set of weighted arcs between the words. To obtain the latent graph rep- resentation of the sentence, we use a dependency parsing model based on multi-task learning pro- posed by <ref type="bibr" target="#b15">Hashimoto et al. (2017)</ref>.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.1">Word Representation</head><p>The i-th input word w i is represented with the con- catenation of its d 1 -dimensional word embedding v dp (w i ) ∈ R d 1 and its character n-gram embed- ding c(w i ) ∈ R d 1 : x(w i ) = [v dp (w i ); c(w i )]. c(w i ) is computed as the average of the embed- dings of the character n-grams in w i .</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.2">POS Tagging Layer</head><p>Our latent graph parser builds upon multi- layer bi-directional Recurrent Neural Networks (RNNs) with Long Short-Term Memory (LSTM) units (Graves and <ref type="bibr" target="#b12">Schmidhuber, 2005</ref>). In the first layer, POS tagging is handled by computing a hid- den state h</p><formula xml:id="formula_0">= LSTM( ← − h (2) i+1 , [x(w i ); y(w i ); ← − h (1) i ]), where y(w i ) = W (1) p (1) i ∈ R d 2</formula><p>is the POS in- formation output from the first layer, and W</p><formula xml:id="formula_1">(1) ∈ R d 2 ×C (1) is a weight matrix.</formula><p>Then, (soft) edges of our latent graph represen- tation are obtained by computing the probabilities</p><formula xml:id="formula_2">p(H w i = w j |w i ) = exp (m(i, j)) k =i exp (m(i, k)) ,<label>(1)</label></formula><p>where</p><formula xml:id="formula_3">m(i, k) = h (2)T k W dp h (2) i (1 ≤ k ≤ N + 1, k = i)</formula><p>is a scoring function with a weight matrix W dp ∈ R 2d 1 ×2d 1 . While the models of <ref type="bibr" target="#b15">Hashimoto et al. (2017)</ref>, <ref type="bibr" target="#b7">Dozat and</ref><ref type="bibr" target="#b7">Manning (2017)</ref> learn the model pa- rameters of their parsing models only by human- annotated data, we allow the model parameters to be learned by the translation task.</p><p>Next, [h</p><formula xml:id="formula_4">(2) i ; z(H w i )]</formula><p>is fed into a softmax classifier to predict the probability distribu- tion p( w i |w i ), where z(H w i ) ∈ R 2d 1 is the weighted average of the hidden states of the parent nodes:</p><formula xml:id="formula_5">j =i p(H w i = w j |w i )h<label>(2)</label></formula><p>j . This results in the latent graph representation (w i , p(H w i |w i ), p( w i |w i )) of the input sentence.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3">NMT with Latent Graph Parser</head><p>The latent graph representation described in Sec- tion 2 can be used for any sentence-level tasks, and here we apply it to an Attention-based NMT (ANMT) model . We modify the encoder and the decoder in the ANMT model to learn the latent graph representation.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.1">Encoder with Dependency Composition</head><p>The ANMT model first encodes the information about the input sentence and then generates a sen- tence in another language. The encoder represents the word w i with a word embedding v enc (w i ) ∈ R d 3 . It should be noted that v enc (w i ) is differ- ent from v dp (w i ) because each component is sep- arately modeled. The encoder then takes the word embedding v enc (w i ) and the hidden state h (2) i as the input to a uni-directional LSMT:</p><formula xml:id="formula_6">h (enc) i = LSTM(h (enc) i−1 , [v enc (w i ); h (2) i ]),<label>(2)</label></formula><p>126 where h (enc) i ∈ R d 3 is the hidden state correspond- ing to w i . That is, the encoder of our model is a three-layer LSTM network, where the first two layers are bi-directional.</p><p>In the sequential LSTMs, relationships between words in distant positions are not explicitly con- sidered. In our model, we explicitly incorporate such relationships into the encoder by defining a dependency composition function:</p><formula xml:id="formula_7">dep(w i ) = tanh(W dep [h enc i ; h(H w i ); p( w i |w i )]), (3) where h(H w i ) = j =i p(H w i = w j |w i )h (enc) j</formula><p>is the weighted average of the hidden states of the parent nodes.</p><p>Note on character n-gram embeddings In NMT models, sub-word units are widely used to address rare or unknown word problems ). In our model, the character n-gram embeddings are fed through the latent graph pars- ing component. To the best of our knowledge, the character n-gram embeddings have never been used in NMT models. <ref type="bibr" target="#b41">Wieting et al. (2016)</ref>, <ref type="bibr" target="#b2">Bojanowski et al. (2017)</ref>, and <ref type="bibr" target="#b15">Hashimoto et al. (2017)</ref> have reported that the character n-gram embed- dings are useful in improving several NLP tasks by better handling unknown words.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.2">Decoder with Attention Mechanism</head><p>The decoder of our model is a single-layer LSTM network, and the initial state is set with h (enc) N +1 and its corresponding memory cell. Given the t-th hid- den state h (dec) t ∈ R d 3 , the decoder predicts the t-th word in the target language using an attention mechanism. The attention mechanism in  computes the weighted average of the hidden states h (enc) i of the encoder:</p><formula xml:id="formula_8">s(i, t) = exp (h (dec) t ·h (enc) i ) N +1 j=1 exp (h (dec) t ·h (enc) j ) ,<label>(4)</label></formula><formula xml:id="formula_9">a t = N +1 i=1 s(i, t)h (enc) i ,<label>(5)</label></formula><p>where s(i, t) is a scoring function which speci- fies how much each source-side hidden state con- tributes to the word prediction. In addition, like the attention mechanism over constituency tree nodes ( <ref type="bibr" target="#b10">Eriguchi et al., 2016b</ref>), our model uses attention to the dependency com- position vectors:</p><formula xml:id="formula_10">s (i, t) = exp (h (dec) t ·dep(w i )) N j=1 exp (h (dec) t ·dep(w j )) ,<label>(6)</label></formula><formula xml:id="formula_11">a t = N i=1 s (i, t)dep(w i ),<label>(7)</label></formula><p>To predict the target word, a hidden state˜hstate˜ state˜h (dec) t ∈ R d 3 is then computed as follows:</p><formula xml:id="formula_12">˜ h (dec) t = tanh( ˜ W [h (dec) t ; a t ; a t ]),<label>(8)</label></formula><formula xml:id="formula_13">where˜Wwhere˜ where˜W ∈ R d 3 ×3d 3 is a weight matrix. ˜ h (dec) t</formula><p>is fed into a softmax classifier to predict a target word distribution. ˜ h</p><formula xml:id="formula_14">(dec) t</formula><p>is also used in the tran- sition of the decoder LSTMs along with a word embedding v dec (w t ) ∈ R d 3 of the target word w t :</p><formula xml:id="formula_15">h (dec) t+1 = LSTM(h (dec) t , [v dec (w t ); ˜ h (dec) t ]), (9)</formula><p>where the use of˜hof˜ of˜h</p><formula xml:id="formula_16">(dec) t</formula><p>is called input feeding pro- posed by .</p><p>The overall model parameters, including those of the latent graph parser, are jointly learned by minimizing the negative log-likelihood of the pre- diction probabilities of the target words in the training data. To speed up the training, we use BlackOut sampling ( <ref type="bibr" target="#b20">Ji et al., 2016)</ref>. By this joint learning using Equation <ref type="formula">(3)</ref> and <ref type="formula" target="#formula_11">(7)</ref>, the latent graph representations are automatically learned according to the target task.</p><p>Implementation Tips Inspired by <ref type="bibr" target="#b48">Zoph et al. (2016)</ref>, we further speed up BlackOut sampling by sharing noise samples across words in the same sentences. This technique has proven to be effective in RNN language modeling, and we have found that it is also effective in the NMT model. We have also found it effective to share the model parameters of the target word embed- dings and the softmax weight matrix for word pre- diction <ref type="bibr" target="#b17">(Inan et al., 2016;</ref><ref type="bibr" target="#b35">Press and Wolf, 2017)</ref>. Also, we have found that a parameter averaging technique ( <ref type="bibr" target="#b14">Hashimoto et al., 2013</ref>) is helpful in improving translation accuracy.</p><p>Translation At test time, we use a novel beam search algorithm which combines statistics of sen- tence lengths ( <ref type="bibr" target="#b10">Eriguchi et al., 2016b</ref>) and length normalization ( <ref type="bibr" target="#b5">Cho et al., 2014</ref>). During the beam search step, we use the following scor- ing function for a generated word sequence y = (y 1 , y 2 , . . . , y Ly ) given a source word sequence</p><formula xml:id="formula_17">x = (x 1 , x 2 , . . . , x Lx ): 1 L y   Ly i=1 log p(y i |x, y 1:i−1 ) + log p(L y |L x )   , (10)</formula><p>where p(L y |L x ) is the probability that sentences of length L y are generated given source-side sen- tences of length L x . The statistics are taken by using the training data in advance. In our exper- iments, we have empirically found that this beam search algorithm helps the NMT models to avoid generating translation sentences that are too short.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4">Experimental Settings</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.1">Data</head><p>We used an English-to-Japanese translation task of the Asian Scientific Paper Excerpt Corpus (AS- PEC) ( <ref type="bibr" target="#b30">Nakazawa et al., 2016b</ref>) used in the Work- shop on Asian Translation (WAT), since it has been shown that syntactic information is useful in English-to-Japanese translation ( <ref type="bibr" target="#b10">Eriguchi et al., 2016b;</ref><ref type="bibr" target="#b32">Neubig et al., 2015)</ref>. We followed the data preprocessing instruction for the English-to- Japanese task in <ref type="bibr" target="#b10">Eriguchi et al. (2016b)</ref>. The En- glish sentences were tokenized by the tokenizer in the Enju parser <ref type="bibr" target="#b28">(Miyao and Tsujii, 2008)</ref>, and the Japanese sentences were segmented by the KyTea tool 1 . Among the first 1,500,000 translation pairs in the training data, we selected 1,346,946 pairs where the maximum sentence length is 50. In what follows, we call this dataset the large training dataset. We further selected the first 20,000 and 100,000 pairs to construct the small and medium training datasets, respectively. The development data include 1,790 pairs, and the test data 1,812 pairs.</p><p>For the small and medium datasets, we built the vocabulary with words whose minimum fre- quency is two, and for the large dataset, we used words whose minimum frequency is three for En- glish and five for Japanese. As a result, the vo- cabulary of the target language was 8,593 for the small dataset, 23,532 for the medium dataset, and 65,680 for the large dataset. A special token UNK was used to replace words which were not included in the vocabularies. The character n- grams (n = 2, 3, 4) were also constructed from each training dataset with the same frequency set- tings.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.2">Parameter Optimization and Translation</head><p>We turned hyper-parameters of the model using development data. We set (d 1 , d 2 ) = (100, 50) for the latent graph parser. The word and charac- ter n-gram embeddings of the latent graph parser 1 http://www.phontron.com/kytea/.</p><p>were initialized with the pre-trained embeddings in <ref type="bibr" target="#b15">Hashimoto et al. (2017)</ref>. <ref type="bibr">2</ref> The weight matrices in the latent graph parser were initialized with uni- form random values in [−</p><formula xml:id="formula_18">√ 6 √ row+col , + √ 6 √ row+col ]</formula><p>, where row and col are the number of rows and columns of the matrices, respectively. All the bias vectors and the weight matrices in the softmax lay- ers were initialized with zeros, and the bias vectors of the forget gates in the LSTMs were initialized by ones ( <ref type="bibr" target="#b21">Jozefowicz et al., 2015</ref>).</p><p>We set d 3 = 128 for the small training dataset, d 3 = 256 for the medium training dataset, and d 3 = 512 for the large training dataset. The word embeddings and the weight matrices of the NMT model were initialized with uniform ran- dom values in [−0.1, +0.1]. The training was per- formed by mini-batch stochastic gradient descent with momentum. For the BlackOut objective ( <ref type="bibr" target="#b20">Ji et al., 2016)</ref>, the number of the negative samples was set to 2,000 for the small and medium training datasets, and 2,500 for the large training dataset. The mini-batch size was set to 128, and the mo- mentum rate was set to 0.75 for the small and medium training datasets and 0.70 for the large training dataset. A gradient clipping technique was used with a clipping value of 1.0. The ini- tial learning rate was set to 1.0, and the learn- ing rate was halved when translation accuracy de- creased. We used the BLEU scores obtained by greedy translation as the translation accuracy and checked it at every half epoch of the model train- ing. We saved the model parameters at every half epoch and used the saved model parameters for the parameter averaging technique. For regulariza- tion, we used L2-norm regularization with a coef- ficient of 10 −6 and applied dropout ( <ref type="bibr" target="#b16">Hinton et al., 2012</ref>) to Equation (8) with a dropout rate of 0.2.</p><p>The beam size for the beam search algorithm was 12 for the small and medium training datasets, and 50 for the large training dataset. We used BLEU ( <ref type="bibr" target="#b34">Papineni et al., 2002</ref>), RIBES ( <ref type="bibr" target="#b18">Isozaki et al., 2010)</ref>, and perplexity scores as our evalu- ation metrics. Note that lower perplexity scores indicate better accuracy.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.3">Pre-Training of Latent Graph Parser</head><p>The latent graph parser in our model can be op- tionally pre-trained by using human annotations for dependency parsing. In this paper we used the widely-used Wall Street Journal (WSJ) train- ing data to jointly train the POS tagging and de- pendency parsing components. We used the stan- dard training split (Section 0-18) for POS tagging. We followed <ref type="bibr" target="#b3">Chen and Manning (2014)</ref> to gener- ate the training data (Section 2</p><note type="other">-21) for dependency parsing. From each training dataset, we selected the first K sentences to pre-train our model. The training dataset for POS tagging includes 38,219 sentences, and that for dependency parsing in- cludes 39,832 sentences.</note><p>The parser including the POS tagger was first trained for 10 epochs in advance according to the multi-task learning procedure of <ref type="bibr" target="#b15">Hashimoto et al. (2017)</ref>, and then the overall NMT model was trained. When pre-training the POS tagging and dependency parsing components, we did not ap- ply dropout to the model and did not fine-tune the word and character n-gram embeddings to avoid strong overfitting.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.4">Model Configurations</head><p>LGP-NMT is our proposed model that learns the Latent Graph Parsing for NMT.</p><p>LGP-NMT+ is constructed by pre-training the latent parser in LGP-NMT as described in Sec- tion 4.3.</p><p>SEQ is constructed by removing the depen- dency composition in Equation (3), forming a se- quential NMT model with the multi-layer encoder.</p><p>DEP is constructed by using pre-trained depen- dency relations rather than learning them. That is, p(H w i = w j |w i ) is fixed to 1.0 such that w j is the head of w i . The dependency labels are also given by the parser which was trained by using all the training samples for parsing and tagging.</p><p>UNI is constructed by fixing p(H w i = w j |w i ) to 1 N for all the words in the same sentence. That is, the uniform probability distributions are used for equally connecting all the words.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5">Results on Small and Medium Datasets</head><p>We first show our translation results using the small and medium training datasets. We report av- eraged scores with standard deviations across five different runs of the model training.  and UNI, which shows that the small training dataset is not enough to learn useful latent graph structures from scratch. However, LGP-NMT+ (K = 10,000) outperforms SEQ and UNI, and the standard deviations are the smallest. Therefore, the results suggest that pre-training the parsing and tagging components can improve the translation accuracy of our proposed model. We can also see that DEP performs the worst. This is not surpris- ing because previous studies, e.g., <ref type="bibr" target="#b24">Li et al. (2015)</ref>, have reported that using syntactic structures do not always outperform competitive sequential models in several NLP tasks. Now that we have observed the effectiveness of pre-training our model, one question arises natu- rally: how many training samples for parsing and tagging are necessary for improving the translation accuracy? <ref type="table" target="#tab_1">Table 2</ref> shows the results of using different num- bers of training samples for parsing and tagging. The results of K= 0 and K= 10,000 correspond to those of LGP-NMT and LGP-NMT+ in Ta- ble 1, respectively. We can see that using the small amount of the training samples performs better than using all the training samples. <ref type="bibr">3</ref> One possible reason is that the domains of the trans- lation dataset and the parsing (tagging) dataset are considerably different. The parsing and tag- ging datasets come from WSJ, whereas the trans- lation dataset comes from abstract text of scien- tific papers in a wide range of domains, such as  <ref type="table">Table 3</ref>: Evaluation on the development data using the medium training dataset (100,000 pairs).</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.1">Small Training Dataset</head><p>biomedicine and computer science. These results suggest that our model can be improved by a small amount of parsing and tagging datasets in differ- ent domains. Considering the recent universal de- pendency project <ref type="bibr">4</ref> which covers more than 50 lan- guages, our model has the potential of being ap- plied to a variety of language pairs. <ref type="table">Table 3</ref> shows the results of using the medium training dataset. In contrast with using the small training dataset, LGP-NMT is slightly better than SEQ.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.2">Medium Training Dataset</head><p>LGP-NMT significantly outperforms UNI, which shows that our adaptive learning is more effective than using the uniform graph weights. By pre-training our model, LGP-NMT+ signifi- cantly outperforms SEQ in terms of the BLEU score. Again, DEP performs the worst among all the models. By using our beam search strategy, the Brevity Penalty (BP) values of our translation results are equal to or close to 1.0, which is important when evaluating the translation results using the BLEU scores. A BP value ranges from 0.0 to 1.0, and larger values mean that the translated sentences have relevant lengths compared with the reference translations. As a result, our BLEU evaluation re- sults are affected only by the word n-gram preci- sion scores. BLEU scores are sensitive to the BP values, and thus our beam search strategy leads to more solid evaluation for NMT models.   Again, we see that the translation scores of our model can be further improved by pre-training the model. <ref type="table" target="#tab_5">Table 5</ref> shows our results on the test data, and the previous best results summarized in <ref type="bibr" target="#b29">Nakazawa et al. (2016a)</ref> and the WAT website 5 are also shown. Our proposed models, LGP-NMT and LGP-NMT+, outperform not only SEQ but also all of the previous best results. Notice also that our implementation of the sequential model (SEQ) provides a very strong baseline, the performance of which is already comparable to the previous state of the art, even without using ensemble tech- niques. The confidence interval (p ≤ 0.05) of the RIBES score of LGP-NMT+ estimated by boot- strap resampling <ref type="bibr">(Noreen, 1989) is (82.27, 83.37)</ref>, and thus the RIBES score of LGP-NMT+ is sig- nificantly better than that of SEQ, which shows that our latent parser can be effectively pre-trained with the human-annotated treebank.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6">Results on Large Dataset</head><p>The sequential NMT model in <ref type="bibr" target="#b6">Cromieres et al. (2016)</ref> and the tree-to-sequence NMT model in <ref type="bibr" target="#b10">Eriguchi et al. (2016b)</ref> rely on ensemble tech- niques while our results mentioned above are ob- tained using single models. Moreover, our model is more compact 6 than the previous best NMT model in <ref type="bibr" target="#b6">Cromieres et al. (2016)</ref>. By applying the ensemble technique to LGP-NMT, LGP-NMT+, As a result , it was found that a path which crosses a sphere obliquely existed .</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Reference: その結果、球内部を斜めに横切る行路の存在することが分かった。</head><p>LGP-NMT: <ref type="bibr">その結果、球を斜めに横切る経路が存在することが分かった。</ref> LGP-NMT+: その結果、球を斜めに横切る経路が存在することが分かった。 (As a result , it was found that a path which obliquely crosses a sphere existed .)</p><p>Google trans: その結果、球を横切る経路が斜めに存在することが判明した。 SEQ: その結果、球を横断する経路が斜めに存在することが分かった。 (As a result , it was found that a path which crosses a sphere existed obliquely .)</p><p>The androgen controls negatively ImRNA . and SEQ, the BLEU and RIBES scores are further improved, and both of the scores are significantly better than the previous best scores. <ref type="figure" target="#fig_2">Figure 2</ref> shows two translation examples <ref type="bibr">7</ref> to see how the proposed model works and what is miss- ing in the state-of-the-art sequential NMT model, SEQ. Besides the reference translation, the outputs of our models with and without pre-training, SEQ, and Google Translation 8 are shown.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6.1">Analysis on Translation Examples</head><p>Selectional Preference In the translation ex- ample (1) in <ref type="figure" target="#fig_2">Figure 2</ref>, we see that the ad- verb "obliquely" is interpreted differently across the systems. As in the reference translation, "obliquely" is a modifier of the verb "crosses". Our models correctly capture the relationship be- tween the two words, whereas Google Translation and SEQ treat "obliquely" as a modifier of the verb "existed". This error is not a surprise since the verb "existed" is located closer to "obliquely" than the verb "crosses". A possible reason for the correct interpretation by our models is that they can better capture long-distance dependen- cies and are less susceptible to surface word dis- tances. This is an indication of our models' abil- ity of capturing domain-specific selectional prefer- ence that cannot be captured by purely sequential models. It should be noted that simply using stan- dard treebank-based parsers does not necessarily address this error, because our pre-trained depen- dency parser interprets that "obliquely" is a modi- fier of the verb "existed".</p><p>Adverb or Adjective The translation example (2) in <ref type="figure" target="#fig_2">Figure 2</ref> shows another example where the adverb "negatively" is interpreted as an ad- verb or an adjective. As in the reference transla- tion, "negatively" is a modifier of the verb "con- trols". Only LGP-NMT+ correctly captures the adverb-verb relationship, whereas "negatively" is interpreted as the adjective "negative" to modify the noun "ImRNA" in the translation results from Google Translation and LGP-NMT. SEQ inter- prets "negatively" as both an adverb and an adjec- tive, which leads to the repeated translations. This error suggests that the state-of-the-art NMT mod- els are strongly affected by the word order. By contrast, the pre-training strategy effectively em- beds the information about the POS tags and the dependency relations into our model.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6.2">Analysis on Learned Latent Graphs</head><p>Without Pre-Training We inspected the latent graphs learned by LGP-NMT. <ref type="figure" target="#fig_1">Figure 1</ref> shows an example of the learned latent graph obtained for a sentence taken from the development data of the translation task. It has long-range dependencies and cycles as well as ordinary left-to-right depen- dencies. We have observed that the punctuation mark "." is often pointed to by other words with large weights. This is primarily because the hid- den state corresponding to the mark in each sen- tence has rich information about the sentence.</p><p>To measure the correlation between the la- tent graphs and human-defined dependencies, we parsed the sentences on the development data of the WSJ corpus and converted the graphs into dependency trees by Eisner's algorithm <ref type="bibr" target="#b8">(Eisner, 1996</ref>). For evaluation, we followed <ref type="bibr" target="#b3">Chen and Manning (2014)</ref> and measured Unlabeled Attach- ment Score (UAS). The UAS is 24.52%, which shows that the implicitly-learned latent graphs are partially consistent with the human-defined syn- tactic structures. Similar trends have been re- ported by <ref type="bibr" target="#b45">Yogatama et al. (2017)</ref> in the case of binary constituency parsing. We checked the most dominant gold dependency labels which were as- signed for the dependencies detected by LGP- NMT. The labels whose ratio is more than 3% are All the calculated electronic band structures are metallic . nn, amod, prep, pobj, dobj, nsubj, num, det, advmod, and poss. We see that depen- dencies between words in distant positions, such as subject-verb-object relations, can be captured.</p><p>With Pre-Training We also inspected the pre- trained latent graphs. <ref type="figure" target="#fig_3">Figure 3</ref>-(a) shows the de- pendency structure output by the pre-trained latent parser for the same sentence in <ref type="figure" target="#fig_1">Figure 1</ref>. This is an ordinary dependency tree, and the head selection is almost deterministic; that is, for each word, the largest weight of the head selection is close to 1.0. By contrast, the weight values are more evenly distributed in the case of LGP-NMT as shown in <ref type="figure" target="#fig_1">Figure 1</ref>. After the overall NMT model training, the latent parser is adapted to the translation task, and <ref type="figure" target="#fig_3">Figure 3</ref>-(b) shows the adapted latent graph. Again, we can see that the adapted weight values are also distributed and different from the origi- nal pre-trained weight values, which suggests that human-defined syntax is not always optimal for the target task.</p><p>The UAS of the pre-trained dependency trees is 92.52% 9 , and that of the adapted latent graphs is 18.94%. Surprisingly, the resulting UAS (18.94%) is lower than the UAS of our model without pre- training (24.52%). However, in terms of the trans- lation accuracy, our model with pre-training is bet- ter than that without pre-training. These results suggest that human-annotated treebanks can pro- vide useful prior knowledge to guide the overall model training by pre-training, but the resulting sentence structures adapted to the target task do not need to highly correlate with the treebanks. <ref type="bibr">9</ref> The UAS is significantly lower than the reported score in <ref type="bibr" target="#b15">Hashimoto et al. (2017)</ref>. The reason is described in Sec- tion 4.3.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="7">Related Work</head><p>While initial studies on NMT treat each sentence as a sequence of words ( <ref type="bibr" target="#b0">Bahdanau et al., 2015;</ref><ref type="bibr" target="#b40">Sutskever et al., 2014</ref>), re- searchers have recently started investigating into the use of syntactic structures in NMT mod- els ( <ref type="bibr">Bastings et al., 2017;</ref><ref type="bibr" target="#b4">Chen et al., 2017;</ref><ref type="bibr" target="#b9">Eriguchi et al., 2016a</ref><ref type="bibr">Eriguchi et al., ,b, 2017</ref><ref type="bibr" target="#b25">Li et al., 2017;</ref><ref type="bibr" target="#b39">Stahlberg et al., 2016;</ref><ref type="bibr" target="#b44">Yang et al., 2017</ref>). In particular, <ref type="bibr" target="#b10">Eriguchi et al. (2016b)</ref> introduced a tree-to-sequence NMT model by building a tree-structured encoder on top of a standard sequential encoder, which motivated the use of the dependency composition vectors in our proposed model. Prior to the advent of NMT, the syntactic structures had been successfully used in statistical machine translation systems <ref type="bibr" target="#b31">(Neubig and Duh, 2014;</ref><ref type="bibr" target="#b43">Yamada and Knight, 2001</ref>). These syntax-based approaches are pipelined; a syntactic parser is first trained by supervised learning using a treebank such as the WSJ dataset, and then the parser is used to automatically extract syntactic in- formation for machine translation. They rely on the output from the parser, and therefore parsing errors are propagated through the whole systems. By contrast, our model allows the parser to be adapted to the translation task, thereby providing a first step towards addressing ambiguous syntactic and semantic problems, such as domain-specific selectional preference and PP attachments, in a task-oriented fashion.</p><p>Our model learns latent graph structures in a source-side language. <ref type="bibr" target="#b11">Eriguchi et al. (2017)</ref> have proposed a model which learns to parse and trans- late by using automatically-parsed data. Thus, it is also an interesting direction to learn latent struc- tures in a target-side language.</p><p>As for the learning of latent syntactic structure, there are several studies on learning task-oriented syntactic structures. <ref type="bibr" target="#b45">Yogatama et al. (2017)</ref> used a reinforcement learning method on shift-reduce ac- tion sequences to learn task-oriented binary con- stituency trees. They have shown that the learned trees do not necessarily highly correlate with the human-annotated treebanks, which is consistent with our experimental results. <ref type="bibr" target="#b38">Socher et al. (2011)</ref> used a recursive autoencoder model to greed- ily construct a binary constituency tree for each sentence. The autoencoder objective works as a regularization term for sentiment classification tasks. Prior to these deep learning approaches, <ref type="bibr" target="#b42">Wu (1997)</ref> presented a method for bilingual pars- ing. One of the characteristics of our model is directly using the soft connections of the graph edges with the real-valued weights, whereas all of the above-mentioned methods use one best struc- ture for each sentence. Our model is based on dependency structures, and it is a promising fu- ture direction to jointly learn dependency and con- stituency structures in a task-oriented fashion.</p><p>Finally, more related to our model, <ref type="bibr" target="#b22">Kim et al. (2017)</ref> applied their structured attention networks to a Natural Language Inference (NLI) task for learning dependency-like structures. They showed that pre-training their model by a parsing dataset did not improve accuracy on the NLI task. By contrast, our experiments show that such a parsing dataset can be effectively used to improve trans- lation accuracy by varying the size of the dataset and by avoiding strong overfitting. Moreover, our translation examples show the concrete benefit of learning task-oriented latent graph structures.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="8">Conclusion and Future Work</head><p>We have presented an end-to-end NMT model by jointly learning translation and source-side latent graph representations. By pre-training our model using treebank annotations, our model signifi- cantly outperforms both a pipelined syntax-based model and a state-of-the-art sequential model. On English-to-Japanese translation, our model outper- forms the previous best models by a large margin. In future work, we investigate the effectiveness of our approach in different types of target tasks.</p></div><figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_1"><head>Figure 1 :</head><label>1</label><figDesc>Figure 1: An example of the learned latent graphs. Edges with a small weight are omitted.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_2"><head>Figure 2 :</head><label>2</label><figDesc>Figure 2: English-to-Japanese translation examples for focusing on the usage of adverbs.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_3"><head>Figure 3 :</head><label>3</label><figDesc>Figure 3: An example of the pre-trained dependency structures (a) and its corresponding latent graph adapted by our model (b).</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_0" validated="false"><head>Table 1 shows</head><label>1</label><figDesc>the results of using the small train- ing dataset. LGP-NMT performs worse than SEQ BLEU RIBES Perplexity LGP-NMT 14.31±1.49 65.96±1.86 41.13±2.66 LGP-NMT+ 16.81±0.31 69.03±0.28 38.33±1.18 SEQ 15.37±1.18 67.01±1.55 38.12±2.52 UNI 15.13±1.67 66.95±1.94 39.25±2.98 DEP 13.34±0.67 64.95±0.75 43.89±1.52</figDesc><table>Table 1: Evaluation on the development data using 
+the small training dataset (20,000 pairs). 
+
+K 
+BLEU 
+RIBES 
+Perplexity 
+0 14.31±1.49 65.96±1.86 41.13±2.66 
+5,000 16.99±1.00 69.03±0.93 37.14±1.96 
+10,000 16.81±0.31 69.03±0.28 38.33±1.18 
+All 16.09±0.56 68.19±0.59 39.24±1.88 
+
+</table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_1" validated="false"><head>Table 2 :</head><label>2</label><figDesc>Effects of the size K of the training datasets for POS tagging and dependency parsing.</figDesc><table></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_2" validated="false"><head></head><label></label><figDesc>BLEU RIBES Perplexity LGP-NMT 28.70±0.27 77.51±0.13 12.10±0.16 LGP-NMT+ 29.06±0.25 77.57±0.24 12.09±0.27 SEQ 28.60±0.24 77.39±0.15 12.15±0.12 UNI 28.25±0.35 77.13±0.20 12.37±0.08 DEP 26.83±0.38 76.05±0.22 13.33±0.23</figDesc><table></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_3" validated="false"><head>Table 4 shows</head><label>4</label><figDesc>the BLEU and RIBES scores on the development data achieved with the large train- ing dataset. Here we focus on our models and SEQ because UNI and DEP consistently perform worse than the other models as shown in Table 1 and 3. The averaging technique and attention- based unknown word replacement (Jean et al., 2015; Hashimoto et al., 2016) improve the scores. B./R. Single +Averaging +UnkRep LGP-NMT 38.05/81.98 38.44/82.23 38.77/82.29 LGP-NMT+ 38.75/82.13 39.01/82.40 39.37/82.48 SEQ 38.24/81.84 38.26/82.14 38.61/82.18</figDesc><table></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_4" validated="true"><head>Table 4 : BLEU (B.) and RIBES (R.) scores on the development data using the large training dataset.</head><label>4</label><figDesc></figDesc><table>BLEU RIBES 
+LGP-NMT 
+39.19 
+82.66 
+LGP-NMT+ 
+39.42 
+82.83 
+SEQ 
+38.96 
+82.18 
+Ensemble of the above three models 
+41.18 
+83.40 
+Cromieres et al. (2016) 
+38.20 
+82.39 
+Neubig et al. (2015) 
+38.17 
+81.38 
+Eriguchi et al. (2016a) 
+36.95 
+82.45 
+Neubig and Duh (2014) 
+36.58 
+79.65 
+Zhu (2015) 
+36.21 
+80.91 
+Lee et al. (2015) 
+35.75 
+81.15 
+
+</table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_5" validated="false"><head>Table 5 : BLEU and RIBES scores on the test data.</head><label>5</label><figDesc></figDesc><table></table></figure>
+
+			<note place="foot" n="2"> The pre-trained embeddings can be found at https: //github.com/hassyGo/charNgram2vec.</note>
+
+			<note place="foot" n="3"> We did not observe such significant difference when using the larger datasets, and we used all the training samples in the remaining part of this paper.</note>
+
+			<note place="foot" n="4"> http://universaldependencies.org/.</note>
+
+			<note place="foot" n="5"> http://lotus.kuee.kyoto-u.ac.jp/WAT/ evaluation/list.php?t=1&amp;o=1. 6 Our training time is within five days on a c4.8xlarge machine of Amazon Web Service by our CPU-based C++ code, while it is reported that the training time is more than two weeks in Cromieres et al. (2016) by their GPU code.</note>
+
+			<note place="foot" n="7"> These English sentences were created by manual simplification of sentences in the development data. 8 The translations were obtained at https: //translate.google.com in Feb. and Mar. 2017.</note>
+		</body>
+		<back>
+
+			<div type="acknowledgement">
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Acknowledgments</head><p>We thank the anonymous reviewers and Akiko Eriguchi for their helpful comments and sugges-tions. We also thank Yuchen Qiao and Kenjiro Taura for their help in speeding up our training code. This work was supported by CREST, JST, and JSPS KAKENHI Grant Number 17J09620.</p></div>
+			</div>
+
+			<div type="references">
+
+				<listBibl>
+
+<biblStruct xml:id="b0">
+	<analytic>
+		<title level="a" type="main">Neural Machine Translation by Jointly Learning to Align and Translate</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Dzmitry</forename><surname>Bahdanau</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kyunghyun</forename><surname>Cho</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yoshua</forename><surname>Bengio</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 3rd International Conference on Learning Representations</title>
+		<meeting>the 3rd International Conference on Learning Representations</meeting>
+		<imprint>
+			<date type="published" when="2015" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b1">
+	<monogr>
+				<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Joost</forename><surname>Bastings</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ivan</forename><surname>Titov</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Wilker</forename><surname>Aziz</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Diego</forename><surname>Marcheggiani</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Khalil</forename><surname>Sima</surname></persName>
+		</author>
+		<idno>cs.CL 1704.04675</idno>
+		<title level="m">Graph Convolutional Encoders for Syntax-aware Neural Machine Translation. arXiv</title>
+		<imprint/>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b2">
+	<analytic>
+		<title level="a" type="main">Enriching Word Vectors with Subword Information</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Piotr</forename><surname>Bojanowski</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Edouard</forename><surname>Grave</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Armand</forename><surname>Joulin</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Tomas</forename><surname>Mikolov</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Transactions of the Association for Computational Linguistics</title>
+		<imprint>
+			<biblScope unit="volume">5</biblScope>
+			<biblScope unit="page" from="135" to="146" />
+			<date type="published" when="2017" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b3">
+	<analytic>
+		<title level="a" type="main">A Fast and Accurate Dependency Parser using Neural Networks</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Danqi</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Christopher</forename><surname>Manning</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2014 Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>the 2014 Conference on Empirical Methods in Natural Language Processing</meeting>
+		<imprint>
+			<date type="published" when="2014" />
+			<biblScope unit="page" from="740" to="750" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b4">
+	<analytic>
+		<title level="a" type="main">Improved Neural Machine Translation with a Syntax-Aware Encoder and Decoder</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Huadong</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Shujian</forename><surname>Huang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">David</forename><surname>Chiang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jiajun</forename><surname>Chen</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 55th Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 55th Annual Meeting of the Association for Computational Linguistics</meeting>
+		<imprint>
+			<publisher>Long Papers</publisher>
+			<date type="published" when="2017" />
+			<biblScope unit="volume">1</biblScope>
+		</imprint>
+	</monogr>
+	<note>To appear</note>
+</biblStruct>
+
+<biblStruct xml:id="b5">
+	<analytic>
+		<title level="a" type="main">On the Properties of Neural Machine Translation: EncoderDecoder Approaches</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kyunghyun</forename><surname>Cho</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Bart</forename><surname>Van Merrienboer</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Dzmitry</forename><surname>Bahdanau</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yoshua</forename><surname>Bengio</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of SSST-8, Eighth Workshop on Syntax, Semantics and Structure in Statistical Translation</title>
+		<meeting>SSST-8, Eighth Workshop on Syntax, Semantics and Structure in Statistical Translation</meeting>
+		<imprint>
+			<date type="published" when="2014" />
+			<biblScope unit="page" from="103" to="111" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b6">
+	<analytic>
+		<title level="a" type="main">Kyoto University Participation to WAT 2016</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Fabien</forename><surname>Cromieres</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Chenhui</forename><surname>Chu</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Toshiaki</forename><surname>Nakazawa</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Sadao</forename><surname>Kurohashi</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 3rd Workshop on Asian Translation</title>
+		<meeting>the 3rd Workshop on Asian Translation</meeting>
+		<imprint>
+			<date type="published" when="2016" />
+			<biblScope unit="page" from="166" to="174" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b7">
+	<analytic>
+		<title level="a" type="main">Deep Biaffine Attention for Neural Dependency Parsing</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Timothy</forename><surname>Dozat</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Christopher</forename><forename type="middle">D</forename><surname>Manning</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 5th International Conference on Learning Representations</title>
+		<meeting>the 5th International Conference on Learning Representations</meeting>
+		<imprint>
+			<date type="published" when="2017" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b8">
+	<analytic>
+		<title level="a" type="main">Efficient Normal-Form Parsing for Combinatory Categorial Grammar</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jason</forename><surname>Eisner</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 34th Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 34th Annual Meeting of the Association for Computational Linguistics</meeting>
+		<imprint>
+			<date type="published" when="1996" />
+			<biblScope unit="page" from="79" to="86" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b9">
+	<analytic>
+		<title level="a" type="main">Character-based Decoding in Tree-to-Sequence Attention-based Neural Machine Translation</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Akiko</forename><surname>Eriguchi</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kazuma</forename><surname>Hashimoto</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yoshimasa</forename><surname>Tsuruoka</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 3rd Workshop on Asian Translation</title>
+		<meeting>the 3rd Workshop on Asian Translation</meeting>
+		<imprint>
+			<date type="published" when="2016" />
+			<biblScope unit="page" from="175" to="183" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b10">
+	<analytic>
+		<title level="a" type="main">Tree-to-Sequence Attentional Neural Machine Translation</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Akiko</forename><surname>Eriguchi</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kazuma</forename><surname>Hashimoto</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yoshimasa</forename><surname>Tsuruoka</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 54th Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 54th Annual Meeting of the Association for Computational Linguistics</meeting>
+		<imprint>
+			<publisher>Long Papers</publisher>
+			<date type="published" when="2016" />
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="823" to="833" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b11">
+	<analytic>
+		<title level="a" type="main">Learning to Parse and Translate Improves Neural Machine Translation</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Akiko</forename><surname>Eriguchi</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yoshimasa</forename><surname>Tsuruoka</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kyunghyun</forename><surname>Cho</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 55th Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 55th Annual Meeting of the Association for Computational Linguistics</meeting>
+		<imprint>
+			<date type="published" when="2017" />
+			<biblScope unit="volume">2</biblScope>
+		</imprint>
+	</monogr>
+	<note>Short Papers). To appear</note>
+</biblStruct>
+
+<biblStruct xml:id="b12">
+	<analytic>
+		<title level="a" type="main">Framewise Phoneme Classification with Bidirectional LSTM and Other Neural Network Architectures</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Alex</forename><surname>Graves</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jurgen</forename><surname>Schmidhuber</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Neural Networks</title>
+		<imprint>
+			<biblScope unit="volume">18</biblScope>
+			<biblScope unit="issue">5</biblScope>
+			<biblScope unit="page" from="602" to="610" />
+			<date type="published" when="2005" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b13">
+	<analytic>
+		<title level="a" type="main">Domain Adaptation and AttentionBased Unknown Word Replacement in Chinese-toJapanese Neural Machine Translation</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kazuma</forename><surname>Hashimoto</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Akiko</forename><surname>Eriguchi</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yoshimasa</forename><surname>Tsuruoka</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 3rd Workshop on Asian Translation</title>
+		<meeting>the 3rd Workshop on Asian Translation</meeting>
+		<imprint>
+			<date type="published" when="2016" />
+			<biblScope unit="page" from="75" to="83" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b14">
+	<analytic>
+		<title level="a" type="main">Simple Customization of Recursive Neural Networks for Semantic Relation Classification</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kazuma</forename><surname>Hashimoto</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Makoto</forename><surname>Miwa</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yoshimasa</forename><surname>Tsuruoka</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Takashi</forename><surname>Chikayama</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2013 Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>the 2013 Conference on Empirical Methods in Natural Language Processing</meeting>
+		<imprint>
+			<date type="published" when="2013" />
+			<biblScope unit="page" from="1372" to="1376" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b15">
+	<analytic>
+		<title level="a" type="main">A Joint ManyTask Model: Growing a Neural Network for Multiple NLP Tasks</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kazuma</forename><surname>Hashimoto</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Caiming</forename><surname>Xiong</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yoshimasa</forename><surname>Tsuruoka</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Richard</forename><surname>Socher</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2017 Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>the 2017 Conference on Empirical Methods in Natural Language Processing</meeting>
+		<imprint>
+			<date type="published" when="2017" />
+		</imprint>
+	</monogr>
+	<note>To appear</note>
+</biblStruct>
+
+<biblStruct xml:id="b16">
+	<monogr>
+		<title level="m" type="main">Improving neural networks by preventing co-adaptation of feature detectors</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Geoffrey</forename><forename type="middle">E</forename><surname>Hinton</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Nitish</forename><surname>Srivastava</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Alex</forename><surname>Krizhevsky</surname></persName>
+		</author>
+		<idno>abs/1207.0580</idno>
+		<imprint>
+			<date type="published" when="2012" />
+			<publisher>CoRR</publisher>
+		</imprint>
+	</monogr>
+	<note>Ilya Sutskever, and Ruslan Salakhutdinov</note>
+</biblStruct>
+
+<biblStruct xml:id="b17">
+	<monogr>
+		<title level="m" type="main">Tying Word Vectors and Word Classifiers: A Loss Framework for Language Modeling</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Khashayar</forename><surname>Hakan Inan</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Richard</forename><surname>Khosravi</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Socher</surname></persName>
+		</author>
+		<idno>cs.CL 1611.01462</idno>
+		<imprint>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+<note type="report_type">arXiv</note>
+</biblStruct>
+
+<biblStruct xml:id="b18">
+	<analytic>
+		<title level="a" type="main">Automatic Evaluation of Translation Quality for Distant Language Pairs</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Hideki</forename><surname>Isozaki</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Tsutomu</forename><surname>Hirao</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kevin</forename><surname>Duh</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Katsuhito</forename><surname>Sudoh</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Hajime</forename><surname>Tsukada</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2010 Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>the 2010 Conference on Empirical Methods in Natural Language Processing</meeting>
+		<imprint>
+			<date type="published" when="2010" />
+			<biblScope unit="page" from="944" to="952" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b19">
+	<analytic>
+		<title level="a" type="main">Montreal Neural Machine Translation Systems for WMTf15</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Sébastien</forename><surname>Jean</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Orhan</forename><surname>Firat</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kyunghyun</forename><surname>Cho</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Roland</forename><surname>Memisevic</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yoshua</forename><surname>Bengio</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Tenth Workshop on Statistical Machine Translation</title>
+		<meeting>the Tenth Workshop on Statistical Machine Translation</meeting>
+		<imprint>
+			<date type="published" when="2015" />
+			<biblScope unit="page" from="134" to="140" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b20">
+	<analytic>
+		<title level="a" type="main">BlackOut: Speeding up Recurrent Neural Network Language Models With Very Large Vocabularies</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">S</forename><forename type="middle">V N</forename><surname>Shihao Ji</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Nadathur</forename><surname>Vishwanathan</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Michael</forename><forename type="middle">J</forename><surname>Satish</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Pradeep</forename><surname>Anderson</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Dubey</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 4th International Conference on Learning Representations</title>
+		<meeting>the 4th International Conference on Learning Representations</meeting>
+		<imprint>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b21">
+	<analytic>
+		<title level="a" type="main">An Empirical Exploration of Recurrent Network Architectures</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Rafal</forename><surname>Jozefowicz</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Wojciech</forename><surname>Zaremba</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ilya</forename><surname>Sutskever</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 32nd International Conference on Machine Learning</title>
+		<meeting>the 32nd International Conference on Machine Learning</meeting>
+		<imprint>
+			<date type="published" when="2015" />
+			<biblScope unit="page" from="2342" to="2350" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b22">
+	<analytic>
+		<title level="a" type="main">Deep Biaffine Attention for Neural Dependency Parsing</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yoon</forename><surname>Kim</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Carl</forename><surname>Denton</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Luong</forename><surname>Hoang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Alexander</forename><forename type="middle">M</forename><surname>Rush</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 5th International Conference on Learning Representations</title>
+		<meeting>the 5th International Conference on Learning Representations</meeting>
+		<imprint>
+			<date type="published" when="2017" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b23">
+	<analytic>
+		<title level="a" type="main">NAVER Machine Translation System for WAT</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Hyoung-Gyu</forename><surname>Lee</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jaesong</forename><surname>Lee</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jun-Seok</forename><surname>Kim</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Chang-Ki</forename><surname>Lee</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2nd Workshop on Asian Translation</title>
+		<meeting>the 2nd Workshop on Asian Translation</meeting>
+		<imprint>
+			<date type="published" when="2015" />
+			<biblScope unit="page" from="69" to="73" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b24">
+	<analytic>
+		<title level="a" type="main">When Are Tree Structures Necessary for Deep Learning of Representations?</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jiwei</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Thang</forename><surname>Luong</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Dan</forename><surname>Jurafsky</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Eduard</forename><surname>Hovy</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2015 Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>the 2015 Conference on Empirical Methods in Natural Language Processing</meeting>
+		<imprint>
+			<date type="published" when="2015" />
+			<biblScope unit="page" from="2304" to="2314" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b25">
+	<analytic>
+		<title level="a" type="main">Modeling Source Syntax for Neural Machine Translation</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Junhui</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Deyi</forename><surname>Xiong</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Zhaopeng</forename><surname>Tu</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Muhua</forename><surname>Zhu</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Min</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Guodong</forename><surname>Zhou</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 55th Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 55th Annual Meeting of the Association for Computational Linguistics<address><addrLine>Long Papers</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2017" />
+			<biblScope unit="volume">1</biblScope>
+		</imprint>
+	</monogr>
+	<note>To appear</note>
+</biblStruct>
+
+<biblStruct xml:id="b26">
+	<analytic>
+		<title level="a" type="main">Effective Approaches to Attentionbased Neural Machine Translation</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Thang</forename><surname>Luong</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Hieu</forename><surname>Pham</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Christopher</forename><forename type="middle">D</forename><surname>Manning</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2015 Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>the 2015 Conference on Empirical Methods in Natural Language Processing</meeting>
+		<imprint>
+			<date type="published" when="2015" />
+			<biblScope unit="page" from="1412" to="1421" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b27">
+	<analytic>
+		<title level="a" type="main">Online Large-Margin Training of Dependency Parsers</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ryan</forename><surname>Mcdonald</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Koby</forename><surname>Crammer</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Fernando</forename><surname>Pereira</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 43rd Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 43rd Annual Meeting of the Association for Computational Linguistics</meeting>
+		<imprint>
+			<date type="published" when="2005" />
+			<biblScope unit="page" from="91" to="98" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b28">
+	<analytic>
+		<title level="a" type="main">Feature Forest Models for Probabilistic HPSG Parsing</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yusuke</forename><surname>Miyao</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jun&amp;apos;ichi</forename><surname>Tsujii</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Computational Linguistics</title>
+		<imprint>
+			<biblScope unit="volume">34</biblScope>
+			<biblScope unit="issue">1</biblScope>
+			<biblScope unit="page" from="35" to="80" />
+			<date type="published" when="2008" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b29">
+	<analytic>
+		<title level="a" type="main">Overview of the 3rd Workshop on Asian Translation</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Toshiaki</forename><surname>Nakazawa</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Hideya</forename><surname>Mino</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Chenchen</forename><surname>Ding</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Isao</forename><surname>Goto</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Graham</forename><surname>Neubig</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Sadao</forename><surname>Kurohashi</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Eiichiro</forename><surname>Sumita</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 3rd Workshop on Asian Translation (WAT2016)</title>
+		<meeting>the 3rd Workshop on Asian Translation (WAT2016)</meeting>
+		<imprint>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b30">
+	<analytic>
+		<title level="a" type="main">ASPEC: Asian Scientific Paper Excerpt Corpus</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Toshiaki</forename><surname>Nakazawa</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Manabu</forename><surname>Yaguchi</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kiyotaka</forename><surname>Uchimoto</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Masao</forename><surname>Utiyama</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Eiichiro</forename><surname>Sumita</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Sadao</forename><surname>Kurohashi</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Hitoshi</forename><surname>Isahara</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 10th Conference on International Language Resources and Evaluation</title>
+		<meeting>the 10th Conference on International Language Resources and Evaluation</meeting>
+		<imprint>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b31">
+	<analytic>
+		<title level="a" type="main">On the Elements of an Accurate Tree-to-String Machine Translation System</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Graham</forename><surname>Neubig</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kevin</forename><surname>Duh</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 52nd Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 52nd Annual Meeting of the Association for Computational Linguistics</meeting>
+		<imprint>
+			<publisher>Short Papers</publisher>
+			<date type="published" when="2014" />
+			<biblScope unit="volume">2</biblScope>
+			<biblScope unit="page" from="143" to="149" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b32">
+	<monogr>
+				<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Graham</forename><surname>Neubig</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Makoto</forename><surname>Morishita</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Satoshi</forename><surname>Nakamura</surname></persName>
+		</author>
+		<title level="m">Neural Reranking Improves Subjective Quality of Machine Translation: NAIST at WAT2015. In Proceedings of the 2nd Workshop on Asian Translation (WAT2015)</title>
+		<imprint>
+			<date type="published" when="2015" />
+			<biblScope unit="page" from="35" to="41" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b33">
+	<monogr>
+		<title level="m" type="main">Computer-Intensive Methods for Testing Hypotheses: An Introduction</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Eric</forename><forename type="middle">W</forename><surname>Noreen</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="1989" />
+			<publisher>WileyInterscience</publisher>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b34">
+	<analytic>
+		<title level="a" type="main">BLEU: A Method for Automatic Evaluation of Machine Translation</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kishore</forename><surname>Papineni</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Salim</forename><surname>Roukos</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Todd</forename><surname>Ward</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Weijing</forename><surname>Zhu</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 40th Annual Meeting on Association for Computational Linguistics</title>
+		<meeting>the 40th Annual Meeting on Association for Computational Linguistics</meeting>
+		<imprint>
+			<date type="published" when="2002" />
+			<biblScope unit="page" from="311" to="318" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b35">
+	<analytic>
+		<title level="a" type="main">Using the Output Embedding to Improve Language Models</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ofir</forename><surname>Press</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Lior</forename><surname>Wolf</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 15th Conference of the European Chapter of the Association for Computational Linguistics</title>
+		<meeting>the 15th Conference of the European Chapter of the Association for Computational Linguistics</meeting>
+		<imprint>
+			<date type="published" when="2017" />
+			<biblScope unit="volume">2</biblScope>
+			<biblScope unit="page" from="157" to="163" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b36">
+	<analytic>
+		<title level="a" type="main">Linguistic Input Features Improve Neural Machine Translation</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Rico</forename><surname>Sennrich</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Barry</forename><surname>Haddow</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the First Conference on Machine Translation</title>
+		<meeting>the First Conference on Machine Translation</meeting>
+		<imprint>
+			<date type="published" when="2016" />
+			<biblScope unit="page" from="83" to="91" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b37">
+	<analytic>
+		<title level="a" type="main">Neural Machine Translation of Rare Words with Subword Units</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Rico</forename><surname>Sennrich</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Barry</forename><surname>Haddow</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Alexandra</forename><surname>Birch</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 54th Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 54th Annual Meeting of the Association for Computational Linguistics</meeting>
+		<imprint>
+			<publisher>Long Papers</publisher>
+			<date type="published" when="2016" />
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="1715" to="1725" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b38">
+	<analytic>
+		<title level="a" type="main">Semi-Supervised Recursive Autoencoders for Predicting Sentiment Distributions</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Richard</forename><surname>Socher</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jeffrey</forename><surname>Pennington</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Eric</forename><forename type="middle">H</forename><surname>Huang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Andrew</forename><forename type="middle">Y</forename><surname>Ng</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Christopher</forename><forename type="middle">D</forename><surname>Manning</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2011 Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>the 2011 Conference on Empirical Methods in Natural Language Processing</meeting>
+		<imprint>
+			<date type="published" when="2011" />
+			<biblScope unit="page" from="151" to="161" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b39">
+	<analytic>
+		<title level="a" type="main">Syntactically Guided Neural Machine Translation</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Felix</forename><surname>Stahlberg</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Eva</forename><surname>Hasler</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Aurelien</forename><surname>Waite</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Bill</forename><surname>Byrne</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 54th Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 54th Annual Meeting of the Association for Computational Linguistics</meeting>
+		<imprint>
+			<publisher>Short Papers</publisher>
+			<date type="published" when="2016" />
+			<biblScope unit="volume">2</biblScope>
+			<biblScope unit="page" from="299" to="305" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b40">
+	<analytic>
+		<title level="a" type="main">Sequence to Sequence Learning with Neural Networks</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ilya</forename><surname>Sutskever</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Oriol</forename><surname>Vinyals</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Quoc V</forename><surname>Le</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Advances in Neural Information Processing Systems</title>
+		<imprint>
+			<date type="published" when="2014" />
+			<biblScope unit="volume">27</biblScope>
+			<biblScope unit="page" from="3104" to="3112" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b41">
+	<analytic>
+		<title level="a" type="main">Charagram: Embedding Words and Sentences via Character n-grams</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">John</forename><surname>Wieting</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Mohit</forename><surname>Bansal</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kevin</forename><surname>Gimpel</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Karen</forename><surname>Livescu</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2016 Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>the 2016 Conference on Empirical Methods in Natural Language Processing</meeting>
+		<imprint>
+			<date type="published" when="2016" />
+			<biblScope unit="page" from="1504" to="1515" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b42">
+	<analytic>
+		<title level="a" type="main">Stochastic Inversion Transduction Grammars and Bilingual Parsing of Parallel Corpora</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Dekai</forename><surname>Wu</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Computational Linguistics</title>
+		<imprint>
+			<biblScope unit="volume">23</biblScope>
+			<biblScope unit="issue">3</biblScope>
+			<biblScope unit="page" from="377" to="404" />
+			<date type="published" when="1997" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b43">
+	<analytic>
+		<title level="a" type="main">A Syntaxbased Statistical Translation Model</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kenji</forename><surname>Yamada</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kevin</forename><surname>Knight</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of 39th Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>39th Annual Meeting of the Association for Computational Linguistics</meeting>
+		<imprint>
+			<date type="published" when="2001" />
+			<biblScope unit="page" from="523" to="530" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b44">
+	<analytic>
+		<title level="a" type="main">Towards Bidirectional Hierarchical Representations for AttentionBased Neural Machine Translation</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Baosong</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Derek</forename><forename type="middle">F</forename><surname>Wong</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Tong</forename><surname>Xiao</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Lidia</forename><forename type="middle">S</forename><surname>Chao</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jingbo</forename><surname>Zhu</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2017 Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>the 2017 Conference on Empirical Methods in Natural Language Processing</meeting>
+		<imprint>
+			<date type="published" when="2017" />
+		</imprint>
+	</monogr>
+	<note>To appear</note>
+</biblStruct>
+
+<biblStruct xml:id="b45">
+	<analytic>
+		<title level="a" type="main">Learning to Compose Words into Sentences with Reinforcement Learning</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Dani</forename><surname>Yogatama</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Phil</forename><surname>Blunsom</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Chris</forename><surname>Dyer</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Edward</forename><surname>Grefenstette</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Wang</forename><surname>Ling</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 5th International Conference on Learning Representations</title>
+		<meeting>the 5th International Conference on Learning Representations</meeting>
+		<imprint>
+			<date type="published" when="2017" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b46">
+	<analytic>
+		<title level="a" type="main">Dependency Parsing as Head Selection</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Xingxing</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jianpeng</forename><surname>Cheng</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Mirella</forename><surname>Lapata</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 15th Conference of the European Chapter of the Association for Computational Linguistics</title>
+		<meeting>the 15th Conference of the European Chapter of the Association for Computational Linguistics</meeting>
+		<imprint>
+			<date type="published" when="2017" />
+			<biblScope unit="page" from="665" to="676" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b47">
+	<analytic>
+		<title level="a" type="main">Evaluating Neural Machine Translation in English-Japanese Task</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Zhongyuan</forename><surname>Zhu</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2nd Workshop on Asian Translation</title>
+		<meeting>the 2nd Workshop on Asian Translation</meeting>
+		<imprint>
+			<date type="published" when="2015" />
+			<biblScope unit="page" from="61" to="68" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b48">
+	<analytic>
+		<title level="a" type="main">Simple, Fast Noise-Contrastive Estimation for Large RNN Vocabularies</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Barret</forename><surname>Zoph</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ashish</forename><surname>Vaswani</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jonathan</forename><surname>May</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kevin</forename><surname>Knight</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2016 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies</title>
+		<meeting>the 2016 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies</meeting>
+		<imprint>
+			<date type="published" when="2016" />
+			<biblScope unit="page" from="1217" to="1222" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+				</listBibl>
+			</div>
+		</back>
+	</text>
+</TEI>

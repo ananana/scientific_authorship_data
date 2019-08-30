@@ -1,0 +1,852 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<TEI xmlns="http://www.tei-c.org/ns/1.0" 
+xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+xsi:schemaLocation="http://www.tei-c.org/ns/1.0 /home/ana/installs/grobid/grobid-0.5.1/grobid-home/schemas/xsd/Grobid.xsd"
+ xmlns:xlink="http://www.w3.org/1999/xlink">
+	<teiHeader xml:lang="en">
+		<encodingDesc>
+			<appInfo>
+				<application version="0.5.1-SNAPSHOT" ident="GROBID" when="2019-04-18T12:51+0000">
+					<ref target="https://github.com/kermitt2/grobid">GROBID - A machine learning software for extracting information from scholarly documents</ref>
+				</application>
+			</appInfo>
+		</encodingDesc>
+		<fileDesc>
+			<titleStmt>
+				<title level="a" type="main">MUSE: Modularizing Unsupervised Sense Embeddings</title>
+			</titleStmt>
+			<publicationStmt>
+				<publisher>Association for Computational Linguistics</publisher>
+				<availability status="unknown"><p>Copyright Association for Computational Linguistics</p>
+				</availability>
+				<date>September 7-11, 2017. 2017</date>
+			</publicationStmt>
+			<sourceDesc>
+				<biblStruct>
+					<analytic>
+						<author>
+							<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Guang-He</forename><surname>Lee</surname></persName>
+							<affiliation key="aff1">
+								<orgName type="institution">National Taiwan University</orgName>
+								<address>
+									<settlement>Taipei</settlement>
+									<country key="TW">Taiwan</country>
+								</address>
+							</affiliation>
+						</author>
+						<author>
+							<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yun-Nung</forename><surname>Chen</surname></persName>
+							<affiliation key="aff1">
+								<orgName type="institution">National Taiwan University</orgName>
+								<address>
+									<settlement>Taipei</settlement>
+									<country key="TW">Taiwan</country>
+								</address>
+							</affiliation>
+						</author>
+						<author>
+							<affiliation key="aff0">
+								<orgName type="institution">Massachusetts Institute of Technology</orgName>
+								<address>
+									<settlement>Cambridge</settlement>
+									<region>MA</region>
+								</address>
+							</affiliation>
+						</author>
+						<title level="a" type="main">MUSE: Modularizing Unsupervised Sense Embeddings</title>
+					</analytic>
+					<monogr>
+						<title level="m">Natural Language Processing</title>
+						<meeting> <address><addrLine>Copenhagen, Denmark</addrLine></address>
+						</meeting>
+						<imprint>
+							<publisher>Association for Computational Linguistics</publisher>
+							<biblScope unit="page" from="327" to="337"/>
+							<date type="published">September 7-11, 2017. 2017</date>
+						</imprint>
+					</monogr>
+				</biblStruct>
+			</sourceDesc>
+		</fileDesc>
+		<profileDesc>
+			<abstract>
+				<p>This paper proposes to address the word sense ambiguity issue in an unsupervised manner, where word sense representations are learned along a word sense selection mechanism given contexts. Prior work focused on designing a single model to deliver both mechanisms, and thus suffered from either coarse-grained representation learning or inefficient sense selection. The proposed modular approach, MUSE, implements flexible modules to optimize distinct mechanisms, achieving the first purely sense-level representation learning system with linear-time sense selection. We leverage reinforcement learning to enable joint training on the proposed modules, and introduce various exploration techniques on sense selection for better robustness. The experiments on benchmark data show that the proposed approach achieves the state-of-the-art performance on synonym selection as well as on contextual word similarities in terms of MaxSimC.</p>
+			</abstract>
+		</profileDesc>
+	</teiHeader>
+	<text xml:lang="en">
+		<body>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="1">Introduction</head><p>Recently, deep learning methodologies have dom- inated several research areas in natural language processing (NLP), such as machine translation, language understanding, and dialogue systems. However, most of applications usually utilize word-level embeddings to obtain semantics. Con- sidering that natural language is highly ambigu- ous, the standard word embeddings may suffer from polysemy issues. <ref type="bibr" target="#b22">Neelakantan et al. (2014)</ref> pointed out that, due to triangle inequality in vec- tor space, if one word has two different senses but is restricted to one embedding, the sum of the distances between the word and its synonym in each sense would upper-bound the distance be- tween the respective synonyms, which may be mu- tually irrelevant, in embedding space <ref type="bibr">1</ref> . Due to the theoretical inability to account for polysemy us- ing a single embedding representation per word, multi-sense word representations are proposed to address the ambiguity issue using multiple em- bedding representations for different senses in a word <ref type="bibr" target="#b26">(Reisinger and Mooney, 2010;</ref><ref type="bibr" target="#b5">Huang et al., 2012)</ref>. This paper focuses on unsupervised learning from the unannotated corpus. There are two key mechanisms for a multi-sense word representation system in such scenario: 1) a sense selection (de- coding) mechanism infers the most probable sense for a word given its context and 2) a sense repre- sentation mechanism learns to embed word senses in a continuous space.</p><p>Under this framework, prior work focused on designing a single model to deliver both mech- anisms ( <ref type="bibr" target="#b22">Neelakantan et al., 2014;</ref><ref type="bibr" target="#b14">Li and Jurafsky, 2015;</ref><ref type="bibr" target="#b25">Qiu et al., 2016)</ref>. However, the previ- ously proposed models introduce side-effects: 1) mixing word-level and sense-level tokens achieves efficient sense selection but introduces ambigu- ous word-level tokens during the representation learning process ( <ref type="bibr" target="#b22">Neelakantan et al., 2014;</ref><ref type="bibr" target="#b14">Li and Jurafsky, 2015)</ref>, and 2) pure sense-level tokens prevent ambiguity from word-level tokens but re- quire exponential time complexity when decoding a sense sequence ( <ref type="bibr" target="#b25">Qiu et al., 2016)</ref>.</p><p>Unlike the prior work, this paper proposes MUSE 2 -a novel modularization framework in- corporating sense selection and representation learning models, which implements flexible mod- ules to optimize distinct mechanisms. Specifically, MUSE enables linear time sense identity decoding with a sense selection module and purely sense- level representation learning with a sense repre- sentation module.</p><p>With the modular design, we propose a novel joint learning algorithm on the modules by con- necting to a reinforcement learning scenario, which achieves the following advantages. First, the decision making process under reinforcement learning better captures the sense selection mech- anism than probabilistic and clustering methods. Second, our reinforcement learning algorithm re- alizes the first single objective function for modu- lar unsupervised sense representation systems. Fi- nally, we introduce various exploration techniques under reinforcement learning on sense selection to enhance robustness.</p><p>In summary, our contributions are five-fold:</p><p>• MUSE is the first system that maintains purely sense-level representation learning with linear-time sense decoding.</p><p>• We are among the first to leverage reinforce- ment learning to model the sense selection process in sense representations system.</p><p>• We are among the first to propose a single objective for modularized unsupervised sense embedding learning.</p><p>• We introduce a sense exploration mechanism for the sense selection module to achieve bet- ter flexibility and robustness.</p><p>• Our experimental results show the state-of- the-art performance for synonym selection and contextual word similarities in terms of MaxSimC.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2">Related Work</head><p>There are three dominant types of approaches for learning multi-sense word representations in the literature: 1) clustering methods, 2) probabilis- tic modeling methods, and 3) lexical ontology based methods. Our reinforcement learning based approach can be loosely connected to clustering methods and probabilistic modeling methods. <ref type="bibr" target="#b26">Reisinger and Mooney (2010)</ref> first proposed multi-sense word representations on the vector space based on clustering techniques. With the power of deep learning, some work exploited neu- ral networks to learn embeddings with sense se- lection based on clustering ( <ref type="bibr" target="#b5">Huang et al., 2012;</ref><ref type="bibr" target="#b22">Neelakantan et al., 2014</ref>).  re- placed the clustering procedure with a word sense disambiguation model using WordNet <ref type="bibr" target="#b20">(Miller, 1995)</ref>. <ref type="bibr">Kågebäck et al. (2015)</ref> and <ref type="bibr">Vu and Parker (2016)</ref> further leveraged a weighting mechanism and interactive process in the clustering proce- dure. Moreover, <ref type="bibr" target="#b4">Guo et al. (2014)</ref> leveraged bilin- gual resources for clustering. However, most of the above approaches separated the clustering pro- cedure and the representation learning procedure without a joint objective, which may suffer from the error propagation issue. Instead, the proposed approach, MUSE, enables joint training on sense selection and representation learning.</p><p>Instead of clustering, probabilistic modeling methods have been applied for learning multi- sense embeddings in order to make the sense se- lection more flexible, where <ref type="bibr" target="#b32">Tian et al. (2014)</ref> and <ref type="bibr" target="#b9">Jauhar et al. (2015)</ref> conducted probabilis- tic modeling with EM training. <ref type="bibr" target="#b14">Li and Jurafsky (2015)</ref> exploited Chinese Restaurant Process to infer the sense identity. Furthermore, <ref type="bibr" target="#b0">Bartunov et al. (2016)</ref> developed a non-parametric Bayesian extension on the skip-gram model <ref type="bibr" target="#b19">(Mikolov et al., 2013b</ref>). Despite reasonable modeling on sense selection, all above methods mixed word- level and sense-level tokens during representation learning-unable to conduct representation learn- ing in the pure sense level due to the complicated computation in their EM algorithms.</p><p>Recently, <ref type="bibr" target="#b25">Qiu et al. (2016)</ref> proposed an EM algorithm to learn purely sense-level representa- tions, where the computational cost is high when decoding the sense identity sequence, because it takes exponential time to search all sense com- bination within a context window. Our modular design addresses such drawback, where the sense selection module decodes a sense sequence with linear-time complexity, while the sense represen- tation module remains representation learning in the pure sense level.</p><p>Unlike a lot of relevant work that requires addi- tional resources such as the lexical ontology <ref type="bibr" target="#b24">(Pilehvar and Collier, 2016;</ref><ref type="bibr" target="#b28">Rothe and Schütze, 2015;</ref><ref type="bibr" target="#b9">Jauhar et al., 2015;</ref><ref type="bibr" target="#b1">Chen et al., 2015;</ref><ref type="bibr" target="#b7">Iacobacci et al., 2015</ref>) or bilingual data ( <ref type="bibr" target="#b4">Guo et al., 2014;</ref><ref type="bibr" target="#b3">Ettinger et al., 2016;</ref><ref type="bibr" target="#b30">ˇ Suster et al., 2016</ref>), which may be unavailable in some language, our model can be trained using only an unlabeled corpus. Also, some prior work proposed to learn topical embeddings and word embeddings jointly in or- der to consider the contexts ( <ref type="bibr">Liu et al., 2015a,b)</ref>, whereas this paper focuses on learning multi-sense Corpus: { Smartphone companies including apple blackberry, and sony will be invited.}  <ref type="figure">Figure 1</ref>: The MUSE architecture with a 3-step learning algorithm: 1) collocation sampling, 2) sense selection for sense representation learning, and 3) optimizing sense selection with a reward signal from sense representation. Reward signal is only passed to the target word to stabilize model training due to directional architecture in the sense representation module.</p><p>word embeddings.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3">Proposed Approach: MUSE</head><p>This work proposes a framework to modularize two key mechanisms for multi-sense word repre- sentations: a sense selection module and a sense representation module. The sense selection mod- ule decides which sense to use given a text con- text, whereas the sense representation module learns meaningful representations based on its sta- tistical characteristics. Unlike prior work that must suffer from either inefficient sense selec- tion ( <ref type="bibr" target="#b25">Qiu et al., 2016</ref>) or coarse-grained represen- tation learning <ref type="bibr" target="#b22">(Neelakantan et al., 2014;</ref><ref type="bibr" target="#b14">Li and Jurafsky, 2015;</ref><ref type="bibr" target="#b0">Bartunov et al., 2016)</ref>, the pro- posed modularized framework is capable of per- forming efficient sense selection and learning rep- resentations in pure sense level simultaneously.</p><p>To learn sense-level representations, a sense selection model should be first established for sense identity decoding. On the other hand, the sense embeddings should guide the sense selection model when decoding a sense identity sequence. Therefore, these two modules should be tangled. This indicates that a naive two-stage algorithm or two separate learning algorithms proposed by prior work are not optimal.</p><p>By connecting the proposed formulation with reinforcement learning literature, we design a novel joint training algorithm. Besides, taking ad- vantage of the form of reinforcement learning, we are among the first to investigate various explo- ration techniques in sense selection for unsuper- vised sense embedding learning.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.1">Model Architecture</head><p>Our model architecture is illustrated in <ref type="figure">Figure 1</ref>, where there are two modules in optimization.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.1.1">Sense Selection Module</head><p>Formally speaking, given a corpus C, vocabulary W , and the t-th word C t = w i ∈ W , we would like to find the most probable sense z ik ∈ Z i , where Z i is the set of senses in word w i . As- suming that a word sense is determined by the local context, we exploit a local context ¯ C t = {C t−m , · · · , C t+m } for sense selection according to the Markov assumption, where m is the size of a context window. Then we can either for- mulate a probabilistic policy π(z ik | ¯ C t ) about sense selection or estimate the individual likeli- hood q(z ik | ¯ C t ) for each sense identity.</p><p>To ensure efficiency, here we exploit a linear neural architecture that takes word-level input to- kens and outputs sense-level identities. The ar- chitecture is similar to continuous bag-of-words (CBOW) ( <ref type="bibr" target="#b18">Mikolov et al., 2013a</ref>). Specifically, given a word embedding matrix P , the local con- text can be modeled as the summation of word em- beddings from its context ¯ C t . The output can be formulated with a 3-mode tensor Q, whose dimen- sions denote words, senses, and latent variables. Then we can model π(z ik | ¯ C t ) or q(z ik | ¯ C t ) cor- respondingly. Here we model π(·) as a categorical distribution using a softmax layer:</p><formula xml:id="formula_0">π(z ik | ¯ C t ) = exp(Q T ik j∈ ¯ Ct P j ) k ∈Z i exp(Q T ik j∈ ¯ Ct P j ) .</formula><p>(1) On the other hand, the likelihood of selecting dis- tinct sense identities, q(z ik | ¯ C t ), is modeled as a Bernoulli distribution with a sigmoid function σ(·):</p><formula xml:id="formula_1">q(z ik | ¯ C t ) = σ(Q T ik j∈ ¯ Ct P j ).<label>(2)</label></formula><p>Different modeling approaches require different learning methods, especially for the unsupervised setting. We leave the corresponding learning al- gorithms in § 3.2. Finally, with a built sense se- lection module, we can apply any selection algo- rithm such as a greedy selection strategy to infer the sense identity z ik given a word w i with its con- text C t .</p><p>We note that modularized model enables effi- cient sense selection by leveraging word-level to- kens, while remaining purely sense-level tokens in the representation module. Specifically, if n de- notes max k |Z k |, decoding L words takes O(nL) senses to be searched due to independent sense selection. The prior work using a single model with purely sense-level tokens ( <ref type="bibr" target="#b25">Qiu et al., 2016)</ref> requires exponential time to calculate the collo- cation energy for every possible combination of sense identities within a context window, O(n 2m ), for a single target sense. Further, <ref type="bibr" target="#b25">Qiu et al. (2016)</ref> took an additional sequence decoding step with quadratic time complexity O(n 4m L), based on an exponential number n 2m in the base unit. It demonstrates the achievement about sense infer- ence efficiency in our proposed model.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.1.2">Sense Representation Module</head><p>The semantic representation learning is typically formulated as a maximum likelihood estimation (MLE) problem for collocation likelihood. In this paper, we use the skip-gram formulation ( <ref type="bibr" target="#b19">Mikolov et al., 2013b</ref>) considering that it requires less training time, where only two sense identities are required for stochastic training. Other pop- ular candidates, like GloVe ( <ref type="bibr" target="#b23">Pennington et al., 2014</ref>) and CBOW ( <ref type="bibr" target="#b18">Mikolov et al., 2013a</ref>), require more sense identities to be selected as input and thus not suitable for our scenario. For example, <ref type="bibr">GloVe (Pennington et al., 2014</ref>) takes computa- tionally expensive collocation counting statistics for each token in a corpus as input, which requires sense selection for every occurrence of the target word across the whole corpus for a single opti- mization step.</p><p>To learn the representations, we first create in- put sense representation matrix U and collocation estimation matrix V as the learning targets. Given a target word w i and collocated word w j with cor- responding local contexts, we map them to their sense identities as z ik and z jl by the sense se- lection module, and maximize the sense colloca- tion log likelihood log L(·). A natural choice of the likelihood function is formulated as a categor- ical distribution over all possible collocated senses given the target sense z ik :</p><formula xml:id="formula_2">max U,V log L(z jl | z ik ) = log exp(U T z ik V z jl ) zuv exp(U T z ik V zuv )</formula><p>.</p><p>(3) Instead of enumerating all possible collocated senses which is computationally expensive, we use the skip-gram objective (4) ( <ref type="bibr" target="#b19">Mikolov et al., 2013b</ref>) to approximate (3) as shown in the green block of <ref type="figure">Figure 1</ref>.</p><formula xml:id="formula_3">max U,V log ¯ L(z jl | z ik ) = log σ(U T z ik V z jl )<label>(4)</label></formula><formula xml:id="formula_4">+ M v=1 E zuv∼pneg(z) [log σ(−U T z ik V zuv )],</formula><p>where p neg (z) is the distribution over all senses for negative samples. In our experiment with |Z i | senses for word w i , we use (1/|Z i |) word-level unigram as sense-level unigram for efficiency and the 3/4-th power trick in <ref type="bibr" target="#b19">Mikolov et al. (2013b)</ref>. We note that our modular framework can easily maintain purely sense-level tokens with an arbi- trary representation learning model. In contrast, most related work using probabilistic modeling ( <ref type="bibr" target="#b32">Tian et al., 2014;</ref><ref type="bibr" target="#b9">Jauhar et al., 2015;</ref><ref type="bibr" target="#b14">Li and Jurafsky, 2015;</ref><ref type="bibr" target="#b0">Bartunov et al., 2016</ref>) binded sense rep- resentations with the sense selection mechanism, so efficient sense selection by leveraging word- level tokens can be achieved only at the cost of mixing word-level and sense-level tokens in their representation learning process.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.2">Learning</head><p>Without the supervised signal for the proposed modules, it is desirable to connect two modules in a way where they can improve each other by their own estimations. First, a trivial way is to for- ward the prediction of the sense selection module to the representation module. Then we cast the es- timated collocation likelihood as a reward signal for the selected sense for effective learning.</p><p>To realize the above procedure, we cast the learning problem a one-step Markov decision pro- cess (MDP) <ref type="bibr" target="#b31">(Sutton and Barto, 1998)</ref></p><note type="other">, where the state, action, and reward correspond to context ¯ C t , sense z ik , and collocation log likelihood log ¯ L(·), respectively. Based on different modeling meth- ods ((1) or (2)) in the sense selection module, we connect the model to respective reinforcement learning algorithms to solve the MDP. Specifically, we refer (1) to policy distribution and refer (2) to Q-value estimation in the reinforcement learning literature.</note><p>The proposed MDP framework embodies sev- eral nuances of sense selection. First, the deci- sion of a word sense is Markov: taking the whole corpus into consideration is not more helpful than a handful of necessary local contexts. Second, the decision making in MDP exploits a hard de- cision for selecting sense identity, which captures the sense selection process more naturally than a joint probability distribution among senses ( <ref type="bibr" target="#b25">Qiu et al., 2016</ref>). Finally, we exploit the reward mech- anism in MDP to enable joint training: the estima- tion of sense representation is treated as a reward signal to guide sense selection. In contrast, the decision making under clustering ( <ref type="bibr" target="#b5">Huang et al., 2012;</ref><ref type="bibr" target="#b22">Neelakantan et al., 2014</ref>) considers the sim- ilarity within clusters instead of the outcome of a decision using a reward signal as MDP.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.2.1">Policy Gradient Method</head><p>Because (1) fits a valid probability distribution, an intuitive optimization target is the expectation of resulting collocation likelihood among each sense. In addition, as the skip-gram formulation in <ref type="formula" target="#formula_3">(4</ref></p><formula xml:id="formula_5">) is unidirectional ( ¯ L(z ik | z jl ) = ¯ L(z jl | z ik ))</formula><p>, we perform one-side optimization for the target sense z ik to stabilize model training <ref type="bibr">3</ref> . That is, for the target word w i and the collocated word w j given respective contexts ¯ C t and ¯ C t (0 &lt; |t − t | ≤ m), we first draw a sense z jl for w j from the policy π(· | ¯ C t ) and optimize the expected collocation likelihood for the target sense z ik as follows,</p><formula xml:id="formula_6">max P,Q E z ik ∼π(·| ¯ Ct) [log ¯ L(z jl | z ik )].<label>(5)</label></formula><p>Note that (4) can be merged into (5) as a sin- gle objective. The objective is differentiable and <ref type="bibr">3</ref> We observe about 4% performance drop by optimizing input selection z ik and output selection z jl simultaneously. supports stochastic optimization ( <ref type="bibr" target="#b13">Lei et al., 2016)</ref>, which uses a stochastic sample z ik for optimiza- tion.</p><p>However, there are two possible disadvantages in this formulation. First, because the policy as- sumes the probability distribution in (1), optimiz- ing the selected sense must affect the estimation of the other senses. Second, if applying stochastic gradient ascent to optimizing (5), it would always lower the probability estimation for the selected sense z ik even if the model accurately selects the right sense. The detailed proof is in Appendix A.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.2.2">Value-Based Method</head><p>To address the above issues, we apply the Q- learning algorithm <ref type="bibr" target="#b21">(Mnih et al., 2013)</ref>. Instead of maintaining a probabilistic policy for sense selec- tion, Q-learning estimates the Q-value (resulting collocation log likelihood) for each sense candi- date directly and independently. Thus, the estima- tion of unselected senses may not be influenced by the selected one. Note that in one-step MDP, the reward is equivalent to the Q-value, so we will use reward and Q-value interchangeably, hereinafter, based on the context.</p><p>We further follow the convention of recent neu- ral reinforcement learning by reducing the re- ward range to aid model training ( <ref type="bibr" target="#b21">Mnih et al., 2013</ref>). Specifically, we replace the log likelihood log ¯ L(·) ∈ (− inf, 0] with the likelihood ¯ L(·) ∈ [0, 1] as the reward function. Due to the mono- tonic operation in log(), the relative ordering of the reward remains the same.</p><p>Furthermore, we exploit the probabilistic na- ture of likelihood for Q-learning. To elaborate, as Q-learning is used to approximate the Q-value for each action in typical reinforcement learning, most literature adopted square loss to characterize the discrepancy between the target and estimated Q-values ( <ref type="bibr" target="#b21">Mnih et al., 2013</ref>). In our setting where the Q-value/reward is a likelihood function, our model exploits cross-entropy loss to better capture the characteristics of probability distribution.</p><p>Given that the collocation likelihood in (4) is an approximation to the original categorical dis- tribution with a softmax function shown in (3) <ref type="figure">(Mikolov et al., 2013b)</ref>, we revise the formulation by omitting the negative sampling term. The re- sulting formulationˆLformulationˆ formulationˆL(·) is a Bernoulli distribution indicating whether z jl collocates or not given z ik :</p><formula xml:id="formula_7">ˆ L(z jl | z ik ) = σ(U T z ik V z jl ).<label>(6)</label></formula><p>There are three advantages about usingˆLusingˆ usingˆL(·) in- stead of approximated ¯ L(·) and original L(·). First, regarding the variance of estimation,</p><formula xml:id="formula_8">ˆ L(·) better captures L(·) than ¯ L(·) because ¯ L(·) in- volves sampling: V ar( ¯ L(·)) ≥ V ar( ˆ L(·)) = V ar(L(·)) = 0. (7)</formula><p>Second, regarding the relative ordering of estima- tion, for any two collocated senses z jl and z jl with a target sense z ik , the following equivalence holds:</p><formula xml:id="formula_9">L(z jl | z ik ) &lt; L(z jl | z ik ) (8) ⇔ ¯ L(z jl | z ik ) &lt; ¯ L(z jl | z ik ) ⇔ ˆ L(z jl | z ik ) &lt; ˆ L(z jl | z ik )</formula><p>Third, for collocation computation, L(·) requires all sense identities and ¯ L(·) requires (M +1) sense identities, whereasˆLwhereasˆ whereasˆL(·) only requires 1 sense iden- tity. In sum, the proposedˆLproposedˆ proposedˆL(·) approximates L(·) with no variance, no "bias" (in terms of relative ordering), and significantly less computation.</p><p>Finally, because both target distributionˆLdistributionˆ distributionˆL(·) and estimated distribution q(·) in (2) are Bernoulli distributions, we follow the last section to conduct one-side optimization by fixing a collocated sense z jl and optimize the selected sense z ik with cross entropy as</p><formula xml:id="formula_10">min P,Q H( ˆ L(z ik | z jl ), q(z ik | ¯ C t )).<label>(9)</label></formula></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.2.3">Joint Training</head><p>To jointly train sense selection and sense represen- tation modules, we first select a pair of the collo- cated senses, z ik and z jl , based on the sense se- lection module with any selecting strategy (e.g. greedy), and then optimize the sense representa- tion module and the sense selection module using the above derivations. Algorithm 1 describes the proposed MUSE model training procedure. As modular frameworks, the major distinc- tion between our modular framework and two- stage clustering-representation learning frame- work ( <ref type="bibr" target="#b22">Neelakantan et al., 2014;</ref><ref type="bibr">Vu and Parker, 2016)</ref> is that we establish a reward signal from the sense representation to the sense selection module to enable immediate and joint optimization.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.3">Sense Selection Strategy</head><p>Given a fitness estimation for each sense, exploit- ing the greedy sense is the most popular strat- egy for clustering algorithms (Neelakantan et al.,</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Algorithm 1: Learning Algorithm</head><formula xml:id="formula_11">for w i = C t ∈ C do sample w j = C t (0 &lt; |t − t| ≤ m); z ik = select(C t , w i ); z jl = select(C t , w j );</formula><p>optimize U, V by (4) for the sense representation module; optimize P, Q by <ref type="formula" target="#formula_6">(5)</ref> or <ref type="formula" target="#formula_10">(9)</ref> for the sense selection module;</p><p>2014; <ref type="bibr">Kågebäck et al., 2015</ref>) and hard-EM algo- rithms ( <ref type="bibr" target="#b25">Qiu et al., 2016;</ref><ref type="bibr" target="#b9">Jauhar et al., 2015</ref>) in literature. However, there are two incentives to conduct exploration. First, in the early training stage when the fitness is not well estimated, it is desirable to explore underestimated senses. Sec- ond, due to high ambiguity in natural language, sometimes multiple senses in a word would fit in the same context. The dilemma between ex- ploring sub-optimal choices and exploiting the optimal choice is called exploration-exploitation trade-off in reinforcement learning <ref type="bibr" target="#b31">(Sutton and Barto, 1998</ref>).</p><p>We introduce exploration mechanisms for sense selection for both policy gradient and Q-learning. For policy gradient, we sample the policy distri- bution to approximate the expectation in (5). Be- cause of the flexible formulation of Q-learning, the following classic exploration mechanisms are ap- plied to sense selection:</p><p>• Greedy: selects the sense with the largest Q- value (no exploration).</p><p>• -Greedy: selects a random sense with probability, and adopts the greedy strategy otherwise ( <ref type="bibr" target="#b21">Mnih et al., 2013</ref>).</p><p>• Boltzmann: samples the sense based on the Boltzmann distribution modeled by Q-value. We directly use (1) as the Boltzmann distri- bution for simplicity. We note that Q-learning with Boltzmann sampling yields the same sampling process as policy gradi- ent but different optimization objectives. To our best knowledge, we are among the first to ex- plore several exploration strategies for unsuper- vised sense embedding learning.</p><p>In the following sections, MUSE-Policy de- notes the proposed MUSE model with policy learning and MUSE-Greedy denotes the model us- ing corresponding sense selection strategy for Q- learning.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>332</head><p>We evaluate our proposed MUSE model in both quantitative and qualitative experiments.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.1">Experimental Setup</head><p>Our model is trained on the April 2010 Wikipedia dump <ref type="bibr" target="#b29">(Shaoul and Westbury, 2010</ref>), which con- tains approximately 1 billion tokens. For fair comparison, we adopt the same vocabulary set as <ref type="bibr" target="#b5">Huang et al. (2012)</ref> and <ref type="bibr" target="#b22">Neelakantan et al. (2014)</ref>. For preprocessing, we convert all words to their lower cases, apply the Stanford tokenizer and the Stanford sentence tokenizer ( , and remove all sentences with less than 10 tokens. The number of senses per word in Q is set to 3 as the prior work ( <ref type="bibr" target="#b22">Neelakantan et al., 2014</ref>).</p><p>In the experiments, the context window size is set to 5 (| ¯ C t | = 11). Subsampling tech- nique introduced by <ref type="bibr">word2vec (Mikolov et al., 2013b</ref>) is applied to accelerate the training pro- cess. The learning rate is set to 0.025. The em- bedding dimension is 300. We initialize Q and V as zeros, and P and U from uniform distribution [− 1/100, 1/100] such that each embedding has unit length in expectation ( <ref type="bibr" target="#b12">Lei et al., 2015)</ref>. Our model uses 25 negative senses for negative sampling in (4). We use = 5% for -Greedy sense selection strategy In optimization, we conduct mini-batch training with 2048 batch size using the following proce- dure: 1) select senses in the batch; 2) optimize U, V using stochastic training within the batch for efficiency; 3) optimize P, Q using mini-batch training for robustness.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.2">Experiment 1: Contextual Word Similarity</head><p>To evaluate the quality of the learned sense em- beddings, we compute the similarity score be- tween each word pair given their respective lo- cal contexts and compare with the human-judged score using Stanford's Contextual Word Similari- ties (SCWS) dataset <ref type="figure">(Huang et al., 2012)</ref>. Specifi- cally, given a list of word pairs with correspond- ing contexts, S = {(w i , ¯ C t , w j , ¯ C t )}, we cal- culate the Spearman's rank correlation ρ between human-judged similarity and model similarity es- timations <ref type="bibr">4</ref> . Two major contextual similarity esti-</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>MaxSimC AvgSimC</head><p>Huang et al. <ref type="formula" target="#formula_1">(2012)</ref> 26.1 65.7 <ref type="bibr" target="#b22">Neelakantan et al. (2014)</ref> 60.1 69.3 Tian et al. <ref type="formula" target="#formula_1">(2014)</ref> 63.6 65.4 <ref type="bibr" target="#b14">Li and Jurafsky (2015)</ref> 66.6 66.8 <ref type="bibr" target="#b0">Bartunov et al. (2016)</ref> 53.8 61.2 <ref type="bibr" target="#b25">Qiu et al. (2016)</ref> 64 <ref type="table">Table 1</ref>: Spearman's rank correlation ρ x100 on the SCWS dataset. † denotes superior performance to all unsupervised competitors.</p><note type="other">.9 66.1 MUSE-Policy 66.1 67.4 MUSE-Greedy 66.3 68.3 MUSE--Greedy 67.4 † 68.6 MUSE-Boltzmann 67.9 † 68.7</note><p>mations are introduced by <ref type="bibr" target="#b26">Reisinger and Mooney (2010)</ref>: AvgSimC and MaxSimC. AvgSimC is a soft measurement that addresses the contextual in- formation with a probability estimation:</p><formula xml:id="formula_12">AvgSimC(w i , ¯ C t , w j , ¯ C t ) = |Z i | k=1 |Z j | l=1 π(z ik | ¯ C t )π(z jl | ¯ C t )d(z ik , z jl ),</formula><p>where d(z ik , z jl ) refers to the cosine similarity be- tween U z ik and U z jl . AvgSimC weights the sim- ilarity measurement of each sense pair z ik and z jl by their probability estimations. On the other hand, MaxSimC is a hard measurement that only considers the most probable senses:</p><formula xml:id="formula_13">MaxSimC(w i , ¯ C t , w j , ¯ C t ) = d(z ik , z jl ), z ik = arg max z ik π(z ik | ¯ C t ), z jl = arg max z jl π(z jl | ¯ C t ).</formula><p>The baselines for comparison include classic clustering methods ( <ref type="bibr" target="#b5">Huang et al., 2012;</ref><ref type="bibr" target="#b22">Neelakantan et al., 2014</ref>), EM algorithms ( <ref type="bibr" target="#b32">Tian et al., 2014;</ref><ref type="bibr" target="#b25">Qiu et al., 2016;</ref><ref type="bibr" target="#b0">Bartunov et al., 2016)</ref>, and Chi- nese Restaurant Process ( <ref type="bibr" target="#b14">Li and Jurafsky, 2015)</ref>  <ref type="bibr">5</ref> , where all approaches are trained on the same cor- pus except <ref type="bibr" target="#b25">Qiu et al. (2016)</ref> used more recent Wikipedia dumps. The embedding sizes of all baselines are 300, except 50 in <ref type="bibr" target="#b5">Huang et al. (2012)</ref>. For every competitor with multiple settings, we re- port the best performance in each similarity mea- surement setting and show in <ref type="table">Table 1.</ref> et al., 2012).</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Method</head><p>ESL-50 RD-300 TOEFL-80  <ref type="table">Table 2</ref>: Accuracy on synonym selection. † de- notes superior performance to all unsupervised competitors.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>1) Conventional Word Embedding</head><p>Our MUSE model achieves the state-of-the-art performance on MaxSimC, demonstrating supe- rior quality on independent sense embeddings. On the other hand, MUSE achieves comparable per- formance with the best competitor in terms of AvgSimC (68.7 vs. 69.3), while MUSE outper- forms the same competitor significantly in terms of MaxSimC (67.9 vs. 60.1). The results demon- strate not only the high quality of sense represen- tations but also accurate sense selection.</p><p>From the application perspective, MaxSimC refers to a typical scenario using single embedding per word, while AvgSimC employs multiple sense vectors simultaneously per word, which not only brings computational overhead but changes exist- ing neural architecture for NLP. Hence, we argue that MaxSimC better characterize practical usage of a sense representation system than AvgSimC.</p><p>Among various learning methods for MUSE, policy gradient performs worst, echoing our ar- gument in § 3.2.1. On the other hand, the supe- rior performance of Boltzmann sampling and - Greedy over Greedy selection demonstrates the ef- fectiveness of exploration.</p><p>Finally, replacing ¯ L(·) withˆLwithˆ withˆL(·) as the re- ward signal yields 2.3 times speedup for MUSE- -Greedy and 1.3 times speedup for MUSE- Boltzmann to reach 67.0 in MaxSimC, which demonstrates the efficacy of proposed approxima- tionˆLtionˆ tionˆL(·) over typical ¯ L(·) in terms of conver- gence.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.3">Experiment 2: Synonym Selection</head><p>We further evaluate our model on synonym selection using multi-sense word representa- tions ( <ref type="bibr" target="#b9">Jauhar et al., 2015)</ref>. Three standard syn- onym selection datasets, ESL-50 <ref type="bibr">(Turney, 2001)</ref>, RD-300 ( <ref type="bibr" target="#b8">Jarmasz and Szpakowicz, 2004</ref>), and TOEFL-80 <ref type="bibr" target="#b11">(Landauer and Dumais, 1997)</ref>, are per- formed. In the datasets, each question consists of a question word w Q and four answer candidates {w A , w B , w C , w D }, and the goal is to select the most semantically synonymous choice among the four candidates. For example, in the TOEFL-80 dataset, a question shows {(Q) enormously, (A) appropriately, (B) uniquely, (C) tremendously, (D) decidedly}, and the answer is (C). For multi-sense representations system, it selects the synonym of the question word w Q using the maximum sense- level cosine similarity as a proxy of the semantic similarity ( <ref type="bibr" target="#b9">Jauhar et al., 2015)</ref>.</p><p>Our model is compared with the following base- lines: 1) conventional word embeddings: global context vectors ( <ref type="bibr" target="#b5">Huang et al., 2012</ref>) and skip- gram ( <ref type="bibr" target="#b19">Mikolov et al., 2013b</ref>); 2) applying su- pervised word sense disambiguation using the IMS system and then applying skip-gram on dis- ambiguated corpus (IMS+SG) (Zhong and Ng, 2010); 3) unsupervised sense embeddings: EM algorithm ( <ref type="bibr" target="#b9">Jauhar et al., 2015)</ref>, multi-sense skip- gram (MSSG) ( <ref type="bibr" target="#b22">Neelakantan et al., 2014</ref>), Chi- nese restaurant process (CRP) ( <ref type="bibr" target="#b14">Li and Jurafsky, 2015)</ref>, and the MUSE models; 4) supervised sense embeddings with WordNet <ref type="bibr" target="#b20">(Miller, 1995)</ref>: retrofitting global context vectors (Retro-GC) and retrofitting skip-gram (Retro-SG) <ref type="bibr" target="#b9">(Jauhar et al., 2015)</ref>.</p><p>Among unsupervised sense embedding ap- proaches, CRP and MSSG refer to the baselines with highest MaxSimC and AvgSimC in <ref type="table">Table 1</ref> respectively. Here we report the setting for base- lines based on the best average performance in this task. We also show the performance of supervised sense embeddings as an upperbound of unsuper- vised methods due to the usage of additional su- pervised information from WordNet.</p><p>The results are shown in <ref type="table">Table 2</ref>, where our MUSE--Greedy and MUSE-Boltzmann signifi- cantly outperform all unsupervised sense embed- dings methods, echoing the superior quality of our Context k-NN Senses · · · braves finish the season in tie with the los angeles dodgers · · · scoreless otl shootout 6-6 hingis 3-3 7-7 0-0 · · · his later years proudly wore tie with the chinese characters for · · · pants trousers shirt juventus blazer socks anfield · · · of the mulberry or the blackberry and minos sent him to · · · cranberries maple vaccinium apricot apple · · · of the large number of blackberry users in the us federal · · · smartphones sap microsoft ipv6 smartphone · · · shells and/or high explosive squash head hesh and/or anti-tank · · · venter thorax neck spear millimeters fusiform · · · head was shaven to prevent head lice serious threat back then · · · shaved thatcher loki thorax mao luthor chest · · · appoint john pope republican as head of the new army of · · · multi-party appoints unicameral beria appointed sense vectors in last section. MUSE-Boltzmann also outperforms the supervised sense embeddings except 1 setting without any supervised signal dur- ing training. Finally, the MUSE methods with proper exploration outperform all unsupervised baselines consistently, demonstrating the impor- tance of exploration.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.4">Qualitative Analysis</head><p>We further conduct qualitative analysis to check the semantic meanings of different senses learned by MUSE with k-nearest neighbors (k-NN) us- ing sense representations. In addition, we provide contexts in the training corpus where the sense will be selected to validate the sense selection mod- ule. <ref type="table" target="#tab_2">Table 3</ref> shows the results. The learned sense embeddings of the words "tie", "blackberry", and "head" clearly correspond to correct senses under different contexts.</p><p>Since we address an unsupervised setting that learns sense embeddings from unannotated cor- pus, the discovered senses highly depend on the training corpus. From our manual inspection, it is common for our model to discover only two senses in a word, like "tie" and "blackberry". However, we maintain our effort in developing unsupervised sense embeddings learning methods in this work, and the number of discovered sense is not a focus.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5">Conclusion</head><p>This paper proposes a novel modularized frame- work for unsupervised sense representation learn- ing, which supports not only the flexible de- sign of modular tasks but also joint optimization among modules. The proposed model is the first work that implements purely sense-level represen- tation learning with linear-time sense selection, and achieves the state-of-the-art performance on benchmark contextual word similarity and syn- onym selection tasks. In the future, we plan to in- vestigate reinforcement learning methods to incor- porate multi-sense word representations for down- stream NLP tasks. <ref type="bibr">Peter D Turney. 2001</ref>. Mining the web for synonyms:</p><p>Pmi-ir versus lsa on toefl. In European Conference on Machine Learning, pages 491-502. Springer. </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>A Doubly Stochastic Gradient</head><p>To derive doubly stochastic gradient for equation <ref type="formula" target="#formula_6">(5)</ref>, we first denote (5) as J(Θ) with Θ = {P, Q} and resolve the expectation form as:</p><formula xml:id="formula_14">J(θ) = E z ik ∼π(·| ¯ Ct) [log ¯ L(z jl | z ik )] = k π(z ik | ¯ C t ) log ¯ L(z jl |z ik ).</formula><p>Denote Θ = {P, Q} as the parameter set for pol- icy π. The gradient with respect to Θ should be:</p><formula xml:id="formula_15">∂J(θ) ∂Θ = ∂ ∂Θ k π(z ik | ¯ C t ) log ¯ L(z jl |z ik ) = k log ¯ L(z jl |z ik ) ∂π(z ik | ¯ C t ) ∂Θ = k log ¯ L(z jl |z ik )( ∂ log π(z ik | ¯ C t ) ∂Θ )(π(z ik | ¯ C t )) = E z ik ∼π(·| ¯ Ct) [log ¯ L(z jl | z ik ) ∂ log π(z ik | ¯ C t ) ∂Θ ]</formula><p>Accordingly, if we conduct typical stochastic gra- dient ascent training on J(Θ) with respect to Θ from samples z ik with a learning rate η, the up- date formula will be:</p><formula xml:id="formula_16">Θ = Θ + η log ¯ L(z jl | z ik ) ∂ log π(z ik | ¯ C t ) ∂Θ .</formula><p>However, the collocation log likelihood should al- ways be non-positive: log ¯ L(z jl | z ik ) ≤ 0. Therefore, as long as the collocation log likelihood log ¯ L(z jl | z ik ) is negative, the update formula is to minimize the likelihood of choosing z ik , despite the fact that z ik may be good choices. On the other hand, if the log likelihood reaches 0, according to (4), it indicates:</p><formula xml:id="formula_17">log ¯ L(z jl | z ik ) = 0 ⇒ ¯ L(z jl | z ik ) = 1 ⇒ U T z ik V z jl → ∞, U T z ik V zuv → ∞, ∀z uv ,</formula><p>which leads to computational overflow from an in- finity value.</p></div><figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_2" validated="false"><head>Table 3 :</head><label>3</label><figDesc></figDesc><table>Different word senses are selected by MUSE according to different contexts. The respective 
+k-NN (sorted by collocation likelihood) senses are shown to indicate respective semantic meanings. 
+
+</table></figure>
+
+			<note place="foot" n="1"> d(rock, stone) + d(rock, shake) ≥ d(stone, shake) 2 The trained models and code are available at https: //github.com/MiuLab/MUSE.</note>
+
+			<note place="foot" n="4"> For example, human-judged similarity between &quot;... east bank of the Des Moines River ...&quot; and &quot;... basis of all money laundering ...&quot; is 2.5 out of 10.0 in SCWS dataset (Huang</note>
+
+			<note place="foot" n="5"> We run Li and Jurafsky (2015)&apos;s released code on our corpus for fair comparison.</note>
+		</body>
+		<back>
+
+			<div type="acknowledgement">
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Acknowledgements</head><p>We would like to thank reviewers for their insight-ful comments on the paper. The authors are sup-ported by the Ministry of Science and Technology of Taiwan under the contract number 105-2218-E-002-033, Institute for Information Industry, and MediaTek Inc..</p></div>
+			</div>
+
+			<div type="references">
+
+				<listBibl>
+
+<biblStruct xml:id="b0">
+	<analytic>
+		<title level="a" type="main">Breaking sticks and ambiguities with adaptive skip-gram</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Sergey</forename><surname>Bartunov</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Dmitry</forename><surname>Kondrashkin</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Anton</forename><surname>Osokin</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Dmitry</forename><surname>Vetrov</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 19th International Conference on Artificial Intelligence and Statistics</title>
+		<meeting>the 19th International Conference on Artificial Intelligence and Statistics</meeting>
+		<imprint>
+			<date type="published" when="2016" />
+			<biblScope unit="page" from="130" to="138" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b1">
+	<monogr>
+		<title level="m" type="main">Improving distributed representation of word sense via wordnet gloss composition and context clustering</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Tao</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ruifeng</forename><surname>Xu</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yulan</forename><surname>He</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Xuan</forename><surname>Wang</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2015" />
+		</imprint>
+	</monogr>
+	<note>Association for Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b2">
+	<analytic>
+		<title level="a" type="main">A unified model for word sense representation and disambiguation</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Xinxiong</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Zhiyuan</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Maosong</forename><surname>Sun</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">EMNLP</title>
+		<imprint>
+			<publisher>Citeseer</publisher>
+			<date type="published" when="2014" />
+			<biblScope unit="page" from="1025" to="1035" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b3">
+	<analytic>
+		<title level="a" type="main">Retrofitting sense-specific word vectors using parallel text</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Allyson</forename><surname>Ettinger</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Philip</forename><surname>Resnik</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Marine</forename><surname>Carpuat</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of NAACL-HLT</title>
+		<meeting>NAACL-HLT</meeting>
+		<imprint>
+			<date type="published" when="2016" />
+			<biblScope unit="page" from="1378" to="1383" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b4">
+	<analytic>
+		<title level="a" type="main">Learning sense-specific word embeddings by exploiting bilingual resources</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jiang</forename><surname>Guo</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Wanxiang</forename><surname>Che</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Haifeng</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ting</forename><surname>Liu</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">COLING</title>
+		<imprint>
+			<date type="published" when="2014" />
+			<biblScope unit="page" from="497" to="507" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b5">
+	<monogr>
+		<title level="m" type="main">Improving Word Representations via Global Context and Multiple 335</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Eric</forename><forename type="middle">H</forename><surname>Huang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Richard</forename><surname>Socher</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Christopher</forename><forename type="middle">D</forename><surname>Manning</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Andrew</forename><forename type="middle">Y</forename><surname>Ng</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2012" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b6">
+	<analytic>
+		<title level="a" type="main">Word Prototypes</title>
+	</analytic>
+	<monogr>
+		<title level="m">Annual Meeting of the Association for Computational Linguistics (ACL)</title>
+		<imprint/>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b7">
+	<analytic>
+		<title level="a" type="main">Sensembed: Learning sense embeddings for word and relational similarity</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ignacio</forename><surname>Iacobacci</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Mohammad</forename><forename type="middle">Taher</forename><surname>Pilehvar</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Roberto</forename><surname>Navigli</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">ACL (1)</title>
+		<imprint>
+			<date type="published" when="2015" />
+			<biblScope unit="page" from="95" to="105" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b8">
+	<analytic>
+		<title level="a" type="main">Roget&apos;s thesaurus and semantic similarity</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Mario</forename><surname>Jarmasz</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Stan</forename><surname>Szpakowicz</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Recent Advances in Natural Language Processing III: Selected Papers from RANLP</title>
+		<imprint>
+			<date type="published" when="2003" />
+			<biblScope unit="page">111</biblScope>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b9">
+	<analytic>
+		<title level="a" type="main">Ontologically grounded multi-sense representation learning for semantic vector space models</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Chris</forename><surname>Sujay Kumar Jauhar</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Eduard</forename><forename type="middle">H</forename><surname>Dyer</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Hovy</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">HLT-NAACL</title>
+		<imprint>
+			<date type="published" when="2015" />
+			<biblScope unit="page" from="683" to="693" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b10">
+	<analytic>
+		<title level="a" type="main">Neural context embeddings for automatic discovery of word senses</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Mikael</forename><surname>Kågebäck</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Fredrik</forename><surname>Johansson</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Richard</forename><surname>Johansson</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Devdatt</forename><surname>Dubhashi</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of NAACL-HLT</title>
+		<meeting>NAACL-HLT</meeting>
+		<imprint>
+			<date type="published" when="2015" />
+			<biblScope unit="page" from="25" to="32" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b11">
+	<analytic>
+		<title level="a" type="main">A solution to plato&apos;s problem: The latent semantic analysis theory of acquisition, induction, and representation of knowledge</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">K</forename><surname>Thomas</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Susan</forename><forename type="middle">T</forename><surname>Landauer</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Dumais</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Psychological review</title>
+		<imprint>
+			<biblScope unit="volume">104</biblScope>
+			<biblScope unit="issue">2</biblScope>
+			<biblScope unit="page">211</biblScope>
+			<date type="published" when="1997" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b12">
+	<analytic>
+		<title level="a" type="main">Molding cnns for text: non-linear, non-consecutive convolutions</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Tao</forename><surname>Lei</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Regina</forename><surname>Barzilay</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Tommi</forename><surname>Jaakkola</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">EMNLP</title>
+		<imprint>
+			<date type="published" when="2015" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b13">
+	<analytic>
+		<title level="a" type="main">Rationalizing neural predictions</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Tao</forename><surname>Lei</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Regina</forename><surname>Barzilay</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Tommi</forename><surname>Jaakkola</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2016 Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>the 2016 Conference on Empirical Methods in Natural Language Processing</meeting>
+		<imprint>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b14">
+	<analytic>
+		<title level="a" type="main">Do multi-sense embeddings improve natural language understanding?</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jiwei</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Dan</forename><surname>Jurafsky</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2015 Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>the 2015 Conference on Empirical Methods in Natural Language Processing</meeting>
+		<imprint>
+			<date type="published" when="2015" />
+			<biblScope unit="page" from="1722" to="1732" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b15">
+	<analytic>
+		<title level="a" type="main">Learning context-sensitive word embeddings with neural tensor skip-gram model</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Pengfei</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Xipeng</forename><surname>Qiu</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Xuanjing</forename><surname>Huang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">IJCAI</title>
+		<imprint>
+			<date type="published" when="2015" />
+			<biblScope unit="page" from="1284" to="1290" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b16">
+	<analytic>
+		<title level="a" type="main">Tat-Seng Chua, and Maosong Sun. 2015b. Topical word embeddings</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yang</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Zhiyuan</forename><surname>Liu</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">AAAI</title>
+		<imprint>
+			<biblScope unit="page" from="2418" to="2424" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b17">
+	<analytic>
+		<title level="a" type="main">The Stanford CoreNLP natural language processing toolkit</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Christopher</forename><forename type="middle">D</forename><surname>Manning</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Mihai</forename><surname>Surdeanu</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">John</forename><surname>Bauer</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jenny</forename><surname>Finkel</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Steven</forename><forename type="middle">J</forename><surname>Bethard</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">David</forename><surname>Mcclosky</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Association for Computational Linguistics (ACL) System Demonstrations</title>
+		<imprint>
+			<date type="published" when="2014" />
+			<biblScope unit="page" from="55" to="60" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b18">
+	<analytic>
+		<title level="a" type="main">Efficient estimation of word representations in vector space</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Tomas</forename><surname>Mikolov</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kai</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Greg</forename><surname>Corrado</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jeffrey</forename><surname>Dean</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of Workshop at ICLR</title>
+		<meeting>Workshop at ICLR</meeting>
+		<imprint>
+			<date type="published" when="2013" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b19">
+	<analytic>
+		<title level="a" type="main">Distributed representations of words and phrases and their compositionality</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Tomas</forename><surname>Mikolov</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ilya</forename><surname>Sutskever</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kai</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Greg</forename><forename type="middle">S</forename><surname>Corrado</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jeff</forename><surname>Dean</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Advances in neural information processing systems</title>
+		<imprint>
+			<date type="published" when="2013" />
+			<biblScope unit="page" from="3111" to="3119" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b20">
+	<analytic>
+		<title level="a" type="main">Wordnet: a lexical database for english</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">A</forename><surname>George</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Miller</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Communications of the ACM</title>
+		<imprint>
+			<biblScope unit="volume">38</biblScope>
+			<biblScope unit="issue">11</biblScope>
+			<biblScope unit="page" from="39" to="41" />
+			<date type="published" when="1995" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b21">
+	<analytic>
+		<title level="a" type="main">Playing atari with deep reinforcement learning</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Volodymyr</forename><surname>Mnih</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Koray</forename><surname>Kavukcuoglu</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">David</forename><surname>Silver</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Alex</forename><surname>Graves</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ioannis</forename><surname>Antonoglou</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Daan</forename><surname>Wierstra</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Martin</forename><surname>Riedmiller</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">NIPS Deep Learning Workshop</title>
+		<imprint>
+			<date type="published" when="2013" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b22">
+	<analytic>
+		<title level="a" type="main">Efficient nonparametric estimation of multiple embeddings per word in vector space</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Arvind</forename><surname>Neelakantan</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jeevan</forename><surname>Shankar</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Alexandre</forename><surname>Passos</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Andrew</forename><surname>Mccallum</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2014 Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>the 2014 Conference on Empirical Methods in Natural Language Processing</meeting>
+		<imprint>
+			<date type="published" when="2014" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b23">
+	<monogr>
+		<title level="m" type="main">Glove: Global vectors for word representation</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jeffrey</forename><surname>Pennington</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Richard</forename><surname>Socher</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Christopher D</forename><surname>Manning</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2014" />
+			<biblScope unit="volume">14</biblScope>
+			<biblScope unit="page" from="1532" to="1543" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b24">
+	<analytic>
+		<title level="a" type="main">De-conflated semantic representations</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Mohammad</forename><surname>Taher Pilehvar</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Nigel</forename><surname>Collier</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2016 Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>the 2016 Conference on Empirical Methods in Natural Language Processing</meeting>
+		<imprint>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b25">
+	<analytic>
+		<title level="a" type="main">Contextdependent sense embedding</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Lin</forename><surname>Qiu</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kewei</forename><surname>Tu</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yong</forename><surname>Yu</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2016 Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>the 2016 Conference on Empirical Methods in Natural Language Processing</meeting>
+		<imprint>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b26">
+	<analytic>
+		<title level="a" type="main">Multi-prototype vector-space models of word meaning</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Joseph</forename><surname>Reisinger</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Raymond</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Mooney</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Human Language Technologies: The</title>
+		<imprint>
+			<date type="published" when="2010" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b27">
+	<monogr>
+				<title level="m">Annual Conference of the North American Chapter of the Association for Computational Linguistics</title>
+		<imprint>
+			<biblScope unit="page" from="109" to="117" />
+		</imprint>
+	</monogr>
+	<note>Association for Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b28">
+	<analytic>
+		<title level="a" type="main">Autoextend: Extending word embeddings to embeddings for synsets and lexemes</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Sascha</forename><surname>Rothe</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Hinrich</forename><surname>Schütze</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the ACL</title>
+		<meeting>the ACL</meeting>
+		<imprint>
+			<date type="published" when="2015" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b29">
+	<monogr>
+		<title level="m" type="main">The westbury lab wikipedia corpus</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Cyrus</forename><surname>Shaoul</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Chris</forename><surname>Westbury</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2010" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b30">
+	<monogr>
+		<title level="m" type="main">Bilingual learning of multi-sense embeddings with discrete autoencoders</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Simoň</forename><surname>Suster</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ivan</forename><surname>Titov</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Gertjan</forename><surname>Van Noord</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b31">
+	<monogr>
+		<title level="m" type="main">Reinforcement learning: An introduction</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">S</forename><surname>Richard</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Andrew G</forename><surname>Sutton</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Barto</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="1998" />
+			<publisher>MIT press Cambridge</publisher>
+			<biblScope unit="volume">1</biblScope>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b32">
+	<analytic>
+		<title level="a" type="main">A probabilistic model for learning multi-prototype word embeddings</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Fei</forename><surname>Tian</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Hanjun</forename><surname>Dai</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jiang</forename><surname>Bian</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Bin</forename><surname>Gao</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Rui</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Enhong</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Tie-Yan</forename><surname>Liu</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">COLING</title>
+		<imprint>
+			<date type="published" when="2014" />
+			<biblScope unit="page" from="151" to="160" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+				</listBibl>
+			</div>
+		</back>
+	</text>
+</TEI>

@@ -1,0 +1,1358 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<TEI xmlns="http://www.tei-c.org/ns/1.0" 
+xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+xsi:schemaLocation="http://www.tei-c.org/ns/1.0 /home/ana/installs/grobid/grobid-0.5.1/grobid-home/schemas/xsd/Grobid.xsd"
+ xmlns:xlink="http://www.w3.org/1999/xlink">
+	<teiHeader xml:lang="en">
+		<encodingDesc>
+			<appInfo>
+				<application version="0.5.1-SNAPSHOT" ident="GROBID" when="2019-04-18T12:08+0000">
+					<ref target="https://github.com/kermitt2/grobid">GROBID - A machine learning software for extracting information from scholarly documents</ref>
+				</application>
+			</appInfo>
+		</encodingDesc>
+		<fileDesc>
+			<titleStmt>
+				<title level="a" type="main">LSTM Shift-Reduce CCG Parsing</title>
+			</titleStmt>
+			<publicationStmt>
+				<publisher/>
+				<availability status="unknown"><licence/></availability>
+			</publicationStmt>
+			<sourceDesc>
+				<biblStruct>
+					<analytic>
+						<author role="corresp">
+							<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Wenduan</forename><surname>Xu</surname></persName>
+							<email>wx217@cam.ac.uk</email>
+							<affiliation key="aff0">
+								<orgName type="institution">Computer Laboratory University of Cambridge</orgName>
+							</affiliation>
+						</author>
+						<title level="a" type="main">LSTM Shift-Reduce CCG Parsing</title>
+					</analytic>
+					<monogr>
+						<imprint>
+							<date/>
+						</imprint>
+					</monogr>
+				</biblStruct>
+			</sourceDesc>
+		</fileDesc>
+		<profileDesc>
+			<abstract>
+				<p>We describe a neural shift-reduce parsing model for CCG, factored into four unidirec-tional LSTMs and one bidirectional LSTM. This factorization allows the linearization of the complete parsing history, and results in a highly accurate greedy parser that outper-forms all previous beam-search shift-reduce parsers for CCG. By further deriving a globally optimized model using a task-based loss, we improve over the state of the art by up to 2.67% labeled F1.</p>
+			</abstract>
+		</profileDesc>
+	</teiHeader>
+	<text xml:lang="en">
+		<body>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="1">Introduction</head><p>Combinatory Categorial Grammar <ref type="bibr">(CCG;</ref><ref type="bibr" target="#b37">Steedman, 2000</ref>) parsing is challenging due to its so-called "spurious" ambiguity that permits a large num- ber of non-standard derivations <ref type="bibr" target="#b41">(Vijay-Shanker and Weir, 1993;</ref><ref type="bibr" target="#b25">Kuhlmann and Satta, 2014</ref>). To ad- dress this, the de facto models resort to chart-based CKY <ref type="bibr" target="#b23">(Hockenmaier, 2003;</ref><ref type="bibr" target="#b8">Clark and Curran, 2007)</ref>, despite CCG being naturally compatible with shift- reduce parsing <ref type="bibr">(Ades and Steedman, 1982)</ref>. More recently, <ref type="bibr" target="#b51">Zhang and Clark (2011)</ref> introduced the first shift-reduce model for CCG, which also showed substantial improvements over the long-established state of the art <ref type="bibr" target="#b8">(Clark and Curran, 2007)</ref>.</p><p>The success of the shift-reduce model ( <ref type="bibr" target="#b51">Zhang and Clark, 2011</ref>) can be tied to two main contributing factors. First, without any feature locality restric- tions, it is able to use a much richer feature set; while intensive feature engineering is inevitable, it has nevertheless delivered an effective and concep- tually simpler alternative for both parameter estima- tion and inference. Second, it couples beam search with global optimization <ref type="bibr" target="#b11">(Collins, 2002;</ref><ref type="bibr" target="#b10">Collins and Roark, 2004;</ref><ref type="bibr" target="#b50">Zhang and Clark, 2008)</ref>, which makes it less prone to search errors than fully greedy mod- els ( <ref type="bibr" target="#b24">Huang et al., 2012)</ref>.</p><p>In this paper, we present a neural architecture for shift-reduce CCG parsing based on long short-term memories (LSTMs; <ref type="bibr" target="#b21">Hochreiter and Schmidhuber, 1997)</ref>. Our model is inspired by <ref type="bibr" target="#b12">Dyer et al. (2015)</ref>, in which we explicitly linearize the complete history of parser states in an incremental fashion by requir- ing no feature engineering ( <ref type="bibr" target="#b51">Zhang and Clark, 2011;</ref><ref type="bibr" target="#b45">Xu et al., 2014</ref>), and no atomic feature sets <ref type="bibr" target="#b6">(Chen and Manning, 2014</ref>). However, a key difference is that we achieve this linearization without relying on any additional control operations or compositional tree structures <ref type="bibr" target="#b34">(Socher et al., 2010;</ref><ref type="bibr" target="#b35">Socher et al., 2011;</ref><ref type="bibr" target="#b36">Socher et al., 2013)</ref>, both of which are vital in the architecture of <ref type="bibr" target="#b12">Dyer et al. (2015)</ref>. Crucially, unlike the sequence-to-sequence transduction model of , which primarily conditions on the input words, our model is sensitive to all as- pects of the parsing history, including arbitrary po- sitions in the input.</p><p>As another contribution, we present a global LSTM parsing model by adapting an expected F- measure loss ( <ref type="bibr" target="#b47">Xu et al., 2016)</ref>. As well as natu- rally incorporating beam search during training, this loss optimizes the model towards the final evaluation metric <ref type="bibr" target="#b19">(Goodman, 1996;</ref><ref type="bibr" target="#b33">Smith and Eisner, 2006;</ref><ref type="bibr" target="#b1">Auli and Lopez, 2011b)</ref>, allowing it to learn shift- reduce action sequences that lead to parses with high expected F-scores. We further show the globally op- timized model can be leveraged with greedy infer- ence, resulting in a deterministic parser as accurate cal assignment accuracy than the C&amp;C parser <ref type="bibr" target="#b8">(Clark and Curran, 2007)</ref>, even with the same supertagging model ( <ref type="bibr" target="#b51">Zhang and Clark, 2011;</ref><ref type="bibr" target="#b45">Xu et al., 2014)</ref>.</p><p>In our parser, we follow this strategy and adopt the <ref type="bibr" target="#b51">Zhang and Clark (2011)</ref> style shift-reduce tran- sition system, which assumes a set of lexical cate- gories has been assigned to each word using a su- pertagger ( <ref type="bibr" target="#b3">Bangalore and Joshi, 1999;</ref><ref type="bibr" target="#b7">Clark and Curran, 2004</ref>). Parsing then proceeds by applying a sequence of actions to transform the input main- tained on a queue, into partially constructed deriva- tions, kept on a stack, until the queue and available actions on the stack are both exhausted. At each time step, the parser can choose to shift (sh) one of the lexical categories of the front word onto the stack, and remove that word from the queue; reduce (re) the top two subtrees on the stack using a CCG rule, replacing them with the resulting category; or take a unary (un) action to apply a CCG type-raising or type-changing rule to the stack-top element. For ex- ample, the deterministic sequence of shift-reduce ac- tions that builds the derivation in <ref type="figure">Fig.1</ref> is: sh ⇒ NP , un ⇒ S /(S \NP ), sh ⇒ (S \NP )/NP , re ⇒ S /NP , sh ⇒ NP and re ⇒ S , where we use ⇒ to indicate the CCG category produced by an action. <ref type="bibr">1</ref> </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3">LSTM Shift-Reduce Parsing</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.1">LSTM</head><p>Recurrent neural networks (RNNs; e.g., see Elman, 1990) are factored into an input layer x t and a hid- den state (layer) h t with recurrent connections, and they can be represented by the following recurrence:</p><formula xml:id="formula_0">h t = Φ θ (x t , h t−1 ),<label>(1)</label></formula><p>where x t is the current input, h t−1 is the previous hidden state and Φ is a set of affine transformations parametrized by θ. Here, we use a variant of RNN referred to as LSTMs, which augment Eq. 1 with a cell state, c t , s.t.</p><formula xml:id="formula_1">h t , c t = Φ θ (x t , h t−1 , c t−1 ).<label>(2)</label></formula><p>Compared with conventional RNNs, this extra fa- cility gives LSTMs more persistent memories over longer time delays and makes them less suscepti- ble to the vanishing gradient problem ( <ref type="bibr" target="#b4">Bengio et al., 1994)</ref>. Hence, they are better at modeling temporal events that are arbitrarily far in a sequence. Several extensions to the vanilla LSTM have been proposed over time, each with a modified instan- tiation of Φ θ that exerts refined control over e.g., whether the cell state could be reset ( ) or whether extra connections are added to the cell state ). Our in- stantiation is as follows for all LSTMs:</p><formula xml:id="formula_2">i t = σ(W ix x t + W ih h t−1 + W ic c t−1 + b i ) f t = σ(W f x x t + W f h h t−1 + W f c c t−1 + b f ) c t = f t c t−1 + i t tanh(W cx x t + W ch h t−1 + b c ) o t = σ(W ox x t + W oh h t−1 + W oc c t + b o ) h t = o t tanh(c t ),</formula><p>where σ is the sigmoid activation and is the element-wise product.</p><p>In addition to unidirectional LSTMs that model an input sequence x 0 , x 1 , . . . , x n−1 in a strict left- to-right order, we also use bidirectional LSTMs (BLSTMs; <ref type="bibr" target="#b20">Graves and Schmidhuber, 2005</ref>), which read the input from both directions with two inde- pendent LSTMs. At each step, the forward hid- den state h t is computed using Eq. 2 for t = (0, 1, . . . , n − 1); and the backward hidden statê h t is computed similarly but from the reverse direction for t = (n − 1, n − 2, . . . , 0). Together, the two hidden states at each step t capture both past and fu- ture contexts, and the representation for each x t is obtained as the concatenation [h t ; ˆ h t ].</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.2">Embeddings</head><p>The neural network model employed by <ref type="bibr" target="#b6">Chen and Manning (2014)</ref> allows higher-order feature conjunctions to be au- tomatically discovered from a set of dense feature embeddings. However, a set of atomic feature tem- plates, which are only sensitive to contexts from the top few elements on the stack and queue are still needed to dictate the choice of these embeddings. Instead, we dispense with such templates and seek input: w 0 . . . w n−1 axiom: 0 : (0, , β, φ)</p><formula xml:id="formula_3">goal: 2n − 1 + µ : (n, δ, , ∆) t : (j, δ, x w j |β, ∆) t + 1 : (j + 1, δ|x w j , β, ∆) (sh; 0 ≤ j &lt; n) Figure 2:</formula><p>The shift-reduce deduction system. For the sh de- duction, xw j denotes an available lexical category for wj; for re, x denotes the set of dependencies on x.</p><p>to design a model that is sensitive to both local and non-local contexts, on both the stack and queue. Consequently, embeddings represent atomic input units that are added to our parser and are preserved throughout parsing. In total we use four types of embeddings, namely, word, CCG category, POS and action, where each has an associated look-up table that maps a string of that type to its embedding. The look-up table for words is L w ∈ R k×|w| , where k is the embedding dimension and |w| is the size of the vocabulary. Similarly, we have look-up tables for CCG categories, L c ∈ R l×|c| , for the three types of actions, L a ∈ R m×3 , and for POS tags, L p ∈ R n×|p| .</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.3">Model</head><p>Parser. <ref type="figure">Fig. 2</ref> shows the deduction system of our parser. <ref type="bibr">2</ref> We denote each parse item as (j, δ, β, ∆), where j is the positional index of the word at the front of the queue, δ is the stack (with its top ele- ment s 0 to the right), and β is the queue (with its top element w j to the left) and ∆ is the set of CCG dependencies realized for the input consumed so far. Each item is also associated with a step indicator t, signifying the number of actions applied to it and the goal is reached in 2n − 1 + µ steps, where µ is the total number of un actions. We also define each action in our parser as a 4-tuple (τ t , c t , w ct , p wc t ), where τ t ∈ {sh, re, un} for t ≥ 1, c t is the resulting category of τ t , and w ct is the head word attached to </p><formula xml:id="formula_4">δt = [h U t ; h V t ; h X t ; h Y t ] (Eq.</formula><p>3), and the shaded cells on the right</p><formula xml:id="formula_5">represent wj = [h W j ; ˆ h W j ].</formula><p>c t with p wc t being its POS tag. <ref type="bibr">3</ref> LSTM model. LSTMs are designed to handle time-series data, in a purely sequential fashion, and we try to exploit this fact by completely linearizing all aspects of the parsing history. Concretely, we fac- tor the model as five LSTMs, comprising four uni- directional ones, denoted as U, V, X and Y, and an additional BLSTM, denoted as W <ref type="figure" target="#fig_0">(Fig. 3</ref>). Before parsing each sentence, we feed W with the complete input (padded with a special embedding ⊥ as the end of sentence token); and we use</p><formula xml:id="formula_6">w j = [h W j ; ˆ h W j ]</formula><p>to represent w j in subsequent steps. <ref type="bibr">4</ref> We also add ⊥ to the other 4 unidirectional LSTMs as initialization.</p><p>Given this factorization, the stack representation for a parse item (j, δ, β, ∆) at step t, for t ≥ 1, is obtained as</p><formula xml:id="formula_7">δ t = [h U t ; h V t ; h X t ; h Y t ],<label>(3)</label></formula><p>and together with w j , [δ t ; w j ] gives a representation for the parse item. For the axiom item, we represent it as</p><formula xml:id="formula_8">[δ 0 ; w 0 ], where δ 0 = [h U ⊥ ; h V ⊥ ; h X ⊥ ; h Y ⊥ ]</formula><p>. Each time the parser applies an action (τ t , c t , w ct , p wc t ), we update the model by adding the embedding of τ t , denoted as L a (τ t ), onto U, and adding the other three embeddings of the action 4-tuple, that is, L c (c t ), L w (w ct ) and L p (p wc t ), onto V, X and Y respectively.</p><p>To predict the next action, we first derive an action hidden layer b t , by passing the parse item represen- tation [δ t ; w j ] through an affine transformation, s.t.</p><formula xml:id="formula_9">b t = f (B[δ t ; w j ] + r),<label>(4)</label></formula><p>where B is a parameter matrix of the model, r is a bias vector and f is a ReLU non-linearity <ref type="bibr" target="#b31">(Nair and Hinton, 2010)</ref>. Then we apply another affine transformation (with A as the weights and s as the bias) to b t :</p><formula xml:id="formula_10">a t = f (Ab t + s),</formula><p>and obtain the probability of the i th action in a t as</p><formula xml:id="formula_11">p(τ i t |b t ) = exp{a i t } τ k t ∈T (δt,βt) exp{a k t } ,</formula><p>where T (δ t , β t ) is the set of feasible actions for the current parse item, and τ i t ∈ T (δ t , β t ).</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.4">Derivations and Dependency Structures</head><p>Our model naturally linearizes CCG derivations "in- crementally" following their post-order traversals.</p><p>As such, the four unidirectional LSTMs always have the same number of steps; and at each step, the con- catenation of their hidden states (Eq. 3) represents a point in a CCG derivation (i.e., an action 4-tuple).</p><p>Due to the large amount of flexibility in how de- pendencies are realized in CCG <ref type="bibr" target="#b23">(Hockenmaier, 2003;</ref><ref type="bibr" target="#b8">Clark and Curran, 2007)</ref>, and in line with most ex- isting CCG parsing models, including dependency models, we have chosen to model CCG derivations, rather than dependency structures. <ref type="bibr">5</ref> We also hypoth- esize that tree structures are not necessary for the current model, since they are already implicit in the linearized derivations; similarly, we have found the action embeddings to be nonessential ( §5.2).</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.5">Training</head><p>As a baseline, we first train a greedy model, in which we maximize the log-likelihood of each tar- get action in the training data. More specifically, let (τ g 1 , . . . , τ g Tn ) be the gold-standard action sequence for a training sentence n, a cross-entropy criterion is used to obtain the error gradients, and for each sen- tence, training involves minimizing</p><formula xml:id="formula_12">L(θ) = − log Tn t=1 p(τ g t |b t ) = − Tn t=1 log p(τ g t |b t ),</formula><p>where θ is the set of all parameters in the model.</p><p>As other greedy models (e.g., see Chen and Man- ning (2014) and <ref type="bibr" target="#b12">Dyer et al. (2015)</ref>), our greedy model is locally optimized, and suffers from the label bias problem ( <ref type="bibr">Andor et al., 2016)</ref>. A par- tial solution to this is to use beam search at test time, thereby recovering higher scoring action se- quences that would otherwise be unreachable with fully greedy inference. In practice, this has lim- ited effect <ref type="table" target="#tab_3">(Table 2)</ref>, and a number of more princi- pled solutions have been recently proposed to derive globally optimized models during training <ref type="bibr" target="#b43">(Watanabe and Sumita, 2015;</ref><ref type="bibr" target="#b44">Weiss et al., 2015;</ref><ref type="bibr" target="#b53">Zhou et al., 2015;</ref><ref type="bibr">Andor et al., 2016</ref>). Here, we extend our greedy model into a global one by adapting the ex- pected F-measure loss of <ref type="bibr" target="#b47">Xu et al. (2016)</ref>. To our best knowledge, this is the first attempt to train a globally optimized LSTM shift-reduce parser.</p><p>Let θ = {U, V, X, Y, W, B, A} be the weights of the baseline greedy model, <ref type="bibr">6</ref> we initialize the weights of the global model, which has the same ar- chitecture as the baseline, to θ, and we reoptimize θ in multiple training epochs as follows:</p><p>1. Pick a sentence x n from the training set, decode it with beam search, and generate a k-best list of output parses with the current θ, denoted as Λ(x n ). 7</p><p>2. For each parse y i in Λ(x n ), compute its sentence-level F1 using the set of dependencies in the ∆ field of its parse item. In addition, let |y i | be the total number of actions that derived y i and s θ (y j i ) be the softmax action score of the j th action, given by the LSTM model. Com- pute the log-linear score of its action sequence as ρ(y i ) = |y i | j=1 log s θ (y j i ).</p><p>3. Compute the negative expected F1 objective (defined below) for x n and minimize it using stochastic gradient descent (maximizing ex- pected F1). Repeat these three steps for the re- maining sentences. <ref type="bibr">6</ref> We use boldface letters to designate the weights of the cor- responding LSTMs, and omit bias terms for brevity. <ref type="bibr">7</ref> As in <ref type="bibr" target="#b47">Xu et al. (2016)</ref>, we did not preset k, and found k = 11.06 on average with a beam size of 8 that we used for this training.</p><p>More formally, the loss J(θ), is defined as</p><formula xml:id="formula_13">J(θ) = −XF1(θ) = − y i ∈Λ(xn) p(y i |θ)F1(∆ y i , ∆ G xn ),</formula><p>where F1(∆ y i , ∆ G xn ) is the sentence level F1 of the parse derived by y i , with respect to the gold-standard dependency structure ∆ G xn of x n ; p(y i |θ) is the nor- malized probability score of the action sequence y i , computed as</p><formula xml:id="formula_14">p(y i |θ) = exp{γρ(y i )} y∈Λ(xn) exp{γρ(y)} ,</formula><p>where γ is a parameter that sharpens or flattens the distribution ( <ref type="bibr" target="#b38">Tromble et al., 2008)</ref>. 8 Different from the maximum-likelihood objective, XF1 optimizes the model on a sequence level and towards the final evaluation metric, by taking into account all action sequences in Λ(x n ).</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4">Attention-Based LSTM Supertagging</head><p>In addition to the size of the label space, supertag- ging is difficult because CCG categories can encode long-range dependencies and tagging decisions fre- quently depend on non-local contexts. For example, in He went to the zoo with a cat, a possible cate- gory for with, (S \NP )\(S \NP )/NP , depends on the word went further back in the sentence.</p><p>Recently a number of RNN models have been proposed for CCG supertagging ( <ref type="bibr" target="#b40">Vaswani et al., 2016;</ref><ref type="bibr" target="#b47">Xu et al., 2016)</ref>, and such models show dramatic improve- ments over non-recurrent models ( <ref type="bibr" target="#b28">Lewis and Steedman, 2014b</ref>). Although the underlying models differ in their exact architectures, all of them make each tagging decision using only the hidden states at the current input position, and this imposes a potential bottleneck in the model. To mitigate this, we gen- eralize the attention mechanisms of <ref type="bibr" target="#b2">Bahdanau et al. (2015)</ref> and <ref type="bibr" target="#b30">Luong et al. (2015)</ref>, and adapt them to supertagging, by allowing the model to explicitly use hidden states from more than one input posi- tions for tagging each word. Similar to <ref type="bibr" target="#b2">Bahdanau et al. (2015)</ref> and <ref type="bibr" target="#b30">Luong et al. (2015)</ref>, a key feature in our model is a soft alignment vector that weights the relative importance of the considered hidden states.</p><p>For an input sentence w 0 , w 1 , . . . , w n−1 , we con- sider w t = [h t ; ˆ h t ] ( §3.1) to be the representa- tion of the t th word (0 ≤ t &lt; n, w t ∈ R 2d×1 ), given by a BLSTM with a hidden state size d for both its forward and backward layers. <ref type="bibr">9</ref> Let k be a context window size hyperparameter, we define H t ∈ R 2d×(k−1) as</p><formula xml:id="formula_15">H t = [w t−−k/2 , . . . , w t−1 , w t+1 , . . . , w t+k/2 ],</formula><p>which contains representations for all words in the size k window except w t . At each position t, the attention model derives a context vector c t ∈ R 2d×1 (defined below) from H t , which is used in conjunc- tion with w t to produce an attentional hidden layer:</p><formula xml:id="formula_16">x t = f (M[c t ; w t ] + m),<label>(5)</label></formula><p>where f is a ReLU non-linearity, M ∈ R g×4d is a learned weight matrix, m is a bias term, and g is the size of x t . Then x t is used to produce another hidden layer (with N as the weights and n as the bias):</p><formula xml:id="formula_17">z t = Nx t + n,</formula><p>and the predictive distribution over categories is ob- tained by feeding z t through a softmax activation. In order to derive the context vector c t , we first compute b t ∈ R (k−1)×1 from H t and w t using α ∈ R 1×4d , s.t. the i th entry in b t is</p><formula xml:id="formula_18">b i t = α[w T [i] ; w t ], for i ∈ [0, k−1), T = [t−k/2, .</formula><p>. . , t−1, t+1, . . . , t+ k/2]; and c t is derived as follows:</p><formula xml:id="formula_19">a t = softmax(b t ), c t = H t a t ,</formula><p>where a t is the alignment vector. We also exper- iment with two types of attention reminiscent of the global and local models in <ref type="bibr" target="#b30">Luong et al. (2015)</ref>, where the first attends over all input words (k = n) and the second over a local window. It is worth noting that two other works have con- currently tackled supertagging with BLSTM mod- els. In <ref type="bibr" target="#b40">Vaswani et al. (2016)</ref>, a language model <ref type="bibr">9</ref> Unlike in the parsing model, POS tags are excluded. layer is added on top of a BLSTM, which allows embeddings of previously predicted tags to propa- gate through and influence the pending tagging de- cision. However, the language model layer is only effective when both scheduled sampling for train- ing (  and beam search for infer- ence are used. We show our attention-based mod- els can match their performance, with only standard training and greedy decoding. Additionally,  presented a BLSTM model with two layers of stacking in each direction; and as an inter- nal baseline, we show a non-stacking BLSTM with- out attention can achieve the same accuracy.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5">Experiments</head><p>Dataset and baselines. We conducted all experi- ments on <ref type="bibr">CCGBank (Hockenmaier and Steedman, 2007</ref>) with the standard splits. <ref type="bibr">10</ref> We assigned POS tags with the C&amp;C POS tagger, and used 10-fold jackknifing for both POS tagging and supertagging. All parsers were evaluated using F1 over labeled CCG dependencies.</p><p>For supertagging, the baseline models are the RNN model of , the bidirectional RNN (BRNN) model of <ref type="bibr" target="#b47">Xu et al. (2016)</ref>, and the BLSTM supertagging models in <ref type="bibr" target="#b40">Vaswani et al. (2016)</ref> and . For parsing exper- iments, we compared with the global beam-search shift-reduce parsers of <ref type="bibr" target="#b51">Zhang and Clark (2011)</ref> and <ref type="bibr" target="#b45">Xu et al. (2014)</ref>. One neural shift-reduce CCG parser baseline is <ref type="bibr">Ambati et al. (2016)</ref>, which is a beam-search shift-reduce parser based on <ref type="bibr" target="#b6">Chen and Manning (2014)</ref> and <ref type="bibr" target="#b44">Weiss et al. (2015)</ref>; and the oth- ers are the RNN shift-reduce models in <ref type="bibr" target="#b47">Xu et al. (2016)</ref>. Additionally, the chart-based C&amp;C parser was included by default.</p><p>Model and training parameters. 11 All our LSTM models are non-stacking with a single layer. <ref type="bibr">12</ref> For the supertagging models, the LSTM Model Dev Test C&amp;C 91.50 92.02  93.07 93.00 <ref type="bibr" target="#b47">Xu et al. (2016)</ref> 93.49 93.52  94.1 94.3 <ref type="bibr" target="#b40">Vaswani et al. (2016)</ref> 94.08 - Vaswani et al. <ref type="formula" target="#formula_0">(2016)</ref>  hidden state size is 256, and the size of the atten- tional hidden layer (x t , Eq. 5) is 200. All parsing model LSTMs have a hidden state size of 128, and the size of the action hidden layer (b t , Eq. 4) is 80. Pretrained word embeddings for all models are 100-dimensional ( <ref type="bibr" target="#b39">Turian et al., 2010)</ref>, and all other embeddings are 50-dimensional. We also pretrained CCG lexical category and POS embeddings on the concatenation of the training data and a Wikipedia dump parsed with C&amp;C. 13 All other parameters were uniformly initialized in ± 6/(r + c), where r and c are the number of rows and columns of a ma- trix ( <ref type="bibr" target="#b18">Glorot and Bengio, 2010)</ref>.</p><p>For training, we used plain non-minibatched stochastic gradient descent with an initial learning rate η 0 = 0.1 and we kept iterating in epochs until accuracy no longer increases on the dev set. For all models, a learning rate schedule η e = η 0 /(1 + λe) with λ = 0.08 was used for e ≥ 11. Gradients were clipped whenever their norm exceeds 5. Dropout training as suggested by <ref type="bibr" target="#b49">Zaremba et al. (2014)</ref>, with a dropout rate of 0.3, and an 2 penalty of 1 × 10 −5 , were applied to all models.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.1">Supertagging Results</head><p>Table 1 summarizes 1-best supertagging results. Our baseline BLSTM model without attention achieves the same level of accuracy as  and the baseline BLSTM model of <ref type="bibr" target="#b40">Vaswani et al. (2016)</ref>. Compared with the latter, our hidden state size is 50% smaller (256 vs. 512).</p><p>For training and testing the local attention model (BLSTM-local), we used an attention window size    of 5 (tuned on the dev set), and it gives an improve- ment of 0.94% over the BRNN supertagger ( <ref type="bibr" target="#b47">Xu et al., 2016)</ref>, achieving an accuracy on par with the beam-search (size 12) model of <ref type="bibr" target="#b40">Vaswani et al. (2016)</ref> that is enhanced with a language model. De- spite being able to consider wider contexts than the local model, the global attention model (BLSTM- global) did not show further gains, hence we used BLSTM-local for all parsing experiments below.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.2">Parsing Results</head><p>All parsers we consider use a supertagger probabil- ity cutoff β to prune categories less likely than β times the probability of the best category in a dis- tribution: for the C&amp;C parser, it uses an adaptive strategy to backoff to smaller β values if no span- ning analysis is found given an initial β setting; for all the shift-reduce parsers, fixed β values are used without backing off. Since β determines the deriva- tion space of a parser, it has a large impact on the final parsing accuracy.</p><p>For the maximum-likelihood greedy model, we found using a small β value (bigger ambiguity) for training significantly improved accuracy, and we chose β = 1 × 10 −5 (5.22 categories per word with jackknifing) via development experiments. This re- inforces the findings in a number of other CCG parsers <ref type="bibr" target="#b8">(Clark and Curran, 2007;</ref><ref type="bibr">Auli and Lopez, 2011a;</ref><ref type="bibr" target="#b27">Lewis and Steedman, 2014a</ref>): even though a smaller β increases ambiguity, it leads to more accu- rate models at test time. On the other hand, we found using larger β values at test time led to significantly better results <ref type="table" target="#tab_3">(Table 2)</ref>. And this differs from the beam-search models that use the same β value for both training and testing ( <ref type="bibr" target="#b51">Zhang and Clark, 2011;</ref><ref type="bibr" target="#b45">Xu et al., 2014</ref>  <ref type="table" target="#tab_6">Table 4</ref>: Parsing results on the dev (Section 00) and test (Section 23) sets with 100% coverage, with all LSTM models using the BLSTM-local supertagging model. All experiments using auto POS. CAT (lexical category assignment accuracy). LSTM-greedy is the full greedy parser.</p><p>The greedy model. <ref type="table" target="#tab_4">Table 3</ref> shows the dev set re- sults for all greedy models, where the four types of embeddings, that is, word (w), CCG category (c), action (a) and POS (p), are gradually intro- duced. The full model LSTM-w+c+a+p surpasses all previous shift-reduce models <ref type="table" target="#tab_6">(Table 4)</ref>, achiev- ing a dev set accuracy of 86.56%. Category em- beddings (LSTM-w+c) yielded a large gain over us- ing word embeddings alone (LSTM-w); action em- beddings (LSTM-w+c+a) provided little improve- ment, but further adding POS embeddings (LSTM- w+c+a+p) gave noticeable recall (+0.61%) and F1 improvements (+0.36%) over LSTM-w+c. <ref type="figure">Fig. 4a</ref> shows the learning curves, where all models con- verged in under 30 epochs.</p><p>The XF1 model.  <ref type="table">Table 5</ref>: Effect of different supertaggers on the full greedy parser. LSTM-greedy is the same parser as in <ref type="table" target="#tab_6">Table 4</ref>, which uses the BLSTM-local supertagger.</p><p>a β value of 0.06 for both training and testing (tuned on the dev set); and training took 12 epochs to con- verge ( <ref type="figure">Fig. 4b)</ref>, with an F1 of 87.45% on the dev set. Decoding the XF1 model with greedy inference only slightly decreased recall and F1, and this resulted in a highly accurate deterministic parser. On the test set, our XF1 greedy model gives 2.67% F1 im- provement over the greedy model in <ref type="bibr" target="#b47">Xu et al. (2016)</ref>; and the beam-search XF1 model achieves an F1 im- provement of 1.34% compared with the XF1 model of <ref type="bibr" target="#b47">Xu et al. (2016)</ref>.</p><p>Model LP LR LF  87.68 86.41 87.04  87.7 86.7 87.2  88.6 87.5 88.1 <ref type="bibr" target="#b40">Vaswani et al. (2016)</ref> * - - 88.32  - - 88.7 LSTM-XF1 (beam = 1) 89.85 85.51 87.62 LSTM-XF1 (beam = 8) 89.81 85.81 87.76 Effect of the supertagger. To isolate the parsing model from the supertagging model, we first ex- perimented with the BRNN supertagging model as in <ref type="bibr" target="#b47">Xu et al. (2016)</ref> for both training and testing the full greedy LSTM parser. Using this supertag- ger, we still achieved the highest F1 (85.86%) on the dev set (LSTM-BRNN, <ref type="table">Table 5</ref>) in compari- son with all previous shift-reduce models; and an improvement of 1.42% F1 over the greedy model of <ref type="bibr" target="#b47">Xu et al. (2016)</ref> was obtained on the test set <ref type="table" target="#tab_6">(Table 4)</ref>. We then experimented with using the baseline BLSTM supertagging model for parsing (LSTM-BLSTM), and observed the attention-based setup (LSTM-greedy) outperformed it, despite the attention-based supertagger (BLSTM-local) did not give better multi-tagging accuracy. We owe this to the fact that large β cutoff values-resulting in almost deterministic supertagging decisions on average-are required by the parser during infer- ence; for instance, BLSTM-local has an average am- biguity of 1.09 on the dev set with β = 0.06. <ref type="bibr">14</ref> Comparison with chart-based models. For com- pleteness and to put our results in perspective, we compare our XF1 models with other CCG parsers in the literature <ref type="table" target="#tab_7">(Table 6</ref>):  is the log-linear C&amp;C dependency hybrid model with an RNN supertagger front-end;  is an LSTM supertagger-factored parser using the A * CCG parsing algorithm of Lewis and Steed- man (2014a); <ref type="bibr" target="#b40">Vaswani et al. (2016)</ref> combine a BLSTM supertagger with a new version of the C&amp;C parser ( ) that uses a max-violation perceptron, which significantly improves over the <ref type="bibr">14</ref> All β cutoffs were tuned on the dev set; for BRNN, we found the same β settings as in <ref type="bibr" target="#b47">Xu et al. (2016)</ref> to be optimal; for BLSTM, β = 4 × 10 −5 for training (with an ambiguity of 5.27) and β = 0.02 for testing (with an ambiguity of 1.17).</p><p>original C&amp;C models; and finally, a global recursive neural network model with A * decoding ( . We note that all these alternative models- with the exception of  and -use structured training that accounts for violations of the gold-standard, and we conjecture further improvements for our model are possible by incorporating such mechanisms. <ref type="bibr">15</ref> </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6">Conclusion</head><p>We have presented an LSTM parsing model for CCG, with a factorization allowing the linearization of the complete parsing history. We have shown that this simple model is highly effective, with results out- performing all previous shift-reduce CCG parsers. We have also shown global optimization benefits an LSTM shift-reduce model; and contrary to previous findings with the averaged perceptron ( <ref type="bibr" target="#b50">Zhang and Clark, 2008)</ref>, we empirically demonstrated beam- search inference is not necessary for our globally op- timized model. For future work, a natural direction is to explore integrated supertagging and parsing in a single neural model ( <ref type="bibr" target="#b52">Zhang and Weiss, 2016</ref>).</p></div><figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_0"><head>Figure 3 :</head><label>3</label><figDesc>Figure 3: An example representation for a parse item at time step t, with the 4 unidirectional LSTMs (left) and the bidirectional LSTM (right). The shaded cells on the left represent δt = [h U t ; h V t ; h X t ; h Y t ] (Eq. 3), and the shaded cells on the right represent wj = [h W j ; ˆ h W j ].</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_1"><head>Supertagger</head><label></label><figDesc></figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_3" validated="false"><head>Table 2 :</head><label>2</label><figDesc></figDesc><table>Tuning beam size and supertagger β on the dev set. 
+
+Model 
+LP 
+LR 
+LF 
+CAT 
+LSTM-w 
+90.13 76.99 83.05 94.24 
+LSTM-w+c 
+89.37 83.25 86.20 94.34 
+LSTM-w+c+a 
+89.31 83.39 86.25 94.38 
+LSTM-w+c+a+p 89.43 83.86 86.56 94.47 
+
+</table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_4" validated="false"><head>Table 3 :</head><label>3</label><figDesc>F1 on dev for all the greedy models.</figDesc><table></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_5" validated="false"><head>) .</head><label>.</label><figDesc></figDesc><table>78 
+
+79 
+
+80 
+
+81 
+
+82 
+
+83 
+
+84 
+
+85 
+
+86 
+
+87 
+
+0 
+5 
+10 
+15 
+20 
+25 
+30 
+F1 (labeled) on dev set 
+
+Training epochs 
+
+LSTM-w 
+LSTM-wc 
+LSTM-wca 
+LSTM-wcap 
+
+(a) Dev F1 of the greedy models 
+
+86.6 
+
+86.7 
+
+86.8 
+
+86.9 
+
+87 
+
+87.1 
+
+87.2 
+
+87.3 
+
+87.4 
+
+87.5 
+
+0 
+5 
+10 
+15 
+20 
+F1 (labeled) on dev set 
+
+Training epochs 
+
+LSTM-XF1 (beam = 8) 
+
+(b) Dev F1 of the XF1 model 
+
+Figure 4: Learning curves with dev F-scores for all models. 
+
+Section 00 
+Section 23 
+Model 
+Beam LP 
+LR 
+LF 
+CAT 
+LP 
+LR 
+LF 
+CAT 
+C&amp;C (normal-form) 
+-
+85.18 82.53 83.83 92.39 85.45 83.97 84.70 92.83 
+C&amp;C (dependency hybrid) -
+86.07 82.77 84.39 92.57 86.24 84.17 85.19 93.00 
+Zhang and Clark (2011) 
+16 
+87.15 82.95 85.00 92.77 87.43 83.61 85.48 93.12 
+Xu et al. (2014) 
+128 
+86.29 84.09 85.18 92.75 87.03 85.08 86.04 93.10 
+Ambati et al. (2016) 
+16 
+-
+-
+85.69 93.02 -
+-
+85.57 92.86 
+Xu et al. (2016)-greedy 
+1 
+88.12 81.38 84.61 93.42 88.53 81.65 84.95 93.57 
+Xu et al. (2016)-XF1 
+8 
+88.20 83.40 85.73 93.56 88.74 84.22 86.42 93.87 
+LSTM-greedy 
+1 
+89.43 83.86 86.56 94.47 89.75 84.10 86.83 94.63 
+LSTM-XF1 
+1 
+89.68 85.29 87.43 94.41 89.85 85.51 87.62 94.53 
+LSTM-XF1 
+8 
+89.54 85.46 87.45 94.39 89.81 85.81 87.76 94.57 
+
+</table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_6" validated="false"><head>Table 4 also</head><label>4</label><figDesc></figDesc><table>shows the results for 
+the XF1 models (LSTM-XF1), which use all four 
+types of embeddings. We used a beam size of 8, and 
+
+Model 
+Dev 
+Test 
+LSTM-BRNN 
+85.86 86.37 
+LSTM-BLSTM 86.26 86.64 
+LSTM-greedy 
+86.56 86.83 
+
+</table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_7" validated="false"><head>Table 6 :</head><label>6</label><figDesc></figDesc><table>Comparison of our XF1 models with chart-based 
+parsers on the test set. denotes a tri-trained model and  *  indi-
+cates a different POS tagger. 
+
+</table></figure>
+
+			<note place="foot" n="1"> Our parser models normal-form derivations (Eisner, 1996) in CCGBank. However, unlike Zhang and Clark (2011), derivations are not restricted to be normal-form during inference.</note>
+
+			<note place="foot">t : (j, δ|s 1 |s 0 , β, ∆) t + 1 : (j, δ|x, β, ∆ ∪ x)) (re; s 1 s 0 → x) t : (j, δ|s 0 , β, ∆) t + 1 : (j, δ|x, β, ∆) (un; s 0 → x)</note>
+
+			<note place="foot" n="2"> We assume greedy inference unless otherwise stated.</note>
+
+			<note place="foot" n="3"> In case of multiple heads, we always choose the first one. 4 Word and POS embeddings are concatenated at each input position j, for 0 ≤ j &lt; n; and wn = [h W ⊥ ; ˆ h W ⊥ ].</note>
+
+			<note place="foot" n="5"> Most CCG dependency models (e.g., see Clark and Curran (2007) and Xu et al. (2014)) model CCG derivations with dependency features.</note>
+
+			<note place="foot" n="8"> We found γ = 1 to be a good choice during development.</note>
+
+			<note place="foot" n="10"> Training: Sections 02-21 (39,604 sentences). Development: Section 00 (1,913 sentences). Test: Section 23 (2,407 sentences). 11 We implemented all models using the CNN toolkit: https://github.com/clab/cnn. 12 The BLSTMs have a single layer in each direction. We experimented with 2 layers in all models during development and found negligible improvements.</note>
+
+			<note place="foot" n="13"> We used the gensim word2vec toolkit: https:// radimrehurek.com/gensim/.</note>
+
+			<note place="foot" n="15"> Our XF1 training considers shift-reduce action sequences, but not violations of the gold-standard (e.g., see Huang et al. (2012), Watanabe and Sumita (2015), Zhou et al. (2015) and Andor et al. (2016)).</note>
+		</body>
+		<back>
+
+			<div type="acknowledgement">
+			</div>
+
+			<div type="references">
+
+				<listBibl>
+
+<biblStruct xml:id="b0">
+	<analytic>
+		<title level="a" type="main">integrated CCG supertagging and parsing</title>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. of ACL</title>
+		<meeting>of ACL</meeting>
+		<imprint/>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b1">
+	<analytic>
+		<title level="a" type="main">Training a loglinear parser with loss functions via softmax-margin</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Michael</forename><surname>Auli</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Adam</forename><surname>Lopez</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. of EMNLP</title>
+		<meeting>of EMNLP</meeting>
+		<imprint>
+			<date type="published" when="2011" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b2">
+	<analytic>
+		<title level="a" type="main">Neural machine translation by jointly learning to align and translate</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Dzmitry</forename><surname>Bahdanau</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kyunghyun</forename><surname>Cho</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yoshua</forename><surname>Bengio</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. of ICLR</title>
+		<meeting>of ICLR</meeting>
+		<imprint>
+			<date type="published" when="2015" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b3">
+	<analytic>
+		<title level="a" type="main">Supertagging: An approach to almost parsing</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Srinivas</forename><surname>Bangalore</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Aravind</forename><surname>Joshi</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Computational linguistics</title>
+		<imprint>
+			<publisher>MIT Press</publisher>
+			<date type="published" when="1999" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b4">
+	<analytic>
+		<title level="a" type="main">Learning long-term dependencies with gradient descent is difficult</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yoshua</forename><surname>Bengio</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Patrice</forename><surname>Simard</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Paolo</forename><surname>Frasconi</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Neural Networks</title>
+		<imprint>
+			<publisher>IEEE</publisher>
+			<date type="published" when="1994" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b5">
+	<analytic>
+		<title level="a" type="main">Scheduled sampling for sequence prediction with recurrent neural networks</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Samy</forename><surname>Bengio</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Oriol</forename><surname>Vinyals</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Navdeep</forename><surname>Jaitly</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Noam</forename><surname>Shazeer</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. of NIPS</title>
+		<meeting>of NIPS</meeting>
+		<imprint>
+			<date type="published" when="2015" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b6">
+	<analytic>
+		<title level="a" type="main">A fast and accurate dependency parser using neural networks</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Danqi</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Christopher</forename><surname>Manning</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. of EMNLP</title>
+		<meeting>of EMNLP</meeting>
+		<imprint>
+			<date type="published" when="2014" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b7">
+	<analytic>
+		<title level="a" type="main">The importance of supertagging for wide-coverage CCG parsing</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Stephen</forename><surname>Clark</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">James</forename><surname>Curran</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. of COLING</title>
+		<meeting>of COLING</meeting>
+		<imprint>
+			<date type="published" when="2004" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b8">
+	<analytic>
+		<title level="a" type="main">Wide-coverage efficient statistical parsing with CCG and log-linear models</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Stephen</forename><surname>Clark</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">James</forename><surname>Curran</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Computational Linguistics</title>
+		<imprint>
+			<publisher>MIT Press</publisher>
+			<date type="published" when="2007" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b9">
+	<monogr>
+		<title level="m" type="main">The Java version of the C&amp;C parser</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Stephen</forename><surname>Clark</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Darren</forename><surname>Foong</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Luana</forename><surname>Bulat</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Wenduan</forename><surname>Xu</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2015" />
+		</imprint>
+		<respStmt>
+			<orgName>University of Cambridge Computer Laboratory</orgName>
+		</respStmt>
+	</monogr>
+<note type="report_type">Technical report</note>
+</biblStruct>
+
+<biblStruct xml:id="b10">
+	<analytic>
+		<title level="a" type="main">Incremental parsing with the perceptron algorithm</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Michael</forename><surname>Collins</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Brian</forename><surname>Roark</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. of ACL</title>
+		<meeting>of ACL</meeting>
+		<imprint>
+			<date type="published" when="2004" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b11">
+	<analytic>
+		<title level="a" type="main">Discriminative training methods for hidden Markov models: Theory and experiments with perceptron algorithms</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Michael</forename><surname>Collins</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. of EMNLP</title>
+		<meeting>of EMNLP</meeting>
+		<imprint>
+			<date type="published" when="2002" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b12">
+	<analytic>
+		<title level="a" type="main">Transitionbased dependency parsing with stack long short-term memory</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Chris</forename><surname>Dyer</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Miguel</forename><surname>Ballesteros</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Wang</forename><surname>Ling</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Austin</forename><surname>Matthews</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Noah</forename><forename type="middle">A</forename><surname>Smith</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. of ACL</title>
+		<meeting>of ACL</meeting>
+		<imprint>
+			<date type="published" when="2015" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b13">
+	<analytic>
+		<title level="a" type="main">Efficient normal-form parsing for Combinatory Categorial Grammar</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jason</forename><surname>Eisner</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. of ACL</title>
+		<meeting>of ACL</meeting>
+		<imprint>
+			<date type="published" when="1996" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b14">
+	<analytic>
+		<title level="a" type="main">Finding structure in time</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jeffrey</forename><surname>Elman</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Cognitive science</title>
+		<imprint>
+			<publisher>Elsevier</publisher>
+			<date type="published" when="1990" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b15">
+	<analytic>
+		<title level="a" type="main">Accurate context-free parsing with Combinatory Categorial Grammar</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Timothy</forename><surname>Fowler</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Gerald</forename><surname>Penn</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. of ACL</title>
+		<meeting>of ACL</meeting>
+		<imprint>
+			<date type="published" when="2010" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b16">
+	<analytic>
+		<title level="a" type="main">Recurrent nets that time and count</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Felix</forename><surname>Gers</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jürgen</forename><surname>Schmidhuber</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Neural Networks</title>
+		<imprint>
+			<publisher>IEEE</publisher>
+			<date type="published" when="2000" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b17">
+	<analytic>
+		<title level="a" type="main">Learning to forget: Continual prediction with LSTM</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Felix</forename><surname>Gers</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jürgen</forename><surname>Schmidhuber</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Fred</forename><surname>Cummins</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Neural computation</title>
+		<imprint>
+			<publisher>MIT Press</publisher>
+			<date type="published" when="2000" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b18">
+	<analytic>
+		<title level="a" type="main">Understanding the difficulty of training deep feedforward neural networks</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Xavier</forename><surname>Glorot</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yoshua</forename><surname>Bengio</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. of AISTATS</title>
+		<meeting>of AISTATS</meeting>
+		<imprint>
+			<date type="published" when="2010" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b19">
+	<analytic>
+		<title level="a" type="main">Parsing algorithms and metrics</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Joshua</forename><surname>Goodman</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. of ACL</title>
+		<meeting>of ACL</meeting>
+		<imprint>
+			<date type="published" when="1996" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b20">
+	<analytic>
+		<title level="a" type="main">Framewise phoneme classification with bidirectional LSTM and other neural network architectures</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Alex</forename><surname>Graves</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jürgen</forename><surname>Schmidhuber</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Neural Networks</title>
+		<imprint>
+			<publisher>Elsevier</publisher>
+			<date type="published" when="2005" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b21">
+	<analytic>
+		<title level="a" type="main">Long short-term memory</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Sepp</forename><surname>Hochreiter</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jürgen</forename><surname>Schmidhuber</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Neural computation</title>
+		<imprint>
+			<publisher>MIT Press</publisher>
+			<date type="published" when="1997" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b22">
+	<analytic>
+		<title level="a" type="main">CCGBank: A corpus of CCG derivations and dependency structures extracted from the Penn Treebank</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Julia</forename><surname>Hockenmaier</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Mark</forename><surname>Steedman</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Computational Linguistics</title>
+		<imprint>
+			<publisher>MIT Press</publisher>
+			<date type="published" when="2007" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b23">
+	<monogr>
+		<title level="m" type="main">Data and Models for Statistical Parsing with Combinatory Categorial Grammar</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Julia</forename><surname>Hockenmaier</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2003" />
+		</imprint>
+		<respStmt>
+			<orgName>University of Edinburgh</orgName>
+		</respStmt>
+	</monogr>
+<note type="report_type">Ph.D. thesis</note>
+</biblStruct>
+
+<biblStruct xml:id="b24">
+	<analytic>
+		<title level="a" type="main">Structured perceptron with inexact search</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Liang</forename><surname>Huang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Suphan</forename><surname>Fayong</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yang</forename><surname>Guo</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. of NAACL</title>
+		<meeting>of NAACL</meeting>
+		<imprint>
+			<date type="published" when="2012" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b25">
+	<analytic>
+		<title level="a" type="main">A new parsing algorithm for Combinatory Categorial Grammar</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Marco</forename><surname>Kuhlmann</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Giorgio</forename><surname>Satta</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Transactions of the Association for Computational Linguistics. ACL</title>
+		<imprint>
+			<date type="published" when="2014" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b26">
+	<analytic>
+		<title level="a" type="main">Global neural CCG parsing with optimality guarantees</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kenton</forename><surname>Lee</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Mike</forename><surname>Lewis</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Luke</forename><surname>Zettlemoyer</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. of EMNLP</title>
+		<meeting>of EMNLP</meeting>
+		<imprint>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b27">
+	<analytic>
+		<title level="a" type="main">A* CCG parsing with a supertag-factored model</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Mike</forename><surname>Lewis</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Mark</forename><surname>Steedman</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. of EMNLP</title>
+		<meeting>of EMNLP</meeting>
+		<imprint>
+			<date type="published" when="2014" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b28">
+	<analytic>
+		<title level="a" type="main">Improved CCG parsing with semi-supervised supertagging</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Mike</forename><surname>Lewis</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Mark</forename><surname>Steedman</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Transactions of the Association for Computational Linguistics. ACL</title>
+		<imprint>
+			<date type="published" when="2014" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b29">
+	<analytic>
+		<title level="a" type="main">LSTM CCG parsing</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Mike</forename><surname>Lewis</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kenton</forename><surname>Lee</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Luke</forename><surname>Zettlemoyer</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. of NAACL</title>
+		<meeting>of NAACL</meeting>
+		<imprint>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b30">
+	<analytic>
+		<title level="a" type="main">Effective approaches to attention-based neural machine translation</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Minh-Thang</forename><surname>Luong</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Hieu</forename><surname>Pham</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Christopher</forename><surname>Manning</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. of EMNLP</title>
+		<meeting>of EMNLP</meeting>
+		<imprint>
+			<date type="published" when="2015" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b31">
+	<analytic>
+		<title level="a" type="main">Rectified linear units improve restricted boltzmann machines</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Vinod</forename><surname>Nair</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Geoffrey</forename><surname>Hinton</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. of ICML</title>
+		<meeting>of ICML</meeting>
+		<imprint>
+			<date type="published" when="2010" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b32">
+	<analytic>
+		<title level="a" type="main">Deterministic dependency parsing of English text</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Joakim</forename><surname>Nivre</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Mario</forename><surname>Scholz</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. of COLING</title>
+		<meeting>of COLING</meeting>
+		<imprint>
+			<date type="published" when="2004" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b33">
+	<analytic>
+		<title level="a" type="main">Minimum-risk annealing for training log-linear models</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">David</forename><surname>Smith</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jason</forename><surname>Eisner</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. of COLING-ACL</title>
+		<meeting>of COLING-ACL</meeting>
+		<imprint>
+			<date type="published" when="2006" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b34">
+	<analytic>
+		<title level="a" type="main">Learning continuous phrase representations and syntactic parsing with recursive neural networks</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Richard</forename><surname>Socher</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Christopher</forename><surname>Manning</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Andrew</forename><surname>Ng</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. of the NIPS Deep Learning and Unsupervised Feature Learning Workshop</title>
+		<meeting>of the NIPS Deep Learning and Unsupervised Feature Learning Workshop</meeting>
+		<imprint>
+			<date type="published" when="2010" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b35">
+	<analytic>
+		<title level="a" type="main">Parsing natural scenes and natural language with recursive neural networks</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Richard</forename><surname>Socher</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Cliff</forename><surname>Lin</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Christopher</forename><surname>Manning</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Andrew</forename><surname>Ng</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. of ICML</title>
+		<meeting>of ICML</meeting>
+		<imprint>
+			<date type="published" when="2011" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b36">
+	<analytic>
+		<title level="a" type="main">Parsing with compositional vector grammars</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Richard</forename><surname>Socher</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">John</forename><surname>Bauer</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Christopher</forename><surname>Manning</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Andrew</forename><surname>Ng</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. of ACL</title>
+		<meeting>of ACL</meeting>
+		<imprint>
+			<date type="published" when="2013" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b37">
+	<monogr>
+		<title level="m" type="main">The Syntactic Process</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Mark</forename><surname>Steedman</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2000" />
+			<publisher>MIT Press</publisher>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b38">
+	<analytic>
+		<title level="a" type="main">Lattice minimum bayes-risk decoding for statistical machine translation</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Roy</forename><surname>Tromble</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Shankar</forename><surname>Kumar</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Franz</forename><surname>Och</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Wolfgang</forename><surname>Macherey</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. of EMNLP</title>
+		<meeting>of EMNLP</meeting>
+		<imprint>
+			<date type="published" when="2008" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b39">
+	<analytic>
+		<title level="a" type="main">Word representations: a simple and general method for semi-supervised learning</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Joseph</forename><surname>Turian</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Lev</forename><surname>Ratinov</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yoshua</forename><surname>Bengio</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. of ACL</title>
+		<meeting>of ACL</meeting>
+		<imprint>
+			<date type="published" when="2010" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b40">
+	<analytic>
+		<title level="a" type="main">Supertagging with LSTMs</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ashish</forename><surname>Vaswani</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yonatan</forename><surname>Bisk</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kenji</forename><surname>Sagae</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ryan</forename><surname>Musa</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. of NAACL</title>
+		<meeting>of NAACL</meeting>
+		<imprint>
+			<date type="published" when="2016" />
+			<biblScope unit="volume">2</biblScope>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b41">
+	<analytic>
+		<title level="a" type="main">Parsing some constrained grammar formalisms</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Krishnamurti</forename><surname>Vijay</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">-</forename><surname>Shanker</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">David</forename><surname>Weir</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Computational Linguistics</title>
+		<imprint>
+			<publisher>MIT Press</publisher>
+			<date type="published" when="1993" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b42">
+	<analytic>
+		<title level="a" type="main">Grammar as a foreign language</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Oriol</forename><surname>Vinyals</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Lukasz</forename><surname>Kaiser</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Terry</forename><surname>Koo</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Slav</forename><surname>Petrov</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ilya</forename><surname>Sutskever</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Geoffrey</forename><surname>Hinton</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. of NIPS</title>
+		<meeting>of NIPS</meeting>
+		<imprint>
+			<date type="published" when="2015" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b43">
+	<analytic>
+		<title level="a" type="main">Transitionbased neural constituent parsing</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Taro</forename><surname>Watanabe</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Eiichiro</forename><surname>Sumita</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. of ACL</title>
+		<meeting>of ACL</meeting>
+		<imprint>
+			<date type="published" when="2015" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b44">
+	<analytic>
+		<title level="a" type="main">Structured training for neural network transition-based parsing</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">David</forename><surname>Weiss</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Chris</forename><surname>Alberti</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Michael</forename><surname>Collins</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Slav</forename><surname>Petrov</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. of ACL</title>
+		<meeting>of ACL</meeting>
+		<imprint>
+			<date type="published" when="2015" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b45">
+	<analytic>
+		<title level="a" type="main">Shift-reduce CCG parsing with a dependency model</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Wenduan</forename><surname>Xu</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Stephen</forename><surname>Clark</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yue</forename><surname>Zhang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. of ACL</title>
+		<meeting>of ACL</meeting>
+		<imprint>
+			<date type="published" when="2014" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b46">
+	<analytic>
+		<title level="a" type="main">CCG supertagging with a recurrent neural network</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Wenduan</forename><surname>Xu</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Michael</forename><surname>Auli</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Stephen</forename><surname>Clark</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. of ACL</title>
+		<meeting>of ACL</meeting>
+		<imprint>
+			<date type="published" when="2015" />
+			<biblScope unit="volume">2</biblScope>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b47">
+	<analytic>
+		<title level="a" type="main">Expected F-measure training for shift-reduce parsing with recurrent neural networks</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Wenduan</forename><surname>Xu</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Michael</forename><surname>Auli</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Stephen</forename><surname>Clark</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. of NAACL</title>
+		<meeting>of NAACL</meeting>
+		<imprint>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b48">
+	<analytic>
+		<title level="a" type="main">Statistical dependency analysis using support vector machines</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Hiroyasu</forename><surname>Yamada</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yuji</forename><surname>Matsumoto</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. of IWPT</title>
+		<meeting>of IWPT</meeting>
+		<imprint>
+			<date type="published" when="2003" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b49">
+	<analytic>
+		<title level="a" type="main">Recurrent neural network regularization</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Wojciech</forename><surname>Zaremba</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ilya</forename><surname>Sutskever</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Oriol</forename><surname>Vinyals</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. of ICLR</title>
+		<meeting>of ICLR</meeting>
+		<imprint>
+			<date type="published" when="2014" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b50">
+	<analytic>
+		<title level="a" type="main">A tale of two parsers: investigating and combining graph-based and transition-based dependency parsing using beamsearch</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yue</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Stephen</forename><surname>Clark</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. of EMNLP</title>
+		<meeting>of EMNLP</meeting>
+		<imprint>
+			<date type="published" when="2008" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b51">
+	<analytic>
+		<title level="a" type="main">Shift-reduce CCG parsing</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yue</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Stephen</forename><surname>Clark</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. of ACL</title>
+		<meeting>of ACL</meeting>
+		<imprint>
+			<date type="published" when="2011" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b52">
+	<analytic>
+		<title level="a" type="main">Stack-propagation: Improved representation learning for syntax</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yuan</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">David</forename><surname>Weiss</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. of ACL</title>
+		<meeting>of ACL</meeting>
+		<imprint>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b53">
+	<analytic>
+		<title level="a" type="main">A neural probabilistic structured-prediction model for transition-based dependency parsing</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Hao</forename><surname>Zhou</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yue</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Shujian</forename><surname>Huang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jiajun</forename><surname>Chen</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. of ACL</title>
+		<meeting>of ACL</meeting>
+		<imprint>
+			<date type="published" when="2015" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+				</listBibl>
+			</div>
+		</back>
+	</text>
+</TEI>

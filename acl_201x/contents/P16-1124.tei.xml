@@ -1,0 +1,1034 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<TEI xmlns="http://www.tei-c.org/ns/1.0" 
+xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+xsi:schemaLocation="http://www.tei-c.org/ns/1.0 /home/ana/installs/grobid/grobid-0.5.1/grobid-home/schemas/xsd/Grobid.xsd"
+ xmlns:xlink="http://www.w3.org/1999/xlink">
+	<teiHeader xml:lang="en">
+		<encodingDesc>
+			<appInfo>
+				<application version="0.5.1-SNAPSHOT" ident="GROBID" when="2019-04-18T12:42+0000">
+					<ref target="https://github.com/kermitt2/grobid">GROBID - A machine learning software for extracting information from scholarly documents</ref>
+				</application>
+			</appInfo>
+		</encodingDesc>
+		<fileDesc>
+			<titleStmt>
+				<title level="a" type="main">Knowledge Base Completion via Coupled Path Ranking</title>
+			</titleStmt>
+			<publicationStmt>
+				<publisher/>
+				<availability status="unknown"><licence/></availability>
+				<date>August 7-12, 2016</date>
+			</publicationStmt>
+			<sourceDesc>
+				<biblStruct>
+					<analytic>
+						<author>
+							<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Quan</forename><surname>Wang</surname></persName>
+						</author>
+						<author>
+							<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jing</forename><surname>Liu</surname></persName>
+						</author>
+						<author>
+							<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yuanfei</forename><surname>Luo</surname></persName>
+						</author>
+						<author>
+							<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Bin</forename><surname>Wang</surname></persName>
+						</author>
+						<author>
+							<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">†</forename></persName>
+						</author>
+						<author>
+							<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Chin-Yew</forename><surname>Lin</surname></persName>
+						</author>
+						<author>
+							<affiliation key="aff0">
+								<orgName type="department">Institute of Information Engineering</orgName>
+								<orgName type="institution">Chinese Academy of Sciences</orgName>
+								<address>
+									<postCode>100093</postCode>
+									<settlement>Beijing</settlement>
+									<country key="CN">China</country>
+								</address>
+							</affiliation>
+						</author>
+						<author>
+							<affiliation key="aff1">
+								<orgName type="institution">Microsoft Research</orgName>
+								<address>
+									<postCode>100080</postCode>
+									<settlement>Beijing</settlement>
+									<country key="CN">China</country>
+								</address>
+							</affiliation>
+						</author>
+						<title level="a" type="main">Knowledge Base Completion via Coupled Path Ranking</title>
+					</analytic>
+					<monogr>
+						<title level="m">Proceedings of the 54th Annual Meeting of the Association for Computational Linguistics</title>
+						<meeting>the 54th Annual Meeting of the Association for Computational Linguistics <address><addrLine>Berlin, Germany</addrLine></address>
+						</meeting>
+						<imprint>
+							<biblScope unit="page" from="1308" to="1318"/>
+							<date type="published">August 7-12, 2016</date>
+						</imprint>
+					</monogr>
+				</biblStruct>
+			</sourceDesc>
+		</fileDesc>
+		<profileDesc>
+			<abstract>
+				<p>Knowledge bases (KBs) are often greatly incomplete, necessitating a demand for K-B completion. The path ranking algorithm (PRA) is one of the most promising approaches to this task. Previous work on PRA usually follows a single-task learning paradigm, building a prediction model for each relation independently with its own training data. It ignores meaningful associations among certain relations, and might not get enough training data for less frequent relations. This paper proposes a novel multi-task learning framework for PRA, referred to as coupled PRA (CPRA). It first devises an agglomerative clustering strategy to automatically discover relations that are highly correlated to each other, and then employs a multi-task learning strategy to effectively couple the prediction of such relations. As such, CPRA takes into account relation association and enables implicit data sharing among them. We empirically evaluate CPRA on benchmark data created from Freebase. Experimental results show that CPRA can effectively identify coherent clusters in which relations are highly correlated. By further coupling such relations, CPRA significantly outperforms PRA, in terms of both predic-tive accuracy and model interpretability.</p>
+			</abstract>
+		</profileDesc>
+	</teiHeader>
+	<text xml:lang="en">
+		<body>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="1">Introduction</head><p>Knowledge bases (KBs) like Freebase <ref type="bibr" target="#b2">(Bollacker et al., 2008</ref>), DBpedia ( <ref type="bibr" target="#b26">Lehmann et al., 2014)</ref>, and NELL <ref type="bibr">(Carlson et al., 2010</ref>) are extremely useful resources for many NLP tasks <ref type="bibr" target="#b10">(Cucerzan, 2007;</ref><ref type="bibr" target="#b32">Schuhmacher and Ponzetto, 2014</ref>). They provide large collections of facts about entities and their relations, typically stored as (head entity, re- lation, tail entity) triples, e.g., <ref type="bibr">(Paris, capitalOf, France)</ref>. Although such KBs can be impressively large, they are still quite incomplete and missing crucial facts, which may reduce their usefulness in downstream tasks <ref type="bibr" target="#b36">(West et al., 2014;</ref><ref type="bibr" target="#b9">Choi et al., 2015)</ref>. KB completion, i.e., automatically infer- ring missing facts by examining existing ones, has thus attracted increasing attention. Approaches to this task roughly fall into three categories: (i) path ranking algorithms (PRA) <ref type="bibr" target="#b25">(Lao et al., 2011</ref>); (ii) embedding techniques ( <ref type="bibr" target="#b4">Bordes et al., 2013;</ref><ref type="bibr" target="#b19">Guo et al., 2015)</ref>; and (iii) graphical models such as Markov logic networks (MLN) ( <ref type="bibr" target="#b31">Richardson and Domingos, 2006</ref>). This paper focuses on PRA, which is easily interpretable (as opposed to em- bedding techniques) and requires no external logic rules (as opposed to MLN).</p><p>The key idea of PRA is to explicitly use paths connecting two entities to predict potential rela- tions between them. In PRA, a KB is encoded as a graph which consists of a set of heterogeneous edges. Each edge is labeled with a relation type that exists between two entities. Given a specific relation, random walks are first employed to find paths between two entities that have the given rela- tion. Here a path is a sequence of relations linking two entities, e.g., h These paths are then used as features in a bina- ry classifier to predict if new instances (i.e., entity pairs) have the given relation.</p><p>While KBs are naturally composed of multiple relations, PRA models these relations separately during the inference phase, by learning an individ- ual classifier for each relation. We argue, however, that it will be beneficial for PRA to model certain relations in a collective way, particularly when the relations are closely related to each other. For ex- ample, given two relations bornIn and livedIn, there must be a lot of paths (features) that are pre- dictive for both relations, e.g., h nationality − −−−−−−−− −→ e hasCapital − −−−−−−− −→ t. These features make the cor- responding relation classification tasks highly re- lated. Numerous studies have shown that learn- ing multiple related tasks simultaneously (a.k.a. multi-task learning) usually leads to better predic- tive performance, profiting from the relevant infor- mation available in different tasks <ref type="bibr">(Carlson et al., 2010;</ref><ref type="bibr" target="#b8">Chapelle et al., 2010)</ref>. This paper proposes a novel multi-task learning framework that couples the path ranking of multi- ple relations, referred to as coupled PRA (CPRA). The new model needs to answer two critical ques- tions: (i) which relations should be coupled, and (ii) in what manner they should be coupled.</p><p>As to the first question, it is obvious that not all relations are suitable to be learned together. For instance, modeling bornIn together with hasWife might not bring any real benefits, since there are few common paths between these two relations. CPRA introduces a common-path based similarity measure, and accordingly devises an agglomera- tive clustering strategy to group relations. Only re- lations that are grouped into the same cluster will be coupled afterwards.</p><p>As to the second question, CPRA follows the common practice of multi-task learning ( <ref type="bibr" target="#b14">Evgeniou and Pontil, 2004</ref>), and couples relations by using classifiers with partially shared parameters. Given a cluster of relations, CPRA builds the classifier- s upon (i) relation-specific parameters to address the specifics of individual relations, and (ii) shared parameters to model the commonalities among d- ifferent relations. These two types of parameters are balanced by a coupling coefficient, and learned jointly for all relations. In this way CPRA couples the classification tasks of multiple relations, and enables implicit data sharing and regularization.</p><p>The major contributions of this paper are as fol- lows. (i) We design a novel framework for multi- task learning with PRA, i.e., CPRA. To the best of our knowledge, this is the first study on multi-task PRA. (ii) We empirically verify the effectiveness of CPRA on a real-world, large-scale KB. Specifi- cally, we evaluate CPRA on benchmark data creat- ed from Freebase. Experimental results show that CPRA can effectively identify coherent clusters in which relations are highly correlated. By fur- ther coupling such relations, CPRA substantially outperforms PRA, in terms of not only predictive accuracy but also model interpretability. (iii) We compare CPRA and PRA to the embedding-based TransE model ( <ref type="bibr" target="#b4">Bordes et al., 2013)</ref>, and demon- strate their superiority over TransE. As far as we know, this is the first work that formally compares PRA-style approaches to embedding-based ones, on publicly available Freebase data.</p><p>In the remainder of this paper, we first review related work in Section 2, and formally introduce PRA in Section 3. We then detail the proposed CPRA framework in Section 4. Experiments and results are reported in Section 5, followed by the conclusion and future work in Section 6.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2">Related Work</head><p>We first review three lines of related work: (i) KB completion, (ii) PRA and its extensions, and (iii) multi-task learning, and then discuss the connec- tion between CPRA and previous approaches. KB completion. This task is to automatically infer missing facts from existing ones. Prior work roughly falls into three categories: (i) path ranking algorithms (PRA) which use paths that connect t- wo entities to predict potential relations between them ( <ref type="bibr" target="#b25">Lao et al., 2011;</ref><ref type="bibr" target="#b24">Lao and Cohen, 2010)</ref>; (i- i) embedding-based models which embed entities and relations into a latent vector space and make inferences in that space <ref type="bibr" target="#b28">(Nickel et al., 2011;</ref><ref type="bibr" target="#b4">Bordes et al., 2013)</ref>; (iii) probabilistic graphical mod- els such as the Markov logic network (MLN) and its variants ( <ref type="bibr" target="#b30">Pujara et al., 2013;</ref><ref type="bibr" target="#b21">Jiang et al., 2012)</ref>. This paper focuses on PRA, since it is easily inter- pretable (as opposed to embedding-based models) and requires no external logic rules (as opposed to MLN and its variants).</p><p>PRA and its extensions. PRA is a random walk inference technique designed for predicting new relation instances in KBs, first proposed by <ref type="bibr" target="#b24">Lao and Cohen (2010)</ref>. Recently various extension- s have been explored, ranging from incorporating a text corpus as additional evidence during infer- ence ( <ref type="bibr" target="#b17">Gardner et al., 2013;</ref><ref type="bibr" target="#b18">Gardner et al., 2014</ref>), to introducing better schemes to generate more predictive paths ( <ref type="bibr" target="#b16">Gardner and Mitchell, 2015;</ref><ref type="bibr" target="#b34">Shi and Weninger, 2015)</ref>, or using PRA in a broader context such as Google's Knowledge Vault ( <ref type="bibr" target="#b12">Dong et al., 2014</ref>). All these approaches are based on some single-task version of PRA, while our work explores multi-task learning for it.</p><p>Multi-task learning. Numerous studies have shown that learning multiple related tasks simulta-neously can provide significant benefits relative to learning them independently <ref type="bibr" target="#b7">(Caruana, 1997)</ref>. A key ingredient of multi-task learning is to model the notion of task relatedness, through either pa- rameter sharing ( <ref type="bibr" target="#b14">Evgeniou and Pontil, 2004;</ref><ref type="bibr" target="#b0">Ando and Zhang, 2005</ref>) or feature sharing <ref type="bibr" target="#b1">(Argyriou et al., 2007;</ref><ref type="bibr" target="#b20">He et al., 2014</ref>). In recent years, there has been increasing work showing the ben- efits of multi-task learning in NLP-related tasks, such as relation extraction <ref type="bibr" target="#b22">(Jiang, 2009;</ref><ref type="bibr">Carlson et al., 2010</ref>) and machine translation ( <ref type="bibr" target="#b33">Sennrich et al., 2013;</ref><ref type="bibr" target="#b11">Cui et al., 2013;</ref><ref type="bibr" target="#b13">Dong et al., 2015)</ref>. This pa- per investigates the possibility of multi-task learn- ing with PRA, in a parameter sharing manner.</p><p>Connection with previous methods. Actually, modeling multiple relations collectively is a com- mon practice in embedding-based approaches. In such a method, embeddings are learned jointly for all relations, over a set of shared latent features (entity embeddings), and hence can capture mean- ingful associations among different relations. As shown by <ref type="bibr" target="#b35">(Toutanova and Chen, 2015)</ref>, observed features such as PRA paths usually perform bet- ter than latent features for KB completion. In this context, CPRA is designed in a way that gets the multi-relational benefit of embedding techniques while keeping PRA-style path features. <ref type="bibr" target="#b29">Nickel et al. (2014)</ref> and <ref type="bibr" target="#b27">Neelakantan et al. (2015)</ref> have tried similar ideas. However, their work focuses on im- proving embedding techniques with observed fea- tures, while our approach aims at improving PRA with multi-task learning.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3">Path Ranking Algorithm</head><p>PRA was first proposed by <ref type="bibr" target="#b24">Lao and Cohen (2010)</ref>, and later slightly modified in various ways <ref type="bibr" target="#b18">(Gardner et al., 2014;</ref><ref type="bibr" target="#b16">Gardner and Mitchell, 2015)</ref>. The key idea of PRA is to explicitly use paths that con- nect two entities as features to predict potential re- lations between them. Here a path is a sequence of relations ⟨r 1 , r 2 , · · · , r ℓ ⟩ that link two entities. For example, ⟨bornIn, capitalOf⟩ is a path link- ing SophieMarceau to France, through an inter- mediate node Paris. Such paths are then used as features to predict the presence of specific re- lations, e.g., nationality. A typical PRA model consists of three steps: feature extraction, feature computation, and relation-specific classification.</p><p>Feature extraction. The first step is to generate and select path features that are potentially useful for predicting new relation instances. To this end, PRA first encodes a KB as a multi-relation graph. Given a pair of entities (h, t), PRA then finds the paths by performing random walks over the graph, recording those starting from h and ending at t with bounded lengths. More exhaustive strategies like breadth-first ( <ref type="bibr" target="#b16">Gardner and Mitchell, 2015)</ref> or depth-first ( <ref type="bibr" target="#b34">Shi and Weninger, 2015</ref>) search could also be used to enumerate the paths. After that a set of paths are selected as features, according to some precision-recall measure <ref type="bibr" target="#b25">(Lao et al., 2011</ref>), or simply frequency ( <ref type="bibr" target="#b18">Gardner et al., 2014)</ref>.</p><p>Feature computation. Once path features are selected, the next step is to compute their values. Given an entity pair (h, t) and a path π, PRA com- putes the feature value as a random walk proba- bility p(t|h, π), i.e., the probability of arriving at t given a random walk starting from h and following exactly all relations in π. Computing these ran- dom walk probabilities could be at great expense. <ref type="bibr" target="#b16">Gardner and Mitchell (2015)</ref> recently showed that such probabilities offer no discernible benefits. So they just used a binary value to indicate the pres- ence or absence of each path. Similarly, <ref type="bibr" target="#b34">Shi and Weninger (2015)</ref> used the frequency of a path as it- s feature value. Besides paths, other features such as path bigrams and vector space similarities could also be incorporated ( <ref type="bibr" target="#b18">Gardner et al., 2014)</ref>.</p><p>Relation-specific classification. The last step of PRA is to train an individual classifier for each relation, so as to judge whether two entities should be linked by that relation. Given a relation and a set of training instances (i.e., pairs of entities that are linked by the relation or not, with features s- elected and computed as above), one can use any kind of classifier to train a model. Most previous work simply chooses logistic regression.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4">Coupled Path Ranking Algorithm</head><p>As we can see, PRA (as well as its variants) fol- lows a single-task learning paradigm, which builds a classifier for each relation independently with its own training data. We argue that such a single-task strategy might not be optimal for KB completion: (i) by learning the classifiers independently, it fail- s to discover and leverage meaningful associations among different relations; (ii) it might not perfor- m well on less frequent relations for which only a few training instances are available. This section presents coupled PRA (CPRA), a novel multi-task learning framework that couples the path ranking of multiple relations. Through a multi-task strat-egy, CPRA takes into account relation association and enables implicit data sharing among them.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.1">Problem Formulation</head><p>Suppose we are given a KB containing a collection of triples O = {(h, r, t)}. Each triple is composed of two entities h, t ∈ E and their relation r ∈ R, where E is the entity set and R the relation set. The KB is then encoded as a graph G, with entities represented as nodes, and triple (h, r, t) a directed edge from node h to node t. We formally define KB completion as a binary classification problem. That is, given a particular relation r, for any entity pair (h, t) such that (h, r, t) / ∈ O, we would like to judge whether h and t should be linked by r, by exploiting the graph structure of G. Let R ⊆ R denote a set of relations to be predicted.</p><p>Each relation r ∈ R is associated with a set of training instances. Here a training instance is an entity pair (h, t), with a positive label if (h, r, t) ∈ O or a negative label otherwise. <ref type="bibr">1</ref> For each of the entity pairs, path features could be extracted and computed using techniques described in Section 3. We denote by Π r the set of path features extracted for relation r, and define its training set as T r = {(x ir , y ir )}. Here x ir is the feature vector for an entity pair, with each dimension corresponding to a path π ∈ Π r , and y ir = ±1 is the label. Note that our primary goal is to verify the possibility of multi-task learning with PRA. It is beyond the scope of this paper to further explore better feature extraction or computation.</p><p>Given the relations and their training instances, CPRA performs KB completion using a multi-task learning strategy. It consists of two components: relation clustering and relation coupling. The for- mer automatically discovers highly correlated re- lations, and the latter further couples the learning of these relations, described in detail as follows.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.2">Relation Clustering</head><p>It is obvious that not all relations are suitable to be coupled. We propose an agglomerative cluster- ing algorithm to automatically discover relations that are highly correlated and should be learned to- gether. Our intuition is that relations sharing more common paths (features) are probably more simi- lar in classification, and hence should be coupled.</p><p>Specifically, we start with |R| clusters and each cluster contains a single relation r ∈ R. Here |·| is the cardinality of a set. Then we iteratively merge the most similar clusters, say C m and C n , into a new cluster C. The similarity between two clusters is defined as:</p><formula xml:id="formula_0">Sim(C i , C j ) = |Π C i ∩ Π C j | min(|Π C i |, |Π C j |) ,<label>(1)</label></formula><p>where Π C i is the feature set associated with clus- ter C i (if C i contains a single relation, Π C i the fea- ture set associated with that relation). It essential- ly measures the overlap between two feature sets. The larger the overlap is, the higher the similari- ty will be. Once two clusters are merged, we up- date the feature set associated with the new cluster:</p><formula xml:id="formula_1">Π C = Π Cm ∪ Π Cn .</formula><p>The algorithm stops when the highest cluster similarity is below some predefined threshold δ. This paper empirically sets δ = 0.5. As such, relations sharing a substantial number of common paths are grouped into the same cluster.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.3">Relation Coupling</head><p>After clustering, the next step of CPRA is to cou- ple the path ranking of different relations within each cluster, i.e., to learn the classification tasks for these relations simultaneously. We employ a multi-task classification algorithm similar to <ref type="bibr" target="#b14">(Evgeniou and Pontil, 2004</ref>), and learn the classifiers jointly in a parameter sharing manner. Consider a cluster containing K relations C = {r 1 , r 2 , · · · , r K }. Recall that during the clustering phase a shared feature set has been generated for that cluster, i.e., Π C = Π r 1 ∪ · · · ∪ Π r K . We first reform the training instances for the K relation- s using this shared feature set, so that all training data is represented in the same space. <ref type="bibr">2</ref> We denote by T k = {(x ik , y ik )} N k i=1 the reformed training da- ta associated with the k-th relation. Then our goal is to jointly learn K classifiers</p><formula xml:id="formula_2">f 1 , f 2 , · · · , f K such that f k (x ik ) ≈ y ik .</formula><p>We first assume that the classifier for each rela- tion has a linear form f k (x) = w k · x + b k , where w k ∈ R d is the weight vector and b k the bias. To model associations among different relations, we further assume that all w k and b k can be written, for every k ∈ {1, · · · , K}, as:</p><formula xml:id="formula_3">w k = w 0 + v k and b k = b 0 .<label>(2)</label></formula><p>Here the shared w 0 is used to model the common- alities among different relations, and the relation- specific v k to address the specifics of individual relations. If the relations are closely related (v k ≈ 0), they will have similar weights (w t ≈ w 0 ) on the common paths. We use the same bias b 0 for all the relations. <ref type="bibr">3</ref> We estimate v k , w 0 , and b 0 simultaneously in a joint optimization problem, defined as follows.</p><p>Problem 1 CPRA amounts to solving the general optimization problem:</p><formula xml:id="formula_4">min {v k },w 0 ,b 0 K ∑ k=1 N k ∑ i=1 ℓ (x ik , y ik ) + λ1 K K ∑ k=1 ∥v k ∥ 2 2 + λ2 ∥w0∥ 2 2 ,</formula><p>where ℓ (x ik , y ik ) is the loss on a training instance. It can be instantiated into a logistic regression (L- R) or support vector machine (SVM) version, by respectively defining the loss ℓ (x ik , y ik ) as:</p><formula xml:id="formula_5">ℓ (x ik , y ik ) = log (1 + exp (−y ik f k (x ik ))) , ℓ (x ik , y ik ) = [1 − y ik f k (x ik )] + ,</formula><p>where</p><formula xml:id="formula_6">f k (x ik ) = (w0 + v k ) · x ik + b0.</formula><p>We call them CPRA-LR and CPRA-SVM respectively.</p><p>In this problem, λ 1 and λ 2 are regularization pa- rameters. By adjusting their values, we control the degree of parameter sharing among different rela- tions. The larger the ratio λ 1 λ 2</p><p>is, the more we be- lieve that all w t should conform to the common model w 0 , and the smaller the relation-specific weight v t will be.</p><p>The multi-task learning problem can be directly linked to a standard single-task learning one, built on all training data from different relations.</p><p>Proposition 1 Suppose the training data associ- ated with the k-th relation, for every k = 1, · · · , K, is transformed into:</p><formula xml:id="formula_7">x ik = [ x ik √ ρK , 0, · · · , 0 k−1 , x ik , 0, · · · , 0 K−k ],</formula><p>where 0 ∈ R d is a vector whose coordinates are all zero, and ρ = λ 2</p><note type="other">λ 1 a coupling coefficient. Consider a linear classifier for the transformed data f ( x) = w · x + b, with w and b constructed as:</note><formula xml:id="formula_8">w = [ √ ρKw0, v1, · · · , vK ] and b = b0.</formula><p>Then the objective function of Problem 1 is equiv- alent to:</p><formula xml:id="formula_9">L = K ∑ k=1 N k ∑ i=1 ℓ ( x ik , y ik ) + λ ∥ w∥ 2 2 ,</formula><p>3 It implicitly assumes that all the relations have the same proportion of positive instances. This assumption actually holds since given any relation we can always generate the same number of negative instances for each positive one. We set this number to 4 in our experiments. </p><note type="other">ℓ = log(1 + exp(−y ik f ( x ik ))) is a logistic loss for CPRA-LR, and</note><formula xml:id="formula_10">ℓ = [1 − y ik</formula><p>f ( x ik )]+ a hinge loss for CPRA-SVM; and</p><formula xml:id="formula_11">λ = λ 1 K .</formula><p>That means, after transforming data from differ- ent relations into a unified representation, Prob- lem 1 is equivalent to a standard single-task learn- ing problem, built on the transformed data from all the relations. So it can easily be solved by existing tools such as LR or SVM.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5">Experiments</head><p>In this section we present empirical evaluation of CPRA in the KB completion task.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.1">Experimental Setups</head><p>We create our data on the basis of FB15K (Bor- des et al., 2011) 4 , a relatively dense subgraph of Freebase containing 1,345 relations and the corre- sponding triples.</p><p>KB graph construction. We notice that in most cases FB15K encodes a relation and its reverse re- lation at the same time. That is, once a new fact is observed, FB15K creates two triples for it, e.g., (x, film/edited-by, y) and (y, editor/film, x). Re- verse relations provide no additional knowledge. They may even hurt the performance of PRA-style methods. Actually, to enhance graph connectivity, PRA-style methods usually automatically add an inverse version for each relation in a KB ( <ref type="bibr" target="#b24">Lao and Cohen, 2010;</ref><ref type="bibr" target="#b25">Lao et al., 2011</ref>). That is, for each observed triple (h, r, t), another triple (t, r −1 , h) is constructed and added to the KB. Consider the prediction of a relation, say film/edited-by. In the training phase, we could probably find that ev- ery two entities connected by this relation are also connected by the path editor/film −1 , and hence assign an extremely high weight to it. <ref type="bibr">5</ref> However, in the testing phase, for any entity pair (x, y) such that (y, editor/film, x) has not been encoded, we might not even find that path and hence could al- ways make a negative prediction. <ref type="bibr">6</ref> For this reason, we remove reverse relations in FB15K. Specifically, we regard r 2 to be a reverse relation of r 1 if the triple (t, r 2 , h) holds whenev- er (h, r 1 , t) is observed, and we randomly discard one of the two relations. <ref type="bibr">7</ref> As such, we keep 774 out of 1,345 relations in FB15K, covering 14,951 entities and 327,783 triples. Then we build a graph based on this data and use it as input to CPRA (and our baseline methods).</p><p>Labeled instance generation. We select 171 relations to test our methods. To do so, we pick 10 popular domains, including award, education, film, government, location, music, olympics, or- ganization, people, and tv. Relations in these do- mains with at least 50 triples observed for them are selected. For each of the 171 relations, we split the associated triples into roughly 80% training, 10% validation, and 10% testing. Since the triple num- ber varies significantly among the relations, we al- low at most 200 validation/testing triples for each relation, so as to make the test cases as balanced as possible. Note that validation and testing triples are not used for constructing the graph.</p><p>We generate positive instances for each relation directly from these triples. Given a relation r and a triple (h, r, t) observed for it (training, validation, or testing), we take the pair of entities (h, t) as a positive instance for that relation. Then we follow ( <ref type="bibr" target="#b34">Shi and Weninger, 2015;</ref><ref type="bibr" target="#b23">Krompaß et al., 2015</ref>) to generate negative instances. Given each positive instance (h, t) we generate four negative ones, two by randomly corrupting the head h, and the other two the tail t. To make the negative instances as d- ifficult as possible, we corrupt a position using on- ly entities that have appeared in that position. That means, given the relation capitalOf and the pos- itive instance (Paris, France), we could generate a negative instance (Paris, UK) but never (Paris, NBA), since NBA never appears as a tail entity of the relation. We further ensure that the negative instances do not overlap with the positive ones.</p><p>Feature extraction and computation. Given the labeled instances, we extract path features for them using the code provided by <ref type="bibr" target="#b34">Shi and Weninger (2015)</ref>  <ref type="bibr">8</ref> . It is a depth-first search strategy that enu- merates all paths between two entities. We set the maximum path length to be ℓ = 3. There are about 8.2% of the labeled instances for which no path could be extracted. We remove such cases, giving on average about 5,250 training, 323 validation, and 331 testing instances per relation. Then we re- move paths that appear only once in each relation, getting 5,515 features on average per relation. We simply compute the value of each feature as its fre- quency in an instance. <ref type="table">Table 1</ref> lists the statistics of the data used in our experiments. Evaluation metrics. As evaluation metrics, we use mean average precision (MAP) and mean re- ciprocal rank (MRR), following recent work eval- uating KB completion performance <ref type="bibr" target="#b36">(West et al., 2014;</ref><ref type="bibr" target="#b16">Gardner and Mitchell, 2015)</ref>. Both metrics evaluate some ranking process: if a method ranks the positive instances before the negative ones for each relation, it will get a high MAP or MRR.</p><p>Baseline methods. We compare CPRA to tra- ditional single-task PRA. CPRA first groups the 171 relations into clusters, and then learns classi- fiers jointly for relations within the same cluster. We implement two versions of it: CPRA-LR and CPRA-SVM. As we have shown in Proposition 1, both of them could be solved by standard classi- fication tools. PRA learns an individual classifier for each of the relations, using LR or SVM classi- fication techniques, denoted by PRA-LR or PRA- SVM. We use LIBLINEAR <ref type="bibr" target="#b15">(Fan et al., 2008)</ref>  <ref type="bibr">9</ref> to solve the LR and SVM classification problems. For all these methods, we tune the cost c in the range of {2 −5 , 2 −4 , · · · , 2 4 , 2 5 }. And we set the coupling coefficient ρ = λ 2 λ 1 in CPRA in the range of {0.1, 0.2, 0.5, 1, 2, 5, 10}.</p><p>We further compare CPRA to TransE, a widely adopted embedding-based method ( <ref type="bibr" target="#b4">Bordes et al., 2013)</ref>. TransE learns vector representations for entities and relations (i.e., embeddings), and uses the learned embeddings to determine the plausibil- ity of missing facts. Such plausibility can then be used to rank the labeled instances. We implement TransE using the code provided by <ref type="bibr" target="#b4">Bordes et al. (2013)</ref>  <ref type="bibr">10</ref> . To learn embeddings, we take as input the triples used to construct the graph (from which CPRA and PRA extract their paths). We tune the embedding dimension in {20, 50, 100}, the mar- gin in {0.1, 0.2, 0.5, 1, 2, 5}, and the learning rate film/casting-director gov-jurisdiction/dist-represent film/cinematography location/contain film/costume-design-by location/adjoin film/art-direction-by us-county/county-seat film/crewmember county-place/county film/set-decoration-by location/partially-contain film/production-design-by region/place-export film/edited-by film/written-by film/story-by org/place-founded country/divisions org/headquarter-city country/capital org/headquarter-state country/fst-level-divisions org/geographic-scope country/snd-level-divisions org/headquarter-country admin-division/capital org/service-location tv/tv-producer music-group-member/instrument tv/recurring-writer music-artist/recording-role tv/program-creator music-artist/track-role tv/regular-appear-person music-group-member/role tv/tv-actor <ref type="table">Table 2</ref>: Six largest clusters of relations (with the stopping criterion δ = 0.5).</p><p>in {10 −4 , 10 −3 , 10 −2 , 10 −1 , 1}. For details please refer to ( <ref type="bibr" target="#b4">Bordes et al., 2013</ref>). For each of these methods, we select the optimal configuration that leads to the highest MAP on the validation set and report its performance on the test set.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.2">Relation Clustering Results</head><p>We first test the effectiveness of our agglomerative strategy (Section 4.2) in relation clustering. With the stopping criterion δ = 0.5, 96 out of the 171 relations are grouped into clusters which contain at least two relations. Each of these 96 relations will later be learned jointly with some other relations. The other 75 relations cannot be merged, and will still be learned individually. <ref type="table">Table 2</ref> shows the six largest clusters discovered by our algorithm. Rela- tions in each cluster are arranged in the order they were merged. The results indicate that our algo- rithm can effectively identify coherent clusters in which relations are highly correlated to each other. For example, the top left cluster describes relations between a film and its crew members, and the mid- dle left between an organization and a location.</p><p>During clustering we might obtain clusters that contain too many relations and hence too many training instances for our CPRA model to learn ef- ficiently. We split such clusters into sub-clusters, either according to the domain (e.g., the film clus- ter and tv cluster) or randomly (e.g., the two loca- tion clusters on the top right).</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.3">KB Completion Results</head><p>We further test the effectiveness of our multi-task learning strategy (Section 4.3) in KB completion. <ref type="table">Table 3</ref> gives the results on the 96 relations that are actually involved in multi-tasking learning (i.e., grouped into clusters with size larger than one). <ref type="bibr">11</ref> The 96 relations are grouped into 29 clusters, and relations within the same cluster are learned joint- ly. <ref type="table">Table 3</ref> reports (i) MAP and MRR within each cluster and (ii) overall MAP and MRR on the 96 relations. Numbers marked in bold type indicate that CPRA-LR/SVM outperforms PRA-LR/SVM, within a cluster (with its ID listed in the first col- umn) or on all the 96 relations (ALL). We judge s- tatistical significance of the overall improvements achieved by CPRA-LR/SVM over PRA-LR/SVM and TransE, using a paired t-test. The average pre- cision (or reciprocal rank) on each relation is used as paired data. The symbol " * * " indicates a signif- icance level of p &lt; 0.0001, and " * " a significance level of p &lt; 0.05.</p><p>From the results, we can see that (i) CPRA outperforms PRA (using either LR or SVM) and TransE on the 96 relations (ALL) in both metrics. All the improvements are statistically significant, with a significance level of p &lt; 0.0001 for MAP and a significance level of p &lt; 0.05 for MRR. (i- i) CPRA-LR/SVM outperforms PRA-LR/SVM in 22/24 out of the 29 clusters in terms of MAP. Most of the improvements are quite substantial. (iii) Im- proving PRA-LR and PRA-SVM in terms of MRR could be hard, since they already get the best per- formance (MRR = 1) in 19 out of the 29 clusters. But even so, CPRA-LR/SVM still improves 7/8 out of the remaining 10 clusters. (iv) The PRA- style methods perform substantially better than the embedding-based TransE model in most of the 29 clusters and on all the 96 relations. This observa- tion demonstrates the superiority of observed fea- tures (i.e., PRA paths) over latent features. <ref type="table">Table 4</ref> further shows the top 5 most discrimina- tive paths (i.e., features with the highest weights) discovered by PRA-SVM (left) and CPRA-SVM (right) for each relation in the 6th cluster. <ref type="bibr">12</ref> The average precision on each relation is also provid-   <ref type="table">TransE PRA-LR CPRA-LR PRA-SVM CPRA-SVM  TransE PRA-LR CPRA-LR PRA-SVM CPRA-</ref>  <ref type="table">Table 3</ref>: KB completion results on the 96 relations that have been grouped into clusters with size larger than one (with the stopping criterion δ = 0.5), and hence involved in multi-tasking learning.</p><p>ed. We can observe that (i) CPRA generally dis- covers more predictive paths than PRA. Almost all the top paths discovered by CPRA are easily inter- pretable and provide sensible reasons for the final prediction, while some of the top paths discovered by PRA are hard to interpret and less predictive. Take org/place-founded as an example. All the 5 CPRA paths are useful to predict the place where an organization was founded, e.g., the 3rd one tells that "the organization headquarter in a city which is located in that place". However, the PRA path "common/class → common/class −1 → film/debut- venue" is hard to interpret and less predictive. (ii) For the 1st/4th/6th relation on which PRA gets a low average precision, CPRA learns almost com- pletely different top paths and gets a substantially higher average precision. While for the other re- lations (2nd/3rd/5th) on which PRA already per- forms well enough, CPRA learns similar top paths and gets a comparable average precision. We have conducted the same analyses with CPRA-LR and PRA-LR, and observed similar phenomena. All these observations demonstrate the superiority of CPRA, in terms of not only predictive accuracy but also model interpretability.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6">Conclusion</head><p>In this paper we have studied the path ranking al- gorithm (PRA) from the viewpoint of multi-task learning. We have designed a novel multi-task learning framework for PRA, called coupled PRA (CPRA). The key idea of CPRA is to (i) automat- ically discover relations highly correlated to each other through agglomerative clustering, and (ii) ef- fectively couple the prediction of such relations through multi-task learning. By coupling different relations, CPRA takes into account relation asso- ciations and enables implicit data sharing among them. We have tested CPRA on benchmark data created from Freebase. Experimental results show that CPRA can effectively identify coherent clus- ters in which relations are highly correlated. By further coupling such relations, CPRA significant- ly outperforms PRA, in terms of both predictive org/place-founded (0.4920 vs. 0.6750) org/headquarter-city location/contain −1 common/class→common/class −1 →film/debut-venue org/headquarter-city common/class→common/class −1 →sports-team/location org/headquarter-city→location/contain −1 employer/job-title→employer/job-title −1 →location/contain org/headquarter-state→location/contain music-artist/label −1 →person/place-of-birth org/headquarter-city→bibs-location/state org/headquarter-city <ref type="formula">(</ref>  <ref type="table">Table 4</ref>: Top paths given by PRA-SVM (left) and CPRA-SVM (right) for each relation in the 6th cluster. accuracy and model interpretability. This is the first work that investigates the pos- sibility of multi-task learning with PRA, and we just provide a very simple solution. There are still many interesting topics to study. For instance, the agglomerative clustering strategy can only identi- fy highly correlated relations, i.e., those sharing a lot of common paths. Relations that are only loosely correlated, e.g., those sharing no common paths but a lot of sub-paths, will not be identified. We would like to design new mechanisms to dis- cover loosely correlated relations, and investigate whether coupling such relations still provides ben- efits. Another example is that the current method is a two-step approach, performing relation clus- tering first and then relation coupling. It will be in- teresting to study whether one can merge the clus- tering step and the coupling step so as to have a richer inter-task dependent structure. We will in- vestigate such topics in our future work.</p></div><figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_2"><head></head><label></label><figDesc>11 The other 75 relations are still learned individually. So CPRA and PRA perform the same on these relations. The MAP values on these 75 relations are 0.6360, 0.6558, 0.6543 for TransE, PRA-LR, and PRA-SVM respectively, and the MRR values are 0.9049, 0.9033, and 0.9013 respectively.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_4"><head>0 .</head><label>0</label><figDesc>9014 vs. 0.9141) location/contain −1 location/contain −1 org/place-founded org/headquarter-state→location/contain org/headquarter-state→location/contain org/place-founded org/child −1 →org/child→org/place-founded org/child −1 →org/child→org/place-founded sports-team/location industry/company −1 →industry/company→org/place-founded org/headquarter-state (0.9522 vs. 0.9558) location/contain −1 location/contain −1 org/headquarter-city→location/contain −1 org/headquarter-city→location/contain −1 org/headquarter-city→bibs-location/state org/headquarter-city→bibs-location/state org/headquarter-city→county-place/county→location/contain −1 org/headquarter-city org/headquarter-city→location/contain −1 →location/contain −1 org/place-founded org/geographic-scope (0.5252 vs. 0.6075) common/class→common/class −1 →location/vacationer −1 location/contain −1 common/class→common/class −1 →country/languages −1 org/headquarter-city→location/contain −1 common/class→common/class −1 →gov-jurisdiction/gov-body −1 location/contain −1 →location/contain −1 common/class→common/class −1 →region/currency-of-gdp −1 org/place-founded→location/contain −1 politician/party −1 →person/nationality→location/adjoins org/headquarter-city→location/contain −1 →location/contain −1 org/headquarter-country (0.9859 vs. 0.9938) org/headquarter-city→airline/city-served −1 →org/service-location location/contain −1 org/headquarter-city→admin-area/child −1 →region/place-export org/headquarter-city→location/contain −1 org/headquarter-city→country/divisions −1 →region/place-export org/headquarter-city→county-place/county→location/contain −1 org/headquarter-city→film/feat-location −1 →film/feat-location location/contain −1 →location/contain −1 org/headquarter-city→gov-jurisdiction/title→employer/job-title −1 org/place-founded→location/contain −1 org/service-location (0.5644 vs. 0.7044) org/headquarter-city→country/divisions −1 org/headquarter-city→location/contain −1 org-extra/service-location org/headquarter-city→county-place/county→location/contain −1 film/production-company −1 →film/subjects→admin-area/child −1 location/contain −1 →location/contain −1 org/legal-structure→entry/taxonomy→entry/taxonomy −1 org/place-founded→location/contain −1 airline/city-served→region/currency→region/currency-of-gdp −1 org-extra/service-location</figDesc></figure>
+
+			<note place="foot" n="1"> We will introduce the details of generating negative training instances in Section 5.1.</note>
+
+			<note place="foot" n="2"> Note that Πr k ⊆ ΠC. We just assign zero values to features that are contained in ΠC but not in Πr k .</note>
+
+			<note place="foot" n="4"> https://everest.hds.utc.fr/doku.php?id=en:smemlj12 5 For every observed triple (x, film/edited-by, y), FB15K also encodes (y, editor/film, x), for which (x, editor/film −1 , y) is further constructed. 6 Note that such test cases are generally more meaningful: if we already know (y, editor/film, x), predicting (x, film/edited-by, y) could be trivial.</note>
+
+			<note place="foot" n="7"> We still add an inverse version for the relation kept during path extraction. 8 https://github.com/nddsg/KGMiner</note>
+
+			<note place="foot" n="9"> http://www.csie.ntu.edu.tw/ cjlin/liblinear 10 https://github.com/glorotxa/SME</note>
+
+			<note place="foot" n="12"> This is one of the largest clusters on which CPRA-SVM improves PRA-SVM substantially.</note>
+		</body>
+		<back>
+
+			<div type="acknowledgement">
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Acknowledgments</head><p>We would like to thank Baoxu Shi for providing the code for path extraction. We would also like to thank the anonymous reviewers for their valuable comments and suggestions. This work is support-ed by the National Natural Science Foundation of China (grant No. 61402465), the Strategic Priori-ty Research Program of the Chinese Academy of Sciences (grant No. XDA06030200), and the Mi-crosoft Research Asia StarTrack Program. This work was done when Quan Wang was a visiting researcher at Microsoft Research Asia.</p></div>
+			</div>
+
+			<div type="references">
+
+				<listBibl>
+
+<biblStruct xml:id="b0">
+	<analytic>
+		<title level="a" type="main">A framework for learning predictive structures from multiple tasks and unlabeled data</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kubota</forename><surname>Rie</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Tong</forename><surname>Ando</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Zhang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Journal of Machine Learning Reseach</title>
+		<imprint>
+			<biblScope unit="volume">6</biblScope>
+			<biblScope unit="page" from="1817" to="1853" />
+			<date type="published" when="2005" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b1">
+	<analytic>
+		<title level="a" type="main">Multi-task feature learning</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Andreas</forename><surname>Argyriou</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Theodoros</forename><surname>Evgeniou</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Massimiliano</forename><surname>Pontil</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Advances in Neural Information Processing Systems</title>
+		<imprint>
+			<date type="published" when="2007" />
+			<biblScope unit="page" from="41" to="48" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b2">
+	<analytic>
+		<title level="a" type="main">Freebase: A collaboratively created graph database for structuring human knowledge</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kurt</forename><surname>Bollacker</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Colin</forename><surname>Evans</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Praveen</forename><surname>Paritosh</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Tim</forename><surname>Sturge</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jamie</forename><surname>Taylor</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2008 ACM SIGMOD International Conference on Management of Data</title>
+		<meeting>the 2008 ACM SIGMOD International Conference on Management of Data</meeting>
+		<imprint>
+			<date type="published" when="2008" />
+			<biblScope unit="page" from="1247" to="1250" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b3">
+	<analytic>
+		<title level="a" type="main">Learning structured embeddings of knowledge bases</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Antoine</forename><surname>Bordes</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jason</forename><surname>Weston</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ronan</forename><surname>Collobert</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yoshua</forename><surname>Bengio</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 25th AAAI Conference on Artificial Intelligence</title>
+		<meeting>the 25th AAAI Conference on Artificial Intelligence</meeting>
+		<imprint>
+			<date type="published" when="2011" />
+			<biblScope unit="page" from="301" to="306" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b4">
+	<analytic>
+		<title level="a" type="main">Translating embeddings for modeling multirelational data</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Antoine</forename><surname>Bordes</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Nicolas</forename><surname>Usunier</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Alberto</forename><surname>Garciadurán</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jason</forename><surname>Weston</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Oksana</forename><surname>Yakhnenko</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Advances in Neural Information Processing Systems</title>
+		<imprint>
+			<date type="published" when="2013" />
+			<biblScope unit="page" from="2787" to="2795" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b5">
+	<monogr>
+		<title/>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Andrew</forename><surname>Carlson</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Justin</forename><surname>Betteridge</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Bryan</forename><surname>Kisiel</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Burr</forename><surname>Settles</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">R</forename><surname>Estevam</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Tom</forename><forename type="middle">M</forename><surname>Hruschka</surname><genName>Jr</genName></persName>
+		</author>
+		<imprint/>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b6">
+	<analytic>
+		<title level="a" type="main">Toward an architecture for neverending language learning</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Mitchell</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 24th AAAI Conference on Artificial Intelligence</title>
+		<meeting>the 24th AAAI Conference on Artificial Intelligence</meeting>
+		<imprint>
+			<date type="published" when="2010" />
+			<biblScope unit="page" from="1306" to="1313" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b7">
+	<analytic>
+		<title level="a" type="main">Multitask learning</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Rich</forename><surname>Caruana</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Machine Learning</title>
+		<imprint>
+			<date type="published" when="1997" />
+			<biblScope unit="volume">28</biblScope>
+			<biblScope unit="page" from="41" to="75" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b8">
+	<analytic>
+		<title level="a" type="main">Multi-task learning for boosting with application to web search ranking</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Olivier</forename><surname>Chapelle</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Pannagadatta</forename><surname>Shivaswamy</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Srinivas</forename><surname>Vadrevu</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kilian</forename><surname>Weinberger</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ya</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Belle</forename><surname>Tseng</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 16th ACM SIGKDD International Conference on Knowledge Discovery and Data Mining</title>
+		<meeting>the 16th ACM SIGKDD International Conference on Knowledge Discovery and Data Mining</meeting>
+		<imprint>
+			<date type="published" when="2010" />
+			<biblScope unit="page" from="1189" to="1198" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b9">
+	<analytic>
+		<title level="a" type="main">Scalable semantic parsing with partial ontologies</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Eunsol</forename><surname>Choi</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Tom</forename><surname>Kwiatkowski</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Luke</forename><surname>Zettlemoyer</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 53rd Annual Meeting of the Association for Computational Linguistics and the 7th International Joint Conference on Natural Language Processing</title>
+		<meeting>the 53rd Annual Meeting of the Association for Computational Linguistics and the 7th International Joint Conference on Natural Language Processing</meeting>
+		<imprint>
+			<date type="published" when="2015" />
+			<biblScope unit="page" from="1311" to="1320" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b10">
+	<analytic>
+		<title level="a" type="main">Large-scale named entity disambiguation based on Wikipedia data</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Silviu Cucerzan</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2007 Joint Conference on Empirical Methods in Natural Language Processing and Computational Natural Language Learning</title>
+		<meeting>the 2007 Joint Conference on Empirical Methods in Natural Language Processing and Computational Natural Language Learning</meeting>
+		<imprint>
+			<date type="published" when="2007" />
+			<biblScope unit="page" from="708" to="716" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b11">
+	<analytic>
+		<title level="a" type="main">Multi-domain adaptation for SMT using multi-task learning</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Lei</forename><surname>Cui</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Xilun</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Dongdong</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Shujie</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Mu</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ming</forename><surname>Zhou</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2013 Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>the 2013 Conference on Empirical Methods in Natural Language Processing</meeting>
+		<imprint>
+			<date type="published" when="2013" />
+			<biblScope unit="page" from="1055" to="1065" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b12">
+	<analytic>
+		<title level="a" type="main">Knowledge vault: A web-scale approach to probabilistic knowledge fusion</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Xin</forename><surname>Dong</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Evgeniy</forename><surname>Gabrilovich</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Geremy</forename><surname>Heitz</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Wilko</forename><surname>Horn</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ni</forename><surname>Lao</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kevin</forename><surname>Murphy</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Thomas</forename><surname>Strohmann</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Shaohua</forename><surname>Sun</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Wei</forename><surname>Zhang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 20th ACM SIGKDD International Conference on Knowledge Discovery and Data Mining</title>
+		<meeting>the 20th ACM SIGKDD International Conference on Knowledge Discovery and Data Mining</meeting>
+		<imprint>
+			<date type="published" when="2014" />
+			<biblScope unit="page" from="601" to="610" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b13">
+	<analytic>
+		<title level="a" type="main">Multi-task learning for multiple language translation</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Daxiang</forename><surname>Dong</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Hua</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Wei</forename><surname>He</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Dianhai</forename><surname>Yu</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Haifeng</forename><surname>Wang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 53rd Annual Meeting of the Association for Computational Linguistics and the 7th International Joint Conference on Natural Language Processing</title>
+		<meeting>the 53rd Annual Meeting of the Association for Computational Linguistics and the 7th International Joint Conference on Natural Language Processing</meeting>
+		<imprint>
+			<date type="published" when="2015" />
+			<biblScope unit="page" from="1723" to="1732" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b14">
+	<analytic>
+		<title level="a" type="main">Regularized multi-task learning</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Theodoros</forename><surname>Evgeniou</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Massimiliano</forename><surname>Pontil</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 10th ACM SIGKDD International Conference on Knowledge Discovery and Data Mining</title>
+		<meeting>the 10th ACM SIGKDD International Conference on Knowledge Discovery and Data Mining</meeting>
+		<imprint>
+			<date type="published" when="2004" />
+			<biblScope unit="page" from="109" to="117" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b15">
+	<analytic>
+		<title level="a" type="main">Liblinear: A library for large linear classification</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kai-Wei</forename><surname>Rong-En Fan</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Cho-Jui</forename><surname>Chang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Xiangrui</forename><surname>Hsieh</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Chih-Jen</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Lin</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Journal of Machine Learning Research</title>
+		<imprint>
+			<biblScope unit="volume">9</biblScope>
+			<biblScope unit="page" from="1871" to="1874" />
+			<date type="published" when="2008" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b16">
+	<analytic>
+		<title level="a" type="main">Efficient and expressive knowledge base completion using subgraph feature extraction</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Matt</forename><surname>Gardner</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Tom</forename><surname>Mitchell</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2015 Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>the 2015 Conference on Empirical Methods in Natural Language Processing</meeting>
+		<imprint>
+			<date type="published" when="2015" />
+			<biblScope unit="page" from="1488" to="1498" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b17">
+	<analytic>
+		<title level="a" type="main">Improving learning and inference in a large knowledge-base using latent syntactic cues</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Matt</forename><surname>Gardner</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Partha</forename><forename type="middle">Pratim</forename><surname>Talukdar</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Bryan</forename><surname>Kisiel</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Tom</forename><surname>Mitchell</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2013 Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>the 2013 Conference on Empirical Methods in Natural Language Processing</meeting>
+		<imprint>
+			<date type="published" when="2013" />
+			<biblScope unit="page" from="833" to="838" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b18">
+	<analytic>
+		<title level="a" type="main">Incorporating vector space similarity in random walk inference over knowledge bases</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Matt</forename><surname>Gardner</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Partha</forename><surname>Talukdar</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jayant</forename><surname>Krishnamurthy</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Tom</forename><surname>Mitchell</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2014 Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>the 2014 Conference on Empirical Methods in Natural Language Processing</meeting>
+		<imprint>
+			<date type="published" when="2014" />
+			<biblScope unit="page" from="397" to="406" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b19">
+	<analytic>
+		<title level="a" type="main">Semantically smooth knowledge graph embedding</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Shu</forename><surname>Guo</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Quan</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Lihong</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Bin</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Li</forename><surname>Guo</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 53rd Annual Meeting of the Association for Computational Linguistics and the 7th International Joint Conference on Natural Language Processing</title>
+		<meeting>the 53rd Annual Meeting of the Association for Computational Linguistics and the 7th International Joint Conference on Natural Language Processing</meeting>
+		<imprint>
+			<date type="published" when="2015" />
+			<biblScope unit="page" from="84" to="94" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b20">
+	<analytic>
+		<title level="a" type="main">Linking heterogeneous input spaces with pivots for multitask learning</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jingrui</forename><surname>He</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yan</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Qiang</forename><surname>Yang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2014 SIAM International Conference on Data Mining</title>
+		<meeting>the 2014 SIAM International Conference on Data Mining</meeting>
+		<imprint>
+			<date type="published" when="2014" />
+			<biblScope unit="page" from="181" to="189" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b21">
+	<analytic>
+		<title level="a" type="main">Learning to refine an automatically extracted knowledge base using markov logic</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Shangpu</forename><surname>Jiang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Daniel</forename><surname>Lowd</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Dejing</forename><surname>Dou</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2012 IEEE International Conference on Data Mining</title>
+		<meeting>the 2012 IEEE International Conference on Data Mining</meeting>
+		<imprint>
+			<date type="published" when="2012" />
+			<biblScope unit="page" from="912" to="917" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b22">
+	<analytic>
+		<title level="a" type="main">Multi-task transfer learning for weakly-supervised relation extraction</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jing</forename><surname>Jiang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Joint Conference of the 47th Annual Meeting of the ACL and the 4th International Joint Conference on Natural Language Processing of the AFNLP</title>
+		<meeting>the Joint Conference of the 47th Annual Meeting of the ACL and the 4th International Joint Conference on Natural Language Processing of the AFNLP</meeting>
+		<imprint>
+			<date type="published" when="2009" />
+			<biblScope unit="page" from="1012" to="1020" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b23">
+	<analytic>
+		<title level="a" type="main">Type-constrained representation learning in knowledge graphs</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Denis</forename><surname>Krompaß</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Stephan</forename><surname>Baier</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Volker</forename><surname>Tresp</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 13th International Semantic Web Conference</title>
+		<meeting>the 13th International Semantic Web Conference</meeting>
+		<imprint>
+			<date type="published" when="2015" />
+			<biblScope unit="page" from="640" to="655" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b24">
+	<analytic>
+		<title level="a" type="main">Relational retrieval using a combination of path-constrained random walks</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ni</forename><surname>Lao</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">W</forename><surname>William</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Cohen</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Machine Learning</title>
+		<imprint>
+			<date type="published" when="2010" />
+			<biblScope unit="volume">81</biblScope>
+			<biblScope unit="page" from="53" to="67" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b25">
+	<analytic>
+		<title level="a" type="main">Random walk inference and learning in a large scale knowledge base</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ni</forename><surname>Lao</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Tom</forename><surname>Mitchell</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">William</forename><forename type="middle">W</forename><surname>Cohen</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2011 Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>the 2011 Conference on Empirical Methods in Natural Language Processing</meeting>
+		<imprint>
+			<date type="published" when="2011" />
+			<biblScope unit="page" from="529" to="539" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b26">
+	<monogr>
+		<title level="m" type="main">Dbpedia: A largescale, multilingual knowledge base extracted from wikipedia</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jens</forename><surname>Lehmann</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Robert</forename><surname>Isele</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Max</forename><surname>Jakob</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Anja</forename><surname>Jentzsch</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Dimitris</forename><surname>Kontokostas</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Pablo</forename><forename type="middle">N</forename><surname>Mendes</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Sebastian</forename><surname>Hellmann</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Mohamed</forename><surname>Morsey</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Patrick</forename><surname>Van Kleef</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Sören</forename><surname>Auer</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2014" />
+		</imprint>
+	</monogr>
+	<note>Semantic Web Journal</note>
+</biblStruct>
+
+<biblStruct xml:id="b27">
+	<analytic>
+		<title level="a" type="main">Compositional vector space models for knowledge base completion</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Arvind</forename><surname>Neelakantan</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Benjamin</forename><surname>Roth</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Andrew</forename><surname>Mccallum</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 53rd Annual Meeting of the Association for Computational Linguistics and the 7th International Joint Conference on Natural Language Processing</title>
+		<meeting>the 53rd Annual Meeting of the Association for Computational Linguistics and the 7th International Joint Conference on Natural Language Processing</meeting>
+		<imprint>
+			<date type="published" when="2015" />
+			<biblScope unit="page" from="156" to="166" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b28">
+	<analytic>
+		<title level="a" type="main">A three-way model for collective learning on multi-relational data</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Maximilian</forename><surname>Nickel</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Hans-Peter</forename><surname>Volker Tresp</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Kriegel</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 28th International Conference on Machine Learning</title>
+		<meeting>the 28th International Conference on Machine Learning</meeting>
+		<imprint>
+			<date type="published" when="2011" />
+			<biblScope unit="page" from="809" to="816" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b29">
+	<analytic>
+		<title level="a" type="main">Reducing the rank in relational factorization models by including observable patterns</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Maximilian</forename><surname>Nickel</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Xueyan</forename><surname>Jiang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Volker</forename><surname>Tresp</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Advances in Neural Information Processing Systems</title>
+		<imprint>
+			<date type="published" when="2014" />
+			<biblScope unit="page" from="1179" to="1187" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b30">
+	<analytic>
+		<title level="a" type="main">Knowledge graph identification</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jay</forename><surname>Pujara</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Hui</forename><surname>Miao</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Lise</forename><surname>Getoor</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">William</forename><surname>Cohen</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 11th International Semantic Web Conference</title>
+		<meeting>the 11th International Semantic Web Conference</meeting>
+		<imprint>
+			<date type="published" when="2013" />
+			<biblScope unit="page" from="542" to="557" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b31">
+	<analytic>
+		<title level="a" type="main">Markov logic networks</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Matthew</forename><surname>Richardson</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Pedro</forename><surname>Domingos</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Machine Learning</title>
+		<imprint>
+			<date type="published" when="2006" />
+			<biblScope unit="volume">62</biblScope>
+			<biblScope unit="page" from="107" to="136" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b32">
+	<analytic>
+		<title level="a" type="main">Knowledge-based graph document modeling</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Michael</forename><surname>Schuhmacher</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Simone</forename><forename type="middle">Paolo</forename><surname>Ponzetto</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 7th ACM International Conference on Web Search and Data Mining</title>
+		<meeting>the 7th ACM International Conference on Web Search and Data Mining</meeting>
+		<imprint>
+			<date type="published" when="2014" />
+			<biblScope unit="page" from="543" to="552" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b33">
+	<analytic>
+		<title level="a" type="main">A multi-domain translation model framework for statistical machine translation</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Rico</forename><surname>Sennrich</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Holger</forename><surname>Schwenk</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Walid</forename><surname>Aransa</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 51st Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 51st Annual Meeting of the Association for Computational Linguistics</meeting>
+		<imprint>
+			<date type="published" when="2013" />
+			<biblScope unit="page" from="832" to="840" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b34">
+	<monogr>
+		<title level="m" type="main">Fact checking in large knowledge graphs: A discriminative predict path mining approach</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Baoxu</forename><surname>Shi</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Tim</forename><surname>Weninger</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1510.05911</idno>
+		<imprint>
+			<date type="published" when="2015" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b35">
+	<analytic>
+		<title level="a" type="main">Observed versus latent features for knowledge base and text inference</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kristina</forename><surname>Toutanova</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Danqi</forename><surname>Chen</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 3rd Workshop on Continuous Vector Space Models and Their Compositionality</title>
+		<meeting>the 3rd Workshop on Continuous Vector Space Models and Their Compositionality</meeting>
+		<imprint>
+			<date type="published" when="2015" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b36">
+	<analytic>
+		<title level="a" type="main">Knowledge base completion via search-based question answering</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Robert</forename><surname>West</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Evgeniy</forename><surname>Gabrilovich</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kevin</forename><surname>Murphy</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Shaohua</forename><surname>Sun</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Rahul</forename><surname>Gupta</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Dekang</forename><surname>Lin</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 23rd International Conference on World Wide Web</title>
+		<meeting>the 23rd International Conference on World Wide Web</meeting>
+		<imprint>
+			<date type="published" when="2014" />
+			<biblScope unit="page" from="515" to="526" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+				</listBibl>
+			</div>
+		</back>
+	</text>
+</TEI>

@@ -1,0 +1,986 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<TEI xmlns="http://www.tei-c.org/ns/1.0" 
+xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+xsi:schemaLocation="http://www.tei-c.org/ns/1.0 /home/ana/installs/grobid/grobid-0.5.1/grobid-home/schemas/xsd/Grobid.xsd"
+ xmlns:xlink="http://www.w3.org/1999/xlink">
+	<teiHeader xml:lang="en">
+		<encodingDesc>
+			<appInfo>
+				<application version="0.5.1-SNAPSHOT" ident="GROBID" when="2019-04-18T12:34+0000">
+					<ref target="https://github.com/kermitt2/grobid">GROBID - A machine learning software for extracting information from scholarly documents</ref>
+				</application>
+			</appInfo>
+		</encodingDesc>
+		<fileDesc>
+			<titleStmt>
+				<title level="a" type="main">Incremental Joint Extraction of Entity Mentions and Relations</title>
+			</titleStmt>
+			<publicationStmt>
+				<publisher>Association for Computational Linguistics</publisher>
+				<availability status="unknown"><p>Copyright Association for Computational Linguistics</p>
+				</availability>
+				<date>June 23-25 2014. 2014</date>
+			</publicationStmt>
+			<sourceDesc>
+				<biblStruct>
+					<analytic>
+						<author>
+							<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Qi</forename><surname>Li</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="department">Computer Science Department</orgName>
+								<orgName type="institution">Rensselaer Polytechnic Institute Troy</orgName>
+								<address>
+									<postCode>12180</postCode>
+									<region>NY</region>
+									<country key="US">USA</country>
+								</address>
+							</affiliation>
+						</author>
+						<author>
+							<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Heng</forename><surname>Ji</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="department">Computer Science Department</orgName>
+								<orgName type="institution">Rensselaer Polytechnic Institute Troy</orgName>
+								<address>
+									<postCode>12180</postCode>
+									<region>NY</region>
+									<country key="US">USA</country>
+								</address>
+							</affiliation>
+						</author>
+						<title level="a" type="main">Incremental Joint Extraction of Entity Mentions and Relations</title>
+					</analytic>
+					<monogr>
+						<title level="m">Proceedings of the 52nd Annual Meeting of the Association for Computational Linguistics</title>
+						<meeting>the 52nd Annual Meeting of the Association for Computational Linguistics <address><addrLine>Baltimore, Maryland, USA</addrLine></address>
+						</meeting>
+						<imprint>
+							<publisher>Association for Computational Linguistics</publisher>
+							<biblScope unit="page" from="402" to="412"/>
+							<date type="published">June 23-25 2014. 2014</date>
+						</imprint>
+					</monogr>
+				</biblStruct>
+			</sourceDesc>
+		</fileDesc>
+		<profileDesc>
+			<abstract>
+				<p>We present an incremental joint framework to simultaneously extract entity mentions and relations using structured per-ceptron with efficient beam-search. A segment-based decoder based on the idea of semi-Markov chain is adopted to the new framework as opposed to traditional token-based tagging. In addition, by virtue of the inexact search, we developed a number of new and effective global features as soft constraints to capture the inter-dependency among entity mentions and relations. Experiments on Automatic Content Extraction (ACE) 1 corpora demonstrate that our joint model significantly outperforms a strong pipelined baseline, which attains better performance than the best-reported end-to-end system.</p>
+			</abstract>
+		</profileDesc>
+	</teiHeader>
+	<text xml:lang="en">
+		<body>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="1">Introduction</head><p>The goal of end-to-end entity mention and re- lation extraction is to discover relational struc- tures of entity mentions from unstructured texts. This problem has been artificially broken down into several components such as entity mention boundary identification, entity type classification and relation extraction. Although adopting such a pipelined approach would make a system com- paratively easy to assemble, it has some limita- tions: First, it prohibits the interactions between components. Errors in the upstream components are propagated to the downstream components without any feedback. Second, it over-simplifies the problem as multiple local classification steps without modeling long-distance and cross-task de- pendencies. By contrast, we re-formulate this task as a structured prediction problem to reveal the linguistic and logical properties of the hidden 1 http://www.itl.nist.gov/iad/mig//tests/ace structures. For example, in <ref type="figure">Figure 1</ref>, the output structure of each sentence can be interpreted as a graph in which entity mentions are nodes and re- lations are directed arcs with relation types. By jointly predicting the structures, we aim to address the aforementioned limitations by capturing: (i) The interactions between two tasks. For exam- ple, in <ref type="figure">Figure 1a</ref>, although it may be difficult for a mention extractor to predict "1,400" as a Per- son (PER) mention, the context word "employs" between "tire maker" and "1,400" strongly in- dicates an Employment-Organization (EMP-ORG) relation which must involve a PER mention. (ii) The global features of the hidden structure. Var- ious entity mentions and relations share linguis- tic and logical constraints. For example, we can use the triangle feature in <ref type="figure">Figure 1b</ref> to en- sure that the relations between "forces", and each of the entity mentions "Somalia /GPE ", "Haiti /GPE " and "Kosovo /GPE ", are of the same type (Physical (PHYS), in this case).</p><p>Following the above intuitions, we introduce a joint framework based on structured percep- tron <ref type="bibr" target="#b4">(Collins, 2002;</ref><ref type="bibr" target="#b3">Collins and Roark, 2004</ref>) with beam-search to extract entity mentions and rela- tions simultaneously. With the benefit of inexact search, we are also able to use arbitrary global features with low cost. The underlying learning algorithm has been successfully applied to some other Natural Language Processing (NLP) tasks. Our task differs from dependency parsing (such as <ref type="bibr" target="#b9">(Huang and Sagae, 2010)</ref>) in that relation struc- tures are more flexible, where each node can have arbitrary relation arcs. Our previous work ( <ref type="bibr" target="#b16">Li et al., 2013</ref>) used perceptron model with token-based tagging to jointly extract event triggers and argu- ments. By contrast, we aim to address a more chal- lenging task: identifying mention boundaries and types together with relations, which raises the is- sue that assignments for the same sentence with different mention boundaries are difficult to syn-  <ref type="figure">Figure 1</ref>: End-to-End Entity Mention and Relation Extraction.</p><p>chronize during search. To tackle this problem, we adopt a segment-based decoding algorithm de- rived from ( <ref type="bibr" target="#b26">Sarawagi and Cohen, 2004;</ref><ref type="bibr" target="#b31">Zhang and Clark, 2008</ref>) based on the idea of semi-Markov chain (a.k.a, multiple-beam search algorithm). Most previous attempts on joint inference of en- tity mentions and relations (such as ( <ref type="bibr" target="#b24">Roth and Yih, 2004;</ref><ref type="bibr" target="#b25">Roth and Yih, 2007)</ref>) assumed that entity mention boundaries were given, and the classifiers of mentions and relations are separately learned. As a key difference, we incrementally extract en- tity mentions together with relations using a single model. The main contributions of this paper are as follows:</p><p>1. This is the first work to incrementally predict entity mentions and relations using a single joint model (Section 3). 2. Predicting mention boundaries in the joint framework raises the challenge of synchroniz- ing different assignments in the same beam. We solve this problem by detecting entity mentions on segment-level instead of traditional token- based approaches (Section 3.1.1). 3. We design a set of novel global features based on soft constraints over the entire output graph structure with low cost (Section 4).</p><p>Experimental results show that the proposed framework achieves better performance than pipelined approaches, and global features provide further significant gains.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2">Background</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.1">Task Definition</head><p>The entity mention extraction and relation extraction tasks we are addressing are those of the Automatic Content Extraction (ACE) program 2 . ACE defined 7 main entity types including Person (PER), Organization (ORG), Geographical Entities (GPE), Location (LOC), 2 http://www.nist.gov/speech/tests/ace Facility (FAC), Weapon (WEA) and Vehicle (VEH). The goal of relation extraction 3 is to extract semantic relations of the targeted types between a pair of entity mentions which ap- pear in the same sentence. ACE'04 defined 7 main relation types: Physical (PHYS), Person- Social (PER-SOC), Employment-Organization (EMP-ORG), Agent-Artifact (ART), PER/ORG Affiliation (Other-AFF), GPE-Affiliation (GPE-AFF) and Discourse (DISC). ACE'05 kept PER-SOC, ART and GPE-AFF, split PHYS into PHYS and a new relation type Part-Whole, removed DISC, and merged EMP-ORG and Other-AFF into EMP-ORG.</p><p>Throughout this paper, we use ⊥ to denote non- entity or non-relation classes. We consider rela- tion asymmetric. The same relation type with op- posite directions is considered to be two classes, which we refer to as directed relation types.</p><p>Most previous research on relation extraction assumed that entity mentions were given In this work we aim to address the problem of end-to-end entity mention and relation extraction from raw texts.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.2">Baseline System</head><p>In order to develop a baseline system repre- senting state-of-the-art pipelined approaches, we trained a linear-chain Conditional Random Fields model ( <ref type="bibr" target="#b15">Lafferty et al., 2001</ref>) for entity mention ex- traction and a Maximum Entropy model for rela- tion extraction.</p><p>Entity Mention Extraction Model We re-cast the problem of entity mention extraction as a se- quential token tagging task as in the state-of-the- art system <ref type="bibr" target="#b7">(Florian et al., 2006</ref>). We applied the BILOU scheme, where each tag means a token is the Beginning, Inside, Last, Outside, and Unit of an entity mention, respectively. Most of our fea- tures are similar to the work of ( <ref type="bibr" target="#b6">Florian et al., 2004;</ref><ref type="bibr" target="#b7">Florian et al., 2006</ref>) except that we do not have their gazetteers and outputs from other men- tion detection systems as features. Our additional features are as follows:</p><p>• Governor word of the current token based on de- pendency parsing <ref type="bibr" target="#b17">(Marneffe et al., 2006</ref>).</p><p>• Prefix of each word in Brown clusters learned from TDT5 corpus <ref type="bibr" target="#b28">(Sun et al., 2011</ref>).</p><p>Relation Extraction Model Given a sentence with entity mention annotations, the goal of base- line relation extraction is to classify each mention pair into one of the pre-defined relation types with direction or ⊥ (non-relation). Most of our relation extraction features are based on the previous work of ( <ref type="bibr" target="#b33">Zhou et al., 2005)</ref> and <ref type="bibr" target="#b13">(Kambhatla, 2004</ref>). We designed the following additional features:</p><p>• The label sequence of phrases covering the two mentions. For example, for the sentence in <ref type="figure">Fig- ure 1a</ref>, the sequence is "NP VP NP". We also augment it by head words of each phrase.</p><p>• Four syntactico -semantic patterns described in <ref type="bibr" target="#b1">(Chan and Roth, 2010</ref>).</p><p>• We replicated each lexical feature by replacing each word with its Brown cluster.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3">Algorithm</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.1">The Model</head><p>Our goal is to predict the hidden structure of each sentence based on arbitrary features and con- straints. Let x ∈ X be an input sentence, y ∈ Y be a candidate structure, and f (x, y ) be the fea- ture vector that characterizes the entire structure. We use the following linear model to predict the most probable structurê y for x:</p><formula xml:id="formula_0">ˆ y = argmax y ∈Y(x) f (x, y ) · w (1)</formula><p>where the score of each candidate assignment is defined as the inner product of the feature vector f (x, y ) and feature weights w.</p><p>Since the structures contain both entity men- tions relations, and we also aim to exploit global features. There does not exist a polynomial-time algorithm to find the best structure. In practice we apply beam-search to expand partial configu- rations for the input sentence incrementally to find the structure with the highest score.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.1.1">Joint Decoding Algorithm</head><p>One main challenge to search for entity mentions and relations incrementally is the alignment of dif- ferent assignments. Assignments for the same sen- tence can have different numbers of entity men- tions and relation arcs. The entity mention ex- traction task is often re-cast as a token-level se- quential labeling problem with BIO or BILOU scheme ( <ref type="bibr" target="#b22">Ratinov and Roth, 2009;</ref><ref type="bibr" target="#b7">Florian et al., 2006)</ref>. A naive solution to our task is to adopt this strategy by treating each token as a state. How- ever, different assignments for the same sentence can have various mention boundaries. It is un- fair to compare the model scores of a partial men- tion and a complete mention. It is also difficult to synchronize the search process of relations. For example, consider the two hypotheses ending at "York" for the same sentence:</p><formula xml:id="formula_1">Allan U-PER from ? New B-ORG York I-ORG Stock Exchange Allan U-PER from ? New B-GPE York L-GPE Stock Exchange PHYS PHYS</formula><p>The model would bias towards the incorrect as- signment "New /B-GPE York /L-GPE " since it can have more informative features as a complete mention (e.g., a binary feature indicating if the entire mention appears in a GPE gazetter). Fur- thermore, the predictions of the two PHYS rela- tions cannot be synchronized since "New /B-FAC York /I-FAC " is not yet a complete mention.</p><p>To tackle these problems, we employ the idea of semi-Markov chain ( <ref type="bibr" target="#b26">Sarawagi and Cohen, 2004</ref>), in which each state corresponds to a segment of the input sequence. They presented a vari- ant of Viterbi algorithm for exact inference in semi-Markov chain. We relax the max operation by beam-search, resulting in a segment-based de- coder similar to the multiple-beam algorithm in ( <ref type="bibr" target="#b31">Zhang and Clark, 2008)</ref>. LetˆdLetˆ Letˆd be the upper bound of entity mention length. The k-best partial assign- ments ending at the i-th token can be calculated as: Input: input sentence x = (x 1 , x 2 , ..., x m ). k: beam size. T ∪ {⊥}: entity mention type alphabet. R ∪ {⊥}: directed relation type alphabet. <ref type="bibr">4</ref> d t : max length of type-t segment, t ∈ T ∪ {⊥}. Output: best configurationˆyconfigurationˆ configurationˆy for x</p><formula xml:id="formula_2">B[i] = k-BEST y ∈{y [1..i] |y [1:i−d] ∈B[i−d], d=1... ˆ d} f (x, y ) · w</formula><formula xml:id="formula_3">1 initialize m empty beams B[1..m] 2 for i ← 1...m do 3 for t ∈ T ∪ {⊥} do 4 for d ← 1...d t , y ∈ B[i − d] do 5 k ← i − d + 1 6 B[i] ← B[i] ∪ APPEND(y , t, k, i) 7 B[i] ← k-BEST(B[i]) 8 for j ← (i − 1)...1 do 9 buf ← ∅ 10 for y ∈ B[i] do 11 if HASPAIR(y , i, j) then 12 for r ∈ R ∪ {⊥} do 13 buf ← buf ∪ LINK(y , r, i, j) 14 else 15 buf ← buf ∪ {y } 16 B[i] ← k-BEST(buf) 17 return B[m][0]</formula><p>Figure 2: Joint Decoding for Entity Men- tions and Relations. HASPAIR(y , i, j) checks if there are two entity mentions in y that end at token x i and token x j , respectively. APPEND(y , t, k, i) appends y with a type-t segment spanning from x k to x i . Similarly LINK(y , r, i, j) augments y by assigning a di- rected relation r to the pair of entity mentions ending at x i and x j respectively.</p><p>1. APPEND (Lines 3-7). First, the algorithm enumerates all possible segments (i.e., subse- quences) of x ending at the current token with various entity types. A special type of seg- ment is a single token with non-entity label (⊥). Each segment is then appended to existing par- tial assignments in one of the previous beams to form new assignments. Finally the top k results are recorded in the current beam. 2. LINK (Lines 8-16). After each step of APPEND, the algorithm looks backward to link the newly identified entity mentions and previous ones (if any) with relation arcs. At the j-th sub-step, it only considers the previous mention ending at the j-th previous token. Therefore different configurations are guaranteed to have the same number of sub-steps. Finally, all assignments are re-ranked with new relation information.</p><p>There are m APPEND actions, each is followed by at most (i − 1) LINK actions (line 8). Therefore the worst-case time complexity is O( ˆ d · k · m 2 ), wherêwherê d is the upper bound of segment length. Here we demonstrate a simple but concrete ex- ample by considering again the sentence described in <ref type="figure">Figure 1a</ref>. Suppose we are at the token "1,400". At this point we can propose multiple entity men- tions with various lengths. Assuming "1,400 /PER ", "1,400 /⊥ " and "(employs 1,400) /PER " are possi- ble assignments, the algorithm appends these new segments to the partial assignments in the beams of the tokens "employs" and "still", respectively. <ref type="figure" target="#fig_1">Figure 3</ref> illustrates this process. For simplicity, only a small part of the search space is presented. The algorithm then links the newly identified men- tions to the previous ones in the same configu- ration. In this example, the only previous men- tion is "(tire maker) /ORG ". Finally, "1,400 /PER " will be preferred by the model since there are more indicative context features for EMP-ORG relation between "(tire maker) /PER " and "1,400 /PER ".</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.1.2">Example Demonstration</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.2">Structured-Perceptron Learning</head><p>To estimate the feature weights, we use struc- tured perceptron <ref type="bibr" target="#b4">(Collins, 2002)</ref>, an extension of the standard perceptron for structured pre- diction, as the learning framework. <ref type="bibr" target="#b10">Huang et al. (2012)</ref> proved the convergency of structured perceptron when inexact search is applied with violation-fixing update methods such as early- update ( <ref type="bibr" target="#b3">Collins and Roark, 2004</ref>). Since we use beam-search in this work, we apply early-update. In addition, we use averaged parameters to reduce overfitting as in <ref type="bibr" target="#b4">(Collins, 2002</ref>). <ref type="figure" target="#fig_2">Figure 4</ref> shows the pseudocode for struc- tured perceptron training with early-update. Here BEAMSEARCH is identical to the decoding algo- rithm described in <ref type="figure">Figure 2</ref> except that if y , the prefix of the gold standard y, falls out of the beam after each execution of the k-BEST function (line 7 and 16), then the top assignment z and y are re- turned for parameter update. It is worth noting that this can only happen if the gold-standard has a seg- ment ending at the current token. For instance, in the example of <ref type="figure">Figure 1a</ref>, B <ref type="bibr">[2]</ref> cannot trigger any early-update since the gold standard does not con- tain any segment ending at the second token.</p><formula xml:id="formula_4">Input: training set D = {(x (j) , y (j) )} N i=1</formula><p>, maximum iteration number T Output: model parameters w </p><formula xml:id="formula_5">1 initialize w ← 0 2 for t ← 1...T do 3 foreach (x, y) ∈ D do 4 (x, y , z) ← BEAMSEARCH (x, y, w) 5 if z = y then 6 w ← w + f (x, y ) − f (x, z) 7 return w</formula></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.3">Entity Type Constraints</head><p>Entity type constraints have been shown effective in predicting relations <ref type="bibr" target="#b25">(Roth and Yih, 2007;</ref><ref type="bibr" target="#b1">Chan and Roth, 2010)</ref>. We automatically collect a map- ping table of permissible entity types for each rela- tion type from our training data. Instead of apply- ing the constraints in post-processing inference, we prune the branches that violate the type con- straints during search. This type of pruning can reduce search space as well as make the input for parameter update less noisy. In our experiments, only 7 relation mentions (0.5%) in the dev set and 5 relation mentions (0.3%) in the test set violate the constraints collected from the training data.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4">Features</head><p>An advantage of our framework is that we can easily exploit arbitrary features across the two tasks. This section describes the local features (Section 4.1) and global features (Section 4.2) we developed in this work.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.1">Local Features</head><p>We design segment-based features to directly eval- uate the properties of an entity mention instead of the individual tokens it contains. LetˆyLetˆ Letˆy be a pre- dicted structure of a sentence x. The entity seg- ments ofˆyofˆ ofˆy can be expressed as a list of triples (e 1 , ..., e m ), where each segment e i = u i , v i , t i is a triple of start index u i , end index v i , and entity type t i . The following is an example of segment- based feature:</p><formula xml:id="formula_6">f 001 (x, ˆ y, i) =      1 if x [ˆ y.u i ,ˆ y.v i ] = tire makerˆy makerˆ makerˆy.t (i−1) , ˆ y.t i = ⊥,ORG 0 otherwise</formula><p>This feature is triggered if the labels of the (i − 1)- th and the i-th segments are "⊥,ORG", and the text of the i-th segment is "tire maker". Our segment- based features are described as follows:</p><p>Gazetteer features Entity type of each segment based on matching a number of gazetteers includ- ing persons, countries, cities and organizations.</p><p>Case features Whether a segment's words are initial-capitalized, all lower cased, or mixture.</p><p>Contextual features Unigrams and bigrams of the text and part-of-speech tags in a segment's contextual window of size 2.</p><p>Parsing-based features Features derived from constituent parsing trees, including (a) the phrase type of the lowest common ancestor of the tokens contained in the segment, (b) the depth of the low- est common ancestor, (c) a binary feature indicat- ing if the segment is a base phrase or a suffix of a base phrase, and (d) the head words of the segment and its neighbor phrases.</p><p>In addition, we convert each triple u i , v i , t i to BILOU tags for the tokens it contains to imple- ment token-based features. The token-based men-tion features and local relation features are identi- cal to those of our pipelined system (Section 2.2).</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.2">Global Entity Mention Features</head><p>By virtue of the efficient inexact search, we are able to use arbitrary features from the entire structure ofˆyofˆ ofˆy to capture long-distance dependen- cies. The following features between related entity mentions are extracted once a new segment is ap- pended during decoding.</p><p>Coreference consistency Coreferential entity mentions should be assigned the same entity type. We determine high-recall coreference links be- tween two segments in the same sentence using some simple heuristic rules:</p><p>• Two segments exactly or partially string match.</p><p>• A pronoun (e.g., "their","it") refers to previous entity mentions. For example, in "they have no insurance on their cars", "they" and "their" should have the same entity type.</p><p>• A relative pronoun (e.g., "which","that", and "who") refers to the noun phrase it modifies in the parsing tree. For example, in "the starting kicker is nikita kargalskiy, who may be 5,000 miles from his hometown", "nikita kargalskiy" and "who" should both be labeled as persons.</p><p>Then we encode a global feature to check whether two coreferential segments share the same entity type. This feature is particularly effective for pronouns because their contexts alone are of- ten not informative.</p><p>Neighbor coherence Neighboring entity men- tions tend to have coherent entity types. For ex- ample, in "Barbara Starr was reporting from the Pentagon", "Barbara Starr" and "Pentagon" are connected by a dependency link prep from and thus they are unlikely to be a pair of PER men- tions. Two types of neighbor are considered: (i) the first entity mention before the current segment, and (ii) the segment which is connected by a sin- gle word or a dependency link with the current segment. We take the entity types of the two seg- ments and the linkage together as a global feature. For instance, "PER prep from PER" is a feature for the above example when "Barbara Starr" and "Pentagon" are both labeled as PER mentions.</p><p>Part-of-whole consistency If an entity men- tion is semantically part of another mention (con- nected by a prep of dependency link), they should be assigned the same entity type. For example, in "some of Iraq's exiles", "some" and "exiles" are both PER mentions; in "one of the town's two meat-packing plants", "one" and "plants" are both FAC mentions; in "the rest of America", "rest" and "America" are both GPE mentions.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.3">Global Relation Features</head><p>Relation arcs can also share inter-dependencies or obey soft constraints. We extract the following relation-centric global features when a new rela- tion hypothesis is made during decoding.</p><p>Role coherence If an entity mention is involved in multiple relations with the same type, then its roles should be coherent. For example, a PER mention is unlikely to have more than one em- ployer. However, a GPE mention can be a physical location for multiple entity mentions. We combine the relation type and the entity mention's argument roles as a global feature, as shown in <ref type="figure">Figure 5a</ref>.</p><p>Triangle constraint Multiple entity mentions are unlikely to be fully connected with the same relation type. We use a negative feature to penalize any configuration that contains this type of struc- ture. An example is shown in <ref type="figure">Figure 5b</ref>.</p><p>Inter-dependent compatibility If two entity mentions are connected by a dependency link, they tend to have compatible relations with other enti- ties. For example, in <ref type="figure">Figure 5c</ref>, the conj and de- pendency link between "Somalia" and "Kosovo" indicates they may share the same relation type with the third entity mention "forces".</p><p>Neighbor coherence Similar to the entity men- tion neighbor coherence feature, we also combine the types of two neighbor relations in the same sentence as a bigram feature.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5">Experiments</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.1">Data and Scoring Metric</head><p>Most previous work on ACE relation extraction has reported results on ACE'04 data set. As we will show later in our experiments, ACE'05 made significant improvement on both relation type definition and annotation quality. Therefore we present the overall performance on ACE'05 data. We removed two small subsets in informal genres -cts and un, and then randomly split the re- maining 511 documents into 3 parts: 351 for train- ing, 80 for development, and the rest 80 for blind test. In order to compare with state-of-the-art we also performed the same 5-fold cross-validation on bnews and nwire subsets of ACE'04 corpus as in previous work. The statistics of these data sets</p><formula xml:id="formula_7">(GPE Somalia) (PER forces) (GPE US) E M P -O R G E M P -O R G ⇥ (a) (GPE Somalia) (PER forces) (GPE Haiti) P H Y S P H Y S PHYS ⇥ (b) (GPE Somalia) (PER forces) (GPE Kosovo)</formula></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>P H Y S P H Y S conj and</head><p>(c) <ref type="figure">Figure 5</ref>: Examples of Global Relation Features.   We use the standard F 1 measure to evaluate the performance of entity mention extraction and re- lation extraction. An entity mention is considered correct if its entity type is correct and the offsets of its mention head are correct. A relation men- tion is considered correct if its relation type is correct, and the head offsets of two entity men- tion arguments are both correct. As in Chan and Roth (2011), we excluded the DISC relation type, and removed relations in the system output which are implicitly correct via coreference links for fair comparison. Furthermore, we combine these two criteria to evaluate the performance of end-to-end entity mention and relation extraction.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.2">Development Results</head><p>In general a larger beam size can yield better per- formance but increase training and decoding time. As a tradeoff, we set the beam size as 8 through- out the experiments. <ref type="figure" target="#fig_3">Figure 6</ref> shows the learn- ing curves on the development set, and compares the performance with and without global features. From these figures we can clearly see that global features consistently improve the extraction per- formance of both tasks. We set the number of training iterations as 22 based on these curves. <ref type="table" target="#tab_4">Table 2</ref> shows the overall performance of various methods on the ACE'05 test data. We compare our proposed method (Joint w/ Global) with the pipelined system (Pipeline), the joint model with only local features (Joint w/ Local), and two hu- man annotators who annotated 73 documents in ACE'05 corpus.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.3">Overall Performance</head><p>We can see that our approach significantly out- performs the pipelined approach for both tasks. As a real example, for the partial sentence "a marcher from Florida" from the test data, the pipelined ap- proach failed to identify "marcher" as a PER men- tion, and thus missed the GEN-AFF relation be- tween "marcher" and "Florida". Our joint model correctly identified the entity mentions and their relation. <ref type="figure">Figure 7</ref> shows the details when the joint model is applied to this sentence. At the token "marcher", the top hypothesis in the beam is "⊥, ⊥⊥", while the correct one is ranked sec- ond best. After the decoder processes the token "Florida", the correct hypothesis is promoted to the top in the beam by the Neighbor Coherence features for PER-GPE pair. Furthermore, after  Figure 7: Two competing hypotheses for "a marcher from Florida" during decoding.</p><formula xml:id="formula_8">Model Entity Mention (%) Relation (%) Entity Mention + Relation (%) Score P R F 1 P R F 1 P R F 1</formula><p>linking the two mentions by GEN-AFF relation, the ranking of the incorrect hypothesis "⊥, ⊥⊥" is dropped to the 4-th place in the beam, resulting in a large margin from the correct hypothesis. The human F 1 score on end-to-end relation ex- traction is only about 70%, which indicates it is a very challenging task. Furthermore, the F 1 score of the inter-annotator agreement is 51.9%, which is only 2.4% above that of our proposed method.</p><p>Compared to human annotators, the bottleneck of automatic approaches is the low recall of rela- tion extraction. Among the 631 remaining miss- ing relations, 318 (50.3%) of them were caused by missing entity mention arguments. A lot of nominal mention heads rarely appear in the train- ing data, such as persons ("supremo", "shep- herd", "oligarchs", "rich"), geo-political entity mentions ("stateside"), facilities ("roadblocks", "cells"), weapons ("sim lant", "nukes") and ve- hicles ("prams"). In addition, relations are often implicitly expressed in a variety of forms. Some examples are as follows:</p><p>• "Rice has been chosen by President Bush to become the new Secretary of State" indicates "Rice" has a PER-SOC relation with "Bush".</p><p>• "U.S. troops are now knocking on the door of Baghdad" indicates "troops" has a PHYS rela- tion with "Baghdad".</p><p>• "Russia and France sent planes to Baghdad" in- dicates "Russia" and "France" are involved in an ART relation with "planes" as owners.</p><p>In addition to contextual features, deeper se- mantic knowledge is required to capture such im- plicit semantic relations. <ref type="table" target="#tab_6">Table 3</ref> compares the performance on ACE'04 corpus. For entity mention extraction, our joint model achieved 79.7% on 5-fold cross-validation, which is comparable with the best F 1 score 79.2% reported by <ref type="bibr" target="#b7">(Florian et al., 2006</ref>) on single- fold. However, <ref type="bibr" target="#b7">Florian et al. (2006)</ref> used some gazetteers and the output of other Information Ex- traction (IE) models as additional features, which provided significant gains <ref type="bibr" target="#b6">((Florian et al., 2004)</ref>). Since these gazetteers, additional data sets and ex- ternal IE models are all not publicly available, it is not fair to directly compare our joint model with their results.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.4">Comparison with State-of-the-art</head><p>For end-to-end entity mention and relation ex- traction, both the joint approach and the pipelined baseline outperform the best results reported by (Chan and Roth, 2011) under the same setting.  usually studied separately. Most relation extrac- tion work assumed that entity mention boundaries and/or types were given. Chan and Roth (2011) re- ported the best results using predicted entity men- tions. Some previous work used relations and en- tity mentions to enhance each other in joint inference frameworks, including re-ranking ( <ref type="bibr" target="#b11">Ji and Grishman, 2005</ref>), Integer Linear Program- ming (ILP) ( <ref type="bibr" target="#b24">Roth and Yih, 2004;</ref><ref type="bibr" target="#b25">Roth and Yih, 2007;</ref><ref type="bibr" target="#b29">Cardie, 2013), and</ref><ref type="bibr">Card-pyramid Parsing (Kate and</ref><ref type="bibr" target="#b14">Mooney, 2010)</ref>. All these work noted the advantage of exploiting cross- component interactions and richer knowledge. However, they relied on models separately learned for each subtask. As a key difference, our ap- proach jointly extracts entity mentions and rela- tions using a single model, in which arbitrary soft constraints can be easily incorporated. Some other work applied probabilistic graphical models for joint extraction (e.g., <ref type="bibr" target="#b27">(Singh et al., 2013;</ref><ref type="bibr" target="#b30">Yu and Lam, 2010)</ref>). By contrast, our work employs an efficient joint search algorithm without modeling joint distribution over numerous variables, there- fore it is more flexible and computationally sim- pler. In addition, ( <ref type="bibr" target="#b27">Singh et al., 2013</ref>) used gold- standard mention boundaries.</p><formula xml:id="formula_9">Model Entity Mention (%) Relation (%) Entity Mention + Relation (%) Score P R F 1 P R F 1 P R F 1 Chan</formula><p>Our previous work ( <ref type="bibr" target="#b16">Li et al., 2013</ref>) used struc- tured perceptron with token-based decoder to jointly predict event triggers and arguments based on the assumption that entity mentions and other argument candidates are given as part of the in- put. In this paper, we solve a more challeng- ing problem: take raw texts as input and identify the boundaries, types of entity mentions and rela- tions all together in a single model. <ref type="bibr" target="#b26">Sarawagi and Cohen (2004)</ref> proposed a segment-based CRFs model for name tagging. <ref type="bibr" target="#b31">Zhang and Clark (2008)</ref> used a segment-based decoder for word segmenta- tion and pos tagging. We extended the similar idea to our end-to-end task by incrementally predicting relations along with entity mention segments.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="7">Conclusions and Future Work</head><p>In this paper we introduced a new architecture for more powerful end-to-end entity mention and relation extraction. For the first time, we ad- dressed this challenging task by an incremental beam-search algorithm in conjunction with struc- tured perceptron. While detecting mention bound- aries jointly with other components raises the chal- lenge of synchronizing multiple assignments in the same beam, a simple yet effective segment- based decoder is adopted to solve this problem. More importantly, we exploited a set of global fea- tures based on linguistic and logical properties of the two tasks to predict more coherent structures. Experiments demonstrated our approach signifi- cantly outperformed pipelined approaches for both tasks and dramatically advanced state-of-the-art.</p><p>In future work, we plan to explore more soft and hard constraints to reduce search space as well as improve accuracy. In addition, we aim to incorpo- rate other IE components such as event extraction into the joint model.</p></div><figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_0"><head></head><label></label><figDesc>where y [1:i−d] stands for a partial configuration ending at the (i-d)-th token, and y [i−d+1,i] corre- sponds to the structure of a new segment (i.e., sub- sequence of x) x [i−d+1,i] . Our joint decoding algo- rithm is shown in Figure 2. For each token index i, it maintains a beam for the partial assignments whose last segments end at the i-th token. There are two types of actions during the search:</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_1"><head>Figure 3 :</head><label>3</label><figDesc>Figure 3: Example of decoding steps. x-axis and y-axis represent the input sentence and entity types, respectively. The rectangles denote segments with entity types, among which the shaded ones are three competing hypotheses ending at "1,400". The solid lines and arrows indicate correct APPEND and LINK actions respectively, while the dashed indicate incorrect actions.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_2"><head>Figure 4 :</head><label>4</label><figDesc>Figure 4: Perceptron algorithm with beamsearch and early-update. y is the prefix of the gold-standard and z is the top assignment.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_3"><head>Figure 6 :</head><label>6</label><figDesc>Figure 6: Learning Curves on Development Set.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_1" validated="false"><head>Table 1 .</head><label>1</label><figDesc></figDesc><table>We ran the Stanford 
+CoreNLP toolkit 5 to automatically recover the true 
+cases for lowercased documents. 
+
+Data Set 
+# sentences # mentions # relations 
+
+ACE'05 
+Train 
+7,273 
+26,470 
+4,779 
+Dev 
+1,765 
+6,421 
+1,179 
+Test 
+1,535 
+5,476 
+1,147 
+ACE'04 
+6,789 
+22,740 
+4,368 
+
+</table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_2" validated="false"><head>Table 1 : Data Sets.</head><label>1</label><figDesc></figDesc><table></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_4" validated="false"><head>Table 2 :</head><label>2</label><figDesc></figDesc><table>Overall performance on ACE'05 corpus. 
+
+steps 
+hypotheses 
+rank 
+
+(a) 
+ha ? marcher ? i 
+1 
+
+ha ? marcher PER i 
+2 
+
+(b) 
+ha ? marcher ? from ? i 
+1 
+
+ha ? marcher PER from ? i 
+4 
+
+(c) 
+ha ? marcher PER from ? Florida GPE i 
+1 
+
+ha ? marcher ? from ? Florida GPE i 
+2 
+
+(d) 
+ha ? marcher PER from ? Florida GPE i 
+
+GEN-AFF 
+
+1 
+
+ha ? marcher ? from ? Florida GPE i 
+4 
+
+</table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_6" validated="false"><head>Table 3 :</head><label>3</label><figDesc></figDesc><table>5-fold cross-validation on ACE'04 corpus. Bolded scores indicate highly statistical significant 
+improvement as measured by paired t-test (p &lt; 0.01) 
+
+</table></figure>
+
+			<note place="foot" n="3"> Throughout this paper we refer to relation mention as relation since we do not consider relation mention coreference.</note>
+
+			<note place="foot" n="4"> The same relation type with opposite directions is considered to be two classes in R.</note>
+
+			<note place="foot" n="5"> http://nlp.stanford.edu/software/corenlp.shtml</note>
+		</body>
+		<back>
+
+			<div type="acknowledgement">
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6">Related Work</head><p>Entity mention extraction (e.g., <ref type="bibr" target="#b6">(Florian et al., 2004;</ref><ref type="bibr" target="#b7">Florian et al., 2006;</ref><ref type="bibr" target="#b8">Florian et al., 2010;</ref><ref type="bibr" target="#b35">Zitouni and Florian, 2008;</ref><ref type="bibr" target="#b18">Ohta et al., 2012)</ref>) and relation extraction (e.g., <ref type="bibr" target="#b23">(Reichartz et al., 2009;</ref><ref type="bibr" target="#b28">Sun et al., 2011;</ref><ref type="bibr" target="#b12">Jiang and Zhai, 2007;</ref><ref type="bibr" target="#b0">Bunescu and Mooney, 2005;</ref><ref type="bibr" target="#b32">Zhao and Grishman, 2005;</ref><ref type="bibr" target="#b5">Culotta and Sorensen, 2004;</ref><ref type="bibr" target="#b34">Zhou et al., 2007;</ref><ref type="bibr" target="#b20">Qian and Zhou, 2010;</ref><ref type="bibr" target="#b21">Qian et al., 2008;</ref><ref type="bibr" target="#b2">Chan and Roth, 2011;</ref><ref type="bibr" target="#b19">Plank and Moschitti, 2013)</ref>) have drawn much attention in recent years but were</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Acknowledgments</head><p>We thank the three anonymous reviewers for their insightful comments. This work was supported by the U.S. Army Research Laboratory under Coop-erative Agreement No. W911NF-09-2-0053 (NS-CTA), U.S. NSF CAREER Award under Grant IIS-0953149, U.S. DARPA Award No. FA8750-13-2-0041 in the Deep Exploration and Filtering of Text (DEFT) Program, IBM Faculty Award, Google Research Award and RPI faculty start-up grant. The views and conclusions contained in this document are those of the authors and should not be interpreted as representing the official poli-cies, either expressed or implied, of the U.S. Gov-ernment. The U.S. Government is authorized to reproduce and distribute reprints for Government purposes notwithstanding any copyright notation here on.</p></div>
+			</div>
+
+			<div type="references">
+
+				<listBibl>
+
+<biblStruct xml:id="b0">
+	<analytic>
+		<title level="a" type="main">A shortest path dependency kernel for relation extraction</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">C</forename><surname>Razvan</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Raymond</forename><forename type="middle">J</forename><surname>Bunescu</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Mooney</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. HLT/EMNLP</title>
+		<meeting>HLT/EMNLP</meeting>
+		<imprint>
+			<date type="published" when="2005" />
+			<biblScope unit="page" from="724" to="731" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b1">
+	<analytic>
+		<title level="a" type="main">Exploiting background knowledge for relation extraction</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yee</forename><surname>Seng</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Chan</forename></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Dan</forename><surname>Roth</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. COLING</title>
+		<meeting>COLING</meeting>
+		<imprint>
+			<date type="published" when="2010" />
+			<biblScope unit="page" from="152" to="160" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b2">
+	<analytic>
+		<title level="a" type="main">Exploiting syntactico-semantic structures for relation extraction</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yee</forename><surname>Seng</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Chan</forename></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Dan</forename><surname>Roth</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. ACL</title>
+		<meeting>ACL</meeting>
+		<imprint>
+			<date type="published" when="2011" />
+			<biblScope unit="page" from="551" to="560" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b3">
+	<analytic>
+		<title level="a" type="main">Incremental parsing with the perceptron algorithm</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Michael</forename><surname>Collins</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Brian</forename><surname>Roark</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. ACL</title>
+		<meeting>ACL</meeting>
+		<imprint>
+			<date type="published" when="2004" />
+			<biblScope unit="page" from="111" to="118" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b4">
+	<analytic>
+		<title level="a" type="main">Discriminative training methods for hidden markov models: Theory and experiments with perceptron algorithms</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Michael</forename><surname>Collins</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. EMNLP</title>
+		<meeting>EMNLP</meeting>
+		<imprint>
+			<date type="published" when="2002" />
+			<biblScope unit="page" from="1" to="8" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b5">
+	<analytic>
+		<title level="a" type="main">Dependency tree kernels for relation extraction</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Aron</forename><surname>Culotta</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jeffrey</forename><surname>Sorensen</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. ACL</title>
+		<meeting>ACL</meeting>
+		<imprint>
+			<date type="published" when="2004" />
+			<biblScope unit="page" from="423" to="429" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b6">
+	<analytic>
+		<title level="a" type="main">A statistical model for multilingual entity detection and tracking</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Radu</forename><surname>Florian</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Hany</forename><surname>Hassan</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Abraham</forename><surname>Ittycheriah</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Hongyan</forename><surname>Jing</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Nanda</forename><surname>Kambhatla</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Xiaoqiang</forename><surname>Luo</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Nicolas</forename><surname>Nicolov</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Salim</forename><surname>Roukos</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. HLT-NAACL</title>
+		<meeting>HLT-NAACL</meeting>
+		<imprint>
+			<date type="published" when="2004" />
+			<biblScope unit="page" from="1" to="8" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b7">
+	<analytic>
+		<title level="a" type="main">Factorizing complex models: A case study in mention detection</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Radu</forename><surname>Florian</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Hongyan</forename><surname>Jing</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Nanda</forename><surname>Kambhatla</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Imed</forename><surname>Zitouni</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. ACL</title>
+		<meeting>ACL</meeting>
+		<imprint>
+			<date type="published" when="2006" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b8">
+	<analytic>
+		<title level="a" type="main">Improving mention detection robustness to noisy input</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Radu</forename><surname>Florian</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">John</forename><forename type="middle">F</forename><surname>Pitrelli</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Salim</forename><surname>Roukos</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Imed</forename><surname>Zitouni</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. EMNLP</title>
+		<meeting>EMNLP</meeting>
+		<imprint>
+			<date type="published" when="2010" />
+			<biblScope unit="page" from="335" to="345" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b9">
+	<analytic>
+		<title level="a" type="main">Dynamic programming for linear-time incremental parsing</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Liang</forename><surname>Huang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kenji</forename><surname>Sagae</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">ACL</title>
+		<imprint>
+			<date type="published" when="2010" />
+			<biblScope unit="page" from="1077" to="1086" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b10">
+	<analytic>
+		<title level="a" type="main">Structured perceptron with inexact search</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Liang</forename><surname>Huang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Suphan</forename><surname>Fayong</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yang</forename><surname>Guo</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. HLT-NAACL</title>
+		<meeting>HLT-NAACL</meeting>
+		<imprint>
+			<date type="published" when="2012" />
+			<biblScope unit="page" from="142" to="151" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b11">
+	<analytic>
+		<title level="a" type="main">Improving name tagging by reference resolution and relation detection</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Heng</forename><surname>Ji</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ralph</forename><surname>Grishman</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. ACL</title>
+		<meeting>ACL</meeting>
+		<imprint>
+			<date type="published" when="2005" />
+			<biblScope unit="page" from="411" to="418" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b12">
+	<analytic>
+		<title level="a" type="main">A systematic exploration of the feature space for relation extraction</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jing</forename><surname>Jiang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Chengxiang</forename><surname>Zhai</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. HLT-NAACL</title>
+		<meeting>HLT-NAACL</meeting>
+		<imprint>
+			<date type="published" when="2007" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b13">
+	<analytic>
+		<title level="a" type="main">Combining lexical, syntactic, and semantic features with maximum entropy models for information extraction</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Nanda</forename><surname>Kambhatla</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. ACL</title>
+		<meeting>ACL</meeting>
+		<imprint>
+			<date type="published" when="2004" />
+			<biblScope unit="page" from="178" to="181" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b14">
+	<analytic>
+		<title level="a" type="main">Joint entity and relation extraction using card-pyramid parsing</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">J</forename><surname>Rohit</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Raymond</forename><surname>Kate</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Mooney</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. ACL</title>
+		<meeting>ACL</meeting>
+		<imprint>
+			<date type="published" when="2010" />
+			<biblScope unit="page" from="203" to="212" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b15">
+	<analytic>
+		<title level="a" type="main">Conditional random fields: Probabilistic models for segmenting and labeling sequence data</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">John</forename><forename type="middle">D</forename><surname>Lafferty</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Andrew</forename><surname>Mccallum</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Fernando</forename><forename type="middle">C N</forename><surname>Pereira</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. ICML</title>
+		<meeting>ICML</meeting>
+		<imprint>
+			<date type="published" when="2001" />
+			<biblScope unit="page" from="282" to="289" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b16">
+	<analytic>
+		<title level="a" type="main">Joint event extraction via structured prediction with global features</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Qi</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ji</forename><surname>Heng</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Liang</forename><surname>Huang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. ACL</title>
+		<meeting>ACL</meeting>
+		<imprint>
+			<date type="published" when="2013" />
+			<biblScope unit="page" from="73" to="82" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b17">
+	<analytic>
+		<title level="a" type="main">Generating typed dependency parses from phrase structure parses</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Marie-Catherine De</forename><surname>Marneffe</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Bill</forename><surname>Maccartney</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Christopher</forename><forename type="middle">D</forename><surname>Manning</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. LREC</title>
+		<meeting>LREC</meeting>
+		<imprint>
+			<date type="published" when="2006" />
+			<biblScope unit="page">454</biblScope>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b18">
+	<analytic>
+		<title level="a" type="main">Open-domain anatomical entity mention detection</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Tomoko</forename><surname>Ohta</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Sampo</forename><surname>Pyysalo</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Sophia</forename><surname>Jun&amp;apos;ichi Tsujii</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Ananiadou</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. ACL Workshop on Detecting Structure in Scholarly Discourse</title>
+		<meeting>ACL Workshop on Detecting Structure in Scholarly Discourse</meeting>
+		<imprint>
+			<date type="published" when="2012" />
+			<biblScope unit="page" from="27" to="36" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b19">
+	<analytic>
+		<title level="a" type="main">Embedding semantic similarity in tree kernels for domain adaptation of relation extraction</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Barbara</forename><surname>Plank</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Alessandro</forename><surname>Moschitti</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. ACL</title>
+		<meeting>ACL</meeting>
+		<imprint>
+			<date type="published" when="2013" />
+			<biblScope unit="page" from="1498" to="1507" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b20">
+	<analytic>
+		<title level="a" type="main">Clusteringbased stratified seed sampling for semi-supervised relation classification</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Longhua</forename><surname>Qian</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Guodong</forename><surname>Zhou</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. EMNLP</title>
+		<meeting>EMNLP</meeting>
+		<imprint>
+			<date type="published" when="2010" />
+			<biblScope unit="page" from="346" to="355" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b21">
+	<analytic>
+		<title level="a" type="main">Exploiting constituent dependencies for tree kernel-based semantic relation extraction</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Longhua</forename><surname>Qian</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Guodong</forename><surname>Zhou</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Fang</forename><surname>Kong</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. COLING</title>
+		<meeting>COLING</meeting>
+		<imprint>
+			<date type="published" when="2008" />
+			<biblScope unit="page" from="697" to="704" />
+		</imprint>
+	</monogr>
+	<note>Qiaoming Zhu, and Peide Qian</note>
+</biblStruct>
+
+<biblStruct xml:id="b22">
+	<analytic>
+		<title level="a" type="main">Design challenges and misconceptions in named entity recognition</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Lev</forename><surname>Ratinov</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Dan</forename><surname>Roth</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. CONLL</title>
+		<meeting>CONLL</meeting>
+		<imprint>
+			<date type="published" when="2009" />
+			<biblScope unit="page" from="147" to="155" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b23">
+	<analytic>
+		<title level="a" type="main">Composite kernels for relation extraction</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Frank</forename><surname>Reichartz</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Hannes</forename><surname>Korte</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Gerhard</forename><surname>Paass</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. ACL-IJCNLP (Short Papers)</title>
+		<meeting>ACL-IJCNLP (Short Papers)</meeting>
+		<imprint>
+			<date type="published" when="2009" />
+			<biblScope unit="page" from="365" to="368" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b24">
+	<analytic>
+		<title level="a" type="main">A linear programming formulation for global inference in natural language tasks</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Dan</forename><surname>Roth</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Wen-Tau</forename><surname>Yih</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. CoNLL</title>
+		<meeting>CoNLL</meeting>
+		<imprint>
+			<date type="published" when="2004" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b25">
+	<analytic>
+		<title level="a" type="main">Global inference for entity and relation identification via a lin-ear programming formulation</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Dan</forename><surname>Roth</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Wen-Tau</forename><surname>Yih</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Introduction to Statistical Relational Learning. MIT</title>
+		<imprint>
+			<date type="published" when="2007" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b26">
+	<analytic>
+		<title level="a" type="main">Semimarkov conditional random fields for information extraction</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Sunita</forename><surname>Sarawagi</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">William</forename><forename type="middle">W</forename><surname>Cohen</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. NIPS</title>
+		<meeting>NIPS</meeting>
+		<imprint>
+			<date type="published" when="2004" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b27">
+	<analytic>
+		<title level="a" type="main">Joint inference of entities, relations, and coreference</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Sameer</forename><surname>Singh</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Sebastian</forename><surname>Riedel</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Brian</forename><surname>Martin</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jiaping</forename><surname>Zheng</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Andrew</forename><surname>Mccallum</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. CIKM Workshop on Automated Knowledge Base Construction</title>
+		<meeting>CIKM Workshop on Automated Knowledge Base Construction</meeting>
+		<imprint>
+			<date type="published" when="2013" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b28">
+	<analytic>
+		<title level="a" type="main">Semi-supervised relation extraction with large-scale word clustering</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ang</forename><surname>Sun</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ralph</forename><surname>Grishman</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Satoshi</forename><surname>Sekine</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. ACL</title>
+		<meeting>ACL</meeting>
+		<imprint>
+			<date type="published" when="2011" />
+			<biblScope unit="page" from="521" to="529" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b29">
+	<analytic>
+		<title level="a" type="main">Joint inference for fine-grained opinion extraction</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Bishan</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Claire</forename><surname>Cardie</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. ACL</title>
+		<meeting>ACL</meeting>
+		<imprint>
+			<date type="published" when="2013" />
+			<biblScope unit="page" from="1640" to="1649" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b30">
+	<analytic>
+		<title level="a" type="main">Jointly identifying entities and extracting relations in encyclopedia text via a graphical model approach</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Xiaofeng</forename><surname>Yu</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Wai</forename><surname>Lam</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. COLING (Posters)</title>
+		<meeting>COLING (Posters)</meeting>
+		<imprint>
+			<date type="published" when="2010" />
+			<biblScope unit="page" from="1399" to="1407" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b31">
+	<analytic>
+		<title level="a" type="main">Joint word segmentation and pos tagging using a single perceptron</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yue</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Stephen</forename><surname>Clark</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. ACL</title>
+		<meeting>ACL</meeting>
+		<imprint>
+			<date type="published" when="2008" />
+			<biblScope unit="page" from="1147" to="1157" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b32">
+	<analytic>
+		<title level="a" type="main">Extracting relations with integrated information using kernel methods</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Shubin</forename><surname>Zhao</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ralph</forename><surname>Grishman</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. ACL</title>
+		<meeting>ACL</meeting>
+		<imprint>
+			<date type="published" when="2005" />
+			<biblScope unit="page" from="419" to="426" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b33">
+	<analytic>
+		<title level="a" type="main">Exploring various knowledge in relation extraction</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Guodong</forename><surname>Zhou</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jian</forename><surname>Su</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jie</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Min</forename><surname>Zhang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. ACL</title>
+		<meeting>ACL</meeting>
+		<imprint>
+			<date type="published" when="2005" />
+			<biblScope unit="page" from="427" to="434" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b34">
+	<analytic>
+		<title level="a" type="main">Tree kernel-based relation extraction with context-sensitive structured parse tree information</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Guodong</forename><surname>Zhou</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Min</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Dong-Hong</forename><surname>Ji</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Qiaoming</forename><surname>Zhu</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. EMNLP-CoNLL</title>
+		<meeting>EMNLP-CoNLL</meeting>
+		<imprint>
+			<date type="published" when="2007" />
+			<biblScope unit="page" from="728" to="736" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b35">
+	<analytic>
+		<title level="a" type="main">Mention detection crossing the language barrier</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Imed</forename><surname>Zitouni</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Radu</forename><surname>Florian</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. EMNLP</title>
+		<meeting>EMNLP</meeting>
+		<imprint>
+			<date type="published" when="2008" />
+			<biblScope unit="page" from="600" to="609" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+				</listBibl>
+			</div>
+		</back>
+	</text>
+</TEI>

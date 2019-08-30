@@ -1,0 +1,1323 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<TEI xmlns="http://www.tei-c.org/ns/1.0" 
+xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+xsi:schemaLocation="http://www.tei-c.org/ns/1.0 /home/ana/installs/grobid/grobid-0.5.1/grobid-home/schemas/xsd/Grobid.xsd"
+ xmlns:xlink="http://www.w3.org/1999/xlink">
+	<teiHeader xml:lang="en">
+		<encodingDesc>
+			<appInfo>
+				<application version="0.5.1-SNAPSHOT" ident="GROBID" when="2019-04-18T11:35+0000">
+					<ref target="https://github.com/kermitt2/grobid">GROBID - A machine learning software for extracting information from scholarly documents</ref>
+				</application>
+			</appInfo>
+		</encodingDesc>
+		<fileDesc>
+			<titleStmt>
+				<title level="a" type="main">Trainable Greedy Decoding for Neural Machine Translation</title>
+			</titleStmt>
+			<publicationStmt>
+				<publisher>Association for Computational Linguistics</publisher>
+				<availability status="unknown"><p>Copyright Association for Computational Linguistics</p>
+				</availability>
+				<date>September 7-11, 2017. 2017</date>
+			</publicationStmt>
+			<sourceDesc>
+				<biblStruct>
+					<analytic>
+						<author>
+							<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jiatao</forename><surname>Gu</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="institution">The University of Hong Kong ‡ New York University</orgName>
+							</affiliation>
+						</author>
+						<author>
+							<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kyunghyun</forename><surname>Cho</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="institution">The University of Hong Kong ‡ New York University</orgName>
+							</affiliation>
+						</author>
+						<author>
+							<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Victor</forename><forename type="middle">O K</forename><surname>Li</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="institution">The University of Hong Kong ‡ New York University</orgName>
+							</affiliation>
+						</author>
+						<author>
+							<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">†</forename></persName>
+							<affiliation key="aff0">
+								<orgName type="institution">The University of Hong Kong ‡ New York University</orgName>
+							</affiliation>
+						</author>
+						<title level="a" type="main">Trainable Greedy Decoding for Neural Machine Translation</title>
+					</analytic>
+					<monogr>
+						<title level="m">Natural Language Processing</title>
+						<meeting> <address><addrLine>Copenhagen, Denmark</addrLine></address>
+						</meeting>
+						<imprint>
+							<publisher>Association for Computational Linguistics</publisher>
+							<biblScope unit="page" from="1968" to="1978"/>
+							<date type="published">September 7-11, 2017. 2017</date>
+						</imprint>
+					</monogr>
+				</biblStruct>
+			</sourceDesc>
+		</fileDesc>
+		<profileDesc>
+			<abstract>
+				<p>Recent research in neural machine translation has largely focused on two aspects; neural network architectures and end-to-end learning algorithms. The problem of decoding, however, has received relatively little attention from the research community. In this paper, we solely focus on the problem of decoding given a trained neu-ral machine translation model. Instead of trying to build a new decoding algorithm for any specific decoding objective, we propose the idea of trainable decoding algorithm in which we train a decoding algorithm to find a translation that maximizes an arbitrary decoding objective. More specifically, we design an actor that observes and manipulates the hidden state of the neural machine translation decoder and propose to train it using a variant of deterministic policy gradient. We extensively evaluate the proposed algorithm using four language pairs and two decoding objectives, and show that we can indeed train a trainable greedy decoder that generates a better translation (in terms of a target decoding objective) with minimal computational overhead.</p>
+			</abstract>
+		</profileDesc>
+	</teiHeader>
+	<text xml:lang="en">
+		<body>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="1">Introduction</head><p>Neural machine translation has recently become a method of choice in machine translation research. Besides its success in traditional settings of ma- chine translation, that is one-to-one translation be- tween two languages, ( <ref type="bibr" target="#b28">Sennrich et al., 2016;</ref><ref type="bibr" target="#b4">Chung et al., 2016)</ref>, neural machine translation has ven- tured into more sophisticated settings of machine translation. For instance, neural machine transla- tion has successfully proven itself to be capable of handling subword-level representation of sentences ( <ref type="bibr" target="#b17">Lee et al., 2016;</ref><ref type="bibr" target="#b24">Luong and Manning, 2016;</ref><ref type="bibr" target="#b27">Sennrich et al., 2015;</ref><ref type="bibr" target="#b6">Costa-Jussa and Fonollosa, 2016;</ref><ref type="bibr" target="#b22">Ling et al., 2015</ref>). Furthermore, several research groups have shown its potential in seamlessly han- dling multiple languages ( <ref type="bibr" target="#b8">Dong et al., 2015;</ref><ref type="bibr" target="#b23">Luong et al., 2015a;</ref><ref type="bibr">Firat et al., 2016a,b;</ref><ref type="bibr" target="#b17">Lee et al., 2016;</ref><ref type="bibr" target="#b13">Ha et al., 2016;</ref><ref type="bibr" target="#b35">Viégas et al., 2016)</ref>.</p><p>A typical scenario of neural machine transla- tion starts with training a model to maximize its log-likelihood. That is, we often train a model to maximize the conditional probability of a reference translation given a source sentence over a large par- allel corpus. Once the model is trained in this way, it defines the conditional distribution over all pos- sible translations given a source sentence, and the task of translation becomes equivalent to finding a translation to which the model assigns the highest conditional probability. Since it is computationally intractable to do so exactly, it is a usual practice to resort to approximate search/decoding algorithms such as greedy decoding or beam search. In this scenario, we have identified two points where im- provements could be made. They are (1) training (including the selection of a model architecture) and (2) decoding.</p><p>Much of the research on neural machine trans- lation has focused solely on the former, that is, on improving the model architecture. Neural ma- chine translation started with with a simple encoder- decoder architecture in which a source sentence is encoded into a single, fixed-size vector ( <ref type="bibr" target="#b31">Sutskever et al., 2014;</ref><ref type="bibr" target="#b15">Kalchbrenner and Blunsom, 2013)</ref>. It soon evolved with the attention mechanism ( . A few variants of the attention mechanism, or its regularization, have been proposed recently to improve both the translation quality as well as the computational ef- ficiency ( <ref type="bibr" target="#b25">Luong et al., 2015b;</ref><ref type="bibr" target="#b5">Cohn et al., 2016;</ref><ref type="bibr" target="#b34">Tu et al., 2016b</ref>). More recently, convolutional net-works have been adopted either as a replacement of or a complement to a recurrent network in order to efficiently utilize parallel computing <ref type="bibr" target="#b16">(Kalchbrenner et al., 2016;</ref><ref type="bibr" target="#b17">Lee et al., 2016;</ref><ref type="bibr" target="#b11">Gehring et al., 2016</ref>).</p><p>On the aspect of decoding, only a few research groups have tackled this problem by incorporating a target decoding algorithm into training. <ref type="bibr" target="#b36">Wiseman and Rush (2016)</ref> and <ref type="bibr" target="#b29">Shen et al. (2015)</ref> proposed a learning algorithm tailored for beam search. <ref type="bibr" target="#b26">Ranzato et al. (2015)</ref> and ( <ref type="bibr" target="#b0">Bahdanau et al., 2016)</ref> sug- gested to use a reinforcement learning algorithm by viewing a neural machine translation model as a policy function. Investigation on decoding alone has, however, been limited. <ref type="bibr" target="#b2">Cho (2016)</ref> showed the limitation of greedy decoding by simply injecting unstructured noise into the hidden state of the neu- ral machine translation system. <ref type="bibr" target="#b33">Tu et al. (2016a)</ref> similarly showed that the exactness of beam search does not correlate well with actual translation qual- ity, and proposed to augment the learning cost func- tion with reconstruction to alleviate this problem.  proposed a modification to the ex- isting beam search algorithm to improve its explo- ration of the translation space.</p><p>In this paper, we tackle the problem of decod- ing in neural machine translation by introducing a concept of trainable greedy decoding. Instead of manually designing a new decoding algorithm suitable for neural machine translation, we propose to learn a decoding algorithm with an arbitrary de- coding objective. More specifically, we introduce a neural-network-based decoding algorithm that works on an already-trained neural machine trans- lation system by observing and manipulating its hidden state. We treat such a neural network as an agent with a deterministic, continuous action and train it with a variant of the deterministic policy gradient algorithm <ref type="bibr" target="#b30">(Silver et al., 2014</ref>).</p><p>We extensively evaluate the proposed trainable greedy decoding on four language pairs (En-Cs, En-De, En-Ru and En-Fi; in both directions) with two different decoding objectives; sentence-level BLEU and negative perplexity. By training such trainable greedy decoding using deterministic pol- icy gradient with the proposed critic-aware actor learning, we observe that we can improve decod- ing performance with minimal computational over- head. Furthermore, the trained actors are found to improve beam search as well, suggesting a fu- ture research direction in extending the proposed idea of trainable decoding for more sophisticated underlying decoding algorithms.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2">Background</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.1">Neural Machine Translation</head><p>Neural machine translation is a special case of conditional recurrent language modeling, where the source and target are natural language sen- tences. Let us use X = {x 1 , . . . , x Ts } and Y = {y 1 , . . . , y T } to denote source and target sentences, respectively. Neural machine translation then mod- els the target sentence given the source sentence as: p(Y |X) = T t=1 p(y t |y &lt;t , X). Each term on the r.h.s. of the equation above is modelled as a composite of two parametric functions:</p><formula xml:id="formula_0">p(y t |y &lt;t , X) ∝ exp (g (y t , z t ; θ g )) ,</formula><p>where z t = f (z t−1 , y t−1 , e t (X; θ e ); θ f ). g is a read-out function that transforms the hidden state z t into the distribution over all possible symbols, and f is a recurrent function that compresses all the previous target words y &lt;t and the time-dependent representation e t (X; θ e ) of the source sentence X. This time-dependent representation e t is often im- plemented as a recurrent network encoder of the source sentence coupled with an attention mecha- nism ( ).</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Maximum Likelihood Learning</head><p>We train a neural machine translation model, or equivalently estimate the parameters θ g , θ f and θ e , by maximiz- ing the log-probability of a reference translationˆY translationˆ translationˆY = {ˆy{ˆy 1 , ..., ˆ y T } given a source sentence. That is, we maximize the log-likelihood function:</p><formula xml:id="formula_1">J ML (θ g , θ f , θ e ) = 1 N N n=1 Tn t=1 log p θ (ˆ y n t |ˆy|ˆy n &lt;t , X n ),</formula><p>given a training set consisting of N source-target sentence pairs. It is important to note that this maxi- mum likelihood learning does not take into account how a trained model would be used. Rather, it is only concerned with learning a distribution over all possible translations.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.2">Decoding</head><p>Once the model is trained, either by maximum like- lihood learning or by any other recently proposed algorithms <ref type="bibr" target="#b36">(Wiseman and Rush, 2016;</ref><ref type="bibr" target="#b29">Shen et al., 2015;</ref><ref type="bibr" target="#b0">Bahdanau et al., 2016;</ref><ref type="bibr" target="#b26">Ranzato et al., 2015)</ref>, we can let the model translate a given sentence by finding a translation that maximizesˆY</p><formula xml:id="formula_2">maximizesˆ maximizesˆY = arg max Y log p θ (Y |X),</formula><p>where θ = (θ g , θ f , θ e ). This is, however, compu- tationally intractable, and it is a usual practice to resort to approximate decoding algorithms.</p><p>Greedy Decoding One such approximate decod- ing algorithm is greedy decoding. In greedy de- coding, we follow the conditional dependency path and pick the symbol with the highest conditional probability so far at each node. This is equiv- alent to picking the best symbol one at a time from left to right in conditional language mod- elling. A decoded translation of greedy decoding isˆYisˆ isˆY = (ˆ y 1 , . . . , ˆ y T ), wherê wherê y t = arg max y∈V log p θ (y|ˆyy|ˆy &lt;t , X).</p><p>(1)</p><p>Despite its preferable computational complexity O(|V | × T ), greedy decoding has been over time found to be undesirably sub-optimal.</p><p>Beam Search Beam search keeps K &gt; 1 hy- potheses, unlike greedy decoding which keeps only a single hypothesis during decoding. At each time step t, beam search picks K hypotheses with the highest scores ( t t =1 p(y t |y &lt;t , X)). When all the hypotheses terminate (outputting the end-of-the- sentence symbol), it returns the hypothesis with the highest log-probability. Despite its superior perfor- mance compared to greedy decoding, the computa- tional complexity grows linearly w.r.t. the size of beam K, which makes it less preferable especially in the production environment.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3">Trainable Greedy Decoding</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.1">Many Decoding Objectives</head><p>Although we have described decoding in neural machine translation as a maximum-a-posteriori es- timation in log p(Y |X), this is not necessarily the only nor the desirable decoding objective.</p><p>First, each potential scenario in which neural machine translation is used calls for a unique decoding objective. In simultaneous transla- tion/interpretation, which has recently been studied in the context of neural machine translation ( <ref type="bibr" target="#b12">Gu et al., 2016)</ref>, the decoding objective is formulated as a trade-off between the translation quality and delay. On the other hand, when a machine transla- tion system is used as a part of a larger information extraction system, it is more important to correctly translate named entities and events than to translate syntactic function words. The decoding objective in this case must account for how the translation is used in subsequent modules in a larger system. Second, the conditional probability assigned by a trained neural machine translation model does not necessarily reflect our perception of translation quality. Although Cho (2016) provided empiri- cal evidence of high correlation between the log- probability and BLEU, a de facto standard metric in machine translation, there have also been reports on large mismatch between the log-probability and BLEU. For instance, <ref type="bibr" target="#b33">Tu et al. (2016a)</ref> showed that beam search with a very large beam, which is supposed to find translations with better log- probabilities, suffers from pathological translations of very short length, resulting in low translation quality. This calls for a way to design or learn a decoding algorithm with an objective that is more directly correlated to translation quality.</p><p>In short, there is a significant need for designing multiple decoding algorithms for neural machine translation, regardless of how it was trained. It is however non-trivial to manually design a new de- coding algorithm with an arbitrary objective. This is especially true with neural machine translation, as the underlying structure of the decoding/search process -the high-dimensional hidden state of a re- current network -is accessible but not interpretable. Instead, in the remainder of this section, we pro- pose our approach of trainable greedy decoding.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.2">Trainable Greedy Decoding</head><p>We start from the noisy, parallel approximate de- coding (NPAD) algorithm proposed in <ref type="bibr" target="#b2">(Cho, 2016)</ref>. The main idea behind NPAD algorithm is that a better translation with a higher log-probability may be found by injecting unstructured noise in the tran- sition function of a recurrent network. That is,</p><formula xml:id="formula_3">z t = f (z t−1 + t , y t−1 , e t (X; θ e ); θ f ),</formula><p>where t ∼ N (0, (σ 0 /t) 2 ). NPAD avoids potential degradation of translation quality by running such a noisy greedy decoding process multiple times in parallel. An important lesson of NPAD algo- rithm is that there exists a decoding strategy with the asymptotically same computational complexity that results in a better translation quality, and that such a better translation can be found by manipu- lating the hidden state of the recurrent network.</p><formula xml:id="formula_4">p(y t ) z t h t1 h t h t+1 z t1ˆy t1ˆ t1ˆy t1 c t x t1 x t x t+1ˆy</formula><p>t+1ˆ t+1ˆy t arg max˜z In this work, we propose to significantly extend NPAD by replacing the unstructured noise t with a parametric function approximator, or an agent, π φ . This agent takes as input the previous hidden state z t−1 , previously decoded wordˆywordˆ wordˆy t−1 and the time-dependent context vector e t (X; θ e ) and out- puts a real-valued vectorial action a t ∈ R dim(zt) . Such an agent is trained such that greedy decoding with the agent finds a translation that maximizes any predefined, arbitrary decoding objective, while the underlying neural machine translation model is pretrained and fixed. Once the agent is trained, we generate a translation given a source sentence by greedy decoding however augmented with this agent. We call this decoding strategy trainable greedy decoding.</p><formula xml:id="formula_5">max˜ max˜z t attention z critic t z critic T r c z t h ref T 0 h ref t 0 ˆ y t z t+1 c t+1 y t 0 attention z critic t+1ˆy t+1ˆ t+1ˆy T 1 z T c T r ˆ y T y T 0</formula></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Related Work: Soothsayer prediction function</head><p>Independently from and concurrently with our work here, <ref type="bibr" target="#b19">Li et al. (2017)</ref> proposed, just two weeks earlier, to train a neural network that predicts an ar- bitrary decoding objective given a source sentence and a partial hypothesis, or a prefix of translation, and to use it as an auxiliary score in beam search. For training such a network, referred to as a Q net- work in their paper, they generate each training example by either running beam search or using a ground-truth translation (when appropriate) for each source sentence. This approach allows one to use an arbitrary decoding objective, but it still re- lies heavily on the log-probability of the underlying neural translation system in actual decoding. We expect a combination of these and our approaches may further improve decoding for neural machine translation in the future.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.3">Learning and Challenges</head><p>While all the parameters-θ g , θ f and θ e -of the underlying neural translation model are fixed, we only update the parameters φ of the agent π. This ensures the generality of the pretrained translation model, and allows us to train multiple trainable greedy decoding agents with different decoding ob- jectives, maximizing the utility of a single trained translation model. Let us denote by R our arbitrary decoding objec- tive as a function that scores a translation generated from trainable greedy decoding. Then, our learning objective for trainable greedy decoding is</p><formula xml:id="formula_6">J A (φ) = E ˆ Y =Gπ(X) X∼D R( ˆ Y ) ,</formula><p>where we used G π (X) as a shorthand for trainable greedy decoding with an agent π. There are two major challenges in learning an agent with such an objective. First, the decoding objective R may not be differentiable with respect to the agent. Especially because our goal is to ac- commodate an arbitrary decoding objective, this be- comes a problem. For instance, BLEU, a standard quality metric in machine translation, is a piece- wise linear function with zero derivatives almost everywhere. Second, the agent here is a real-valued, deterministic policy with a very high-dimensional action space (1000s of dimensions), which is well known to be difficult. In order to alleviate these difficulties, we propose to use a variant of the de- terministic policy gradient algorithm <ref type="bibr" target="#b30">(Silver et al., 2014;</ref>).</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4">Deterministic Policy Gradient with Critic-Aware Actor Learning</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.1">Deterministic Policy Gradient for Trainable Greedy Decoding</head><p>It is highly unlikely for us to have access to the gradient of an arbitrary decoding objective R with respect to the agent π, or its parameters φ. Fur- thermore, we cannot estimate it stochastically be- cause our policy π is defined to be deterministic without a predefined nor learned distribution over the action. Instead, following <ref type="bibr" target="#b30">(Silver et al., 2014;</ref>, we use a parametric, differ- entiable approximator, called a critic R c , for the non-differentiable objective R. We train the critic by minimizing</p><formula xml:id="formula_7">J C (ψ) = E ˆ Y =Gπ(X) X∼D R c ψ (z 1:T ) − R( ˆ Y ) 2 .</formula><p>The critic observes the state-action sequence of the agent π via the modified hidden states (z 1 , . . . , z T ) of the recurrent network, and predicts the associ- ated decoding objective. By minimizing the mean squared error above, we effectively encourage the critic to approximate the non-differentiable objec- tive as closely as possible in the vicinity of the state-action sequence visited by the agent. We implement the critic R c as a recurrent net- work, similarly to the underlying neural machine translation system. This implies that we can com- pute the derivative of the predicted decoding objec- tive with respect to the input, that is, the state-action sequence z 1:T , which allows us to update the actor π, or equivalently its parameters φ, to maximize the predicted decoding objective. Effectively we avoid the issue of non-differentiability of the origi- nal decoding objective by working with its proxy.</p><p>With the critic, the learning objective of the ac- tor is now to maximize not the original decoding objective R but its proxy R C such thatˆJ</p><formula xml:id="formula_8">thatˆ thatˆJ A (φ) = E ˆ Y =Gπ(X) X∼D R C ( ˆ Y ) .</formula></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Algorithm 1 Trainable Greedy Decoding</head><p>Require: NMT θ, actor φ, critic ψ, Nc, Na, Sc, Sa, τ 1: Train θ using MLE on training set D; 2: Initialize φ and ψ; 3: Shuffle D twice into D φ and D ψ 4: while stopping criterion is not met do 5: for t = 1 : Nc do 6:</p><p>Draw a translation pair:</p><formula xml:id="formula_9">(X, Y ) ∼ D ψ ; 7:</formula><p>r, r c = DECODE(Sc, X, Y, 1) 8:</p><p>Update ψ using ψ k (r c k − r k ) 2 /(Sc + 1) 9:</p><p>for t = 1 : Na do 10:</p><p>Draw a translation pair:</p><formula xml:id="formula_10">(X, Y ) ∼ D φ ; 11:</formula><p>r, r c = DECODE(Sa, X, Y, 0) 12:</p><p>Compute</p><formula xml:id="formula_11">w k = exp − (r c k − r k ) 2 /τ 13: Compute˜wCompute˜ Compute˜w k = w k / k w k 14: Update φ using − k ( ˜ w k · φ r c k )</formula><p>Function: DECODE(S, X, Y, c) 1: Ys = {}, Zs = {}, r = {}, r c = {}; 2: for k = 1 : S do 3: Sample noise ∼ N (0, σ 2 ) for each action; 4:</p><p>Greedy decodingˆYdecodingˆ decodingˆY k = G θ,φ (X) with ; 5:</p><p>Collect hidden states z k 1:T given X, ˆ Y , θ, φ 6:</p><formula xml:id="formula_12">Ys ← Ys ∪ {Y k } 7:</formula><p>Zs ← Zs ∪ {z k 1:T } 8: if c = 1 then 9:</p><p>Collect hidden states z1:T given X, Y , θ 10:</p><p>Ys ← Ys ∪ {Y } 11:</p><p>Zs ← Zs ∪ {z1:T } 12: forˆYforˆ forˆY , Z ∈ Ys, Zs do 13:</p><p>Compute the critic output</p><formula xml:id="formula_13">r c ← R c ψ (Z, ˆ Y ) 14:</formula><p>Compute true reward r ← R(Y, ˆ Y ) 15: return r, r c Unlike the original objective, this objective func- tion is fully differentiable with respect to the agent π. We thus use a usual stochastic gradient descent algorithm to train the agent, while simultaneously training the critic. We do so by alternating between training the actor and critic. Note that we maximize the return of a full episode rather than the Q value, unlike usual approaches in reinforcement learning.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.2">Critic-Aware Actor Learning</head><p>Challenges The most apparent challenge for training such a deterministic actor with a large ac- tion space is that most of action configurations will lead to zero return. It is also not trivial to devise an efficient exploration strategy with a determinis- tic actor with real-valued actions. This issue has however turned out to be less of a problem than in a usual reinforcement learning setting, as the state and action spaces are well structured thanks to pretraining by maximum likelihood learning. As observed by <ref type="bibr" target="#b2">Cho (2016)</ref> ceive again a reasonable return.</p><p>Although this property of dense reward makes the problem of trainable greedy decoding more manageable, we have observed other issues during our preliminary experiment with the vanilla deter- ministic policy gradient. In order to avoid these issues that caused instability, we propose the fol- lowing modifications to the vanilla algorithm.</p><p>Critic-Aware Actor Learning A major goal of the critic is not to estimate the return of a given episode, but to estimate the gradient of the return evaluated given an episode. In order to do so, the critic must be trained, or presented, with state- action sequences z 1:T similar though not identi- cal to the state-action sequence generated by the current actor π. This is achieved, in our case, by injecting unstructured noise to the action at each time step, similar to ( :</p><formula xml:id="formula_14">˜ a t = φ(z t , a t−1 ) + σ · ,<label>(2)</label></formula><p>where is a zero-mean, unit-variance normal vari- able. This noise injection procedure is mainly used when training the critic. We have however observed that the quality of the reward and its gradient estimate of the critic is very noisy even when the critic was trained with this kind of noisy actor. This imperfection of the critic often led to the instability in training the actor in our preliminary experiments. In order to avoid this, we describe here a technique which we refer to as critic-aware actor gradient estimation.</p><p>Instead of using the point estimate ∂R c ∂φ of the gradient of the predicted objective with respect to the actor's parameters φ, we propose to use the expected gradient of the predicted objective with respect to the critic-aware distribution Q. That is,</p><formula xml:id="formula_15">E Q ∂R c ψ ∂φ ,<label>(3)</label></formula><p>where we define the critic-aware distribution Q as</p><formula xml:id="formula_16">Q() ∝ exp(−(R c ψ − R) 2 /τ Critic-awareness ) exp(− 2 2σ 2 Locality ). (4)</formula><p>This expectation allows us to incorporate the noisy, non-uniform nature of the critic's approximation of the objective by up-weighting the gradient com- puted at a point with a higher critic quality and down-weighting the gradient computed at a point with a lower critic quality. The first term in Q reflects this, while the second term ensures that our estimation is based on a small region around the state-action sequence generated by the current, noise-free actor π.</p><p>Since it is intractable to compute Eq. (3) exactly, we resort to importance sampling with the proposed distribution equal to the second term in <ref type="figure">Eq. (4)</ref>. Then, our gradient estimate for the actor becomes the sum of the gradients from multiple realizations of the noisy actor in Eq. <ref type="formula" target="#formula_14">(2)</ref>, where each gradient is weighted by the quality of the critic exp(−(R c φ − R) 2 /τ ). τ is a hyperparameter that controls the smoothness of the weights. We observed in our preliminary experiment that the use of this critic- aware actor learning significantly stabilizes general learning of both the actor and critic.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Reference Translations for Training the Critic</head><p>In our setting of neural machine translation, we have access to a reference translation for each source sentence X, unlike in a usual setting of reinforcement learning. By force-feeding the ref- erence translation into the underlying neural ma- chine translation system (rather than feeding the decoded symbols), we can generate the reference state-action sequence. This sequence is much less correlated with those sequences generated by the actor, and facilitates computing a better estimate of the gradient w.r.t. the critic.</p><p>In Alg. 1, we present the complete algorithm. To make the description less cluttered, we only show the version of minibatch size = 1 which can be naturally extended. We also illustrate the pro- posed trainable greedy decoding and the proposed learning strategy in <ref type="figure" target="#fig_0">Fig. 1</ref>  <ref type="figure">Figure 3</ref>: Comparison of greedy BLEU scores whether using the critic-aware exploration or not on Ru-En Dataset. The green line means the BLEU score achieved by greedy decoding from the under- lying NMT model.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5">Experimental Settings</head><p>We empirically evaluate the proposed trainable greedy decoding on four language pairs -En- De, En-Ru, En-Cs and En-Fi -using a standard attention-based neural machine translation system ( ). We train underlying neu- ral translation systems using the parallel corpora made available from WMT'15. <ref type="bibr">1</ref> The same set of corpora are used for trainable greedy decoding as well. All the corpora are tokenized and segmented into subword symbols using byte-pair encoding (BPE) ( <ref type="bibr" target="#b27">Sennrich et al., 2015)</ref>. We use sentences of length up to 50 subword symbols for MLE train- ing and 200 symbols for trainable decoding. For validation and testing, we use newstest-2013 and newstest-2015, respectively.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.1">Model Architectures and Learning</head><p>Underlying NMT Model For each language pair, we implement an attention-based neural ma- chine translation model whose encoder and decoder recurrent networks have 1,028 gated recurrent units (GRU, ) each. Source and target symbols are projected into 512-dimensional embed- ding vectors. We trained each model for approxi- mately 1.5 weeks using Adadelta <ref type="bibr" target="#b38">(Zeiler, 2012)</ref>.</p><p>Actor π We use a feedforward network with a single hidden layer as the actor. The input is a 2,056-dimensional vector which is the concate- nation of the decoder hidden state and the time- dependent context vector from the attention mech-(a) S: Главное зеркало инфракрасного космического телескопа имеет диаметр 6,5 метров T: The primary mirror of the infrared space telescope has a diameter of 6.5 metres . G: The main mirror of the infrared spaceboard has a diameter 6.5 m . A: The main mirror of the infrared space-type telescope has a diameter of 6.5 meters .</p><p>(b) S: Еще один пункт -это дать им понять , что они должны вести себя онлайн так же , как делают это оффлайн . T: Another point is to make them see that they must behave online as they do offline . G: Another option is to give them a chance to behave online as well as do this offline . A: Another option is to give them to know that they must behave online as well as offline .</p><p>(c) S: Возможен ли долговременный мир между арабами и израильтянами на Ближнем Востоке ? T: Can there ever be a lasting peace between Arabs and Jews in the Middle East ? G: Can the Long-term Peace be Out of the Middle East ? A: Can the Long-term Peace be between Arabs and Israelis in the Middle East ? <ref type="figure">Figure 4</ref>: Three Ru-En examples in which the difference between the trainable greedy decoding (A) and the conventional greedy decoding (G) is large. Each step is marked with magenta, when the actor significantly influenced the output distribution.</p><p>anism, and it outputs a 1,028-dimensional action vector for the decoder. We use 32 units for the hidden layer with tanh activations.</p><p>Critic R c The critic is implemented as a variant of an attention-based neural machine translation model that takes a reference translation as a source sentence and a state-action sequence from the actor as a target sentence. Both the size of GRU units and embedding vectors are the same with the under- lying model. Unlike a usual neural machine transla- tion system, the critic does not language-model the target sentence but simply outputs a scalar value to predict the true return. When we predict a bounded return, such as sentence BLEU, we use a sigmoid activation at the output. For other unbounded return like perplexity, we use a linear activation.</p><p>Learning We train the actor and critic simultane- ously by alternating between updating the actor and critic. As the quality of the critic's approximation of the decoding objective has direct influence on the actor's learning, we make ten updates to the critic before each time we update the actor once. We use RMSProp (Tieleman and Hinton, 2012) with the initial learning rates of 2 × 10 −6 and 2 × 10 −4 , respectively, for the actor and critic. We monitor the progress of learning by measur- ing the decoding objective on the validation set. After training, we pick the actor that results in the best decoding objective on the validation set, and test it on the test set.</p><p>Decoding Objectives For each neural machine translation model, pretrained using maximum like- lihood criterion, we train two trainable greedy de- coding actors. One actor is trained to maximize BLEU (or its smoothed version for sentence-level scoring ( <ref type="bibr" target="#b21">Lin and Och, 2004)</ref>) as its decoding ob- jective, and the other to minimize perplexity (or equivalently the negative log-probability normal- ized by the length.)</p><p>We have chosen the first two decoding objectives for two purposes. First, we demonstrate that it is possible to build multiple trainable decoders with a single underlying model trained using maximum likelihood learning. Second, the comparison be- tween these two objectives provides a glimpse into the relationship between BLEU (the most widely used automatic metric for evaluating translation systems) and log-likelihood (the most widely used learning criterion for neural machine translation).</p><p>Evaluation We test the trainable greedy decoder with both greedy decoding and beam search. Al- though our decoder is always trained with greedy decoding, beam search in practice can be used to- gether with the actor of the trainable greedy de- coder. Beam search is expected to work better es- pecially when our training of the trainable greedy decoder is unlikely to be optimal. In both cases, we report both the perplexity and BLEU.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.2">Results and Analysis</head><p>We present the improvements of BLEU and per- plexity (or its negation) in <ref type="figure">Fig. 2</ref> for all the lan- guage pair-directions. It is clear from these plots that the best result is achieved when the trainable greedy decoder was trained to maximize the target decoding objective. When the decoder was trained to maximize sentence-level BLEU, we see the im- provement in BLEU but often the degradation in the perplexity (see the left plots in <ref type="figure">Fig. 2.)</ref> On the other hand, when the actor was trained to minimize the perplexity, we only see the improvement in per-plexity (see the right plots in <ref type="figure">Fig. 2.</ref>) This confirms our earlier claim that it is necessary and desirable to tune for the target decoding objective regard- less of what the underlying translation system was trained for, and strongly supports the proposed idea of trainable decoding.</p><p>The improvement from using the proposed train- able greedy decoding is smaller when used together with beam search, as seen in <ref type="figure">Fig. 2 (b)</ref>. However, we still observe statistically significant improve- ment in terms of BLEU (marked with red stars.) This suggests a future direction in which we extend the proposed trainable greedy decoding to directly incorporate beam search into its training procedure to further improve the translation quality.</p><p>It is worthwhile to note that we achieved all of these improvements with negligible computational overhead. This is due to the fact that our actor is a very small, shallow neural network, and that the more complicated critic is thrown away after train- ing. We suspect the effectiveness of such a small ac- tor is due to the well-structured hidden state space of the underlying neural machine translation model which was trained with a large amount of parallel corpus. We believe this favourable computational complexity makes the proposed method suitable for production-grade neural machine translation ( <ref type="bibr" target="#b37">Wu et al., 2016;</ref><ref type="bibr" target="#b7">Crego et al., 2016</ref>).</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Importance of Critic-Aware Actor Learning</head><p>In <ref type="figure">Fig. 3</ref>, we show sample learning curves with and without the proposed critic-aware actor learning. Both curves were from the models trained under the same condition. Despite a slower start in the early stage of learning, we see that the critic-aware actor learning has greatly stabilized the learning progress. We emphasize that we would not have been able to train all these 16 actors without the proposed critic-aware actor learning.</p><p>Examples In <ref type="figure">Fig. 4</ref>, we present three examples from Ru-En. We defined the influence as the KL divergence between the conditional distributions without the trainable greedy decoding and with the trainable greedy decoding, assuming the fixed pre- vious hidden state and target symbol. We colored a target word with magenta, when the influence of the trainable greedy decoding is large (&gt; 0.001).</p><p>Manual inspection of these examples as well as others has revealed that the trainable greedy de- coder focuses on fixing prepositions and removing any unnecessary symbol generation. More in-depth analysis is however left as future work.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6">Conclusion</head><p>We proposed trainable greedy decoding as a way to learn a decoding algorithm for neural machine translation with an arbitrary decoding objective. The proposed trainable greedy decoder observes and manipulates the hidden state of a trained neural translation system, and is trained by a novel variant of deterministic policy gradient, called critic-aware actor learning. Our extensive experiments on eight language pair-directions and two objectives con- firmed its validity and usefulness. The proposed trainable greedy decoding is a generic idea that can be applied to any recurrent language modeling, and we anticipate future research both on the funda- mentals of the trainable decoding as well as on the applications to more diverse tasks such as image caption generating and dialogue modeling.</p></div><figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_0"><head>Figure 1 :</head><label>1</label><figDesc>Figure 1: Graphical illustrations of the trainable greedy decoding. The left panel shows a single step of the actor interacting with the underlying neural translation model, and The right panel the interaction among the underlying neural translation system (dashed-border boxes), actor (red-border boxes), and critic (blue-border boxes). The solid arrows indicate the forward pass, and the dashed yellow arrows the actor's backward pass. The dotted-border box shows the use of a reference translation.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_0" validated="false"><head></head><label></label><figDesc>, any reasonable perturba- tion to the hidden state of the recurrent network generates a reasonable translation which would re-</figDesc><table>1972 
+
+-0.2 
+
+0 
+
+0.2 
+
+0.4 
+
+0.6 
+
+0.8 
+
+1 
+
+BLEU 
+Perplexity 
+BLEU 
+Perplexity 
+Change in BLEU 
+
+Decoding Objective 
+
+Cs 
+De 
+Ru 
+Fi 
+
+To English 
+
+From English 
+
+-0.04 
+
+-0.03 
+
+-0.02 
+
+-0.01 
+
+0 
+
+0.01 
+
+0.02 
+
+0.03 
+
+0.04 
+
+BLEU 
+Perplexity 
+BLEU 
+Perplexity 
+
+Change in Negative Perplexity 
+
+Decoding Objective 
+
+Cs 
+De 
+Ru 
+Fi 
+
+To English 
+From English 
+
+(a) Trainable Greedy Decoding 
+
+-0.1 
+
+0.1 
+
+0.3 
+
+0.5 
+
+0.7 
+
+0.9 
+
+BLEU 
+Perplexity 
+BLEU 
+Perplexity 
+Change in BLEU 
+
+Decoding Objective 
+
+Cs 
+De 
+Ru 
+Fi 
+
+To English 
+
+From English 
+
+-0.1 
+
+-0.08 
+
+-0.06 
+
+-0.04 
+
+-0.02 
+
+0 
+
+0.02 
+
+0.04 
+
+0.06 
+
+0.08 
+
+0.1 
+
+BLEU 
+Perplexity 
+BLEU 
+Perplexity 
+
+Change in Negative Perplexity 
+
+Decoding Objective 
+
+Cs 
+De 
+Ru 
+Fi 
+
+To English 
+From English 
+
+(b) Beam Search + Trainable Greedy Decoding 
+
+Figure 2: The plots draw the improvements by the trainable greedy decoding on the test set. The x-axes 
+correspond to the objectives used to train trainable greedy decoding, and the y-axes to the changes in 
+the achieved objectives (BLEU for the figures on the left, and negative perplexity on the right.) The top 
+row (a) shows the cases when the trainable greedy decoder is used on its own, and the bottom row (b) 
+when it is used together with beam search. When training and evaluation are both done with BLEU, we 
+test the statistical significance (Koehn, 2004), and we mark significant cases with red stars (p &lt; 0.05.) 
+The underlying neural machine translation models achieved the BLEU scores of 14.49/16.20 for En-Cs, 
+18.90/21.20 for Cs-En, 18.97/21.33 for En-De, 21.63/24.46 for De-En, 16.97/19.68 for En-Ru, 21.06/23.34 
+for Ru-En, 7.53/8.82 for En-Fi and 9.79/11.03 for Fi-En (greedy/beam). 
+
+</table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_1" validated="false"><head>.</head><label></label><figDesc></figDesc><table>10 2 
+10 3 
+10 4 
+updates 
+
+19.0 
+
+19.2 
+
+19.4 
+
+19.6 
+
+19.8 
+
+20.0 
+
+BLEU on Development Set 
+
+without Critic-Aware Learning 
+with Critic-Aware Learning 
+
+</table></figure>
+
+			<note place="foot" n="1"> http://www.statmt.org/wmt15/</note>
+		</body>
+		<back>
+
+			<div type="acknowledgement">
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Acknowledgement</head><p>KC thanks the support by TenCent, eBay, Face-book, Google (Google Faculty Award 2016) and NVidia. This work was partly supported by Sam-sung Advanced Institute of Technology (Next Gen-eration Deep Learning: from pattern recognition to AI). We sincerely thank Martin Arjovsky, Zihang Dai, Graham Neubig, Pengcheng Yin and Chunting Zhou for helpful discussions and insightful feed-backs.</p></div>
+			</div>
+
+			<div type="references">
+
+				<listBibl>
+
+<biblStruct xml:id="b0">
+	<monogr>
+		<title level="m" type="main">An actor-critic algorithm for sequence prediction</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Dzmitry</forename><surname>Bahdanau</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Philemon</forename><surname>Brakel</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kelvin</forename><surname>Xu</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Anirudh</forename><surname>Goyal</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ryan</forename><surname>Lowe</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Joelle</forename><surname>Pineau</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Aaron</forename><surname>Courville</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yoshua</forename><surname>Bengio</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1607.07086</idno>
+		<imprint>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b1">
+	<monogr>
+		<title level="m" type="main">Neural machine translation by jointly learning to align and translate</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Dzmitry</forename><surname>Bahdanau</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kyunghyun</forename><surname>Cho</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yoshua</forename><surname>Bengio</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1409.0473</idno>
+		<imprint>
+			<date type="published" when="2014" />
+		</imprint>
+	</monogr>
+<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b2">
+	<monogr>
+		<title level="m" type="main">Noisy parallel approximate decoding for conditional recurrent language model</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kyunghyun</forename><surname>Cho</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1605.03835</idno>
+		<imprint>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b3">
+	<monogr>
+		<title level="m" type="main">Learning phrase representations using rnn encoder-decoder for statistical machine translation</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kyunghyun</forename><surname>Cho</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Bart</forename><surname>Van Merriënboer</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Caglar</forename><surname>Gulcehre</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Dzmitry</forename><surname>Bahdanau</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Fethi</forename><surname>Bougares</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Holger</forename><surname>Schwenk</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yoshua</forename><surname>Bengio</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1406.1078</idno>
+		<imprint>
+			<date type="published" when="2014" />
+		</imprint>
+	</monogr>
+<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b4">
+	<analytic>
+		<title level="a" type="main">Nyu-mila neural machine translation systems for wmt16</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Junyoung</forename><surname>Chung</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kyunghyun</forename><surname>Cho</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yoshua</forename><surname>Bengio</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the First Conference on Machine Translation</title>
+		<meeting>the First Conference on Machine Translation<address><addrLine>Berlin, Germany</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+	<note>Association for Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b5">
+	<monogr>
+		<title level="m" type="main">Incorporating structural alignment biases into an attentional neural translation model</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Trevor</forename><surname>Cohn</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Cong Duy Vu</forename><surname>Hoang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ekaterina</forename><surname>Vymolova</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kaisheng</forename><surname>Yao</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Chris</forename><surname>Dyer</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Gholamreza</forename><surname>Haffari</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1601.01085</idno>
+		<imprint>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b6">
+	<monogr>
+				<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Marta R Costa-Jussa</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">A</forename><forename type="middle">R</forename><surname>José</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Fonollosa</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1603.00810</idno>
+		<title level="m">Character-based neural machine translation</title>
+		<imprint>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b7">
+	<monogr>
+		<title level="m" type="main">Systran&apos;s pure neural machine translation systems</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Josep</forename><surname>Crego</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jungi</forename><surname>Kim</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Guillaume</forename><surname>Klein</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Anabel</forename><surname>Rebollo</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kathy</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jean</forename><surname>Senellart</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Egor</forename><surname>Akhanov</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Patrice</forename><surname>Brunelle</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Aurelien</forename><surname>Coquard</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yongchao</forename><surname>Deng</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1610.05540</idno>
+		<imprint>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b8">
+	<monogr>
+		<title level="m" type="main">Multi-task learning for multiple language translation</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Daxiang</forename><surname>Dong</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Hua</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Wei</forename><surname>He</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Dianhai</forename><surname>Yu</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Haifeng</forename><surname>Wang</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2015" />
+			<publisher>ACL</publisher>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b9">
+	<analytic>
+		<title level="a" type="main">Multi-way, multilingual neural machine translation with a shared attention mechanism</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Orhan</forename><surname>Firat</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kyunghyun</forename><surname>Cho</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yoshua</forename><surname>Bengio</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">NAACL</title>
+		<imprint>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b10">
+	<analytic>
+		<title level="a" type="main">Zero-resource translation with multi-lingual neural machine translation</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Orhan</forename><surname>Firat</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Baskaran</forename><surname>Sankaran</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yaser</forename><surname>Al-Onaizan</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Fatos T Yarman</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kyunghyun</forename><surname>Vural</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Cho</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">EMNLP</title>
+		<imprint>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b11">
+	<monogr>
+		<title level="m" type="main">A convolutional encoder model for neural machine translation</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jonas</forename><surname>Gehring</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Michael</forename><surname>Auli</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">David</forename><surname>Grangier</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yann N</forename><surname>Dauphin</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1611.02344</idno>
+		<imprint>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b12">
+	<monogr>
+		<title level="m" type="main">Learning to translate in realtime with neural machine translation</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jiatao</forename><surname>Gu</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Graham</forename><surname>Neubig</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kyunghyun</forename><surname>Cho</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">O</forename><forename type="middle">K</forename><surname>Victor</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Li</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1610.00388</idno>
+		<imprint>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b13">
+	<monogr>
+		<title level="m" type="main">Toward multilingual neural machine translation with universal encoder and decoder</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Thanh-Le</forename><surname>Ha</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jan</forename><surname>Niehues</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Alexander</forename><surname>Waibel</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1611.04798</idno>
+		<imprint>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b14">
+	<analytic>
+		<title level="a" type="main">Learning continuous control policies by stochastic value gradients</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Nicolas</forename><surname>Heess</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Gregory</forename><surname>Wayne</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">David</forename><surname>Silver</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Tim</forename><surname>Lillicrap</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Tom</forename><surname>Erez</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yuval</forename><surname>Tassa</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Advances in Neural Information Processing Systems</title>
+		<imprint>
+			<date type="published" when="2015" />
+			<biblScope unit="page" from="2944" to="2952" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b15">
+	<analytic>
+		<title level="a" type="main">Recurrent continuous translation models</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Nal</forename><surname>Kalchbrenner</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Phil</forename><surname>Blunsom</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">EMNLP</title>
+		<imprint>
+			<date type="published" when="2013" />
+			<biblScope unit="page" from="1700" to="1709" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b16">
+	<analytic>
+		<title level="a" type="main">Philipp Koehn. 2004. Statistical significance tests for machine translation evaluation</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Nal</forename><surname>Kalchbrenner</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Lasse</forename><surname>Espeholt</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Karen</forename><surname>Simonyan</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Aaron</forename><surname>Van Den Oord</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Alex</forename><surname>Graves</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Koray</forename><surname>Kavukcuoglu</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1610.10099</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Neural machine translation in linear time</title>
+		<imprint>
+			<date type="published" when="2016" />
+			<biblScope unit="page" from="388" to="395" />
+		</imprint>
+	</monogr>
+<note type="report_type">arXiv preprint</note>
+	<note>EMNLP</note>
+</biblStruct>
+
+<biblStruct xml:id="b17">
+	<monogr>
+		<title level="m" type="main">Fully character-level neural machine translation without explicit segmentation</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jason</forename><surname>Lee</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kyunghyun</forename><surname>Cho</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Thomas</forename><surname>Hofmann</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1610.03017</idno>
+		<imprint>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b18">
+	<monogr>
+		<title level="m" type="main">A simple, fast diverse decoding algorithm for neural generation</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jiwei</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Will</forename><surname>Monroe</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Dan</forename><surname>Jurafsky</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1611.08562</idno>
+		<imprint>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b19">
+	<monogr>
+		<title level="m" type="main">Learning to decode for future success</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jiwei</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Will</forename><surname>Monroe</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Dan</forename><surname>Jurafsky</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1701.06549</idno>
+		<imprint>
+			<date type="published" when="2017" />
+		</imprint>
+	</monogr>
+<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b20">
+	<monogr>
+				<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jonathan</forename><forename type="middle">J</forename><surname>Timothy P Lillicrap</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Alexander</forename><surname>Hunt</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Nicolas</forename><surname>Pritzel</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Tom</forename><surname>Heess</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yuval</forename><surname>Erez</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">David</forename><surname>Tassa</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Daan</forename><surname>Silver</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Wierstra</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1509.02971</idno>
+		<title level="m">Continuous control with deep reinforcement learning</title>
+		<imprint>
+			<date type="published" when="2015" />
+		</imprint>
+	</monogr>
+<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b21">
+	<analytic>
+		<title level="a" type="main">Automatic evaluation of machine translation quality using longest common subsequence and skip-bigram statistics</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Chin-Yew</forename><surname>Lin</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Franz Josef</forename><surname>Och</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 42nd Annual Meeting on Association for Computational Linguistics</title>
+		<meeting>the 42nd Annual Meeting on Association for Computational Linguistics</meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2004" />
+			<biblScope unit="page">605</biblScope>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b22">
+	<monogr>
+				<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Wang</forename><surname>Ling</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Isabel</forename><surname>Trancoso</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Chris</forename><surname>Dyer</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Alan</forename><forename type="middle">W</forename><surname>Black</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1511.04586</idno>
+		<title level="m">Character-based neural machine translation</title>
+		<imprint>
+			<date type="published" when="2015" />
+		</imprint>
+	</monogr>
+<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b23">
+	<monogr>
+		<title level="m" type="main">Multi-task sequence to sequence learning</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Minh-Thang</forename><surname>Luong</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">V</forename><surname>Quoc</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ilya</forename><surname>Le</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Oriol</forename><surname>Sutskever</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Lukasz</forename><surname>Vinyals</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Kaiser</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1511.06114</idno>
+		<imprint>
+			<date type="published" when="2015" />
+		</imprint>
+	</monogr>
+<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b24">
+	<monogr>
+		<title level="m" type="main">Achieving open vocabulary neural machine translation with hybrid word-character models</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Minh-Thang</forename><surname>Luong</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Christopher D</forename><surname>Manning</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1604.00788</idno>
+		<imprint>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b25">
+	<monogr>
+		<title level="m" type="main">Effective approaches to attentionbased neural machine translation</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Minh-Thang</forename><surname>Luong</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Hieu</forename><surname>Pham</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Christopher D</forename><surname>Manning</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1508.04025</idno>
+		<imprint>
+			<date type="published" when="2015" />
+		</imprint>
+	</monogr>
+<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b26">
+	<monogr>
+				<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Sumit</forename><surname>Marc&amp;apos;aurelio Ranzato</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Michael</forename><surname>Chopra</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Wojciech</forename><surname>Auli</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Zaremba</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1511.06732</idno>
+		<title level="m">Sequence level training with recurrent neural networks</title>
+		<imprint>
+			<date type="published" when="2015" />
+		</imprint>
+	</monogr>
+<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b27">
+	<monogr>
+				<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Rico</forename><surname>Sennrich</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Barry</forename><surname>Haddow</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Alexandra</forename><surname>Birch</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1508.07909</idno>
+		<title level="m">Neural machine translation of rare words with subword units</title>
+		<imprint>
+			<date type="published" when="2015" />
+		</imprint>
+	</monogr>
+<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b28">
+	<monogr>
+		<title level="m" type="main">Edinburgh neural machine translation systems for wmt 16</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Rico</forename><surname>Sennrich</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Barry</forename><surname>Haddow</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Alexandra</forename><surname>Birch</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1606.02891</idno>
+		<imprint>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b29">
+	<monogr>
+				<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Shiqi</forename><surname>Shen</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yong</forename><surname>Cheng</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Zhongjun</forename><surname>He</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Wei</forename><surname>He</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Hua</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Maosong</forename><surname>Sun</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yang</forename><surname>Liu</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1512.02433</idno>
+		<title level="m">Minimum risk training for neural machine translation</title>
+		<imprint>
+			<date type="published" when="2015" />
+		</imprint>
+	</monogr>
+<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b30">
+	<analytic>
+		<title level="a" type="main">Deterministic policy gradient algorithms</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">David</forename><surname>Silver</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Guy</forename><surname>Lever</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Nicolas</forename><surname>Heess</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Thomas</forename><surname>Degris</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Daan</forename><surname>Wierstra</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Martin</forename><surname>Riedmiller</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">ICML</title>
+		<imprint>
+			<date type="published" when="2014" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b31">
+	<analytic>
+		<title level="a" type="main">Sequence to sequence learning with neural networks</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ilya</forename><surname>Sutskever</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Oriol</forename><surname>Vinyals</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Quoc V</forename><surname>Le</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">NIPS</title>
+		<imprint>
+			<date type="published" when="2014" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b32">
+	<monogr>
+		<title level="m" type="main">Lecture 6.5-rmsprop: Divide the gradient by a running average of its recent magnitude. COURSERA: Neural networks for machine learning</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Tijmen</forename><surname>Tieleman</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Geoffrey</forename><surname>Hinton</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2012" />
+			<biblScope unit="volume">4</biblScope>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b33">
+	<monogr>
+				<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Zhaopeng</forename><surname>Tu</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yang</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Lifeng</forename><surname>Shang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Xiaohua</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Hang</forename><surname>Li</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1611.01874</idno>
+		<title level="m">Neural machine translation with reconstruction</title>
+		<imprint>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b34">
+	<monogr>
+		<title level="m" type="main">Modeling coverage for neural machine translation</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Zhaopeng</forename><surname>Tu</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Zhengdong</forename><surname>Lu</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yang</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Xiaohua</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Hang</forename><surname>Li</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1601.04811</idno>
+		<imprint>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b35">
+	<monogr>
+		<title level="m" type="main">Google&apos;s multilingual neural machine translation system: Enabling zero-shot translation</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Fernanda</forename><surname>Viégas</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Greg</forename><surname>Corrado</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jeffrey</forename><surname>Dean</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Macduff</forename><surname>Hughes</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Martin</forename><surname>Wattenberg</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Maxim</forename><surname>Krikun</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Melvin</forename><surname>Johnson</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Mike</forename><surname>Schuster</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Nikhil</forename><surname>Thorat</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">V</forename><surname>Quoc</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Le</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b36">
+	<monogr>
+		<title level="m" type="main">Sequence-to-sequence learning as beam-search optimization</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Sam</forename><surname>Wiseman</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Alexander M</forename><surname>Rush</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1606.02960</idno>
+		<imprint>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b37">
+	<monogr>
+				<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Y</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">M</forename><surname>Schuster</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Z</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Q</forename><forename type="middle">V</forename><surname>Le</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">M</forename><surname>Norouzi</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">W</forename><surname>Macherey</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">M</forename><surname>Krikun</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Y</forename><surname>Cao</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Q</forename><surname>Gao</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">K</forename><surname>Macherey</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">J</forename><surname>Klingner</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">A</forename><surname>Shah</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">M</forename><surname>Johnson</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">X</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ł</forename><surname>Kaiser</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">S</forename><surname>Gouws</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Y</forename><surname>Kato</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">T</forename><surname>Kudo</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">H</forename><surname>Kazawa</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">K</forename><surname>Stevens</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">G</forename><surname>Kurian</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">N</forename><surname>Patil</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">W</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">C</forename><surname>Young</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">J</forename><surname>Smith</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">J</forename><surname>Riesa</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">A</forename><surname>Rudnick</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">O</forename><surname>Vinyals</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">G</forename><surname>Corrado</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">M</forename><surname>Hughes</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">J</forename><surname>Dean</surname></persName>
+		</author>
+		<title level="m">Google&apos;s Neural Machine Translation System: Bridging the Gap between Human and Machine Translation</title>
+		<imprint>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+	<note>ArXiv e-prints</note>
+</biblStruct>
+
+<biblStruct xml:id="b38">
+	<monogr>
+				<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Matthew D Zeiler</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1212.5701</idno>
+		<title level="m">Adadelta: an adaptive learning rate method</title>
+		<imprint>
+			<date type="published" when="2012" />
+		</imprint>
+	</monogr>
+<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+				</listBibl>
+			</div>
+		</back>
+	</text>
+</TEI>

@@ -1,0 +1,1014 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<TEI xmlns="http://www.tei-c.org/ns/1.0" 
+xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+xsi:schemaLocation="http://www.tei-c.org/ns/1.0 /home/ana/installs/grobid/grobid-0.5.1/grobid-home/schemas/xsd/Grobid.xsd"
+ xmlns:xlink="http://www.w3.org/1999/xlink">
+	<teiHeader xml:lang="en">
+		<encodingDesc>
+			<appInfo>
+				<application version="0.5.1-SNAPSHOT" ident="GROBID" when="2019-04-18T11:44+0000">
+					<ref target="https://github.com/kermitt2/grobid">GROBID - A machine learning software for extracting information from scholarly documents</ref>
+				</application>
+			</appInfo>
+		</encodingDesc>
+		<fileDesc>
+			<titleStmt>
+				<title level="a" type="main">Aggregating and Predicting Sequence Labels from Crowd Annotations</title>
+			</titleStmt>
+			<publicationStmt>
+				<publisher>Association for Computational Linguistics</publisher>
+				<availability status="unknown"><p>Copyright Association for Computational Linguistics</p>
+				</availability>
+				<date>July 30-August 4, 2017. July 30-August 4, 2017</date>
+			</publicationStmt>
+			<sourceDesc>
+				<biblStruct>
+					<analytic>
+						<author>
+							<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">An</forename><forename type="middle">Thanh</forename><surname>Nguyen</surname></persName>
+						</author>
+						<author>
+							<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Byron</forename><forename type="middle">C</forename><surname>Wallace</surname></persName>
+						</author>
+						<author>
+							<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Junyi</forename><forename type="middle">Jessy</forename><surname>Li</surname></persName>
+						</author>
+						<author>
+							<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ani</forename><surname>Nenkova</surname></persName>
+						</author>
+						<author>
+							<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Matthew</forename><surname>Lease</surname></persName>
+						</author>
+						<title level="a" type="main">Aggregating and Predicting Sequence Labels from Crowd Annotations</title>
+					</analytic>
+					<monogr>
+						<title level="m">Proceedings of the 55th Annual Meeting of the Association for Computational Linguistics (Volume 1: Long Papers)</title>
+						<meeting>the 55th Annual Meeting of the Association for Computational Linguistics (Volume 1: Long Papers) <address><addrLine>Vancouver, Canada; Vancouver, Canada</addrLine></address>
+						</meeting>
+						<imprint>
+							<publisher>Association for Computational Linguistics</publisher>
+							<biblScope unit="page" from="299" to="309"/>
+							<date type="published">July 30-August 4, 2017. July 30-August 4, 2017</date>
+						</imprint>
+					</monogr>
+					<idno type="DOI">10.18653/v1/p17-1028</idno>
+				</biblStruct>
+			</sourceDesc>
+		</fileDesc>
+		<profileDesc>
+			<abstract>
+				<p>Despite sequences being core to NLP, scant work has considered how to handle noisy sequence labels from multiple anno-tators for the same text. Given such annotations , we consider two complementary tasks: (1) aggregating sequential crowd labels to infer a best single set of consensus annotations; and (2) using crowd annotations as training data for a model that can predict sequences in unannotated text. For aggregation, we propose a novel Hidden Markov Model variant. To predict sequences in unannotated text, we propose a neural approach using Long Short Term Memory. We evaluate a suite of methods across two different applications and text genres: Named-Entity Recognition in news articles and Information Extraction from biomedical abstracts. Results show improvement over strong baselines. Our source code and data are available online 1 .</p>
+			</abstract>
+		</profileDesc>
+	</teiHeader>
+	<text xml:lang="en">
+		<body>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="1">Introduction</head><p>Many important problems in Natural Language Processing (NLP) may be viewed as sequence la- beling tasks, such as part-of-speech (PoS) tagging, named-entity recognition (NER), and Information Extraction (IE). As with other machine learning tasks, automatic sequence labeling typically re- quires annotated corpora on which to train pre- dictive models. While such annotation was tra- ditionally performed by domain experts, crowd- sourcing has become a popular means to acquire large labeled datasets at lower cost, though anno- tations from laypeople may be lower quality than those from domain experts ( <ref type="bibr" target="#b31">Snow et al., 2008</ref> is therefore essential to model crowdsourced la- bel quality, both to estimate individual annotator reliability and to aggregate individual annotations to induce a single set of "reference standard" con- sensus labels. While many models have been pro- posed for aggregating crowd labels for binary or multiclass classification problems <ref type="bibr" target="#b30">(Sheshadri and Lease, 2013)</ref>, far less work has explored crowd- based annotation of sequences ( <ref type="bibr" target="#b6">Finin et al., 2010;</ref><ref type="bibr" target="#b10">Hovy et al., 2014;</ref><ref type="bibr" target="#b27">Rodrigues et al., 2014)</ref>.</p><p>In this paper, we investigate two complemen- tary challenges in using sequential crowd labels: how to best aggregate them (Task 1); and how to accurately predict sequences in unannotated text given training data from the crowd (Task 2). For aggregation, one might want to induce a single set of high-quality consensus annotations for various purposes: (i) for direct use at run-time (when a given application requires human-level accuracy in identifying sequences); (ii) for sharing with oth- ers; or (iii) for training a predictive model. When human-level accuracy in tagging of se- quences is not crucial, automatic labeling of unan- notated text is typically preferable, as it is more ef- ficient, scalable, and cost-effective. Given a train- ing set of crowd labels, how can we best predict sequences in unannotated text? Should we: (i) consider Task 1 as a pre-processing step and train the model using consensus labels; or (ii) instead directly train the model on all of the individual an- notations, as done by <ref type="bibr" target="#b35">Yang et al. (2010)</ref>? We in- vestigate both directions in this work.</p><p>Our approach is to augment existing sequence labeling models such as HMMs <ref type="bibr" target="#b25">(Rabiner and Juang, 1986)</ref> and <ref type="bibr">LSTMs (Hochreiter and Schmidhuber, 1997;</ref><ref type="bibr" target="#b19">Lample et al., 2016</ref>) by introduc- ing an explicit "crowd component". For HMMs, we model this crowd component by including ad- ditional parameters for worker label quality and crowd label variables. For the LSTM, we intro- duce a vector representation for each annotator. In both cases, the crowd component models both the noise from labels and the label quality from each annotator. We find that principled combination of the "crowd component" with the "sequence com- ponent" yields strong improvement.</p><p>For evaluation, we consider two practical ap- plications in two text genres: NER in news and IE from medical abstracts. Recognizing named- entities such as people, organizations or loca- tions can be viewed as a sequence labeling task in which each label specifies whether each word is Inside, Outside or Beginning (IOB) a named- entity. For this task, we consider the English por- tion of the CoNLL-2003 dataset <ref type="bibr" target="#b32">(Tjong Kim Sang and De Meulder, 2003)</ref>, using crowd labels col- lected by <ref type="bibr" target="#b27">Rodrigues et al. (2014)</ref>.</p><p>For the IE application, we use a set of biomedi- cal abstracts that describe Randomized Controlled Trials (RCTs). The crowdsourced annotations comprise labeled text spans that describe the pa- tient populations enrolled in the corresponding RCTs. For example, an abstract may contain the text: we recruited and enrolled diabetic patients. Identifying these sequences is useful for down- stream systems that process biomedical literature, e.g., clinical search engines ( <ref type="bibr" target="#b12">Huang et al., 2006;</ref><ref type="bibr" target="#b29">Schardt et al., 2007;</ref>.</p><p>Contributions. We present a systematic inves- tigation and evaluation of alternative methods for handling and utilizing crowd labels for sequen- tial annotation tasks. We consider both how to best aggregate sequential crowd labels (Task 1) and how to best predict sequences in unannotated text given a training set of crowd annotations (Task 2). As part of this work, we propose novel models for working with noisy sequence labels from the crowd. Reported experiments both benchmark ex- isting state-of-the-art approaches (sequential and non-sequential) and show that our proposed mod- els achieve best-in-class performance. As noted in the Abstract, we have also shared our sourcecode and data online for use by the community.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2">Related Work</head><p>We briefly review two separate threads of relevant prior work: (1) sequence labeling models; and (2) aggregation of crowdsourcing annotations.</p><p>Sequence labeling. Early work on learning for sequential tasks used HMMs ( <ref type="bibr">Bikel et al., 1997</ref>). HMMs are a class of generative probabilistic mod- els comprising two components: an emission model from a hidden state to an observation and a transition model from a hidden state to the next hidden state. Later work focused on discriminative models such as Maximum Entropy Models ( <ref type="bibr">Chieu and Ng, 2002</ref>) and Conditional Random Fields (CRFs) ( <ref type="bibr" target="#b18">Lafferty et al., 2001</ref>). These were able to achieve strong predictive performance by ex- ploiting arbitrary features, but they may not be the best choice for label aggregation. Also, compared to the simple HMM model, discriminative sequen- tially structured models require more complex op- timization and are generally more difficult to ex- tend. Here we argue for the generative HMMs for our first task of aggregating crowd labels. The generative nature of HMMs is a good fit for exist- ing crowd modeling techniques and also enables very efficient parameter estimation.</p><p>In addition to the supervised setting, previ- ous work has studied unsupervised HMMs, e.g., for PoS induction <ref type="bibr" target="#b7">(Goldwater and Griffiths, 2007;</ref><ref type="bibr" target="#b14">Johnson, 2007)</ref>. These works are similar to our work in trying to infer the hidden states without labeled data. Our graphical model is different in incorporating signal from the crowd labels.</p><p>For Task 2 (training predictive models), we con- sider CRFs and LSTMs. CRFs are undirected, conditional models that can exploit arbitrary fea- tures. They have achieved strong performance on many sequence labeling tasks <ref type="bibr" target="#b22">(McCallum and Li, 2003</ref>), but they depend on hand-crafted features. Recent work has considered end-to-end neural ar- chitectures that learn features, e.g., Convolutional Neural Networks (CNNs) <ref type="bibr" target="#b1">(Collobert et al., 2011;</ref><ref type="bibr" target="#b17">Kim, 2014;</ref><ref type="bibr" target="#b36">Zhang and Wallace, 2015</ref>) and LSTMs ( <ref type="bibr" target="#b19">Lample et al., 2016</ref>). Here we modify the LSTM model proposed by <ref type="bibr" target="#b19">Lample et al. (2016)</ref> by aug- menting the network with 'crowd worker vectors'. Crowdsourcing. Acquiring labeled data is crit- ical for training supervised models. <ref type="bibr" target="#b31">Snow et al. (2008)</ref> proposed using Amazon Mechanical Turk to collect labels in NLP quickly and at low cost, albeit with some degradation in quality. Subse- quent work has developed models for improving aggregate label quality ( <ref type="bibr" target="#b26">Raykar et al., 2010;</ref><ref type="bibr" target="#b5">Felt et al., 2015;</ref><ref type="bibr" target="#b15">Kajino et al., 2012;</ref><ref type="bibr">Bi et al., 2014;</ref><ref type="bibr" target="#b9">Hovy et al., 2013</ref>). Sheshadri and Lease (2013) survey and benchmark methods.</p><p>However, these models are almost all in the binary or multiclass classification setting; only a few have considered sequence labeling. <ref type="bibr" target="#b4">Dredze et al. (2009)</ref> proposed a method for learning a CRF model from multiple labels (although the identi- ties of the annotators or workers were not used). <ref type="bibr" target="#b27">Rodrigues et al. (2014)</ref> extended this approach to account for worker identities, providing a joint "crowd-CRF" model. They collected a dataset of crowdsourced labels for a portion of the CoNLL 2003 dataset. Using this, they showed that their model outperformed <ref type="bibr" target="#b4">Dredze et al. (2009)</ref>'s model and other baselines. However, due to the technical difficulty of the joint approach with CRFs, they re- sorted to strong modeling assumptions. For exam- ple, their model assumes that for each word, only one worker provides the correct answer while all others label the word completely randomly. While this assumption captures some aspects of label quality, it is potentially problematic, such as for 'easy words' labeled correctly by all workers.</p><p>More recently, ? proposed HMM models for aggregating crowdsourced discourse segmentation labels. However, they did not consider the general sequence labeling setting. Their method includes task-specific assumptions, e.g., that discourse seg- ment lengths follow some empirical distribution estimated from data. In the absence of a gold stan- dard, they evaluated by checking that workers ac- curacies are consistent and by comparing their two models to each other. We include their approach along with <ref type="bibr" target="#b27">Rodrigues et al. (2014)</ref> as a baseline in our evaluation.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3">Methods</head><p>We present our Task 1 HMM approach in Section 3.1 and our Task 2 LSTM approach in Section 3.2.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.1">HMMs with Crowd Workers</head><p>Model: We first define a standard HMM with hid- den states h i , observations v i , transition parameter vectors τ h i and emission parameter vectors Ω h i :</p><formula xml:id="formula_0">h i+1 |h i ∼ Discrete(τ h i ) (1) v i |h i ∼ Discrete(Ω h i )<label>(2)</label></formula><p>The discrete distributions here are governed by Multinomials. In the context of our task, v i is the word at position i and h i is the true, latent class of v i (e.g., entity or non-entity).</p><p>For the crowd component, assume there are n classes, and let l ij be the label for word i provided by worker j. Further, let C (j) be the confusion matrix for worker j, i.e., C (j) k is a vector of size n in which element k is the probability of worker j providing the label k for a word of true class k: <ref type="figure" target="#fig_0">Figure 1</ref> shows the factor graph of this model, which we call HMM-Crowd. Note that we assume that individual crowdworker labels are condition- ally independent given the (hidden) true label. A common problem with crowdsourcing mod- els is data sparsity. For workers who provide only a few labels, it is hard to derive a good estimate of their confusion matrices. This is exacerbated when the label distribution is imbalanced, e.g., most words are not part of a named entity, con- centrating the counts in a few confusion matrix entries. Solutions for this problem include hierar- chical models of 'worker communities' ( <ref type="bibr" target="#b33">Venanzi et al., 2014)</ref> or correlations between confusion ma- trix entries <ref type="bibr" target="#b23">(Nguyen et al., 2016)</ref>. Although ef- fective, these methods are also quite computation- ally expensive. For our models, to keep parame- ter estimation efficient, we use a simpler solution of 'collapsing' the confusion matrix into a 'confu- sion vector'. For worker j, instead of having the</p><formula xml:id="formula_1">l ij |h i ∼ Discrete(C (j) h i ) (3)</formula><formula xml:id="formula_2">n × n matrix C (j) , we use the n × 1 vector C (j) where C (j)</formula><p>k is the probability of worker j labeling a word with true class k correctly. We also smooth the estimate of C with prior counts as in ( <ref type="bibr" target="#b20">Liu and Wang, 2012;</ref><ref type="bibr" target="#b16">Kim and Ghahramani, 2012)</ref>. Learning: We use the Expectation Maximization (EM) algorithm <ref type="bibr" target="#b3">(Dempster et al., 1977)</ref> to learn the parameters (τ , Ω, C ), given the observations (all the words V and all the worker labels L).</p><p>In the E-step, given the current estimates of the parameters, we take a forward and a backward pass in the HMM to infer the hidden states, i.e. to calculate p(h i |V, L) and p(h i , h i+1 |V, L) for all appropriate i. Let α(h i ) = p(h i , v 1:i , l 1:i ) where v 1:i are the words from position 1 to i and l 1:i are the crowd labels for these words from all work- ers. Similarly, let β(h i ) = p(v i+1:n , l i+1:n |h i ). We have the recursions:</p><formula xml:id="formula_3">α(hi) = h i−1 p(vi|hi)p(hi|hi−1) j p(lij|hi)α(hi−1) (4) β(hi) = h i+1 p(hi+1|hi)p(vi+1|hi+1) j p(li+1,j|hi+1)β(hi+1)<label>(5)</label></formula><p>These are the standard α and β recursions for HMMs augmented with the crowd model: the product j over the workers j who have provided labels for word i (or i + 1). The posteriors can then be easily evaluated:</p><formula xml:id="formula_4">p(h i |V, L) ∝ α(h i )β(h i ) and p(h i , h i+1 |V, L) ∝ α(h i )p(h i+1 |h i )p(v i+1 |h i+1 )β(h i+1 )</formula><p>In the standard M-step, the parameters are es- timated using maximum likelihood. However, we found a Variational Bayesian (VB) update proce- dure for the HMM parameters similar to <ref type="bibr" target="#b14">(Johnson, 2007;</ref><ref type="bibr" target="#b0">Beal, 2003)</ref> provides some improve- ment and stability. We first define the Dirichlet priors over the transition and emission parameters:</p><formula xml:id="formula_5">p(τ h i ) = Dir(a t ) (6) p(Ω h i ) = Dir(a e )<label>(7)</label></formula><p>With these priors, the variational M-step updates the parameters as follows 2 :</p><formula xml:id="formula_6">τ h |h = exp{Ψ(E h |h + a t )} exp{Ψ(E h + na t )}<label>(8)</label></formula><formula xml:id="formula_7">Ω v|h = exp{Ψ(E v|h + a e )} exp{Ψ(E h + ma e )} (9)</formula><p>where Ψ is the Digamma function, n is the num- ber of states and m is the number of observa- tions. E denotes the expected counts, calculated from the posteriors inferred in the E-step. E h |h is the expected number of times the HMM transi- tioned from state h to state h , where the expec- tation is with respect to the posterior distribution p(h i , h i+1 |V, L) that we infer in the E step:</p><formula xml:id="formula_8">E h |h = i p(h i = h, h i+1 = h |V, L)<label>(10)</label></formula><p>2 See Beal (2003) for the derivation and Johnson (2007) for further discussion for the Variational Bayesian approach.</p><p>Similarly, E h is the expected number of times the HMM is at state h: E h = i p(h i = h|V, L) and E v|h is the expected number of times the HMM emits the observation v from the state h:</p><formula xml:id="formula_9">E v|h = i,v i =v p(h i = h|V, L).</formula><p>For the crowd parameters C (j) , we use the (smoothed) maximum likelihood estimate:</p><formula xml:id="formula_10">C (j) k = E (j) k|k + a c E (j) k + na c (11)</formula><p>where a c is the smoothing parameter and E</p><note type="other">(j) k|k is the expected number of times that worker j cor- rectly labeled a word of true class k as k while E (j) k is the expected total number of words belonging to class k worker j has labeled. Again, the expecta- tion in E is taken under the posterior distributions that we infer in the E step.</note></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.2">Long Short Term Memory with Crowds</head><p>For Task 2, we extend the LSTM architecture <ref type="bibr" target="#b8">(Hochreiter and Schmidhuber, 1997</ref>) for NER ( <ref type="bibr" target="#b19">Lample et al., 2016</ref>) to account for noisy crowd- sourced labels (this can be easily adapted to other sequence labeling tasks). In this model, the sen- tence input is first fed into an LSTM block (which includes character-and word-level bi-directional LSTM units). The LSTM block's output then be- comes input to a (fully connected) hidden layer, which produces a vector of tags scores for each word. This tag score vector is the word-level pre- diction, representing the likelihood of the word be- ing from each tag. All the tags scores are then fed into a 'CRF layer' that 'connects' the word-level predictions in the sentence and produces the final output: the most likely sequence of tags.</p><p>We introduce a crowd representation in which a worker vector represents the noise associated with her labels. In other words, the parameters in the original architecture learns the correct sequence labeling model while the crowd vectors add noise to its predictions to 'explain' the lower quality of the labels. We assume a perfect worker has a zero vector as her representation while an unreliable worker is represented by a large magnitude vector. At test time, we ignore the crowd component and make predictions by feeding the unlabeled sen- tence into the original LSTM architecture. At train time, an example consists of the labeled sentence and the ID of the worker who provided the labels. Worker IDs are mapped to vector representations and incorporated into the LSTM architecture.   We propose two strategies for incorporating the crowd vector into the LSTM: (1) adding the crowd vector to the tags scores and (2) concatenating the crowd vector to the output of the LSTM block.</p><p>LSTM-Crowd. The first strategy is illustrated in <ref type="figure" target="#fig_2">Figure 2</ref>. We set the dimension of the crowd vectors to be equal to the number of tags and the addition is element-wise. In this strategy, the crowd vectors have a nice interpretation: the tag- conditional noise for the worker. This is useful for worker evaluation and intelligent task routing (i.e. assigning the right work to the right worker).</p><p>LSTM-Crowd-cat. The second strategy is il- lustrated in <ref type="figure" target="#fig_3">Figure 3</ref>. We set the crowd vectors to be additional inputs for the Hidden Layer (along with the LSTM block output). In this way, we are free to set the dimension of the crowd vectors and we have a more flexible model of worker noise. This comes with a cost of reduced interpretability and additional parameters in the hidden layer.</p><p>For both strategies, the crowd vectors are ran- domly initialized and learned in the same LSTM architecture using Back Propagation ( <ref type="bibr" target="#b28">Rumelhart et al., 1985)</ref> and Stochastic Gradient Descent (SGD) <ref type="bibr">(Bottou, 2010)</ref>.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Dataset</head><p>Application <ref type="table" target="#tab_3">Size Gold Crowd  CoNLL'03  NER  1393 All  400  Medical  IE  5000 200  All   Table 1</ref>: Datasets used for each application. We list the total number of articles/abstracts and the number which have Gold/Crowd labels. Biomedical IE. We use 5,000 medical paper abstracts describing randomized control trials (RCTs) involving people. Each abstract is an- notated by roughly 5 Amazon Mechanical Turk workers. Annotators were asked to mark all text spans in a given abstract which identify the pop- ulation enrolled in the clinical trial. The anno- tations are therefore binary: inside or outside a span. In addition to annotations collected from laypeople via Mechanical Turk, we also use gold annotations by medical students for a small set of 200 abstracts, which we split into 50% validation and 50% test. For Task 1, we run methods being compared on all 5,000 abstracts, but we evaluate them only using the validation/test set. For Task 2, the validation and test sets are held out. <ref type="table">Table 1</ref> presents key statistics of datasets used.</p><p>Tuning: In all experiments, validation set results are used to tune the models hyper-parameters. For HMM-Crowd, we have a smoothing parameter and two Dirichlet priors. For our two LSTMs, we have a L2 regularization parameter. For LSTM- Crowd-cat, we also have the crowd vector dimen-sion. For each hyper-parameter, we consider a few (less then 5) different parameter settings for light tuning. We report results achieved on the test set.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.2">Baselines</head><p>Task 1. For aggregating crowd labels, we consider the following baselines:</p><p>• Majority Voting (MV) at the token level. <ref type="bibr" target="#b27">Rodrigues et al. (2014)</ref> show that this generally performs better than MV at the entity level.</p><p>• Dawid and Skene (1979) weighted voting at the token level. We tested both a popular public implementation 5 of Dawid-Skene and our own and found that ours performed better (likely due to smoothing), so we report it.</p><p>• MACE ( <ref type="bibr" target="#b9">Hovy et al., 2013)</ref>, using the authors' public implementation 6 .</p><p>• Dawid-Skene then HMM. We propose a sim- ple heuristic to aggregate sequential crowd labels: (1) use <ref type="bibr" target="#b2">Dawid and Skene (1979)</ref> to in- duce consensus labels from individual crowd labels; (2) train a HMM using the input text and consensus labels; and then (3) use the trained HMM to predict and output labels for the input text. We also tried using a CRF or LSTM as the sequence labeler but found the HMM performed best. This is not surprising: CRFs and LSTM are good at predicting un- seen sequences, whereas the predictions here are on the seen training sequences.</p><p>• <ref type="bibr" target="#b27">Rodrigues et al. (2014)</ref>'s CRF with Multiple Annotators (CRF-MA). We use the source code provided by the authors.</p><p>• ?'s Interval-dependent (ID) HMM using the authors' source code 7 . Since they assume binary labels, we can only apply this to the biomedical IE task.</p><p>For non-sequential aggregation baselines, we eval- uate majority voting (MV) and <ref type="bibr" target="#b2">Dawid and Skene (1979)</ref> as perhaps the most widely known and used in practice. A recent benchmark evalua- tion of aggregation methods for (non-sequential) crowd labels found that classic Dawid-Skene was the most consistently strong performing method among those considered, despite its age, while majority voting was often outperformed by other methods <ref type="bibr" target="#b30">(Sheshadri and Lease, 2013)</ref>. <ref type="bibr" target="#b2">Dawid and Skene (1979)</ref> models a confusion matrix for each annotator, using EM estimation of these matrices as parameters and the true token la- bels as hidden variables. This is roughly equiv- alent to our proposed HMM-Crowd model (Sec- tion 3), but without the HMM component.</p><p>Task 2. To predict sequences on unannotated text when trained on crowd labels, we consider two broad approaches: (1) directly train the model on all individual crowd annotations; and (2) induce consensus labels via Task 1 and train on them.</p><p>For approach (1), we report as baselines:</p><p>• For approach <ref type="formula" target="#formula_0">(2)</ref>, we report as baselines:</p><p>• Majority Voting (MV) then Conditional Ran- dom Field (CRF). We train the CRF using the CRF Suite package (Okazaki, 2007) with the same features as in <ref type="bibr" target="#b27">Rodrigues et al. (2014)</ref>, who also report this baseline.</p><p>• Lample et al. (2016)'s LSTM trained on Dawid-Skene (DS) consensus labels.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.3">Metrics</head><p>NER. We use the CoNLL 2003 metrics of entity- level precision, recall and F1. The predicted entity must match the gold entity exactly (i.e. no partial credit is given for partial matches).</p><p>Biomedical IE. The above metrics are overly strict for the biomedical IR task, in which an- notated sequences are typically far longer than named-entities. We therefore 'relax' the metric to credit partial matches as follows. For each pre- dicted positive contiguous text span, we calculate: Precision = # true positive words # words in this predicted span For example, for a predicted span of 10 words, if 6 words are truly positive, the Precision is 60%. We evaluate this 'local' precision for each predicted span and then take the average as the 'global' pre- cision. Similarly, for each gold span, we calculate:  <ref type="table">Table 2</ref>: NER results for Task 1 (crowd label ag- gregation). Rows 1-3 show non-sequential meth- ods while Rows 4-6 show sequential methods.</p><formula xml:id="formula_11">Recall = #</formula><p>The recall scores for all the gold spans are again averaged to get a global recall score. For the biomedical IE task, because we have gold labels for only a small set of 200 abstracts, we create 100 bootstrap re-samples of the (pre- dicted and gold) spans and perform the evaluation for each re-sample. We then report the mean and standard deviation over these 100 re-samples.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5">Evaluation Results</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.1">Named-Entity Recognition (NER)</head><p>Table 2 presents Task 1 results for aggregat- ing crowd labels. For the non-sequential aggre- gation baselines, we see that <ref type="bibr" target="#b2">Dawid and Skene (1979)</ref> outperforms both majority voting and MACE ( <ref type="bibr" target="#b9">Hovy et al., 2013</ref>). For sequential methods, our heuristic 'Dawid-Skene then HMM' method performs surprisingly well, nearly as well as HMM-Crowd. However, we will see that this heuristic does not work as well for biomedical IR. <ref type="bibr" target="#b27">Rodrigues et al. (2014)</ref>'s CRF-MA achieves the highest Precision of all methods, but surprisingly the lowest F1. We use their public implementa- tion but observe different results from what they report (we observed similar results when using all the crowd data without validation/test split as they do). We suspect their released source code may be optimized for Task 2, though we could not reach the authors to verify this.  <ref type="bibr" target="#b19">Lample et al. (2016)</ref>'s LSTM generally outperform the CRF methods. Adding a crowd component to the LSTM yields marked im- provement of 2.5-3 points F1 vs. the LSTM trained on individual crowd annotations or consensus MV annotations. LSTM-Crowd (trained on individual labels) and 'HMM-Crowd then LSTM' (LSTM trained on HMM consensus labels) offer different paths to achieving comparable, best results.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.2">Biomedical Information Extraction (IE)</head><p>Tables 4 and 5 present Biomedical IE results for Tasks 1 and 2, respectively. We were unable to run <ref type="bibr" target="#b27">Rodrigues et al. (2014)</ref>'s CRF-MA public imple- mentation on the Biomedical IE dataset (due to an 'Out of Memory Error' with 8gb max heapsize).</p><p>For Task 1, Majority Vote achieves nearly 92% Precision but suffers from very low Recall. As with NER, HMM-Crowd achieves the highest Re- call and F1, showing 2 points F1 improvement here over non-sequential <ref type="bibr" target="#b2">Dawid and Skene (1979)</ref>. In contrast with the NER results, our heuristic 'Dawid-Skene then HMM' performs much worse for Biomedical IE. In general, we expect heuristics to be less robust than principled methods.</p><p>For Task 2, as with NER, we again see that LSTM-Crowd (trained on individual labels) and 'HMM-Crowd then LSTM' (LSTM trained on HMM consensus labels) offer different paths to achieving fairly comparable results. While LSTM-Crowd-cat again achieves slightly lower F1, simply training <ref type="bibr" target="#b19">Lample et al. (2016)</ref>'s LSTM directly on all crowd labels performs much better than seen earlier with NER, likely due to the rela- tively larger size of this dataset (see <ref type="table">Table 1</ref>). To further investigate, we study the performances of these LSTM models as a function of training data available. In <ref type="figure" target="#fig_5">Figure 4</ref>, we see that as the amount of training data decreases, our crowd-augmented LSTM models produce greater relative improve- ment compared to the original LSTM architecture. <ref type="table">Table 6</ref> presents an example from Task 1 of a sentence with its gold span, annotations and the outputs from Dawid-Skene and HMM-Crowd. Dawid-Skene aggregates labels based only on the crowd labels while our HMM-Crowd combines that with a sequence model. HMM-Crowd is able to return the longer part of the correct span.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Method</head><p>Precision Recall F1 CRF-MA ( <ref type="bibr" target="#b27">Rodrigues et al., 2014)</ref> 49.40 85.60 62.60 LSTM ( <ref type="bibr" target="#b19">Lample et al., 2016)</ref> 83    <ref type="table">Table 5</ref>: Biomedical IE results for Task 2. Rows 1-3 correspond to training on all labels, while Rows 4-7 first aggregate crowd labels then train the sequence labeling model on consensus annotations.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Gold</head><p>... was as safe and effective as ... for the empiric treatment of acute invasive diarrhea in ambulatory pediatric patients requiring an emergency room visit Annotations ... was as safe and effective as ... for the empiric treatment of acute invasive diarrhea (2 out of 5) in ambulatory pediatric patients requiring an emergency room visit Dawid-Skene ... was as safe and effective as ... for the empiric treatment of acute invasive diarrhea in ambulatory pediatric patients requiring an emergency room visit HMM-Crowd ... was as safe and effective as ... for the empiric treatment of acute invasive diarrhea in ambulatory pediatric patients requiring an emergency room visit <ref type="table">Table 6</ref>: An example from the medical abstract dataset for task 1: inferring true labels. Out of 5 an- notations, only 2 have identified a positive span (the other 3 are empty). Dawid-Skene is able to assign higher weights to the minority of 2 annotations to return a part of the correct span. HMM-Crowd returns a longer part of the span, which we believe is due to useful signal from its sequence model. </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6">Conclusions and Future Work</head><p>Given a dataset of crowdsourced sequence labels, we presented novel methods to: (1) aggregate se- quential crowd labels to infer a best single set of consensus annotations; and (2) use crowd annota- tions as training data for a model that can predict sequences in unannotated text. We evaluated our approaches on two datasets representing different domains and tasks: general NER and biomedical IE. Results showed that our methods show im- provement over strong baselines. We expect our methods to be applicable to and similarly benefit other sequence labeling tasks, such as POS tagging and chunking <ref type="bibr" target="#b10">(Hovy et al., 2014</ref>). Our methods also provide an estimate of each worker's label quality, which can be trans- fered between tasks and is useful for error analy- sis and intelligent task routing ( <ref type="bibr">Bragg et al., 2014</ref>). We also plan to investigate extension of the crowd component in our HMM method with hierarchical models, as well as a fully-Bayesian approach. </p></div><figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_0"><head>Figure 1 :</head><label>1</label><figDesc>Figure 1: The factor graph for our HMM-Crowd model. Dotted rectangles are gates, where the value of h i is used to select the parameters for the Multinomial governing the Discrete distribution.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_2"><head>Figure 2 :</head><label>2</label><figDesc>Figure 2: The LSTM-Crowd model. The Crowd Vector is added (element-wise) to the Tags Scores.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_3"><head>Figure 3 :</head><label>3</label><figDesc>Figure 3: The LSTM-Crowd-cat model. The crowd vectors provide additional input for the Hidden Layer (they are effectively concatenated to the output of the LSTM block).</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_4"><head></head><label></label><figDesc>Rodrigues et al. (2014)'s CRF-MA • Lample et al. (2016)'s LSTM trained on all crowd labels (ignoring worker IDs)</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_5"><head>Figure 4 :</head><label>4</label><figDesc>Figure 4: F1 scores in Task 2 for biomedical IE with varying percentages of training data.</figDesc><graphic url="image-1.png" coords="9,72.00,261.82,218.26,145.66" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_3" validated="false"><head>Table 3 reports</head><label>3</label><figDesc>NER results for Task 2: predict- ing sequences on unannotated text when trained on crowd labels. Results for Rodrigues et al. (2014)'s CRF-MA are reproduced using their public imple- mentation and match their reported results. While CRF-MA outperforms 'Majority Vote then CRF' as the authors reported, and achieves the highest Recall of all methods, its F1 results are generally not competitive with other methods. Methods based on</figDesc><table></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_5" validated="false"><head>Table 3 :</head><label>3</label><figDesc></figDesc><table>NER results on Task 2: predicting sequences on unannotated text when trained on crowd labels. 
+Rows 1-4 train the predictive model using individual crowd labels, while Rows 5-8 first aggregate crowd 
+labels then train the model on the induced consensus labels. The last row indicates an upper-bound from 
+training on gold labels. LSTM-Crowd and LSTM-Crowd-cat are described in Section 3. 
+
+Method 
+Precision Recall 
+F1 
+std 
+Majority Vote 
+91.89 
+48.03 63.03 2.6 
+MACE 
+45.01 
+88.49 59.63 1.7 
+Dawid-Skene 
+77.85 
+66.77 71.84 1.7 
+Dawid-Skene then HMM 
+72.49 
+58.77 64.86 2.0 
+ID HMM (?) 
+78.99 
+68.10 73.11 1.9 
+HMM-Crowd 
+72.81 
+75.14 73.93 1.8 
+
+</table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_6" validated="false"><head>Table 4 :</head><label>4</label><figDesc></figDesc><table>Biomedical IE results for Task 1: aggregating sequential crowd labels to induce consensus 
+labels. Rows 1-3 indicate non-sequential baselines. Results are averaged over 100 bootstrap re-samples. 
+We report the standard deviation of F1, std, due to this dataset having fewer gold labels for evaluation. 
+
+Method 
+Precision Recall 
+F1 
+std 
+LSTM (Lample et al., 2016) 
+77.43 
+61.13 68.27 1.9 
+LSTM-Crowd 
+73.83 
+63.93 68.47 1.6 
+LSTM-Crowd-cat 
+68.08 
+68.41 68.20 1.8 
+Majority Vote then CRF 
+93.71 
+33.16 48.92 2.8 
+Dawid-Skene then LSTM 
+70.21 
+65.26 67.59 1.7 
+HMM-Crowd then CRF 
+79.54 
+54.76 64.81 2.0 
+HMM-Crowd then LSTM 
+73.65 
+64.64 68.81 1.9 
+
+</table></figure>
+
+			<note place="foot" n="3"> http://www.fprodrigues.com/software/ crf-ma-sequence-labeling-with-multiple-annotators/ 4 Rodrigues et al. (2014)&apos;s results on the &apos;training set&apos; are not directly comparable to ours since they do not partition the crowd labels into validation and test sets.</note>
+
+			<note place="foot" n="5"> https://github.com/ipeirotis/Get-Another-Label 6 http://www.isi.edu/publications/licensed-sw/mace/ 7 https://academiccommons.columbia.edu/catalog/ac:199939</note>
+		</body>
+		<back>
+
+			<div type="acknowledgement">
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Acknowledgements</head><p>We thank the reviewers for their valuable com-ments. This work is supported in part by by Na-tional Science Foundation grant No. 1253413 and the National Cancer Institute (NCI) of the Na-tional Institutes of Health (NIH), award number UH2CA203711. Any opinions, findings, and con-clusions or recommendations expressed by the au-thors are entirely their own and do not represent those of the sponsoring agencies.</p></div>
+			</div>
+
+			<div type="references">
+
+				<listBibl>
+
+<biblStruct xml:id="b0">
+	<monogr>
+		<title level="m" type="main">Variational algorithms for approximate Bayesian inference</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Matthew James</forename><surname>Beal</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2003" />
+		</imprint>
+		<respStmt>
+			<orgName>University of London United Kingdom</orgName>
+		</respStmt>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b1">
+	<analytic>
+		<title level="a" type="main">Natural language processing (almost) from scratch</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ronan</forename><surname>Collobert</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jason</forename><surname>Weston</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Léon</forename><surname>Bottou</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Michael</forename><surname>Karlen</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Koray</forename><surname>Kavukcuoglu</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Pavel</forename><surname>Kuksa</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Journal of Machine Learning Research</title>
+		<imprint>
+			<biblScope unit="volume">12</biblScope>
+			<biblScope unit="page" from="2493" to="2537" />
+			<date type="published" when="2011-08" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b2">
+	<monogr>
+		<title level="m" type="main">Maximum likelihood estimation of observer errorrates using the em algorithm</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Alexander</forename></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Philip</forename><surname>Dawid</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Allan M</forename><surname>Skene</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="1979" />
+			<biblScope unit="page" from="20" to="28" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b3">
+	<analytic>
+		<title level="a" type="main">Maximum likelihood from incomplete data via the em algorithm</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">P</forename><surname>Arthur</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Nan</forename><forename type="middle">M</forename><surname>Dempster</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Donald B</forename><surname>Laird</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Rubin</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Journal of the royal statistical society. Series B (methodological</title>
+		<imprint>
+			<biblScope unit="page" from="1" to="38" />
+			<date type="published" when="1977" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b4">
+	<analytic>
+		<title level="a" type="main">Sequence learning from data with multiple labels</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Mark</forename><surname>Dredze</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Partha</forename><forename type="middle">Pratim</forename><surname>Talukdar</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Koby</forename><surname>Crammer</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">ECML-PKDD 2009 workshop on Learning from Multi-Label Data</title>
+		<imprint>
+			<date type="published" when="2009" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b5">
+	<analytic>
+		<title level="a" type="main">Early gains matter: A case for preferring generative over discriminative crowdsourcing models</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Paul</forename><surname>Felt</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Eric</forename><surname>Ringger</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kevin</forename><surname>Seppi</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Robbie</forename><surname>Haertel</surname></persName>
+		</author>
+		<idno type="doi">10.3115/v1/N15-1089</idno>
+		<ptr target="https://doi.org/10.3115/v1/N15-1089" />
+	</analytic>
+	<monogr>
+		<title level="m">Conference of the North American Chapter of the Association for Computational Linguistics</title>
+		<imprint>
+			<date type="published" when="2015" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b6">
+	<analytic>
+		<title level="a" type="main">Annotating named entities in twitter data with crowdsourcing</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Tim</forename><surname>Finin</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Will</forename><surname>Murnane</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Anand</forename><surname>Karandikar</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Nicholas</forename><surname>Keller</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Justin</forename><surname>Martineau</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Mark</forename><surname>Dredze</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the NAACL HLT 2010 Workshop on Creating Speech and Language Data with Amazon&apos;s Mechanical Turk</title>
+		<meeting>the NAACL HLT 2010 Workshop on Creating Speech and Language Data with Amazon&apos;s Mechanical Turk</meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2010" />
+			<biblScope unit="page" from="80" to="88" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b7">
+	<analytic>
+		<title level="a" type="main">A fully bayesian approach to unsupervised part-of-speech tagging</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Sharon</forename><surname>Goldwater</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Tom</forename><surname>Griffiths</surname></persName>
+		</author>
+		<ptr target="http://aclweb.org/anthology/P07-1094" />
+	</analytic>
+	<monogr>
+		<title level="m">Annual meeting-association for computational linguistics. Citeseer</title>
+		<imprint>
+			<date type="published" when="2007" />
+			<biblScope unit="volume">45</biblScope>
+			<biblScope unit="page">744</biblScope>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b8">
+	<analytic>
+		<title level="a" type="main">Long short-term memory</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Sepp</forename><surname>Hochreiter</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jürgen</forename><surname>Schmidhuber</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Neural computation</title>
+		<imprint>
+			<biblScope unit="volume">9</biblScope>
+			<biblScope unit="issue">8</biblScope>
+			<biblScope unit="page" from="1735" to="1780" />
+			<date type="published" when="1997" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b9">
+	<analytic>
+		<title level="a" type="main">Learning whom to trust with mace</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Dirk</forename><surname>Hovy</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Taylor</forename><surname>Berg-Kirkpatrick</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ashish</forename><surname>Vaswani</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Eduard</forename><surname>Hovy</surname></persName>
+		</author>
+		<ptr target="http://aclweb.org/anthology/N13-1132" />
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2013 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies</title>
+		<meeting>the 2013 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies</meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2013" />
+			<biblScope unit="page" from="1120" to="1130" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b10">
+	<analytic>
+		<title level="a" type="main">Experiments with crowdsourced re-annotation of a pos tagging data set</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Dirk</forename><surname>Hovy</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Barbara</forename><surname>Plank</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Anders</forename><surname>Søgaard</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 52nd</title>
+		<meeting>the 52nd</meeting>
+		<imprint>
+			<date type="published" when="2014" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b11">
+	<monogr>
+				<idno type="doi">10.3115/v1/P14-2062</idno>
+		<ptr target="https://doi.org/10.3115/v1/P14-2062" />
+		<title level="m">Annual Meeting of the Association for Computational Linguistics</title>
+		<imprint>
+			<biblScope unit="volume">2</biblScope>
+			<biblScope unit="page" from="377" to="382" />
+		</imprint>
+	</monogr>
+	<note>Short Papers). Association for Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b12">
+	<analytic>
+		<title level="a" type="main">PICO as a Knowledge Representation for Clinical Questions</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Xiaoli</forename><surname>Huang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jimmy</forename><surname>Lin</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Dina</forename><surname>Demner-Fushman</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">AMIA 2006 Symposium Proceedings</title>
+		<imprint>
+			<date type="published" when="2006" />
+			<biblScope unit="page" from="359" to="363" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b13">
+	<analytic>
+		<title level="a" type="main">Estimation of discourse segmentation labels from crowd data</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ziheng</forename><surname>Huang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jialu</forename><surname>Zhong</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Rebecca</forename><forename type="middle">J</forename><surname>Passonneau</surname></persName>
+		</author>
+		<ptr target="http://aclweb.org/anthology/D15-1261" />
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2015 Conference on Empirical Methods in Natural Language Processing. Association for Computational Linguistics</title>
+		<meeting>the 2015 Conference on Empirical Methods in Natural Language Processing. Association for Computational Linguistics<address><addrLine>Lisbon, Portugal</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2015" />
+			<biblScope unit="page" from="2190" to="2200" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b14">
+	<analytic>
+		<title level="a" type="main">Why doesn&apos;t em find good hmm pos-taggers?</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Mark</forename><surname>Johnson</surname></persName>
+		</author>
+		<ptr target="http://aclweb.org/anthology/D07-1031" />
+	</analytic>
+	<monogr>
+		<title level="m">EMNLP-CoNLL</title>
+		<imprint>
+			<date type="published" when="2007" />
+			<biblScope unit="page" from="296" to="305" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b15">
+	<analytic>
+		<title level="a" type="main">A convex formulation for learning from crowds</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Hiroshi</forename><surname>Kajino</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yuta</forename><surname>Tsuboi</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Hisashi</forename><surname>Kashima</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Twenty-Sixth AAAI Conference on Artificial Intelligence</title>
+		<imprint>
+			<date type="published" when="2012" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b16">
+	<analytic>
+		<title level="a" type="main">Bayesian classifier combination</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Hyun-Chul</forename><surname>Kim</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Zoubin</forename><surname>Ghahramani</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">International conference on artificial intelligence and statistics</title>
+		<imprint>
+			<date type="published" when="2012" />
+			<biblScope unit="page" from="619" to="627" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b17">
+	<analytic>
+		<title level="a" type="main">Convolutional neural networks for sentence classification</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yoon</forename><surname>Kim</surname></persName>
+		</author>
+		<ptr target="http://www.aclweb.org/anthology/D14-1181" />
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2014 Conference on Empirical Methods in Natural Language Processing (EMNLP). Association for Computational Linguistics</title>
+		<meeting>the 2014 Conference on Empirical Methods in Natural Language Processing (EMNLP). Association for Computational Linguistics<address><addrLine>Doha, Qatar</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2014" />
+			<biblScope unit="page" from="1746" to="1751" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b18">
+	<analytic>
+		<title level="a" type="main">Conditional random fields: Probabilistic models for segmenting and labeling sequence data</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">John</forename><surname>Lafferty</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Andrew</forename><surname>Mccallum</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Fernando</forename><surname>Pereira</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the eighteenth international conference on machine learning</title>
+		<meeting>the eighteenth international conference on machine learning</meeting>
+		<imprint>
+			<date type="published" when="2001" />
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="282" to="289" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b19">
+	<analytic>
+		<title level="a" type="main">Neural architectures for named entity recognition</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Guillaume</forename><surname>Lample</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Miguel</forename><surname>Ballesteros</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Sandeep</forename><surname>Subramanian</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kazuya</forename><surname>Kawakami</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Chris</forename><surname>Dyer</surname></persName>
+		</author>
+		<idno type="doi">10.18653/v1/N16-1030</idno>
+		<ptr target="https://doi.org/10.18653/v1/N16-1030" />
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2016 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies</title>
+		<meeting>the 2016 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies</meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2016" />
+			<biblScope unit="page" from="260" to="270" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b20">
+	<analytic>
+		<title level="a" type="main">Truelabel+ confusions: A spectrum of probabilistic models in analyzing multiple ratings</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Chao</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yi-Min</forename><surname>Wang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 29th International Conference on Machine Learning (ICML-12)</title>
+		<meeting>the 29th International Conference on Machine Learning (ICML-12)</meeting>
+		<imprint>
+			<date type="published" when="2012" />
+			<biblScope unit="page" from="225" to="232" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b21">
+	<analytic>
+		<title level="a" type="main">Variational inference for crowdsourcing</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Qiang</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jian</forename><surname>Peng</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Alex</forename><forename type="middle">T</forename><surname>Ihler</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Advances in Neural Information Processing Systems</title>
+		<imprint>
+			<date type="published" when="2012" />
+			<biblScope unit="page" from="692" to="700" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b22">
+	<monogr>
+				<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Andrew</forename><surname>Mccallum</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Wei</forename><surname>Li</surname></persName>
+		</author>
+		<ptr target="http://aclweb.org/anthology/W03-0430" />
+		<title level="m">Proceedings of the Seventh Conference on Natural Language Learning at HLT-NAACL 2003, chapter Early results for Named Entity Recognition with Conditional Random Fields, Feature Induction and Web-Enhanced Lexicons</title>
+		<meeting>the Seventh Conference on Natural Language Learning at HLT-NAACL 2003, chapter Early results for Named Entity Recognition with Conditional Random Fields, Feature Induction and Web-Enhanced Lexicons</meeting>
+		<imprint>
+			<date type="published" when="2003" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b23">
+	<analytic>
+		<title level="a" type="main">A correlated worker model for grouped, imbalanced and multitask data</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Byron</forename><forename type="middle">C</forename><surname>An T Nguyen</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Matthew</forename><surname>Wallace</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Lease</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Uncertainty in Artificial Intelligence</title>
+		<imprint>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b24">
+	<monogr>
+		<title level="m" type="main">Crfsuite: a fast implementation of conditional random fields (crfs)</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Naoaki</forename><surname>Okazaki</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2007" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b25">
+	<analytic>
+		<title level="a" type="main">An introduction to hidden markov models</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Lawrence</forename><surname>Rabiner</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">ieee assp magazine</title>
+		<imprint>
+			<biblScope unit="volume">3</biblScope>
+			<biblScope unit="issue">1</biblScope>
+			<biblScope unit="page" from="4" to="16" />
+			<date type="published" when="1986" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b26">
+	<analytic>
+		<title level="a" type="main">Learning from crowds</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Shipeng</forename><surname>Vikas C Raykar</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Yu</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">H</forename><surname>Linda</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Gerardo</forename><forename type="middle">Hermosillo</forename><surname>Zhao</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Charles</forename><surname>Valadez</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Luca</forename><surname>Florin</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Linda</forename><surname>Bogoni</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Moy</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Journal of Machine Learning Research</title>
+		<imprint>
+			<biblScope unit="volume">11</biblScope>
+			<biblScope unit="page" from="1297" to="1322" />
+			<date type="published" when="2010-04" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b27">
+	<analytic>
+		<title level="a" type="main">Sequence labeling with multiple annotators</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Filipe</forename><surname>Rodrigues</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Francisco</forename><surname>Pereira</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Bernardete</forename><surname>Ribeiro</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Machine learning</title>
+		<imprint>
+			<biblScope unit="volume">95</biblScope>
+			<biblScope unit="issue">2</biblScope>
+			<biblScope unit="page" from="165" to="181" />
+			<date type="published" when="2014" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b28">
+	<analytic>
+		<title level="a" type="main">Learning internal representations by error propagation</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Geoffrey</forename><forename type="middle">E</forename><surname>David E Rumelhart</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ronald J</forename><surname>Hinton</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Williams</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">DTIC Document</title>
+		<imprint>
+			<date type="published" when="1985" />
+		</imprint>
+	</monogr>
+<note type="report_type">Technical report</note>
+</biblStruct>
+
+<biblStruct xml:id="b29">
+	<analytic>
+		<title level="a" type="main">Utilization of the PICO framework to improve searching PubMed for clinical questions</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Connie</forename><surname>Schardt</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">B</forename><surname>Martha</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Thomas</forename><surname>Adams</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Sheri</forename><surname>Owens</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Paul</forename><surname>Keitz</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Fontelo</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">BMC medical informatics and decision making</title>
+		<imprint>
+			<biblScope unit="volume">7</biblScope>
+			<biblScope unit="issue">1</biblScope>
+			<biblScope unit="page">16</biblScope>
+			<date type="published" when="2007" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b30">
+	<analytic>
+		<title level="a" type="main">Square: A benchmark for research on computing crowd consensus</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Aashish</forename><surname>Sheshadri</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Matthew</forename><surname>Lease</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">First AAAI Conference on Human Computation and Crowdsourcing</title>
+		<imprint>
+			<date type="published" when="2013" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b31">
+	<analytic>
+		<title level="a" type="main">Cheap and fast-but is it good? evaluating non-expert annotations for natural language tasks</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Rion</forename><surname>Snow</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">O&amp;apos;</forename><surname>Brendan</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Daniel</forename><surname>Connor</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Andrew</forename><surname>Jurafsky</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Ng</surname></persName>
+		</author>
+		<ptr target="http://aclweb.org/anthology/D08-1027" />
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2008 Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>the 2008 Conference on Empirical Methods in Natural Language Processing</meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2008" />
+			<biblScope unit="page" from="254" to="263" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b32">
+	<monogr>
+		<title level="m" type="main">Introduction to the CoNLL-2003 shared task: Language-independent named entity recognition</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Erik F Tjong Kim</forename><surname>Sang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Fien De</forename><surname>Meulder</surname></persName>
+		</author>
+		<ptr target="http://aclweb.org/anthology/W03-0419" />
+		<imprint>
+			<date type="published" when="2003" />
+			<biblScope unit="page" from="142" to="147" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b33">
+	<analytic>
+		<title level="a" type="main">Community-based bayesian aggregation models for crowdsourcing</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Matteo</forename><surname>Venanzi</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">John</forename><surname>Guiver</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Gabriella</forename><surname>Kazai</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Pushmeet</forename><surname>Kohli</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Milad</forename><surname>Shokouhi</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 23rd international conference on World wide web</title>
+		<meeting>the 23rd international conference on World wide web</meeting>
+		<imprint>
+			<publisher>ACM</publisher>
+			<date type="published" when="2014" />
+			<biblScope unit="page" from="155" to="164" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b34">
+	<analytic>
+		<title level="a" type="main">Extracting pico sentences from clinical trial reports using supervised distant supervision</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Joël</forename><surname>Byron C Wallace</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Aakash</forename><surname>Kuiper</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Mingxi</forename><forename type="middle">Brian</forename><surname>Sharma</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Iain J</forename><surname>Zhu</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Marshall</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Journal of Machine Learning Research</title>
+		<imprint>
+			<biblScope unit="volume">17</biblScope>
+			<biblScope unit="issue">132</biblScope>
+			<biblScope unit="page" from="1" to="25" />
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b35">
+	<analytic>
+		<title level="a" type="main">Collecting high quality overlapping labels at low cost</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Hui</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Anton</forename><surname>Mityagin</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Krysta</forename><forename type="middle">M</forename><surname>Svore</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Sergey</forename><surname>Markov</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 33rd international ACM SIGIR conference on Research and development in information retrieval</title>
+		<meeting>the 33rd international ACM SIGIR conference on Research and development in information retrieval</meeting>
+		<imprint>
+			<publisher>ACM</publisher>
+			<date type="published" when="2010" />
+			<biblScope unit="page" from="459" to="466" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b36">
+	<monogr>
+		<title level="m" type="main">A sensitivity analysis of (and practitioners&apos; guide to) convolutional neural networks for sentence classification</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ye</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Byron</forename><surname>Wallace</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1510.03820</idno>
+		<imprint>
+			<date type="published" when="2015" />
+		</imprint>
+	</monogr>
+<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+				</listBibl>
+			</div>
+		</back>
+	</text>
+</TEI>

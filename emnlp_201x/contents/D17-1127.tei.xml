@@ -1,0 +1,1537 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<TEI xmlns="http://www.tei-c.org/ns/1.0" 
+xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+xsi:schemaLocation="http://www.tei-c.org/ns/1.0 /home/ana/installs/grobid/grobid-0.5.1/grobid-home/schemas/xsd/Grobid.xsd"
+ xmlns:xlink="http://www.w3.org/1999/xlink">
+	<teiHeader xml:lang="en">
+		<encodingDesc>
+			<appInfo>
+				<application version="0.5.1-SNAPSHOT" ident="GROBID" when="2019-04-18T11:40+0000">
+					<ref target="https://github.com/kermitt2/grobid">GROBID - A machine learning software for extracting information from scholarly documents</ref>
+				</application>
+			</appInfo>
+		</encodingDesc>
+		<fileDesc>
+			<titleStmt>
+				<title level="a" type="main">Cross-domain Semantic Parsing via Paraphrasing</title>
+			</titleStmt>
+			<publicationStmt>
+				<publisher>Association for Computational Linguistics</publisher>
+				<availability status="unknown"><p>Copyright Association for Computational Linguistics</p>
+				</availability>
+				<date>September 7-11, 2017. 2017</date>
+			</publicationStmt>
+			<sourceDesc>
+				<biblStruct>
+					<analytic>
+						<author>
+							<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yu</forename><surname>Su</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="department" key="dep1">Department of Computer Science</orgName>
+								<orgName type="department" key="dep2">Department of Computer Science</orgName>
+								<orgName type="institution">University of California</orgName>
+								<address>
+									<settlement>Santa Barbara</settlement>
+								</address>
+							</affiliation>
+						</author>
+						<author role="corresp">
+							<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Xifeng</forename><surname>Yan</surname></persName>
+							<email>xyan@cs.ucsb.edu</email>
+							<affiliation key="aff1">
+								<orgName type="institution">University of California</orgName>
+								<address>
+									<settlement>Santa Barbara</settlement>
+								</address>
+							</affiliation>
+						</author>
+						<title level="a" type="main">Cross-domain Semantic Parsing via Paraphrasing</title>
+					</analytic>
+					<monogr>
+						<title level="m">Natural Language Processing</title>
+						<meeting> <address><addrLine>Copenhagen, Denmark</addrLine></address>
+						</meeting>
+						<imprint>
+							<publisher>Association for Computational Linguistics</publisher>
+							<biblScope unit="page" from="1235" to="1246"/>
+							<date type="published">September 7-11, 2017. 2017</date>
+						</imprint>
+					</monogr>
+				</biblStruct>
+			</sourceDesc>
+		</fileDesc>
+		<profileDesc>
+			<abstract>
+				<p>Existing studies on semantic parsing mainly focus on the in-domain setting. We formulate cross-domain semantic parsing as a domain adaptation problem: train a semantic parser on some source domains and then adapt it to the target domain. Due to the diversity of logical forms in different domains, this problem presents unique and intriguing challenges. By converting logical forms into canonical utterances in natural language, we reduce semantic parsing to paraphrasing, and develop an attentive sequence-to-sequence paraphrase model that is general and flexible to adapt to different domains. We discover two problems, small micro variance and large macro variance, of pre-trained word embeddings that hinder their direct use in neural networks, and propose standardization techniques as a remedy. On the popular OVERNIGHT dataset, which contains eight domains, we show that both cross-domain training and standardized pre-trained word embedding can bring significant improvement.</p>
+			</abstract>
+		</profileDesc>
+	</teiHeader>
+	<text xml:lang="en">
+		<body>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="1">Introduction</head><p>Semantic parsing, which maps natural language utterances into computer-understandable logical forms, has drawn substantial attention recently as a promising direction for developing natural lan- guage interfaces to computers. Semantic pars- ing has been applied in many domains, includ- ing querying data/knowledge bases <ref type="bibr" target="#b46">(Woods, 1973;</ref><ref type="bibr" target="#b51">Zelle and Mooney, 1996;</ref><ref type="bibr" target="#b2">Berant et al., 2013)</ref>, con- trolling IoT devices <ref type="bibr" target="#b8">(Campagna et al., 2017)</ref>, and communicating with robots ( <ref type="bibr" target="#b10">Chen and Mooney, 2011;</ref><ref type="bibr" target="#b43">Tellex et al., 2011;</ref><ref type="bibr" target="#b4">Bisk et al., 2016)</ref>.</p><p>Despite the wide applications, studies on se- mantic parsing have mainly focused on the in- domain setting, where both training and testing data are drawn from the same domain. How to build semantic parsers that can learn across do- mains remains an under-addressed problem. In this work, we study cross-domain semantic pars- ing. We model it as a domain adaptation prob- lem <ref type="bibr" target="#b15">(Daumé III and Marcu, 2006</ref>), where we are given some source domains and a target domain, and the core task is to adapt a semantic parser trained on the source domains to the target domain ( <ref type="figure">Figure 1</ref>). The benefits are two-fold: (1) by train- ing on the source domains, the cost of collecting training data for the target domain can be reduced, and (2) the data of source domains may provide in- formation complementary to the data collected for the target domain, leading to better performance on the target domain. This is a very challenging task. Traditional domain adaptation <ref type="bibr" target="#b15">(Daumé III and Marcu, 2006;</ref><ref type="bibr" target="#b5">Blitzer et al., 2006</ref>) only concerns natural lan- guages, while semantic parsing concerns both nat- ural and formal languages. Different domains of- ten involve different predicates. In <ref type="figure">Figure 1</ref>, from the source BASKETBALL domain a semantic parser can learn the semantic mapping from natural lan- guage to predicates like team and season, but in the target SOCIAL domain it needs to handle pred- icates like employer instead. Worse still, even for the same predicate, it is legitimate to use ar- bitrarily different predicate symbols, e.g., other symbols like hired by or even predicate1 can also be used for the employer predicate, reminis- cent of the symbol grounding problem <ref type="bibr" target="#b23">(Harnad, 1990)</ref>. Therefore, directly transferring the map- ping from natural language to predicate symbols learned from source domains to the target domain may not be much beneficial.  <ref type="figure">Figure 1</ref>: Cross-domain semantic parsing via paraphrasing framework. In a deterministic way, logical forms are first converted into canonical utterances in natural language. A paraphrase model then learns from the source domains and adapts to the target domain. External language resources can be incorporated in a consistent way across domains.</p><p>Inspired by the recent success of paraphrasing based semantic parsing <ref type="bibr" target="#b3">(Berant and Liang, 2014;</ref><ref type="bibr" target="#b45">Wang et al., 2015)</ref>, we propose to use natural lan- guage as an intermediate representation for cross- domain semantic parsing. As shown in <ref type="figure">Figure 1</ref>, logical forms are converted into canonical utter- ances in natural language, and semantic parsing is reduced to paraphrasing. It is the knowledge of paraphrasing, at lexical, syntactic, and seman- tic levels, that will be transferred across domains.</p><p>Still, adapting a paraphrase model to a new do- main is a challenging and under-addressed prob- lem. To give some idea of the difficulty, for each of the eight domains in the popular OVERNIGHT ( <ref type="bibr" target="#b45">Wang et al., 2015</ref>) dataset, 30% to 55% of the words never occur in any of the other domains, a sim- ilar problem observed in domain adaptation for machine translation <ref type="bibr" target="#b14">(Daumé III and Jagarlamudi, 2011</ref>). The paraphrase model therefore can get little knowledge for a substantial portion of the target domain from the source domains. We introduce pre-trained word embeddings such as WORD2VEC ( <ref type="bibr" target="#b33">Mikolov et al., 2013</ref>) to combat the vo- cabulary variety across domains. Based on recent studies on neural network initialization, we con- duct a statistical analysis of pre-trained word em- beddings and discover two problems that may hin- der their direct use in neural networks: small mi- cro variance, which hurts optimization, and large macro variance, which hurts generalization. We propose to standardize pre-trained word embed- dings, and show its advantages both analytically and experimentally.</p><p>On the OVERNIGHT dataset, we show that cross- domain training under the proposed framework can significantly improve model performance. We also show that, compared with directly using pre- trained word embeddings or normalization as in previous work, the proposed standardization tech- nique can lead to about 10% absolute improve- ment in accuracy.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2">Cross-domain Semantic Parsing</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.1">Problem Definition</head><p>Unless otherwise stated, we will use u to denote input utterance, c for canonical utterance, and z for logical form. We denote U as the set of all pos- sible utterances. For a domain, suppose Z is the set of logical forms, a semantic parser is a map- ping f : U → Z that maps every input utterance to a logical form (a null logical form can be in- cluded in Z to reject out-of-domain utterances).</p><p>In cross-domain semantic parsing, we assume there are a set of K source domains</p><formula xml:id="formula_0">{Z i } K i=1</formula><p>, each with a set of training examples {(u i j , z i j )} N i j=1 . It is in principle advantageous to model the source domains separately <ref type="bibr" target="#b15">(Daumé III and Marcu, 2006</ref>), which retains the possibility of separating domain- general information from domain-specific infor- mation, and only transferring the former to the target domain. For simplicity, here we merge the source domains into a single domain Z s with train- ing data {(u i , z i )} Ns i=1 . The task is to learn a se- mantic parser f : U → Z t for a target domain Z t , for which we have a set of training examples</p><formula xml:id="formula_1">{(u i , z i )} Nt i=1</formula><p>. Some characteristics can be sum- marized as follows:</p><p>• Z t and Z s can be totally disjoint.</p><p>• The input utterance distribution of the source and the target domains can be independent and differ remarkably.</p><p>• Typically N t N s .</p><p>In the most general and challenging case, Z t and Z s can be defined using different formal lan- guages. Because of the lack of relevant datasets, here we restrain ourselves to the case where Z t and Z s are defined using the same formal language, e.g., λ-DCS <ref type="bibr" target="#b32">(Liang, 2013)</ref> as in the OVERNIGHT dataset.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.2">Framework</head><p>Our framework follows the research line of seman- tic parsing via paraphrasing <ref type="bibr" target="#b3">(Berant and Liang, 2014;</ref><ref type="bibr" target="#b45">Wang et al., 2015)</ref>. While previous work fo- cuses on the in-domain setting, we discuss its ap- plicability and advantages in the cross-domain set- ting, and develop techniques to address the emerg- ing challenges in the new setting.</p><p>Canonical utterance. We assume a one-to-one mapping g : Z → C, where C ⊂ U is the set of canonical utterances. In other words, every logi- cal form will be converted into a unique canoni- cal utterance deterministically <ref type="figure">(Figure 1</ref>). Previ- ous work ( <ref type="bibr" target="#b45">Wang et al., 2015</ref>) has demonstrated how to design such a mapping, where a domain- general grammar and a domain-specific lexicon are constructed to automatically convert every log- ical form to a canonical utterance. In this work, we assume the mapping is given 1 , and focus on the subsequent paraphrasing and domain adapta- tion problems.</p><p>This design choice is worth some discussion. The grammar, or at least the lexicon for map- ping predicates to natural language, needs to be provided by domain administrators. This indeed brings an additional cost, but we believe it is rea- sonable and even necessary for three reasons: (1) Only domain administrators know the predicate semantics the best, so it has to be them to reveal that by grounding the predicates to natural lan- guage (the symbol grounding problem <ref type="bibr" target="#b23">(Harnad, 1990)</ref>). (2) Otherwise, predicate semantics can only be learned from supervised training data of each domain, bringing a significant cost on data collection. (3) Canonical utterances are under- standable by average users, and thus can also be used for training data collection via crowdsourc- ing ( <ref type="bibr" target="#b45">Wang et al., 2015;</ref><ref type="bibr" target="#b41">Su et al., 2016)</ref>, which can amortize the cost.</p><p>Take comparatives as an example. In logi- cal forms, comparatives can be legitimately de- fined using arbitrarily different predicates in dif- ferent domains, e.g., &lt;, smallerInSize, or even predicates with an ambiguous surface form, like lt. When converting logical form to canonical utterance, however, domain administrators have to choose common natural language expressions like "less than" and "smaller", providing a shared ground for cross-domain semantic parsing.</p><p>Paraphrase model. In the previous work based on paraphrasing <ref type="bibr" target="#b3">(Berant and Liang, 2014;</ref><ref type="bibr" target="#b45">Wang et al., 2015)</ref>, semantic parsers are implemented as log-linear models with hand-engineered domain- specific features (including paraphrase features). Considering the recent success of representation learning for domain adaptation <ref type="bibr" target="#b21">(Glorot et al., 2011;</ref><ref type="bibr" target="#b11">Chen et al., 2012</ref>), we propose a para- phrase model based on the sequence-to-sequence (Seq2Seq) model <ref type="bibr" target="#b42">(Sutskever et al., 2014</ref>), which can be trained end to end without feature engineer- ing. We show that it outperforms the previous log- linear models by a large margin in the in-domain setting, and can easily adapt to new domains.</p><p>Pre-trained word embeddings. An advantage of reducing semantic parsing to paraphrasing is that external language resources become easier to incorporate. Observing the vocabulary variety across domains, we introduce pre-trained word embeddings to facilitate domain adaptation. For the example in <ref type="figure">Figure 1</ref>, the paraphrase model may have learned the mapping from "play for" to "whose team is" in a source domain. By acquir- ing word similarities ("play"-"work" and "team"- "employer") from pre-trained word embeddings, it can establish the mapping from "work for" to "whose employer is" in the target domain, even without in-domain training data. We analyze sta- tistical characteristics of the pre-trained word em- beddings, and propose standardization techniques to remedy some undesired characteristics that may bring a negative effect to neural models.</p><p>Domain adaptation protocol. We will use the following protocol: (1) train a paraphrase model using the data of the source domain, (2) use the learned parameters to initialize a model in the tar- get domain, and <ref type="formula">(3)</ref> fine-tune the model using the training data of the target domain.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.3">Prior Work</head><p>While most studies on semantic parsing so far have focused on the in-domain setting, there are a number of studies of particular relevance to this work. In the recent efforts of scaling seman- tic parsing to large knowledge bases like Free- base ( <ref type="bibr" target="#b6">Bollacker et al., 2008)</ref>, researchers have explored several ways to infer the semantics of knowledge base relations unseen in training, which are often based on at least one (often both) of the following assumptions: (1) Distant super- vision. Freebase entities can be linked to external text corpora, and serve as anchors for seeking se- mantics of Freebase relations from text. For exam- ple, <ref type="bibr" target="#b7">Cai and Alexander (2013)</ref>, among others <ref type="bibr" target="#b2">(Berant et al., 2013;</ref><ref type="bibr" target="#b48">Xu et al., 2016)</ref>, use sentences from Wikipedia that contain any entity pair of a Freebase relation as the support set of the relation. (2) Self-explaining predicate symbols. Most Free- base relations are described using a carefully cho- sen symbol (surface form), e.g., place of birth, which provides strong cues for their semantics. For example, <ref type="bibr" target="#b49">Yih et al. (2015)</ref> directly compute the similarity of input utterance and the surface form of Freebase relations via a convolutional neu- ral network. <ref type="bibr" target="#b30">Kwiatkowski et al. (2013)</ref> also ex- tract lexical features from input utterance and the surface form of entities and relations. They have actually evaluated their model on Freebase sub- domains not covered in training, and have shown impressive results. However, in the more general setting of cross-domain semantic parsing, we may have neither of these luxuries. Distant supervi- sion may not be available (e.g., IoT devices involv- ing no entities but actions), and predicate symbols may not provide enough cues (e.g., predicate1). In this case, seeking additional inputs from do- main administrators is probably necessary.</p><p>In parallel of this work, Herzig and Be- rant (2017) have explored another direction of se- mantic parsing with multiple domains, where they use all the domains to train a single semantic parser, and attach a domain-specific encoding to the training data of each domain to help the se- mantic parser differentiate between domains. We pursue a different direction: we train a semantic parser on some source domains and adapt it to the target domain. Another difference is that their work directly maps utterances to logical forms, while ours is based on paraphrasing.</p><p>Cross-domain semantic parsing can be seen as a way to reduce the cost of training data col- lection, which resonates with the recent trend in semantic parsing. <ref type="bibr" target="#b2">Berant et al. (2013)</ref> propose to learn from utterance-denotation pairs instead of utterance-logical form pairs, while <ref type="bibr" target="#b45">Wang et al. (2015)</ref> and <ref type="bibr" target="#b41">Su et al. (2016)</ref> manage to employ crowd workers with no linguistic expertise for data collection. <ref type="bibr" target="#b28">Jia and Liang (2016)</ref> propose an inter- esting form of data augmentation. They learn a grammar from existing training data, and generate new examples from the grammar by recombining segments from different examples. We use natural language as an intermediate representation to transfer knowledge across do- mains, and assume the mapping from the interme- diate representation (canonical utterance) to log- ical form can be done deterministically. Sev- eral other intermediate representations have also been used, such as combinatory categorial gram- mar ( <ref type="bibr" target="#b30">Kwiatkowski et al., 2013;</ref><ref type="bibr" target="#b37">Reddy et al., 2014</ref>), dependency tree ( <ref type="bibr" target="#b39">Reddy et al., , 2017</ref>, and semantic role structure <ref type="bibr" target="#b22">(Goldwasser and Roth, 2013)</ref>. But their main aim is to better represent in- put utterances with a richer structure. A separate ontology matching step is needed to map the in- termediate representation to logical form, which requires domain-dependent training.</p><p>A number of other related studies have also used paraphrasing. For example, <ref type="bibr" target="#b18">Fader et al. (2013)</ref> leverage question paraphrases to for question an- swering, while <ref type="bibr" target="#b34">Narayan et al. (2016)</ref> generate paraphrases as a way of data augmentation.</p><p>Cross-domain semantic parsing can greatly ben- efit from the rich literature of domain adapta- tion and transfer learning <ref type="bibr" target="#b15">(Daumé III and Marcu, 2006;</ref><ref type="bibr" target="#b5">Blitzer et al., 2006;</ref><ref type="bibr" target="#b35">Pan and Yang, 2010;</ref><ref type="bibr" target="#b21">Glorot et al., 2011</ref>). For example, <ref type="bibr" target="#b9">Chelba and Acero (2004)</ref> use parameters trained in the source domain as prior to regularize parameters in the tar- get domain. The feature augmentation technique from Daumé III (2009) can be very helpful when there are multiple source domains. We expect to see many of these ideas to be applied in the future.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3">Paraphrase Model</head><p>In this section we propose a paraphrase model based on the Seq2Seq model ( <ref type="bibr" target="#b42">Sutskever et al., 2014</ref>) with soft attention. Similar models have been used in semantic parsing ( <ref type="bibr" target="#b28">Jia and Liang, 2016;</ref><ref type="bibr" target="#b16">Dong and Lapata, 2016</ref>) but for directly mapping utterances to logical forms. We demon-strate that it can also be used as a paraphrase model for semantic parsing. Several other neural mod- els have been proposed for paraphrasing <ref type="bibr" target="#b40">(Socher et al., 2011;</ref><ref type="bibr" target="#b26">Hu et al., 2014;</ref><ref type="bibr" target="#b50">Yin and Schütze, 2015)</ref>, but it is not the focus of this work to com- pare all the alternatives.</p><p>For an input utterance u = (u 1 , u 2 , . . . , u m ) and an output canonical utterance c = <ref type="figure" target="#fig_1">(c 1 , c 2 , .</ref> . . , c n ), the model estimates the condi- tional probability p(c|u) = n j=1 p(c j |u, c 1:j−1</p><note type="other">). The tokens are first converted into vectors via a word embedding layer φ. The initialization of the word embedding layer is critical for domain adaptation, which we will further discuss in Section 4. The encoder, which is implemented as a bi-directional recurrent neural network (RNN), first encodes u into a sequence of state vectors (h 1 , h 2 , . . . , h m ). The state vectors of the for- ward RNN and the backward RNN are respec- tively computed as:</note><formula xml:id="formula_2">− → h i = GRU f w (φ(u i ), − → h i−1 ) ← − h i = GRU bw (φ(u i ), ← − h i+1 )</formula><p>where gated recurrent unit (GRU) as defined in ( <ref type="bibr" target="#b12">Cho et al., 2014</ref>) is used as the recurrence. We then concatenate the forward and backward state vectors,</p><formula xml:id="formula_3">h i = [ − → h i , ← − h i ], i = 1, . . . , m.</formula><p>We use an attentive RNN as the decoder, which will generate the output tokens one at a time. We denote the state vectors of the decoder RNN as</p><formula xml:id="formula_4">(d 1 , d 2 , . . . , d n ).</formula><p>The attention takes a form simi- lar to <ref type="bibr" target="#b44">(Vinyals et al., 2015)</ref>. For the decoding step j, the decoder is defined as follows:</p><formula xml:id="formula_5">d 0 = tanh(W 0 [ − → h m , ← − h 1 ]) u ji = v T tanh(W 1 h i + W 2 d j ) α ji = u ji m i =1 u ji h j = m i=1 α ji h i d j+1 = GRU ([φ(c j ), h j ], d j ) p(c j |u, c 1:j−1 ) ∝ exp(U [d j , h j ])</formula><p>where W 0 , W 1 , W 2 , v and U are model parame- ters. The decoder first calculates normalized at- tention weights α ji over encoder states, and get a summary state h j . The summary state is then used to calculate the next decoder state d j+1 and the output probability distribution p(c j |u, c 1:j−1 ).</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Training. Given a set of training examples</head><formula xml:id="formula_6">{(u i , c i )} N i=1</formula><p>, we minimize the cross-entropy loss − 1 N N i=1 log p(c i |u i ), which maximizes the log probability of the correct canonical utterances. We apply dropout (Hinton et al., 2012) on both input and output of the GRU cells to prevent overfitting.</p><p>Testing. Given a domain {Z, C}, there are two ways to use a trained model. One is to use it to generate the most likely output utterance u given an input utterance u <ref type="figure" target="#fig_1">(Sutskever et al., 2014)</ref>,</p><formula xml:id="formula_7">u = arg max u ∈ U p(u |u).</formula><p>In this case u can be any utterance permissable by the output vocabulary, and may not necessarily be a legitimate canonical utterance in C. This is more suitable for large domains with a lot of log- ical forms, like Freebase. An alternative way is to use the model to rank the legitimate canonical utterances ( <ref type="bibr" target="#b29">Kannan et al., 2016)</ref>:</p><formula xml:id="formula_8">c = arg max c ∈ C p(c|u),</formula><p>which is more suitable for small domains having a limited number of logical forms, like the ones in the OVERNIGHT dataset. We will adopt the sec- ond strategy. It is also very challenging; random guessing leads to almost no success. It is also pos- sible to first find a smaller set of candidates to rank via beam search <ref type="bibr" target="#b2">(Berant et al., 2013;</ref><ref type="bibr" target="#b45">Wang et al., 2015</ref>).</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4">Pre-trained Word Embedding for Domain Adaptation</head><p>Pre-trained word embeddings like WORD2VEC have a great potential to combat the vocabulary va- riety across domains. For example, we can use pre-trained WORD2VEC vectors to initialize the word embedding layer of the source domain, with the hope that the other parameters in the model will co-adapt with the word vectors during train- ing in the source domain, and generalize better to the out-of-vocabulary words (but covered by <ref type="bibr">WORD2VEC</ref>) in the target domain. However, deep neural networks are very sensitive to initializa- tion ( <ref type="bibr" target="#b17">Erhan et al., 2010)</ref>, and a statistical analysis of the pre-trained WORD2VEC vectors reveals some characteristics that may not be desired for initial- izing deep neural networks. In this section we present the analysis and propose a standardization technique to remedy the undesired characteristics.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Initialization</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>L2 norm</head><p>Micro Variance Cosine Sim.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Random</head><p>17.3 ± 0.45 1.00 ± 0.05 0.00 ± 0.06 2.04 ± 1.08 0.02 ± 0.02 0.13 ± 0.11 WORD2VEC + ES 17.3 ± 0.05 1.00 ± 0.00 0.13 ± 0.11 WORD2VEC + FS 16.0 ± 8.47 1.09 ± 1.31 0.12 ± 0.10 WORD2VEC + EN 1.00 ± 0.00 0.01 ± 0.00 0.13 ± 0.11 Analysis. Our analysis will be based on the 300- dimensional WORD2VEC vectors trained on the 100B-word Google News corpus 2 . It contains 3 million words, leading to a 3M-by-300 word em- bedding matrix. The "rule of thumb" to randomly initialize word embedding in neural networks is to sample from a uniform or Gaussian distribution with unit variance, which works well for a wide range of neural network models in general. We therefore use it as a reference to compare different word embedding initialization strategies. Given a word embedding matrix, we compute the L2 norm of each row and report the mean and the standard deviation. Similarly, we also report the variance of each row (denoted as micro variance), which indicates how far the numbers in the row spread out, and pair-wise cosine similarity, which indi- cates the word similarity captured by WORD2VEC.</p><p>The statistics of the word embedding matrix with different initialization strategies are shown in <ref type="table" target="#tab_1">Table 1</ref>. Compared with random initialization, two characteristics of the WORD2VEC vectors stand out: (1) Small micro variance. Both the L2 norm and the micro variance of the WORD2VEC vectors are much smaller. (2) Large macro variance. The variance of different WORD2VEC vectors, reflected by the standard deviation of L2 norm, is much larger (e.g., the maximum and the minimum L2 norm are 21.1 and 0.015, respectively). Small mi- cro variance can make the variance of neuron acti- vations starts off too small 3 , implying a poor start- ing point in the parameter space. On the other hand, because of the magnitude difference, large macro variance may make a model hard to gener-alize to words unseen in training.</p><p>Standardization. Based on the above analysis, we propose to do unit variance standardization (standardization for short) on pre-trained word embeddings. There are two possible ways, per- example standardization, which standardizes each row of the embedding matrix to unit variance by simply dividing by the standard deviation of the row, and per-feature standardization, which stan- dardizes each column instead. We do not make the rows or columns zero mean. Per-example standardization enjoys the goodness of both ran- dom initialization and pre-trained word embed- dings: it fixes the small micro variance problem as well as the large macro variance problem of pre-trained word embeddings, while still preserv- ing cosine similarity, i.e., word similarity. Per- feature standardization does not preserve cosine similarity, nor does it fix the large macro vari- ance problem. However, it enjoys the benefit of global statistics, in contrast to the local statistics of individual word vectors used in per-example standardization. Therefore, in problems where the testing and training vocabularies are similar, per-feature standardization may be more advan- tageous. Both standardizations lose vector mag- nitude information. <ref type="bibr" target="#b31">Levy et al. (2015)</ref> have sug- gested per-example normalization 4 of pre-trained word embeddings for lexical tasks like word simi- larity and analogy, which do no involve deep neu- ral networks. Making the word vectors unit length alleviates the large macro variance problem, but the small micro variance problem remains (Ta- ble 1).</p><p>Discussion. This is indeed a pretty simple trick, and per-feature standardization (with zero mean) is also a standard data preprocessing method. However, it is not self-evident that this kind of standardization shall be applied on pre-trained word embeddings before using them in deep neu- ral networks, especially with the obvious down- side of rendering the word embedding algorithm's loss function sub-optimal.</p><p>We expect this to be less of a issue for large- scale problems with a large vocabulary and abun- dant training examples. For example, <ref type="bibr" target="#b44">Vinyals et al. (2015)</ref> have found that directly using the <ref type="bibr">WORD2VEC</ref> vectors for initialization can bring a consistent, though small, improvement in neural constituency parsing. However, for smaller-scale problems (e.g., an application domain of semantic parsing can have a vocabulary size of only a few hundreds), this issue becomes more critical. Ini- tialized with the raw pre-trained vectors, a model may quickly fall into a poor local optimum and may not have enough signal to escape. Because of the large macro variance problem, standardization can be critical for domain adaptation, which needs to generalize to many words unseen in training.</p><p>The proposed standardization technique ap- pears in a similar spirit to batch normaliza- tion ( <ref type="bibr" target="#b27">Ioffe and Szegedy, 2015)</ref>. We notice two computational differences, that ours is applied on the inputs while batch normalization is applied on internal neuron activations, and that ours stan- dardizes the whole word embedding matrix be- forehand while batch normalization standardizes each mini-batch on the fly. In terms of motiva- tion, the proposed technique aims to remedy some undesired characteristics of pre-trained word em- beddings, and batch normalization aims to reduce the internal covariate shift. It is of interest to study the combination of the two in future work.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5">Evaluation</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.1">Data Analysis</head><p>The OVERNIGHT dataset ( <ref type="bibr" target="#b45">Wang et al., 2015)</ref> con- tains 8 different domains. Each domain is based on a separate knowledge base, with logical forms written in λ-DCS <ref type="bibr" target="#b32">(Liang, 2013)</ref>. Logical forms are converted into canonical utterances via a sim- ple grammar, and the input utterances are collected by asking crowd workers to paraphrase the canon- ical utterances. Different domains are designed to stress different types of linguistic phenomena. For example, the CALENDAR domain requires a seman- tic parser to handle temporal language like "meet- ings that start after 10 am", while the BLOCKS do- main features spatial language like "which block is above block 1".</p><p>Vocabularies vary remarkably across domains <ref type="table" target="#tab_3">(Table 2)</ref>. For each domain, only 45% to 70% of the words are covered by any of the other 7 do- mains. A model has to learn the out-of-vocabulary words from scratch using in-domain training data. The pre-trained WORD2VEC embedding covers most of the words of each domain, and thus can con- nect the domains to facilitate domain adaptation.</p><p>Words that are still missing are mainly stop words and typos, e.g., "ealiest".</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.2">Experiment Setup</head><p>We compare our model with all the previous meth- ods evaluated on the OVERNIGHT dataset. <ref type="bibr" target="#b45">Wang et al. (2015)</ref> use a log-linear model with a rich set of features, including paraphrase features derived from PPDB ( <ref type="bibr" target="#b19">Ganitkevitch et al., 2013)</ref>, to rank logical forms. <ref type="bibr" target="#b47">Xiao et al. (2016)</ref> use a multi-layer perceptron to encode the unigrams and bigrams of the input utterance, and then use a RNN to predict the derivation sequence of a logical form under a grammar. Similar to ours, <ref type="bibr" target="#b28">Jia and Liang (2016)</ref> also use a Seq2Seq model with bi-directional RNN encoder and attentive decoder, but it is used to pre- dict linearized logical forms. They also propose a data augmentation technique, which further im- proves the average accuracy to 77.5%. But it is orthogonal to this work and can be incorporated in any model including ours, therefore not included.</p><p>The above methods are all based on the in- domain setting, where a separate parser is trained for each domain. In parallel of this work, <ref type="bibr" target="#b24">Herzig and Berant (2017)</ref> have explored another direction of cross-domain training: they use all of the do- mains to train a single parser, with a special do- main encoding to help differentiate between do- mains. We instead model it as a domain adap- tation problem, where training on the source and the target domains are separate. Their model is the same as <ref type="bibr" target="#b28">Jia and Liang (2016)</ref>. It is the current best-performing method on the OVERNIGHT dataset.</p><p>We use the standard 80%/20% split of training and testing, and randomly hold out 20% of training for validation. In cross-domain experiments, for each target domain, all the other domains are com- bined as the source domain. Hyper-parameters are selected based on the validation set. State size of both the encoder and the decoder are set to 100, and word embedding size is set to 300. Input and output dropout rate of the GRU cells are 0.7 and 0.5, respectively, and mini-batch size is 512. We use Adam with the default parameters suggested in the paper for optimization. We use gradient clipping with a cap for global norm at 5.0 to al- leviate the exploding gradients problem of recur- rent neural networks. Early stopping based on the validation set is used to decide when to stop training. The selected model is retrained using the whole training set (training + validation). <ref type="table" target="#tab_1">The Metric   CALENDAR BLOCKS HOUSING RESTAURANTS PUBLICATIONS RECIPES SOCIAL BASKETBALL   # of example (N )  837  1995  941  1657  801  1080  4419  1952  # of logical form (|Z| , |C|)  196  469  231  339  149  124  624  252  vocab. size (|V|)  228  227  318  342  203  256  533</ref>    evaluation metric is accuracy, i.e., the proportion of testing examples for which the top prediction yields the correct denotation. Our model is imple- mented in Tensorflow ( <ref type="bibr" target="#b0">Abadi et al., 2016)</ref>, and the code can be found at https://github.com/ ysu1989/CrossSemparse.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.3">Experiment Results</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.3.1">Comparison with Previous Methods</head><p>The main experiment results are shown in <ref type="table" target="#tab_4">Table 3</ref>. Our base model (Random + I) achieves an accu- racy comparable to the previous best in-domain model <ref type="bibr" target="#b28">(Jia and Liang, 2016)</ref>. With our main nov- elties, cross-domain training and word embedding standardization, our full model is able to outper- form the previous best model, and achieve the best accuracy on 6 out of the 8 domains. Next we ex- amine the novelties separately.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.3.2">Word Embedding Initialization</head><p>The in-domain results clearly show the sensitivity of model performance to word embedding initial- ization. Directly using the raw WORD2VEC vectors or with per-example normalization, the perfor- mance is significantly worse than random initial- ization (6.2% and 7.3%, respectively). Based on the previous analysis, however, one should not be too surprised. The small micro variance problem hurts optimization. In sharp contrast, both of the proposed standardization techniques lead to better in-domain performance than random initialization (1.4% and 2.5%, respectively), setting a new best in-domain accuracy (78.2%) on OVERNIGHT. The results show that the pre-trained WORD2VEC vectors can indeed provide useful information, but only when they are properly standardized.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.3.3">Cross-domain Training</head><p>A consistent improvement from cross-domain training is observed across all word embedding initialization strategies. Even for raw WORD2VEC embedding or per-example normalization, cross- domain training helps the model escape the poor initialization, though still inferior to the alterna- tive initializations. The best results are again obtained with standardization, with per-example standardization bringing a slightly larger improve- ment than per-feature standardization. We observe that the improvement from cross-domain training is correlated with the abundance of the in-domain training data of the target domain. To further ex- amine this observation, we use the ratio between the number of examples (N ) and the vocabulary size (|V|) to indicate the data abundance of a do- main (the higher, the more abundant), and com- pute the Pearson correlation coefficient between data abundance and accuracy improvement from cross-domain training (X−I). The results in Ta- <ref type="table">Table 4</ref>: Correlation between in-domain data abundance and improvement from cross-domain training. The gain of cross- domain training is more significant when in-domain training data is less abundant. ble 4 show a consistent, moderate to strong neg- ative correlation between the two variables. In other words, cross-domain training is more benefi- cial when in-domain training data is less abundant, which is reasonable because in that case the model can learn more from the source domain data that is missing in the training data of the target domain.</p><formula xml:id="formula_9">Word Embedding Initialization Correlation Random −0.698 WORD2VEC −0.730 WORD2VEC + EN −0.461 WORD2VEC + FS −0.770 WORD2VEC + ES −0.514</formula></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.3.4">Using Downsampled Training Data</head><p>Compared with the vocabulary size and the num- ber of logical forms, the in-domain training data in the OVERNIGHT dataset is indeed abundant. In cross-domain semantic parsing, we are more in- terested in the scenario where there is insufficient training data for the target domain. To emulate this scenario, we downsample the in-domain training data of each target domain, but still use all train- ing data from the source domain (thus N t N s ).</p><p>The results are shown in <ref type="figure" target="#fig_1">Figure 2</ref>. The gain of cross-domain training is most significant when in- domain training data is scarce. As we collect more in-domain training data, the gain becomes smaller, which is expected. These results reinforce those from <ref type="table">Table 4</ref>. It is worth noting that the effect of downsampling varies across domains. For do- mains with quite abundant training data like SO- CIAL, using only 30% of the in-domain training data, the model can achieve an accuracy almost as good as when using all the data.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6">Discussion</head><p>Scalability, including vertical scalability, i.e., how to scale up to handle more complex inputs and logical constructs, and horizontal scalability, i.e., how to scale out to handle more domains, is one of the most critical challenges semantic parsing is facing today. In this work, we took an early step towards horizontal scalability, and proposed a paraphrasing based framework for cross-domain semantic parsing. With a sequence-to-sequence paraphrase model, we showed that cross-domain training of semantic parsing can be quite effective under a domain adaptation setting. We also stud- ied how to properly standardize pre-trained word embeddings in neural networks, especially for do- main adaptation. This work opens up a number of future direc- tions. As discussed in Section 2.3, many conven- tional domain adaptation and representation learn- ing ideas can find application in cross-domain se- mantic parsing. In addition to pre-trained word embeddings, other language resources like para- phrase corpora ( <ref type="bibr" target="#b19">Ganitkevitch et al., 2013)</ref> can be incorporated into the paraphrase model to further facilitate domain adaptation. In this work we re- quire a full mapping from logical form to canoni- cal utterance, which could be costly for large do- mains. It is of practical interest to study the case where only a lexicon for mapping schema items to natural language is available. We have restrained ourselves to the case where domains are defined using the same formal language, and we look forward to evaluating the framework on domains of different formal languages when such datasets with canonical utterances become available.</p></div><figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_1"><head>Figure 2 :</head><label>2</label><figDesc>Figure 2: Results with downsampled in-domain training data. The experiment with each downsampling rate is repeated for 3 times and average results are reported. For simplicity, we only report the average accuracy over all domains. Pretrained word embedding with per-example standardization is used in both settings.</figDesc><graphic url="image-5.png" coords="9,103.38,179.24,152.78,114.58" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_1" validated="false"><head>Table 1 : Statistics of the word embedding matrix with dif</head><label>1</label><figDesc></figDesc><table>-
+ferent initialization strategies. Random: random sampling 
+from U (− 
+√ 
+3, 
+√ 
+3), thus unit variance. WORD2VEC: raw 
+WORD2VEC vectors. ES: per-example standardization. FS: 
+per-feature standardization. EN: per-example normalization. 
+Cosine similarity is computed on a randomly selected (but 
+fixed) set of 1M word pairs. 
+
+</table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_3" validated="true"><head>Table 2 : Statistics of the domains in the OVERNIGHT dataset. Pre-trained WORD2VEC embedding covers most of the words in each domain, paving a way for domain adaptation.</head><label>2</label><figDesc></figDesc><table>Method 
+CALENDAR BLOCKS HOUSING RESTAURANTS PUBLICATIONS RECIPES SOCIAL BASKETBALL Avg. 
+
+Previous Methods 
+Wang et al. (2015) 
+74.4 
+41.9 
+54.0 
+75.9 
+59.0 
+70.8 
+48.2 
+46.3 
+58.8 
+Xiao et al. (2016) 
+75.0 
+55.6 
+61.9 
+80.1 
+75.8 
+-
+80.0 
+80.5 
+72.7 
+Jia and Liang (2016) 
+78.0 
+58.1 
+71.4 
+76.2 
+76.4 
+79.6 
+81.4 
+85.2 
+75.8 
+Herzig and Berant (2017) 82.1 
+62.7 
+78.3 
+82.2 
+80.7 
+82.9 
+81.7 
+86.2 
+79.6 
+
+Our Methods 
+Random + I 
+75.6 
+60.2 
+67.2 
+77.7 
+77.6 
+80.1 
+80.7 
+86.5 
+75.7 
+Random + X 
+79.2 
+54.9 
+74.1 
+76.2 
+78.5 
+82.4 
+82.5 
+86.7 
+76.9 
+
+WORD2VEC + I 
+67.9 
+59.4 
+52.4 
+75.0 
+64.0 
+73.2 
+77.0 
+87.5 
+69.5 
+WORD2VEC + X 
+78.0 
+54.4 
+63.0 
+81.3 
+74.5 
+83.3 
+81.5 
+83.1 
+74.9 
+
+WORD2VEC + EN + I 
+63.1 
+56.1 
+60.3 
+75.3 
+65.2 
+69.0 
+76.4 
+81.8 
+68.4 
+WORD2VEC + EN + X 
+78.0 
+52.6 
+63.5 
+74.7 
+65.2 
+80.6 
+79.9 
+80.8 
+71.2 
+
+WORD2VEC + FS + I 
+78.6 
+62.2 
+67.7 
+78.6 
+75.8 
+85.7 
+81.3 
+86.7 
+77.1 
+WORD2VEC + FS + X 
+82.7 
+59.4 
+75.1 
+80.4 
+78.9 
+85.2 
+81.8 
+87.2 
+78.9 
+
+WORD2VEC + ES + I 
+79.8 
+60.2 
+71.4 
+81.6 
+78.9 
+84.7 
+82.9 
+86.2 
+78.2 
+WORD2VEC + ES + X 
+82.1 
+62.2 
+78.8 
+83.7 
+80.1 
+86.1 
+83.1 
+88.2 
+80.6 
+
+</table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_4" validated="false"><head>Table 3 :</head><label>3</label><figDesc></figDesc><table>Main experiment results. We combine the proposed paraphrase model with different word embedding initializations. I: 
+in-domain, X: cross-domain, EN: per-example normalization, FS: per-feature standardization, ES: per-example standardization. 
+
+</table></figure>
+
+			<note place="foot" n="1"> In the experiments we use the provided canonical utterances of the OVERNIGHT dataset.</note>
+
+			<note place="foot" n="2"> https://code.google.com/archive/p/ word2vec/ 3 Under some conditions, including using Xavier initialization (also introduced in that paper and now widely used) for weights, Glorot and Bengio (2010) have shown that the activation variances in a feedforward neural network will be roughly the same as the input variances (word embedding here) at the beginning of training.</note>
+
+			<note place="foot" n="4"> It can also be found in the implementation of Glove (Pennington et al., 2014): https://github.com/ stanfordnlp/GloVe</note>
+		</body>
+		<back>
+
+			<div type="acknowledgement">
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Acknowledgments</head><p>The authors would like to thank the anonymous reviewers for their thoughtful comments. This re-search was sponsored in part by the Army Re-search Laboratory under cooperative agreements W911NF09-2-0053 and NSF IIS 1528175. The views and conclusions contained herein are those of the authors and should not be interpreted as rep-resenting the official policies, either expressed or implied, of the Army Research Laboratory or the U.S. Government. The U.S. Government is autho-rized to reproduce and distribute reprints for Gov-ernment purposes notwithstanding any copyright notice herein.</p></div>
+			</div>
+
+			<div type="references">
+
+				<listBibl>
+
+<biblStruct xml:id="b0">
+	<monogr>
+		<title level="m" type="main">Tensorflow: Large-scale machine learning on heterogeneous distributed systems</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Martín</forename><surname>Abadi</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ashish</forename><surname>Agarwal</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Paul</forename><surname>Barham</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Eugene</forename><surname>Brevdo</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Zhifeng</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Craig</forename><surname>Citro</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Greg</forename><forename type="middle">S</forename><surname>Corrado</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Andy</forename><surname>Davis</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jeffrey</forename><surname>Dean</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Matthieu</forename><surname>Devin</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1603.04467</idno>
+		<imprint>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+	<note>cs.DC</note>
+</biblStruct>
+
+<biblStruct xml:id="b1">
+	<analytic>
+		<title level="a" type="main">Weakly supervised learning of semantic parsers for mapping instructions to actions</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yoav</forename><surname>Artzi</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Luke</forename><surname>Zettlemoyer</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Transactions of the Association for Computational Linguistics</title>
+		<imprint>
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="49" to="62" />
+			<date type="published" when="2013" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b2">
+	<analytic>
+		<title level="a" type="main">Semantic parsing on Freebase from question-answer pairs</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jonathan</forename><surname>Berant</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Andrew</forename><surname>Chou</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Roy</forename><surname>Frostig</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Percy</forename><surname>Liang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>Conference on Empirical Methods in Natural Language Processing</meeting>
+		<imprint>
+			<date type="published" when="2013" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b3">
+	<analytic>
+		<title level="a" type="main">Semantic parsing via paraphrasing</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jonathan</forename><surname>Berant</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Percy</forename><surname>Liang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the Annual Meeting of the Association for Computational Linguistics</meeting>
+		<imprint>
+			<date type="published" when="2014" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b4">
+	<analytic>
+		<title level="a" type="main">Natural language communication with robots</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yonatan</forename><surname>Bisk</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Deniz</forename><surname>Yuret</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Daniel</forename><surname>Marcu</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Annual Conference of the North American Chapter of the Association for Computational Linguistics</title>
+		<meeting>the Annual Conference of the North American Chapter of the Association for Computational Linguistics</meeting>
+		<imprint>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b5">
+	<analytic>
+		<title level="a" type="main">Domain adaptation with structural correspondence learning</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">John</forename><surname>Blitzer</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ryan</forename><surname>Mcdonald</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Fernando</forename><surname>Pereira</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>Conference on Empirical Methods in Natural Language Processing</meeting>
+		<imprint>
+			<date type="published" when="2006" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b6">
+	<analytic>
+		<title level="a" type="main">Freebase: a collaboratively created graph database for structuring human knowledge</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kurt</forename><surname>Bollacker</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Colin</forename><surname>Evans</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Praveen</forename><surname>Paritosh</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Tim</forename><surname>Sturge</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jamie</forename><surname>Taylor</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the ACM SIGMOD International conference on Management of data</title>
+		<meeting>the ACM SIGMOD International conference on Management of data</meeting>
+		<imprint>
+			<date type="published" when="2008" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b7">
+	<analytic>
+		<title level="a" type="main">Semantic parsing freebase: Towards open-domain semantic parsing</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Qingqing</forename><surname>Cai</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Alexander</forename><surname>Yates</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Second Joint Conference on Lexical and Computational Semantics (* SEM)</title>
+		<imprint>
+			<date type="published" when="2013" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b8">
+	<analytic>
+		<title level="a" type="main">Almond: The architecture of an open, crowdsourced, privacy-preserving, programmable virtual assistant</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Giovanni</forename><surname>Campagna</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Rakesh</forename><surname>Ramesh</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Silei</forename><surname>Xu</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Michael</forename><surname>Fischer</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Monica</forename><forename type="middle">S</forename><surname>Lam</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the International Conference on World Wide Web</title>
+		<meeting>the International Conference on World Wide Web</meeting>
+		<imprint>
+			<date type="published" when="2017" />
+			<biblScope unit="page" from="341" to="350" />
+		</imprint>
+	</monogr>
+	<note>International World Wide Web Conferences Steering Committee</note>
+</biblStruct>
+
+<biblStruct xml:id="b9">
+	<analytic>
+		<title level="a" type="main">Adaptation of maximum entropy capitalizer: Little data can help a lot</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ciprian</forename><surname>Chelba</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Alex</forename><surname>Acero</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>Conference on Empirical Methods in Natural Language Processing</meeting>
+		<imprint>
+			<date type="published" when="2004" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b10">
+	<analytic>
+		<title level="a" type="main">Learning to interpret natural language navigation instructions from observations</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">L</forename><surname>David</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Raymond J</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Mooney</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the AAAI Conference on Artificial Intelligence</title>
+		<meeting>the AAAI Conference on Artificial Intelligence</meeting>
+		<imprint>
+			<date type="published" when="2011" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b11">
+	<analytic>
+		<title level="a" type="main">Marginalized denoising autoencoders for domain adaptation</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Minmin</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Zhixiang</forename><surname>Xu</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kilian</forename><surname>Weinberger</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Fei</forename><surname>Sha</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the International Conference on Machine Learning</title>
+		<meeting>the International Conference on Machine Learning</meeting>
+		<imprint>
+			<date type="published" when="2012" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b12">
+	<monogr>
+		<title level="m" type="main">Learning phrase representations using RNN encoder-decoder for statistical machine translation</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kyunghyun</forename><surname>Cho</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Bart</forename><surname>Van Merriënboer</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Caglar</forename><surname>Gulcehre</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Dzmitry</forename><surname>Bahdanau</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Fethi</forename><surname>Bougares</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Holger</forename><surname>Schwenk</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yoshua</forename><surname>Bengio</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1406.1078</idno>
+		<imprint>
+			<date type="published" when="2014" />
+		</imprint>
+	</monogr>
+	<note>cs.CL</note>
+</biblStruct>
+
+<biblStruct xml:id="b13">
+	<monogr>
+				<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Hal</forename><surname>Daumé</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Iii</forename></persName>
+		</author>
+		<idno type="arXiv">arXiv:0907.1815</idno>
+		<title level="m">Frustratingly easy domain adaptation</title>
+		<imprint>
+			<date type="published" when="2009" />
+		</imprint>
+	</monogr>
+	<note>cs.LG</note>
+</biblStruct>
+
+<biblStruct xml:id="b14">
+	<analytic>
+		<title level="a" type="main">Domain adaptation for machine translation by mining unseen words</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Hal</forename><surname>Daumé</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Iii</forename></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jagadeesh</forename><surname>Jagarlamudi</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the Annual Meeting of the Association for Computational Linguistics</meeting>
+		<imprint>
+			<date type="published" when="2011" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b15">
+	<analytic>
+		<title level="a" type="main">Domain adaptation for statistical classifiers</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Hal</forename><surname>Daumé</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Iii</forename></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Daniel</forename><surname>Marcu</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Journal of Artificial Intelligence Research</title>
+		<imprint>
+			<biblScope unit="volume">26</biblScope>
+			<biblScope unit="page" from="101" to="126" />
+			<date type="published" when="2006" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b16">
+	<analytic>
+		<title level="a" type="main">Language to logical form with neural attention</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Li</forename><surname>Dong</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Mirella</forename><surname>Lapata</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the Annual Meeting of the Association for Computational Linguistics</meeting>
+		<imprint>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b17">
+	<analytic>
+		<title level="a" type="main">Why does unsupervised pre-training help deep learning</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yoshua</forename><surname>Dumitru Erhan</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Aaron</forename><surname>Bengio</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Pierre-Antoine</forename><surname>Courville</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Pascal</forename><surname>Manzagol</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Samy</forename><surname>Vincent</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Bengio</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Journal of Machine Learning Research</title>
+		<imprint>
+			<biblScope unit="volume">11</biblScope>
+			<biblScope unit="page" from="625" to="660" />
+			<date type="published" when="2010-02" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b18">
+	<analytic>
+		<title level="a" type="main">Paraphrase-driven learning for open question answering</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Anthony</forename><surname>Fader</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">S</forename><surname>Luke</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Oren</forename><surname>Zettlemoyer</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Etzioni</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the Annual Meeting of the Association for Computational Linguistics</meeting>
+		<imprint>
+			<date type="published" when="2013" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b19">
+	<analytic>
+		<title level="a" type="main">PPDB: The paraphrase database</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Juri</forename><surname>Ganitkevitch</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Benjamin</forename><surname>Van Durme</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Chris</forename><surname>Callison-Burch</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Annual Conference of the North American Chapter of the Association for Computational Linguistics</title>
+		<meeting>the Annual Conference of the North American Chapter of the Association for Computational Linguistics</meeting>
+		<imprint>
+			<date type="published" when="2013" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b20">
+	<analytic>
+		<title level="a" type="main">Understanding the difficulty of training deep feedforward neural networks</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Xavier</forename><surname>Glorot</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yoshua</forename><surname>Bengio</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the International Conference on Artificial Intelligence and Statistics</title>
+		<meeting>the International Conference on Artificial Intelligence and Statistics</meeting>
+		<imprint>
+			<date type="published" when="2010" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b21">
+	<analytic>
+		<title level="a" type="main">Domain adaptation for large-scale sentiment classification: A deep learning approach</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Xavier</forename><surname>Glorot</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Antoine</forename><surname>Bordes</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yoshua</forename><surname>Bengio</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the International Conference on Machine Learning</title>
+		<meeting>the International Conference on Machine Learning</meeting>
+		<imprint>
+			<date type="published" when="2011" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b22">
+	<analytic>
+		<title level="a" type="main">Leveraging domain-independent information in semantic parsing</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Dan</forename><surname>Goldwasser</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Dan</forename><surname>Roth</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the Annual Meeting of the Association for Computational Linguistics</meeting>
+		<imprint>
+			<date type="published" when="2013" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b23">
+	<analytic>
+		<title level="a" type="main">The symbol grounding problem</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Stevan</forename><surname>Harnad</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Physica D: Nonlinear Phenomena</title>
+		<imprint>
+			<biblScope unit="volume">42</biblScope>
+			<biblScope unit="issue">1-3</biblScope>
+			<biblScope unit="page" from="335" to="346" />
+			<date type="published" when="1990" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b24">
+	<monogr>
+		<title level="m" type="main">Neural semantic parsing over multiple knowledge-bases</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jonathan</forename><surname>Herzig</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jonathan</forename><surname>Berant</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1702.01569</idno>
+		<imprint>
+			<date type="published" when="2017" />
+		</imprint>
+	</monogr>
+	<note>cs.CL</note>
+</biblStruct>
+
+<biblStruct xml:id="b25">
+	<monogr>
+		<title level="m" type="main">Improving neural networks by preventing coadaptation of feature detectors</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Nitish</forename><surname>Geoffrey E Hinton</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Alex</forename><surname>Srivastava</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ilya</forename><surname>Krizhevsky</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Sutskever</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Salakhutdinov</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1207.0580</idno>
+		<imprint>
+			<date type="published" when="2012" />
+		</imprint>
+	</monogr>
+	<note>cs.NE</note>
+</biblStruct>
+
+<biblStruct xml:id="b26">
+	<analytic>
+		<title level="a" type="main">Convolutional neural network architectures for matching natural language sentences</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Baotian</forename><surname>Hu</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Zhengdong</forename><surname>Lu</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Hang</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Qingcai</forename><surname>Chen</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Annual Conference on Neural Information Processing Systems</title>
+		<meeting>the Annual Conference on Neural Information Processing Systems</meeting>
+		<imprint>
+			<date type="published" when="2014" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b27">
+	<analytic>
+		<title level="a" type="main">Batch normalization: Accelerating deep network training by reducing internal covariate shift</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Sergey</forename><surname>Ioffe</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Christian</forename><surname>Szegedy</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the International Conference on Machine Learning</title>
+		<meeting>the International Conference on Machine Learning</meeting>
+		<imprint>
+			<date type="published" when="2015" />
+			<biblScope unit="page" from="448" to="456" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b28">
+	<analytic>
+		<title level="a" type="main">Data recombination for neural semantic parsing</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Robin</forename><surname>Jia</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Percy</forename><surname>Liang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the Annual Meeting of the Association for Computational Linguistics</meeting>
+		<imprint>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b29">
+	<analytic>
+		<title level="a" type="main">Smart reply: Automated response suggestion for email</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Anjuli</forename><surname>Kannan</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Karol</forename><surname>Kurach</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Sujith</forename><surname>Ravi</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Tobias</forename><surname>Kaufmann</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Andrew</forename><surname>Tomkins</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Balint</forename><surname>Miklos</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Greg</forename><surname>Corrado</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">László</forename><surname>Lukács</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Marina</forename><surname>Ganea</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Peter</forename><surname>Young</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the ACM SIGKDD Conference on Knowledge Discovery and Data Mining</title>
+		<meeting>the ACM SIGKDD Conference on Knowledge Discovery and Data Mining</meeting>
+		<imprint>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b30">
+	<analytic>
+		<title level="a" type="main">Scaling semantic parsers with on-the-fly ontology matching</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Tom</forename><surname>Kwiatkowski</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Eunsol</forename><surname>Choi</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yoav</forename><surname>Artzi</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Luke</forename><surname>Zettlemoyer</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>Conference on Empirical Methods in Natural Language Processing</meeting>
+		<imprint>
+			<date type="published" when="2013" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b31">
+	<analytic>
+		<title level="a" type="main">Improving distributional similarity with lessons learned from word embeddings</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Omer</forename><surname>Levy</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yoav</forename><surname>Goldberg</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ido</forename><surname>Dagan</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Transactions of the Association for Computational Linguistics</title>
+		<imprint>
+			<biblScope unit="volume">3</biblScope>
+			<biblScope unit="page" from="211" to="225" />
+			<date type="published" when="2015" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b32">
+	<monogr>
+				<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Percy</forename><surname>Liang</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1309.4408</idno>
+		<title level="m">Lambda dependency-based compositional semantics</title>
+		<imprint>
+			<date type="published" when="2013" />
+		</imprint>
+	</monogr>
+	<note>cs.AI</note>
+</biblStruct>
+
+<biblStruct xml:id="b33">
+	<analytic>
+		<title level="a" type="main">Distributed representations of words and phrases and their compositionality</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Tomas</forename><surname>Mikolov</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ilya</forename><surname>Sutskever</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kai</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Greg</forename><forename type="middle">S</forename><surname>Corrado</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jeff</forename><surname>Dean</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Annual Conference on Neural Information Processing Systems</title>
+		<meeting>the Annual Conference on Neural Information Processing Systems</meeting>
+		<imprint>
+			<date type="published" when="2013" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b34">
+	<monogr>
+		<title level="m" type="main">Paraphrase generation from latent-variable PCFGs for semantic parsing</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Shashi</forename><surname>Narayan</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Siva</forename><surname>Reddy</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Shay B</forename><surname>Cohen</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1601.06068</idno>
+		<imprint>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+	<note>cs.CL</note>
+</biblStruct>
+
+<biblStruct xml:id="b35">
+	<analytic>
+		<title level="a" type="main">A survey on transfer learning</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Qiang</forename><surname>Sinno Jialin Pan</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Yang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">IEEE Transactions on knowledge and data engineering</title>
+		<imprint>
+			<biblScope unit="volume">22</biblScope>
+			<biblScope unit="issue">10</biblScope>
+			<biblScope unit="page" from="1345" to="1359" />
+			<date type="published" when="2010" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b36">
+	<analytic>
+		<title level="a" type="main">Glove: Global vectors for word representation</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jeffrey</forename><surname>Pennington</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Richard</forename><surname>Socher</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Christopher D</forename><surname>Manning</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>Conference on Empirical Methods in Natural Language Processing</meeting>
+		<imprint>
+			<date type="published" when="2014" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b37">
+	<analytic>
+		<title level="a" type="main">Large-scale semantic parsing without questionanswer pairs</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Siva</forename><surname>Reddy</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Mirella</forename><surname>Lapata</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Mark</forename><surname>Steedman</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Transactions of the Association for Computational Linguistics</title>
+		<imprint>
+			<biblScope unit="volume">2</biblScope>
+			<biblScope unit="page" from="377" to="392" />
+			<date type="published" when="2014" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b38">
+	<analytic>
+		<title level="a" type="main">Transforming dependency structures to logical forms for semantic parsing</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Siva</forename><surname>Reddy</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Oscar</forename><surname>Täckström</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Michael</forename><surname>Collins</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Tom</forename><surname>Kwiatkowski</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Dipanjan</forename><surname>Das</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Mark</forename><surname>Steedman</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Mirella</forename><surname>Lapata</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Transactions of the Association for Computational Linguistics</title>
+		<imprint>
+			<biblScope unit="volume">4</biblScope>
+			<biblScope unit="page" from="127" to="140" />
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b39">
+	<monogr>
+		<title level="m" type="main">Universal semantic parsing</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Siva</forename><surname>Reddy</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Oscar</forename><surname>Täckström</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Slav</forename><surname>Petrov</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Mark</forename><surname>Steedman</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Mirella</forename><surname>Lapata</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1702.03196</idno>
+		<imprint>
+			<date type="published" when="2017" />
+		</imprint>
+	</monogr>
+	<note>cs.CL</note>
+</biblStruct>
+
+<biblStruct xml:id="b40">
+	<analytic>
+		<title level="a" type="main">Dynamic pooling and unfolding recursive autoencoders for paraphrase detection</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Richard</forename><surname>Socher</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">H</forename><surname>Eric</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jeffrey</forename><surname>Huang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Pennington</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Y</forename><surname>Andrew</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Christopher D</forename><surname>Ng</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Manning</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Annual Conference on Neural Information Processing Systems</title>
+		<meeting>the Annual Conference on Neural Information Processing Systems</meeting>
+		<imprint>
+			<date type="published" when="2011" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b41">
+	<analytic>
+		<title level="a" type="main">On generating characteristic-rich question sets for QA evaluation</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yu</forename><surname>Su</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Huan</forename><surname>Sun</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Brian</forename><surname>Sadler</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Mudhakar</forename><surname>Srivatsa</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Izzeddin</forename><surname>Gür</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Zenghui</forename><surname>Yan</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Xifeng</forename><surname>Yan</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>Conference on Empirical Methods in Natural Language Processing</meeting>
+		<imprint>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b42">
+	<analytic>
+		<title level="a" type="main">Sequence to sequence learning with neural networks</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ilya</forename><surname>Sutskever</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Oriol</forename><surname>Vinyals</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Quoc V</forename><surname>Le</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Annual Conference on Neural Information Processing Systems</title>
+		<meeting>the Annual Conference on Neural Information Processing Systems</meeting>
+		<imprint>
+			<date type="published" when="2014" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b43">
+	<analytic>
+		<title level="a" type="main">Understanding natural language commands for robotic navigation and mobile manipulation</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Thomas</forename><forename type="middle">Fleming</forename><surname>Stefanie A Tellex</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Kollar</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Matthew</forename><forename type="middle">R</forename><surname>Steven R Dickerson</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ashis</forename><surname>Walter</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Seth</forename><surname>Banerjee</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Nicholas</forename><surname>Teller</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Roy</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the AAAI Conference on Artificial Intelligence</title>
+		<meeting>the AAAI Conference on Artificial Intelligence</meeting>
+		<imprint>
+			<date type="published" when="2011" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b44">
+	<analytic>
+		<title level="a" type="main">Grammar as a foreign language</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Oriol</forename><surname>Vinyals</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Łukasz</forename><surname>Kaiser</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Terry</forename><surname>Koo</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Slav</forename><surname>Petrov</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ilya</forename><surname>Sutskever</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Geoffrey</forename><surname>Hinton</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Annual Conference on Neural Information Processing Systems</title>
+		<meeting>the Annual Conference on Neural Information Processing Systems</meeting>
+		<imprint>
+			<date type="published" when="2015" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b45">
+	<analytic>
+		<title level="a" type="main">Building a semantic parser overnight</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yushi</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jonathan</forename><surname>Berant</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Percy</forename><surname>Liang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the Annual Meeting of the Association for Computational Linguistics</meeting>
+		<imprint>
+			<date type="published" when="2015" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b46">
+	<analytic>
+		<title level="a" type="main">Progress in natural language understanding: an application to lunar geology</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>William A Woods</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the American Federation of Information Processing Societies Conference</title>
+		<meeting>the American Federation of Information Processing Societies Conference</meeting>
+		<imprint>
+			<date type="published" when="1973" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b47">
+	<analytic>
+		<title level="a" type="main">Sequence-based structured prediction for semantic parsing</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Chunyang</forename><surname>Xiao</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Marc</forename><surname>Dymetman</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Claire</forename><surname>Gardent</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the Annual Meeting of the Association for Computational Linguistics</meeting>
+		<imprint>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b48">
+	<analytic>
+		<title level="a" type="main">Question answering on freebase via relation extraction and textual evidence</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kun</forename><surname>Xu</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Siva</forename><surname>Reddy</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yansong</forename><surname>Feng</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Songfang</forename><surname>Huang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Dongyan</forename><surname>Zhao</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the Annual Meeting of the Association for Computational Linguistics</meeting>
+		<imprint>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b49">
+	<analytic>
+		<title level="a" type="main">Semantic parsing via staged query graph generation: Question answering with knowledge base</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Scott</forename><surname>Wen-Tau Yih</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ming-Wei</forename><surname>Chang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Xiaodong</forename><surname>He</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jianfeng</forename><surname>Gao</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the Annual Meeting of the Association for Computational Linguistics</meeting>
+		<imprint>
+			<date type="published" when="2015" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b50">
+	<analytic>
+		<title level="a" type="main">MultiGranCNN: An architecture for general matching of text chunks on multiple levels of granularity</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Wenpeng</forename><surname>Yin</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Hinrich</forename><surname>Schütze</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the Annual Meeting of the Association for Computational Linguistics</meeting>
+		<imprint>
+			<date type="published" when="2015" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b51">
+	<analytic>
+		<title level="a" type="main">Learning to parse database queries using inductive logic programming</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">M</forename><surname>John</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Raymon</forename><forename type="middle">J</forename><surname>Zelle</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Mooney</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the AAAI Conference on Artificial Intelligence</title>
+		<meeting>the AAAI Conference on Artificial Intelligence</meeting>
+		<imprint>
+			<date type="published" when="1996" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+				</listBibl>
+			</div>
+		</back>
+	</text>
+</TEI>

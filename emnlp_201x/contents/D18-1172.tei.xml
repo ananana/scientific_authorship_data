@@ -1,0 +1,925 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<TEI xmlns="http://www.tei-c.org/ns/1.0" 
+xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+xsi:schemaLocation="http://www.tei-c.org/ns/1.0 /home/ana/installs/grobid/grobid-0.5.1/grobid-home/schemas/xsd/Grobid.xsd"
+ xmlns:xlink="http://www.w3.org/1999/xlink">
+	<teiHeader xml:lang="en">
+		<encodingDesc>
+			<appInfo>
+				<application version="0.5.1-SNAPSHOT" ident="GROBID" when="2019-04-18T11:00+0000">
+					<ref target="https://github.com/kermitt2/grobid">GROBID - A machine learning software for extracting information from scholarly documents</ref>
+				</application>
+			</appInfo>
+		</encodingDesc>
+		<fileDesc>
+			<titleStmt>
+				<title level="a" type="main">Streaming word similarity mining on the cheap</title>
+			</titleStmt>
+			<publicationStmt>
+				<publisher>Association for Computational Linguistics</publisher>
+				<availability status="unknown"><p>Copyright Association for Computational Linguistics</p>
+				</availability>
+				<date>October 31-November 4, 2018. 2018</date>
+			</publicationStmt>
+			<sourceDesc>
+				<biblStruct>
+					<analytic>
+						<author>
+							<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Olof</forename><surname>Görnerup</surname></persName>
+							<email>olof.gornerup@ri.se</email>
+							<affiliation key="aff0">
+								<orgName type="department" key="dep1">RISE AI SE</orgName>
+								<orgName type="department" key="dep2">RISE AI SE</orgName>
+								<address>
+									<postCode>164 29, 164 29</postCode>
+									<settlement>Kista, Kista</settlement>
+									<country>Sweden, Sweden</country>
+								</address>
+							</affiliation>
+						</author>
+						<author>
+							<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Daniel</forename><surname>Gillblad</surname></persName>
+							<email>daniel.gillblad@ri.se</email>
+							<affiliation key="aff0">
+								<orgName type="department" key="dep1">RISE AI SE</orgName>
+								<orgName type="department" key="dep2">RISE AI SE</orgName>
+								<address>
+									<postCode>164 29, 164 29</postCode>
+									<settlement>Kista, Kista</settlement>
+									<country>Sweden, Sweden</country>
+								</address>
+							</affiliation>
+						</author>
+						<title level="a" type="main">Streaming word similarity mining on the cheap</title>
+					</analytic>
+					<monogr>
+						<title level="m">Proceedings of the 2018 Conference on Empirical Methods in Natural Language Processing</title>
+						<meeting>the 2018 Conference on Empirical Methods in Natural Language Processing <address><addrLine>Brussels, Belgium</addrLine></address>
+						</meeting>
+						<imprint>
+							<publisher>Association for Computational Linguistics</publisher>
+							<biblScope unit="page" from="1425" to="1434"/>
+							<date type="published">October 31-November 4, 2018. 2018</date>
+						</imprint>
+					</monogr>
+					<note>1425</note>
+				</biblStruct>
+			</sourceDesc>
+		</fileDesc>
+		<profileDesc>
+			<abstract>
+				<p>Accurately and efficiently estimating word similarities from text is fundamental in natural language processing. In this paper, we propose a fast and lightweight method for estimating similarities from streams by explicitly counting second-order co-occurrences. The method rests on the observation that words that are highly correlated with respect to such counts are also highly similar with respect to first-order co-occurrences. Using buffers of co-occurred words per word to count second-order co-occurrences, we can then estimate similarities in a single pass over data without having to do prohibitively expensive similarity calculations. We demonstrate that this approach is scalable, converges rapidly, behaves robustly under parameter changes, and that it captures word similarities on par with those given by state-of-the-art word embeddings.</p>
+			</abstract>
+		</profileDesc>
+	</teiHeader>
+	<text xml:lang="en">
+		<body>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="1">Introduction</head><p>Word similarities play an integral part in many nat- ural language processing applications. Improving similarity estimates will therefore in turn poten- tially improve a broad range of areas, including word alignment <ref type="bibr" target="#b31">(Songyot and Chiang, 2014</ref>), query expansion ( <ref type="bibr" target="#b7">Diaz et al., 2016</ref>), simplification <ref type="bibr" target="#b2">(Biran et al., 2011</ref>), document classification ( <ref type="bibr" target="#b0">Arras et al., 2017)</ref>, lexical substitution ( <ref type="bibr" target="#b22">McCarthy and Navigli, 2009</ref>) and many more.</p><p>The prevalent approach to estimate similarities is to first embed words in a vector space using tech- niques such as word2vec ( <ref type="bibr" target="#b23">Mikolov et al., 2013a</ref>,b) and GloVe ( <ref type="bibr" target="#b26">Pennington et al., 2014)</ref>, and then cal- culate the similarities between words as the simi- larities between corresponding vectors. Finding all significant similarities among a set of words in this way, however, is computationally demanding due to the large number of pairwise similarity calcula- tions involved (scaling as the square of the vocabu- lary size at worst). All-to-all similarity calculations are in particular strenuous, if at all feasible, in a streaming setting due to tight latency and memory constraints.</p><p>In this paper we address this by proposing a method that finds significant similarities without calculating any similarities. This seemingly con- tradictory feat is possible by explicitly counting second-order co-occurrences (SOCOs for short) and calculating correlations with respect to these. Two words w and v are said to have a SOCO if there is a third word u with whom both w and v co-occur (not necessarily together). For exam- ple, if the words hot and coffee co-occur at some point in a corpus or stream, and hot and tea co- occur at some other point in the same corpus or stream, then coffee and tea have a SOCO relation since they both co-occur with hot. The key obser- vation then, as depicted in <ref type="figure">Fig. 1</ref>, is that words that are highly correlated with respect to second-order co-occurrences are highly similar with respect to first-order co-occurrences. This relation enables us to avoid pairwise similarity calculations altogether and instead acquire similarities directly from the SOCO counts.</p><p>The contribution of this paper is mainly twofold. Firstly, we introduce an operational definition of SOCO probabilities. To the best of our knowl- edge, this has not been done before in this explicit manner. Secondly, we apply this definition to effi- ciently estimate word similarities from streams. In practice we achieve this by keeping small buffers of co-occurred words per context word, and then incre- menting SOCO counts of new co-occurred words and those in the buffer. Importantly, this enables us to pass over data only once. To ensure scala- bility in memory usage and runtime, approximate SOCO counts are then maintained in a count-min sketch table <ref type="bibr" target="#b5">(Cormode and Muthukrishnan, 2005</ref>) that keeps the algorithm lightweight.</p><p>The benefits of our approach are not only com-2nd order 1st order</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Embedding</head><p>Similarities Similarity calculations Co-occurrences</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Correlations Correlations</head><p>Figure 1: Diagram that describes the relationship be- tween 1st and 2nd order co-occurrences. Instead of first embedding words with regard to 1st order co- occurrences and then calculating pairwise similarities between word vectors, we acquire similarities by di- rectly correlating words with respect to their explicit 2nd order co-occurrences (encompassing labels in bold- face).</p><p>putational in allowing us to avoid both multi-pass batch processing and the quadratic time complexity that comes with pairwise similarity calculations. Since the method is based on simple counting of SOCOs, it is also completely transparent and in- terpretable. By comparison, most first-order word embeddings -word2vec and GloVe are again good examples -are relatively opaque and difficult to interpret. The simplicity of our method also makes it straightforward to implement while having only a handful of parameters to tune compared to preva- lent embedding methods that typically involve a large number hyperparameters.</p><p>The remainder of this paper is outlined as fol- lows: Next we will relate our proposed method to current approaches for calculating word similari- ties. The method is described in Sec. 3, followed by a complexity analysis in Sec. 4 where we theoret- ically and experimentally show that our approach indeed is suitable for stream mining. In Sec. 5, we evaluate the method with respect to convergence, accuracy and parameter sensitivity. The paper is concluded in Sec. 6 with a summary and a discus- sion on possible future directions.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2">Related work</head><p>The explicit use of second-order co-occurrences has so far gained little attention in word similarity mining. The typical approach is rather to express word similarities as similarities between vector rep- resentations that in turn are based on first-order co-occurrences (this is also the case in <ref type="bibr" target="#b16">(Islam and Inkpen, 2006</ref>), despite the name of their approach 1 ).</p><p>There is a large body of work in this area, predom- inantly based on Harris' distributional hypothesis <ref type="bibr" target="#b14">(Harris, 1954)</ref>, from seminal approaches such as LSA/LSI ( <ref type="bibr" target="#b6">Deerwester et al., 1990</ref>), HAL <ref type="bibr" target="#b20">(Lund and Burgess, 1996)</ref> and Random indexing ( <ref type="bibr" target="#b18">Kanerva et al., 2000</ref>) and onward. See ( <ref type="bibr" target="#b19">Levy et al., 2015)</ref> for an extensive review. A common approach then is to represent words in terms of co-occurrence correlations -e.g. using Pointwise mutual infor- mation (PMI) <ref type="bibr" target="#b4">(Church and Hanks, 1990</ref>) and vari- ants thereof ( <ref type="bibr" target="#b19">Levy et al., 2015</ref>) -either explicitly or through dimensionality reduction ( <ref type="bibr" target="#b26">Pennington et al., 2014</ref>). Another prevalent approach is to gen- erate vector representations based on prediction tasks, where words are predicted from their con- texts or vice versa; Continuous bag of words and Skip-gram ( <ref type="bibr">Mikolov et al., 2013a,b)</ref> are prominent examples. However, these methods are batch-based and typically require multiple passes over data (3 to 50 training epochs in the case of word2vec, for instance ( <ref type="bibr" target="#b24">Mikolov et al., 2013b)</ref>). Approaches that are more suitable for streaming data have also been developed, e.g. for calculating the most PMI- correlated words per word <ref type="bibr" target="#b8">(Durme and Lall, 2009)</ref> and, more recently, neural network methods (pri- marily based on Skip-gram) adapted to enable in- cremental updating <ref type="bibr" target="#b21">(Luo et al., 2015;</ref><ref type="bibr" target="#b17">Kaji and Kobayashi, 2017;</ref><ref type="bibr" target="#b1">Bamler and Mandt, 2017;</ref><ref type="bibr" target="#b25">Peng et al., 2017)</ref>. Note though that in all of the above cases vector representations capture first-order co- occurrences. When using PMI for example, the correlation between two words is high if they co- occur more frequently than expected from chance, but high correlation does not equate high similarity (consider the words red and wine for example). Es- timating word similarities would therefore require the extra step of calculating similarities between vectors, something that our approach bypasses by explicitly counting SOCOs.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3">Method</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.1">Second-order co-occurrences</head><p>We define the SOCO probability of words w and v as</p><formula xml:id="formula_0">P (w : v) := u∈V P (u)P (w|u)P (v|u), (1)</formula><p>where w : v denotes a SOCO and V is the vocabu- lary. That is, P (w : v) is the probability that two based on first-order word vectors, such as in <ref type="bibr" target="#b30">(Schütze, 1998)</ref>. This does not involve explicit SOCO counts as in our case though.</p><p>randomly selected words co-occurring with a ran- domly selected word u are w and v. Since</p><formula xml:id="formula_1">P (w : v) = u∈V P (w, u)P (v|u) (2) = u∈V P (w)P (u|w)P (v|u),</formula><p>an alternative interpretation of SOCO is the chain of randomly selecting a word w, one of its co- occurring words u, and in turn one of its co- occurring words v.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.2">Correlation measure</head><p>Our ansatz is that two words have a high degree of similarity if they are highly correlated with respect to SOCO, since this would imply that the words are relatively interchangeable in their respective contexts. We quantify a SOCO correlation using standard pointwise mutual information (PMI):</p><formula xml:id="formula_2">M (w : v) = log 2 P (w : v) P (w)P (v) ,<label>(3)</label></formula><p>where the denominator is the SOCO probability of w and v given that they are independent of u, since then</p><formula xml:id="formula_3">P (w : v) = u∈V P (u)P (w)P (v).<label>(4)</label></formula></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.3">Estimating correlations</head><p>Making the simplifying assumptions that a stream is stationary and that co-occurrence correlations decay rapidly with word-to-word distance in the stream (or corpus), we can estimate Eq. 3 in one pass using counters of word occurrences and SO- COs. See <ref type="figure">Fig. 2</ref> for a schematic overview and Algorithm 1 for a detailed description of our ap- proach.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.3.1">Co-occurrence buffers</head><p>Approximate SOCO counts are maintained by keep- ing small buffers (on the order of 1 to 10 words) of previously observed words with a given context. The context of a word is here given by the position relative to the word (say, -1 for the preceding word) and the word occupying that position. For example, if we observe the word fox in the sequence</p><p>The quick brown fox jumps over the lazy dog.</p><p>fox is added to the buffer of previously observed words with context (-1, brown) (bear, bag and eyes</p><formula xml:id="formula_4">(a) ... d c b a b c a d d a c d ... b:c c:d b:d b:d d:c b:c (b) b c c d b d b c d b ... d c b a b c a d d a c d ...</formula></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Second-order co-occurrences</head><p>Co-occurrence buffers</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Subsequent</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Preceding</head><p>Figure 2: (a) Words that share a context word (the word a in this example) at a given position (as a preceding and subsequent word, in blue and red, respectively) are said to co-occur to the second order. For example, b and c have a SOCO relation b : c since they both have a as a subsequent word. (b) We count second-order co- occurrences by keeping buffers of co-occurring words for a given context. The buffer for context (1, a) is shown above the sequence (i.e., when a occurs as a subsequent word) and (-1, a) below the sequence (a as a preceding word). Both buffers (implemented as queues, where the most recent observations are stored) are limited to two words in this example. Before a word is added to a buffer, the second-order co-occurrence counts of the word and the words in the buffer are in- cremented. For instance, the counts of b : d and c : d are incremented before the buffer <ref type="bibr">[c, b]</ref> is updated to <ref type="bibr">[d, c]</ref>. perhaps). Note that fox then has a SOCO relation with the words in the buffer. The SOCO counters of (fox, w) for all words w in the buffer are therefore incremented (for (fox, bear) for instance) before fox is added to the buffer. If the buffer is full -we cap the number of prior words stored -the oldest word is discarded prior to adding the new one.</p><p>The same procedure is performed for all context positions in a sliding window of a given length (e.g., for positions {−2, −1, 1, 2} if we consider sym- metric contexts in a five-word window). By simul- taneously estimating word frequencies by counting current words we can in this way incrementally maintain estimates of M (w : v).</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.3.2">Probabilistic counting</head><p>Since the number of SOCOs may be very large, we keep approximate counts of these using a count- min sketch table <ref type="bibr" target="#b5">(Cormode and Muthukrishnan, 2005</ref>). The table, denoted d, has h rows and g columns, where the rows are associated with h pairwise independent hash functions, f i , and where entries are initialized to 0. When a SOCO w : v for words w and v is observed, each hash function maps w : v to an index f i (w : v) of row i. Entry (i, f i (w : v)) is then incremented by 1.</p><p>After populating d the approximate count of w : v is given by the minimum count of the entries (i, f i (w : v)):</p><formula xml:id="formula_5">˜ c(w : v) = min i d(i, f i (w : v)).<label>(5)</label></formula><p>Note that˜cthat˜ that˜c may overestimate the true count c(w : v) due to hash collisions (this is indeed what keeps the data structure sublinear with respect to the num- ber of SOCOs). To reduce overestimations we can employ conservative updates by only updating an entry (i, f i (w : v)) if it is exceeded by the current in- cremented approximate SOCO count ( <ref type="bibr" target="#b12">Goyal et al., 2012)</ref>:</p><formula xml:id="formula_6">d(i, f i (w : v)) ← max {d(i, f i (w : v)), ˜ c(w : v)}.<label>(6)</label></formula><p>This is the approach used in all experiments pre- sented below.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.3.3">Top-k correlations</head><p>Rather than storing all SOCO correlations, which is infeasible for large vocabularies and wide context ranges, we keep track of the k most correlated words for each word in the vocabulary. We achieve this scalably by adapting the approach proposed by Durme and Lall for calculating first-order co- occurrence correlations in streams <ref type="bibr" target="#b8">(Durme and Lall, 2009)</ref>. We keep track of occurred SOCOs in non- overlapping meta-windows (on the order of 10 5 to 10 7 tokens long). For each meta-window, we calculate PMIs for occurred SOCOs using exact word counts (having a comparably small memory footprint) and approximate SOCO counts, and then update priority queues with the most similar words per word accordingly. In this way the number of SOCOs stored is kept approximately constant as we consume the stream.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4">Complexity analysis 4.1 Time</head><p>For each token in the stream, updating word counts takes constant time using an associative array. The algorithm also goes through 2n context words, where n is the context range. For each context</p><note type="other">Algorithm 1 Estimate M (w : v) for stream [s 1 , s 2</note><p>, ..., s m ], vocabulary V, context range n, buffer capacity r, meta-window size N and count- min (C-m) table with h rows and g columns. Note that m may approach infinity.</p><p>1: l ← {−n, ..., −1, 1, ..., n} {context positions} 2: c(w) ← 0; w ∈ V {word counts} 3: d i,j ← 0; i = 1, ..., g, j = 1, ..., h {C-m table} 4: t w ← 0 {total word count} 5: t s ← 0 {total SOCO count} 6: q(i, w) ← ∅; w ∈ V, i ∈ l {context queues} 7: S(w) ← ∅; w ∈ V {similar word queues} 8: P ← ∅ {observed SOCOs} 9: for i = n + 1 to m − n do {consume stream} <ref type="bibr">10:</ref> c(s i ) ← c(s i ) + 1</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>11:</head><p>t w ← t w + 1</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>12:</head><p>for j ∈ l do 13: if i mod N = 0 then {meta-window ends} <ref type="bibr">24:</ref> for w ∈ V do Update S(w) with v and priority M .</p><formula xml:id="formula_7">for v ∈ q(j,</formula></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>×10 −5</head><p>Figure 3: Runtime per token at stream position i (Python implementation run on a MacBook Pro with a 2.8 GHz Intel Core i7 processor and 16 GB of mem- ory).</p><p>related words per word. We first update frequency estimates of words, which takes O(|V|) time. For each SOCO that has been observed in the meta- window, |P| of them, we update the priority queues with the most correlated words of the words in- volved in the SOCOs. Each such update takes O(log k), where the parameter k is the number of most correlated words of a word. Altogether, the time complexity is hence O(nrh + |V|+|P| log k N ) per token. Note that n, r, h, k |V|, |P|, where n, r, h and k are all small fixed parameters (n ∼ 1 to 10, r ∼ 10, k ∼ 10 to 100 and h ∼ 10 typically). Given that the stream is roughly stationary (which has been the case in our experiments), the size of P is approximately constant. With a fixed vocabu- lary and N , the runtime per token is therefore also kept approximately constant. We confirm this ex- perimentally, see <ref type="figure">Fig. 3</ref>, by running the algorithm on English Wikipedia (as of March 7, 2015) us- ing a context range of one (window size three), a vocabulary constituted by the 10 4 most frequent words, meta-windows of length 10 7 and five-word co-occurrence buffers, a count-min table with 8 rows and 3.4 · 10 7 columns, and where the 10 most similar words per word are stored. As expected, the runtime per token increases initially as the co- occurrence buffers are filled up, and then converges towards a constant value.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.2">Space</head><p>With regard to memory the algorithm requires that we keep a co-occurrence buffer for each word in the vocabulary and for each context position.</p><p>The space complexity of the buffers is therefore O(nr|V|). In addition, there are |V| word coun- ters and priority queues of size k for storing top-k similar words, a count-min sketch table with gh entries, where the fixed parameter g is the number of columns in the count-min table, and a index pair set of size |P| for storing occurred SOCOs that have occurred in a meta-window. The total space required is hence O((nr + k)|V| + gh + |P|).</p><p>For example, assume we have a vocabulary with a million words, a context range of 5 (i.e., window size 5+1+5), a buffer size of 10, a count-min table with 3 · 10 8 columns and 8 rows, and that we keep the 10 most similar words per word. We then need to store 10 6 · 2 · 5 · 10 = 10 8 items in the co- occurrence buffers. If each item requires 4 bytes (a word index constituted by an unsigned integer), the buffers take up 400 MB of space. Add to that another 4 MB for the word counters (10 6 of them à 4 bytes), 40 MB (10 6 · 4 · 10 bytes) for the top 10 similar word indices per word and 9.6 GB (8 · 3 · 10 8 ·4 bytes) for the count-min sketch table. Set the meta-window length so that |P| ≤ 7.4 · 10 8 (taking up a bit less than 6 GB of memory at most) and we end up with a total footprint of approximately 16 GB -a memory requirement even met by many present-day laptops.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5">Evaluation</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.1">Examples</head><p>In <ref type="table" target="#tab_2">Table 1</ref> we show a set of examples of the most SOCO-correlated words per word as output by the algorithm (using Wikipedia, a context range of 2, buffer size of 10 and a count-min table with 8 rows and 2.7 · 10 8 columns). Although the examples are anecdotal, they illustrate that the method manages to mine word similarities that make intuitive sense, such that Wednesday is most similar to other days in the week (interestingly, it is most similar to ad- jacent days, Tuesday and Thursday) and yellow is most similar to other colors, etc.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.2">Convergence</head><p>It is crucial that the method converges within a reasonable amount of time in order for it to be of practical use. To test this we run the algorithm and measure how the sets of top-k similar words change as the stream progresses. We quantify these changes using the Jaccard index between a word set of a word w at position i in the stream, S i (w), and the corresponding word set at ∆i tokens prior, <ref type="table">musician  increasing croatian  wednesday scholar  hermann coventry yellow   singer  reducing  yugoslav thursday  scholars  heinrich  leicester purple  pianist  growing  serbian  tuesday  translator  friedrich norwich pink  songwriter increased slovenian monday  playwright wilhelm  stoke  orange  guitarist  reduces  croatia  friday  philosopher georg  swansea blue  rapper  reduce  slovak  saturday  poet</ref> wolfgang cardiff red   </p><formula xml:id="formula_8">S i−∆i (w). That is, J(S i (w), S i−∆i (w)) = |S i (w) ∩ S i−∆i (w)| |S i (w) ∪ S i−∆i (w)| ,<label>(7)</label></formula><p>where J = 1 if there is no change and the sets are identical. As seen in <ref type="figure">Fig. 4</ref>, the top-k sets converge as both the mean of J(S i (w), S i−∆i (w)) over words w tends towards one while the standard deviation decreases. In this experiment, applied on Wikipedia and a vocabulary of 10 4 words, the top ten words per word were stored. Further, ∆i = 10 6 tokens, contexts of range one, a count-min table with 8 rows and 3.4 · 10 7 columns, and co- occurrence buffers of size five were used.  <ref type="bibr" target="#b9">Finkelstein et al., 2001</ref>). Each of these benchmarks contains a set of word pairs and their similarities as judged by human annotators. Comparing these word rankings with rankings given by Eq. 3, we get an indication of how well our method captures human notions of similarity and relatedness. The agreement is quanti- fied with the standard Spearman's rank correlation coefficient.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.3">Accuracy</head><p>The results are also compared to the ranking agreements for popular word embeddings -GloVe ( <ref type="bibr" target="#b26">Pennington et al., 2014</ref>) (GLOVE), Continuous Bag of words (CBOW) and Skip-gram (SGM) (Mikolov et al., 2013a,b) -as well as for the point- wise mutual information between regular first-order co-occurrences (FOCO). In all these cases, word similarities are given by the cosine similarity,</p><formula xml:id="formula_9">σ(v i , v j ) = v i · v j |v i | 2 |v j | 2 ,<label>(8)</label></formula><p>where v i and v j are vectors associated with words i and j. All word embeddings are in 300 dimen-sions. Remaining parameters are set to default val- ues, with the exception that no explicit word count thresholding is used in order to avoid loss of bench- mark words. (Applying thresholds at 3-5 occur- rences gives comparable results as those reported here, but for fewer word pairs.) For all benchmarks the One billion word corpus 2 ( <ref type="bibr" target="#b3">Chelba et al., 2013)</ref> is used with a vocabulary consisting of the 3 · 10 4 most frequent words, except the Stanford CoreNLP stopwords. 3 A context range of 2, count-min tables with 8 rows and 3.4 · 10 7 columns, and a buffer size of 10 are used throughout. Since many word pairs in the benchmarks are dissimilar we keep all SOCO correlations for the benchmark word pairs in this experiment. A small fraction of benchmark words are either not present in the corpus or captured by SOCO or the embedding methods due to sampling.</p><p>To ensure a fair comparison between methods, only word pairs that are represented by all approaches are therefore considered.</p><p>The results are summarized in <ref type="table" target="#tab_3">Table 2</ref>, where we note that the coverage (the fraction of benchmark pairs represented) is high, from 95% for MT-287 to 99% for SIMLEX. The relative performance of SOCO varies over benchmarks: in two out of five cases the performance is roughly on par with SGM, and compared to GLOVE, CBOW and FOCO, our method performs best in three out of five bench- marks. Thus the overall picture is that our approach indeed is able to capture meaningful similarity re- lations, and that it performs comparably to regular first-order word embedding methods.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.4">Parameter sensitivity</head><p>The algorithm has two key parameters: the co- occurrence buffer capacity and the size of the count- min sketch table. Since the approximation errors induced by the latter is thoroughly analyzed in <ref type="bibr" target="#b5">(Cormode and Muthukrishnan, 2005</ref>) we will here focus on how the buffer size influences similarity accu- racy. Using the same corpus and benchmark suite as in Sec. 5.3, we evaluate how the accuracy varies with the buffer capacity. To again make a fair com- parison, we then only include those benchmark word-pairs that are covered in all experiments.</p><p>As seen in <ref type="figure">Fig. 5</ref>, the method is insensitive to the buffer capacity size as the accuracy stays approx- imately constant for buffers of sizes larger than 3. This is also the case in relative terms: see <ref type="figure" target="#fig_3">Fig. 6</ref>   where we plot the accuracy relative to the accu- racy for buffers of size 1. The improvement is then largest for SIMLEX-999, where going from buffers of size 1 to 15 yields an approximate difference of 17% in accuracy. The relative accuracy, how- ever, varies little from buffer capacity 3 and upward. With regard to coverage, see <ref type="figure" target="#fig_4">Fig. 7</ref>, the buffer ca- pacity has a significant effect up until buffer size 9, after which the coverage settles at around 95-99%.</p><p>We can conclude that the method is robust with regard to buffer capacity, resulting in predictable and smooth changes in output, and that it suffices to keep small buffers to maintain both accuracy and coverage. Since the buffers in effect tend to store the most frequent co-occurrences per word, these results indicate that it is possible to accurately esti- mate similarities using only salient co-occurrences. This is also supported by <ref type="bibr">Polajnar and Clark's finding (2014)</ref> that only a handful of the most frequent context words yields the best results when estimat-  ing similarities from co-occurrence frequencies.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6">Conclusions</head><p>We have presented a method for estimating word similarities from corpora or streams using an ex- plicit notion of SOCO. Our approach is simply to count such co-occurrences and calculate cor- relations between words with respect to these counts. Words that are highly correlated are then also highly similar with respect to first-order co- occurrences. By using co-occurrence buffers and count-min sketches for estimating SOCO counts, the method keeps both the runtime per token and memory usage constant while only needing one pass over data. These properties makes our ap- proach ideal for low-cost stream mining.</p><p>Despite its simplicity and modest computational requirements, benchmark experiments show that the method performs comparably to calculating similarities between best-in-class word vectors. This not only makes our approach a feasible al- ternative for calculating word similarities on the cheap, but in some cases it may be the only viable option. Consider for instance an embedded sys- tem in a decentralized machine learning or edge computing scenario. Then real-time computing constraints and scarce memory would rule out both multi-pass word embeddings and pairwise simi- larity calculations in favor of similarities readily available from SOCO counts.</p><p>There are numerous possible future directions, exploring correlation measures other than PMI be- ing one. Also, by grouping words in concurrence with finding top-k similar words per word, an ex- tended method could be used for word cluster- ing. Possible ways to find groups of inter-similar words -constituting abstract concepts ( <ref type="bibr">Görnerup et al., 2017)</ref> -is then to use label propagation on a graph ( <ref type="bibr" target="#b29">Raghavan et al., 2007</ref>) (with words consti- tuting vertices and the top-k similar words directed edges), or agglomerative hierarchical clustering. How to do this efficiently and scalably is currently under study. Moreover, in this paper we have ex- clusively considered text data and word similari- ties. The method, however, is domain-agnostic and may be applied on other types of data, in and be- yond the NLP domain. There is a wide range of potential application areas, presumably in every- thing from biology and physics to social science and economics -in essence in any domain where objects co-occur and where these co-occurrences carry some relevant information or meaning.</p></div><figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_0"><head>P</head><label></label><figDesc>(w) ← c(w)/t w 26: end for 27: for w : v ∈ P do 28: P (w : v) ← d(w : v)/t s 29: M = log 2 [P (w : v)/(P (w)P (v))] 30:</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_1"><head></head><label></label><figDesc>Figure 4: Average change of top-k word sets over words at stream position i. Standard deviation shown by error bars.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_2"><head></head><label></label><figDesc>To quantitatively evaluate the accuracy of the method, we use a collection of established word similarity benchmarks: SimLex-999 (SIMLEX) (Hill et al., 2015), SimVerb (SIMVERB) (Gerz et al., 2016), MTurk-287 (MT-287) (Radinsky et al., 2011), MTurk-771 (MT-771) (Halawi et al., 2012) and WordSim (WS-353) (</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_3"><head>Figure 6 :</head><label>6</label><figDesc>Figure 6: Relative Spearman's rank correlation coefficients with respect to correlations at buffer capacity 1 for different benchmarks and buffer capacities.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_4"><head>Figure 7 :</head><label>7</label><figDesc>Figure 7: Coverage for different benchmarks and buffer capacities.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_2" validated="true"><head>Table 1 :</head><label>1</label><figDesc></figDesc><table>Examples of the most correlated words per word with respect to second-order co-occurrence. 
+
+SIMLEX SIMVERB MT-287 MT-771 WS-353 
+
+SOCO 
+0.41 
+0.25 
+0.59 
+0.56 
+0.71 
+FOCO 
+0.35 
+0.23 
+0.65 
+0.59 
+0.66 
+GLOVE 
+0.31 
+0.18 
+0.61 
+0.57 
+0.63 
+CBOW 
+0.34 
+0.22 
+0.66 
+0.57 
+0.69 
+SGM 
+0.41 
+0.32 
+0.67 
+0.60 
+0.72 
+
+Coverage 0.99 
+0.96 
+0.95 
+0.98 
+0.98 
+
+</table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_3" validated="false"><head>Table 2 :</head><label>2</label><figDesc></figDesc><table>Top rows: Spearman's rank correlation coefficients for different methods and benchmarks. Bottom row: 
+fractions of benchmark word pairs covered by the methods and the corpus. 
+
+</table></figure>
+
+			<note place="foot" n="1"> In general, the term second-order co-occurrence is sometimes used in NLP to describe second-order representations</note>
+		</body>
+		<back>
+
+			<div type="acknowledgement">
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Acknowledgments</head><p>The authors thank the anonymous reviewer for bringing to their attention the link between most fre-quent co-occurrences and the sufficiency of small buffer sizes. This work was funded by the Swedish Knowl-edge Foundation through the BIDAF project and by the Swedish Foundation for Strategic Research through the Continuous Deep Analytics project.</p></div>
+			</div>
+
+			<div type="references">
+
+				<listBibl>
+
+<biblStruct xml:id="b0">
+	<analytic>
+		<title level="a" type="main">What is Relevant in a Text Document?&quot;: An Interpretable Machine Learning Approach</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Leila</forename><surname>Arras</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Franziska</forename><surname>Horn</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Grégoire</forename><surname>Montavon</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Klaus-Robert</forename><surname>Müller</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Wojciech</forename><surname>Samek</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">PLOS ONE</title>
+		<imprint>
+			<date type="published" when="2017" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b1">
+	<analytic>
+		<title level="a" type="main">Dynamic word embeddings</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Robert</forename><surname>Bamler</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Stephan</forename><surname>Mandt</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 34th International Conference on Machine Learning</title>
+		<meeting>the 34th International Conference on Machine Learning<address><addrLine>Sydney, NSW, Australia</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2017-08-11" />
+			<biblScope unit="page" from="380" to="389" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b2">
+	<analytic>
+		<title level="a" type="main">Putting It Simply: A Context-aware Approach to Lexical Simplification</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Or</forename><surname>Biran</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Samuel</forename><surname>Brody</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Noémie</forename><surname>Elhadad</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 49th Annual Meeting of the Association for Computational Linguistics: Human Language Technologies: Short Papers</title>
+		<meeting>the 49th Annual Meeting of the Association for Computational Linguistics: Human Language Technologies: Short Papers</meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2011" />
+			<biblScope unit="volume">2</biblScope>
+			<biblScope unit="page" from="496" to="501" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b3">
+	<monogr>
+		<title level="m" type="main">One billion word benchmark for measuring progress in statistical language modeling</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ciprian</forename><surname>Chelba</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Tomas</forename><surname>Mikolov</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Mike</forename><surname>Schuster</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Qi</forename><surname>Ge</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Thorsten</forename><surname>Brants</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Phillipp</forename><surname>Koehn</surname></persName>
+		</author>
+		<idno>abs/1312.3005</idno>
+		<imprint>
+			<date type="published" when="2013" />
+			<publisher>CoRR</publisher>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b4">
+	<analytic>
+		<title level="a" type="main">Word association norms, mutual information, and lexicography</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kenneth</forename><forename type="middle">Ward</forename><surname>Church</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Patrick</forename><surname>Hanks</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Computational Linguistics</title>
+		<imprint>
+			<biblScope unit="volume">16</biblScope>
+			<biblScope unit="issue">1</biblScope>
+			<biblScope unit="page" from="22" to="29" />
+			<date type="published" when="1990" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b5">
+	<analytic>
+		<title level="a" type="main">An Improved Data Stream Summary: The Countmin Sketch and Its Applications</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Graham</forename><surname>Cormode</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">S</forename><surname>Muthukrishnan</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">J. Algorithms</title>
+		<imprint>
+			<biblScope unit="volume">55</biblScope>
+			<biblScope unit="issue">1</biblScope>
+			<biblScope unit="page" from="58" to="75" />
+			<date type="published" when="2005" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b6">
+	<analytic>
+		<title level="a" type="main">Indexing by latent semantic analysis</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Scott</forename><surname>Deerwester</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Susan</forename><forename type="middle">T</forename><surname>Dumais</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">George</forename><forename type="middle">W</forename><surname>Furnas</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Thomas</forename><forename type="middle">K</forename><surname>Landauer</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Richard</forename><surname>Harshman</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Journal of the American Society for Information Science</title>
+		<imprint>
+			<biblScope unit="volume">41</biblScope>
+			<biblScope unit="issue">6</biblScope>
+			<biblScope unit="page" from="391" to="407" />
+			<date type="published" when="1990" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b7">
+	<analytic>
+		<title level="a" type="main">Query expansion with locally-trained word embeddings</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Fernando</forename><surname>Diaz</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Bhaskar</forename><surname>Mitra</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Nick</forename><surname>Craswell</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 54th Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 54th Annual Meeting of the Association for Computational Linguistics</meeting>
+		<imprint>
+			<date type="published" when="2016" />
+			<biblScope unit="page" from="367" to="377" />
+		</imprint>
+	</monogr>
+	<note>Association for Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b8">
+	<analytic>
+		<title level="a" type="main">Streaming Pointwise Mutual Information</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">V</forename><surname>Benjamin</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ashwin</forename><surname>Durme</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Lall</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Advances in Neural Information Processing Systems 22 (NIPS)</title>
+		<imprint>
+			<publisher>Curran Associates, Inc</publisher>
+			<date type="published" when="2009" />
+			<biblScope unit="page" from="1892" to="1900" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b9">
+	<analytic>
+		<title level="a" type="main">Placing search in context: The concept revisited</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Lev</forename><surname>Finkelstein</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Evgeniy</forename><surname>Gabrilovich</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yossi</forename><surname>Matias</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ehud</forename><surname>Rivlin</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Zach</forename><surname>Solan</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Gadi</forename><surname>Wolfman</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Eytan</forename><surname>Ruppin</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 10th International Conference on World Wide Web, WWW &apos;01</title>
+		<meeting>the 10th International Conference on World Wide Web, WWW &apos;01</meeting>
+		<imprint>
+			<publisher>ACM</publisher>
+			<date type="published" when="2001" />
+			<biblScope unit="page" from="406" to="414" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b10">
+	<analytic>
+		<title level="a" type="main">SimVerb-3500: A LargeScale Evaluation Set of Verb Similarity</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Daniela</forename><surname>Gerz</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ivan</forename><surname>Vuli´cvuli´c</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Felix</forename><surname>Hill</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Roi</forename><surname>Reichart</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Anna</forename><surname>Korhonen</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">EMNLP</title>
+		<imprint>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b11">
+	<monogr>
+		<title level="m" type="main">Domain-agnostic discovery of similarities and concepts at scale. Knowledge and Information Systems</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Olof</forename><surname>Görnerup</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Daniel</forename><surname>Gillblad</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Theodore</forename><surname>Vasiloudis</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2017" />
+			<biblScope unit="volume">51</biblScope>
+			<biblScope unit="page" from="531" to="560" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b12">
+	<analytic>
+		<title level="a" type="main">Sketch Algorithms for Estimating Point Queries in NLP</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Amit</forename><surname>Goyal</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Hal</forename><surname>Daumé</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Iii</forename></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Graham</forename><surname>Cormode</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2012 Joint Conference on Empirical Methods in Natural Language Processing and Computational Natural Language Learning</title>
+		<meeting>the 2012 Joint Conference on Empirical Methods in Natural Language Processing and Computational Natural Language Learning</meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2012" />
+			<biblScope unit="volume">12</biblScope>
+			<biblScope unit="page" from="1093" to="1103" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b13">
+	<analytic>
+		<title level="a" type="main">Large-scale learning of word relatedness with constraints</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Guy</forename><surname>Halawi</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Gideon</forename><surname>Dror</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Evgeniy</forename><surname>Gabrilovich</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yehuda</forename><surname>Koren</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 18th ACM SIGKDD International Conference on Knowledge Discovery and Data Mining, KDD &apos;12</title>
+		<meeting>the 18th ACM SIGKDD International Conference on Knowledge Discovery and Data Mining, KDD &apos;12</meeting>
+		<imprint>
+			<publisher>ACM</publisher>
+			<date type="published" when="2012" />
+			<biblScope unit="page" from="1406" to="1414" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b14">
+	<monogr>
+				<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Zellig</forename><surname>Harris</surname></persName>
+		</author>
+		<title level="m">Distributional structure. Word</title>
+		<imprint>
+			<date type="published" when="1954" />
+			<biblScope unit="volume">10</biblScope>
+			<biblScope unit="page" from="146" to="162" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b15">
+	<analytic>
+		<title level="a" type="main">Simlex-999: Evaluating semantic models with genuine similarity estimation</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Felix</forename><surname>Hill</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Roi</forename><surname>Reichart</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Anna</forename><surname>Korhonen</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Comput. Linguist</title>
+		<imprint>
+			<biblScope unit="volume">41</biblScope>
+			<biblScope unit="issue">4</biblScope>
+			<biblScope unit="page" from="665" to="695" />
+			<date type="published" when="2015" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b16">
+	<analytic>
+		<title level="a" type="main">Second order cooccurrence PMI for determining the semantic similarity of words</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">A</forename><surname>Islam</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">D</forename><surname>Inkpen</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">LREC 2006</title>
+		<imprint>
+			<date type="published" when="2006" />
+			<biblScope unit="page" from="1033" to="1038" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b17">
+	<analytic>
+		<title level="a" type="main">Incremental skip-gram model with negative sampling</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Nobuhiro</forename><surname>Kaji</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Hayato</forename><surname>Kobayashi</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2017 Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>the 2017 Conference on Empirical Methods in Natural Language Processing</meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2017" />
+			<biblScope unit="page" from="363" to="371" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b18">
+	<analytic>
+		<title level="a" type="main">Random indexing of text samples for latent semantic analysis</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">P</forename><surname>Kanerva</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">J</forename><surname>Kristofersson</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">A</forename><surname>Holst</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 22nd Annual Conference of the Cognitive Science Society</title>
+		<meeting>the 22nd Annual Conference of the Cognitive Science Society</meeting>
+		<imprint>
+			<date type="published" when="2000" />
+			<biblScope unit="volume">1036</biblScope>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b19">
+	<analytic>
+		<title level="a" type="main">Improving distributional similarity with lessons learned from word embeddings</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Omer</forename><surname>Levy</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yoav</forename><surname>Goldberg</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ido</forename><surname>Dagan</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">TACL</title>
+		<imprint>
+			<biblScope unit="volume">3</biblScope>
+			<biblScope unit="page" from="211" to="225" />
+			<date type="published" when="2015" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b20">
+	<analytic>
+		<title level="a" type="main">Producing high-dimensional semantic spaces from lexical cooccurrence</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kevin</forename><surname>Lund</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Curt</forename><surname>Burgess</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Behavior Research Methods, Instruments, &amp; Computers</title>
+		<imprint>
+			<date type="published" when="1996" />
+			<biblScope unit="volume">28</biblScope>
+			<biblScope unit="page" from="203" to="208" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b21">
+	<analytic>
+		<title level="a" type="main">Online learning of interpretable word embeddings</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Hongyin</forename><surname>Luo</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Zhiyuan</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Huanbo</forename><surname>Luan</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Maosong</forename><surname>Sun</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2015 Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>the 2015 Conference on Empirical Methods in Natural Language Processing</meeting>
+		<imprint>
+			<date type="published" when="2015" />
+			<biblScope unit="page" from="1687" to="1692" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b22">
+	<monogr>
+		<title level="m" type="main">The english lexical substitution task. Language Resources and Evaluation</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Diana</forename><surname>Mccarthy</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Roberto</forename><surname>Navigli</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2009" />
+			<biblScope unit="volume">43</biblScope>
+			<biblScope unit="page" from="139" to="159" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b23">
+	<analytic>
+		<title level="a" type="main">Efficient Estimation of Word Representations in Vector Space</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Tomas</forename><surname>Mikolov</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kai</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Greg</forename><surname>Corrado</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jeffrey</forename><surname>Dean</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the International Conference on Learning Representations (ICLR)</title>
+		<meeting>the International Conference on Learning Representations (ICLR)</meeting>
+		<imprint>
+			<date type="published" when="2013" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b24">
+	<analytic>
+		<title level="a" type="main">Distributed representations of words and phrases and their compositionality</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Tomas</forename><surname>Mikolov</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ilya</forename><surname>Sutskever</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kai</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Gregory</forename><forename type="middle">S</forename><surname>Corrado</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jeffrey</forename><surname>Dean</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Advances in Neural Information Processing Systems (NIPS)</title>
+		<imprint>
+			<date type="published" when="2013" />
+			<biblScope unit="page" from="3111" to="3119" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b25">
+	<analytic>
+		<title level="a" type="main">Incrementally learning the hierarchical softmax function for neural language models</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Hao</forename><surname>Peng</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jianxin</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yangqiu</forename><surname>Song</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yaopeng</forename><surname>Liu</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">AAAI</title>
+		<imprint>
+			<publisher>AAAI Press</publisher>
+			<date type="published" when="2017" />
+			<biblScope unit="page" from="3267" to="3273" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b26">
+	<analytic>
+		<title level="a" type="main">GloVe: Global Vectors for Word Representation</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jeffrey</forename><surname>Pennington</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Richard</forename><surname>Socher</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Christopher</forename><surname>Manning</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2014 Conference on Empirical Methods in Natural Language Processing (EMNLP)</title>
+		<meeting>the 2014 Conference on Empirical Methods in Natural Language Processing (EMNLP)</meeting>
+		<imprint>
+			<date type="published" when="2014" />
+			<biblScope unit="page" from="1532" to="1543" />
+		</imprint>
+	</monogr>
+	<note>Association for Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b27">
+	<analytic>
+		<title level="a" type="main">Improving distributional semantic vectors through context selection and normalisation</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Tamara</forename><surname>Polajnar</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Stephen</forename><surname>Clark</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 14th Conference of the European Chapter of the Association for Computational Linguistics (EACL)</title>
+		<meeting>the 14th Conference of the European Chapter of the Association for Computational Linguistics (EACL)</meeting>
+		<imprint>
+			<date type="published" when="2014" />
+			<biblScope unit="page" from="230" to="238" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b28">
+	<analytic>
+		<title level="a" type="main">A word at a time: Computing word relatedness using temporal semantic analysis</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kira</forename><surname>Radinsky</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Eugene</forename><surname>Agichtein</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Evgeniy</forename><surname>Gabrilovich</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Shaul</forename><surname>Markovitch</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 20th International Conference on World Wide Web, WWW &apos;11</title>
+		<meeting>the 20th International Conference on World Wide Web, WWW &apos;11</meeting>
+		<imprint>
+			<publisher>ACM</publisher>
+			<date type="published" when="2011" />
+			<biblScope unit="page" from="337" to="346" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b29">
+	<analytic>
+		<title level="a" type="main">Near linear time algorithm to detect community structures in large-scale networks</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Usha</forename><surname>Nandini Raghavan</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Réka</forename><surname>Albert</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Soundar</forename><surname>Kumara</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Phys. Rev. E</title>
+		<imprint>
+			<biblScope unit="volume">76</biblScope>
+			<biblScope unit="page">36106</biblScope>
+			<date type="published" when="2007" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b30">
+	<analytic>
+		<title level="a" type="main">Automatic word sense discrimination</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Hinrich</forename><surname>Schütze</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Journal of Computational Linguistics</title>
+		<imprint>
+			<biblScope unit="volume">24</biblScope>
+			<biblScope unit="page" from="97" to="123" />
+			<date type="published" when="1998" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b31">
+	<analytic>
+		<title level="a" type="main">Improving word alignment using word similarity</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Theerawat</forename><surname>Songyot</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">David</forename><surname>Chiang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2014 Conference on Empirical Methods in Natural Language Processing (EMNLP)</title>
+		<meeting>the 2014 Conference on Empirical Methods in Natural Language Processing (EMNLP)<address><addrLine>Doha, Qatar</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2014" />
+			<biblScope unit="page" from="1840" to="1845" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+				</listBibl>
+			</div>
+		</back>
+	</text>
+</TEI>

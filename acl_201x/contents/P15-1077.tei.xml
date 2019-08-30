@@ -1,0 +1,815 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<TEI xmlns="http://www.tei-c.org/ns/1.0" 
+xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+xsi:schemaLocation="http://www.tei-c.org/ns/1.0 /home/ana/installs/grobid/grobid-0.5.1/grobid-home/schemas/xsd/Grobid.xsd"
+ xmlns:xlink="http://www.w3.org/1999/xlink">
+	<teiHeader xml:lang="en">
+		<encodingDesc>
+			<appInfo>
+				<application version="0.5.1-SNAPSHOT" ident="GROBID" when="2019-04-18T12:40+0000">
+					<ref target="https://github.com/kermitt2/grobid">GROBID - A machine learning software for extracting information from scholarly documents</ref>
+				</application>
+			</appInfo>
+		</encodingDesc>
+		<fileDesc>
+			<titleStmt>
+				<title level="a" type="main">Gaussian LDA for Topic Models with Word Embeddings</title>
+			</titleStmt>
+			<publicationStmt>
+				<publisher>Association for Computational Linguistics</publisher>
+				<availability status="unknown"><p>Copyright Association for Computational Linguistics</p>
+				</availability>
+				<date>July 26-31, 2015. 2015</date>
+			</publicationStmt>
+			<sourceDesc>
+				<biblStruct>
+					<analytic>
+						<author>
+							<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Rajarshi</forename><surname>Das</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="department">School of Computer Science</orgName>
+								<orgName type="institution">Carnegie Mellon University Pittsburgh</orgName>
+								<address>
+									<postCode>15213</postCode>
+									<region>PA</region>
+									<country key="US">USA</country>
+								</address>
+							</affiliation>
+						</author>
+						<author>
+							<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Manzil</forename><surname>Zaheer</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="department">School of Computer Science</orgName>
+								<orgName type="institution">Carnegie Mellon University Pittsburgh</orgName>
+								<address>
+									<postCode>15213</postCode>
+									<region>PA</region>
+									<country key="US">USA</country>
+								</address>
+							</affiliation>
+						</author>
+						<author>
+							<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Chris</forename><surname>Dyer</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="department">School of Computer Science</orgName>
+								<orgName type="institution">Carnegie Mellon University Pittsburgh</orgName>
+								<address>
+									<postCode>15213</postCode>
+									<region>PA</region>
+									<country key="US">USA</country>
+								</address>
+							</affiliation>
+						</author>
+						<title level="a" type="main">Gaussian LDA for Topic Models with Word Embeddings</title>
+					</analytic>
+					<monogr>
+						<title level="m">Proceedings of the 53rd Annual Meeting of the Association for Computational Linguistics and the 7th International Joint Conference on Natural Language Processing</title>
+						<meeting>the 53rd Annual Meeting of the Association for Computational Linguistics and the 7th International Joint Conference on Natural Language Processing <address><addrLine>Beijing, China</addrLine></address>
+						</meeting>
+						<imprint>
+							<publisher>Association for Computational Linguistics</publisher>
+							<biblScope unit="page" from="795" to="804"/>
+							<date type="published">July 26-31, 2015. 2015</date>
+						</imprint>
+					</monogr>
+				</biblStruct>
+			</sourceDesc>
+		</fileDesc>
+		<profileDesc>
+			<abstract>
+				<p>Continuous space word embeddings learned from large, unstructured corpora have been shown to be effective at capturing semantic regularities in language. In this paper we replace LDA&apos;s param-eterization of &quot;topics&quot; as categorical distributions over opaque word types with multivariate Gaussian distributions on the embedding space. This encourages the model to group words that are a priori known to be semantically related into topics. To perform inference, we introduce a fast collapsed Gibbs sampling algorithm based on Cholesky decom-positions of covariance matrices of the posterior predictive distributions. We further derive a scalable algorithm that draws samples from stale posterior predictive distributions and corrects them with a Metropolis-Hastings step. Using vectors learned from a domain-general corpus (English Wikipedia), we report results on two document collections (20-newsgroups and NIPS). Qualitatively, Gaussian LDA infers different (but still very sensible) topics relative to standard LDA. Quantitatively , our technique outperforms existing models at dealing with OOV words in held-out documents.</p>
+			</abstract>
+		</profileDesc>
+	</teiHeader>
+	<text xml:lang="en">
+		<body>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="1">Introduction</head><p>Latent Dirichlet Allocation (LDA) is a Bayesian technique that is widely used for inferring the topic structure in corpora of documents. It con- ceives of a document as a mixture of a small num- ber of topics, and topics as a (relatively sparse) dis- tribution over word types ( <ref type="bibr" target="#b1">Blei et al., 2003</ref>). These priors are remarkably effective at producing useful *Both student authors had equal contribution.</p><p>results. However, our intuitions tell us that while documents may indeed be conceived of as a mix- ture of topics, we should further expect topics to be semantically coherent. Indeed, standard human evaluations of topic modeling performance are de- signed to elicit assessment of semantic coherence <ref type="bibr" target="#b2">(Chang et al., 2009;</ref><ref type="bibr" target="#b19">Newman et al., 2009)</ref>. How- ever, this prior preference for semantic coherence is not encoded in the model, and any such obser- vation of semantic coherence found in the inferred topic distributions is, in some sense, accidental. In this paper, we develop a variant of LDA that oper- ates on continuous space embeddings of words- rather than word types-to impose a prior expec- tation for semantic coherence. Our approach re- places the opaque word types usually modeled in LDA with continuous space embeddings of these words, which are generated as draws from a mul- tivariate Gaussian.</p><p>How does this capture our preference for se- mantic coherence? Word embeddings have been shown to capture lexico-semantic regularities in language: words with similar syntactic and seman- tic properties are found to be close to each other in the embedding space <ref type="bibr" target="#b0">(Agirre et al., 2009;</ref><ref type="bibr" target="#b15">Mikolov et al., 2013)</ref>. Since Gaussian distributions capture a notion of centrality in space, and semantically related words are localized in space, our Gaussian LDA model encodes a prior preference for seman- tically coherent topics. Our model further has sev- eral advantages. Traditional LDA assumes a fixed vocabulary of word types. This modeling assump- tion drawback as it cannot handle out of vocabu- lary (OOV) words in "held out" documents. <ref type="bibr" target="#b30">Zhai and Boyd-Graber (2013)</ref> proposed an approach to address this problem by drawing topics from a Dirichlet Process with a base distribution over all possible character strings (i.e., words). While this model can in principle handle unseen words, the only bias toward being included in a particular topic comes from the topic assignments in the rest of the document. Our model can exploit the conti- guity of semantically similar words in the embed- ding space and can assign high topic probability to a word which is similar to an existing topical word even if it has never been seen before.</p><p>The main contributions of our paper are as fol- lows: We propose a new technique for topic mod- eling by treating the document as a collection of word embeddings and topics itself as multivari- ate Gaussian distributions in the embedding space ( §3). We explore several strategies for collapsed Gibbs sampling and derive scalable algorithms, achieving asymptotic speed-up over the na¨ıvena¨ıve im- plementation ( §4). We qualitatively show that our topics make intuitive sense and quantitatively demonstrate that our model captures a better rep- resentation of a document in the topic space by outperforming other models in a classification task ( §5).</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2">Background</head><p>Before going to the details of our model we pro- vide some background on two topics relevant to our work: vector space word embeddings and LDA.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.1">Vector Space Semantics</head><p>According to the distributional hypothesis <ref type="bibr" target="#b11">(Harris, 1954)</ref>, words occurring in similar contexts tend to have similar meaning. This has given rise to data-driven learning of word vectors that capture lexical and semantic properties, which is now a technique of central importance in natu- ral language processing. These word vectors can be used for identifying semantically related word pairs <ref type="bibr" target="#b26">(Turney, 2006;</ref><ref type="bibr" target="#b0">Agirre et al., 2009</ref>) or as fea- tures in downstream text processing applications ( <ref type="bibr" target="#b24">Turian et al., 2010;</ref><ref type="bibr" target="#b9">Guo et al., 2014</ref>). Word vectors can either be constructed using low rank approximations of cooccurrence statistics <ref type="bibr" target="#b4">(Deerwester et al., 1990</ref>) or using internal represen- tations from neural network models of word se- quences <ref type="bibr" target="#b3">(Collobert and Weston, 2008)</ref>. We use a recently popular and fast tool called word2vec 1 , to generate skip-gram word embeddings from un- labeled corpus. In this model, a word is used as an input to a log-linear classifier with continuous projection layer and words within a certain win- dow before and after the words are predicted.</p><p>1 https://code.google.com/p/word2vec/</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.2">Latent Dirichlet Allocation (LDA)</head><p>LDA ( <ref type="bibr" target="#b1">Blei et al., 2003)</ref> is a probabilistic topic model of corpora of documents which seeks to represent the underlying thematic structure of the document collection. They have emerged as a powerful new technique of finding useful structure in an unstructured collection as it learns distribu- tions over words. The high probability words in each distribution gives us a way of understanding the contents of the corpus at a very high level. In LDA, each document of the corpus is assumed to have a distribution over K topics, where the dis- crete topic distributions are drawn from a symmet- ric dirichlet distribution. The generative process is as follows.</p><p>1</p><formula xml:id="formula_0">. for k = 1 to K (a) Choose topic β k ∼ Dir(η) 2. for each document d in corpus D (a) Choose a topic distribution θ d ∼ Dir(α) (b) for each word index n from 1 to N d i. Choose a topic z n ∼ Categorical(θ d ) ii. Choose word w n ∼ Categorical(β zn )</formula><p>As it follows from the definition above, a topic is a discrete distribution over a fixed vocabulary of word types. This modeling assumption pre- cludes new words to be added to topics. However modeling topics as a continuous distribution over word embeddings gives us a way to address this problem. In the next section we describe Gaus- sian LDA, a straightforward extension of LDA that replaces categorical distributions over word types with multivariate Gaussian distributions over the word embedding space.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3">Gaussian LDA</head><p>As with multinomial LDA, we are interested in modeling a collection of documents. However, we assume that rather than consisting of sequences of word types, documents consist of sequences of word embeddings. We write v(w) ∈ R M as the embedding of word of type w or v d,i when we are indexing a vector in a document d at position i.</p><p>Since our observations are no longer dis- crete values but continuous vectors in an M - dimensional space, we characterize each topic k as a multivariate Gaussian distribution with mean µ k and covariance Σ k . The choice of a Gaussian pa- rameterization is justified by both analytic conve- nience and observations that Euclidean distances</p><formula xml:id="formula_1">p(z d,i = k | z −(d,i) , V d , ζ, α) ∝ (n k,d + α k ) × t ν k −M +1 v d,i µ k , κ k + 1 κ k Σ k<label>(1)</label></formula><p>Figure 1: Sampling equation for the collapsed Gibbs sampler; refer to text for a description of the notation.</p><p>between embeddings correlate with semantic sim- ilarity <ref type="bibr" target="#b3">(Collobert and Weston, 2008;</ref><ref type="bibr" target="#b25">Turney and Pantel, 2010;</ref><ref type="bibr">Hermann and Blunsom, 2014</ref>). We place conjugate priors on these values: a Gaus- sian centered at zero for the mean and an inverse Wishart distribution for the covariance. As be- fore, each document is seen as a mixture of top- ics whose proportions are drawn from a symmetric Dirichlet prior. The generative process can thus be summarized as follows:</p><formula xml:id="formula_2">1. for k = 1 to K (a) Draw topic covariance Σ k ∼ W −1 (Ψ, ν) (b) Draw topic mean µ k ∼ N (µ, 1 κ Σ k ) 2. for each document d in corpus D (a) Draw topic distribution θ d ∼ Dir(α) (b) for each word index n from 1 to N d i. Draw a topic z n ∼ Categorical(θ d ) ii. Draw v d,n ∼ N (µ zn , Σ zn )</formula><p>This model has previously been proposed for obtaining indexing representations for audio re- trieval ( <ref type="bibr" target="#b13">Hu et al., 2012</ref>). They use variational/EM method for posterior inference. Although we don't do any experiment to compare the running time of both approaches, the per-iteration computational complexity is same for both inference methods. We propose a faster inference technique using Cholesky decomposition of covariance matrices which can be applied to both the Gibbs and varia- tional/EM method. However we are not aware of any straightforward way of applying the aliasing trick proposed by ( <ref type="bibr" target="#b14">Li et al., 2014</ref>) on the varia- tional/EM method which gave us huge improve- ment on running time (see <ref type="figure" target="#fig_0">Figure 2</ref>). Another work which combines embedding with topic mod- els is by ( <ref type="bibr" target="#b28">Wan et al., 2012</ref>) where they jointly learn the parameters of a neural network and a topic model to capture the topic distribution of low di- mensional representation of images.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4">Posterior Inference</head><p>In our application, we observe documents consist- ing of word vectors and wish to infer the poste- rior distribution over the topic parameters, pro- portions, and the topic assignments of individual words. Since there is no analytic form of the poste- rior, approximations are required. Because of our choice of conjugate priors for topic parameters and proportions, these variables can be analytically in- tegrated out, and we can derive a collapsed Gibbs sampler that resamples topic assignments to indi- vidual word vectors, similar to the collapsed sam- pling scheme proposed by <ref type="bibr" target="#b8">Griffiths and Steyvers (2004)</ref>.</p><p>The conditional distribution we need for sam- pling is shown in <ref type="figure">Figure 1</ref>. Here, z −(d,i) repre- sents the topic assignments of all word embed- dings, excluding the one at i th position of docu- ment d; V d is the sequence of vectors for docu- ment d; t ν (x | µ , Σ ) is the multivariate t -distri- bution with ν degrees of freedom and parameters µ and Σ . The tuple ζ = (µ, κ, Σ, ν) represents the parameters of the prior distribution.</p><p>It should be noted that the first part of the equa- tion which expresses the probability of topic k in document d is the same as that of LDA. This is because the portion of the model which generates a topic for each word (vector) from its document topic distribution is still the same. The second part of the equation which expresses the probabil- ity of assignment of topic k to the word vector v d,i given the current topic assignments (aka posterior predictive) is given by a multivariate t distribution with parameters (µ k , κ k , Σ k , ν k ). The parameters of the posterior predictive distribution are given as (Murphy, 2012):</p><formula xml:id="formula_3">κ k = κ + N k µ k = κµ + N k ¯ v k κ k ν k = ν + N k Σ k = Ψ k (ν k − M + 1) Ψ k = Ψ + C k + κN k κ k (¯ v k − µ)(¯ v k − µ)<label>(2)</label></formula><p>where ¯ v k and C k are given by,</p><formula xml:id="formula_4">¯ v k = d i:z d,i =k (v d,i ) N k C k = d i:z d,i =k (v d,i − ¯ v k )(v d,i − ¯ v k )</formula><p>Here ¯ v k is the sample mean and C k is the scaled form of sample covariance of the vectors with topic assignment k. N k represents the count of words assigned to topic k across all documents. Intuitively the parameters µ k and Σ k represents the posterior mean and covariance of the topic dis- tribution and κ k , ν k represents the strength of the prior for mean and covariance respectively.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Analysis of running time complexity</head><p>As can be seen from <ref type="formula" target="#formula_1">(1)</ref>, for computation of the posterior predictive we need to evaluate the deter- minant and inverse of the posterior covariance ma- trix. Direct na¨ıvena¨ıve computation of these terms re- quire O(M 3 ) operations. Moreover, during sam- pling as words get assigned to different topics, the parameters (µ k , κ k , Ψ k , ν k ) associated with a topic changes and hence we have to recompute the determinant and inverse matrix. Since these step has to be recomputed several times (as many times as number of words times number of topics in one Gibbs sweep, in the worst case), it is criti- cal to make the process as efficient as possible. We speed up this process by employing a combination of modern computational techniques and mathe- matical (linear algebra) tricks, as described in the following subsections.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.1">Faster sampling using Cholesky decomposition of covariance matrix</head><p>Having another look at the posterior equation for Ψ k , we can re-write the equation as:</p><formula xml:id="formula_5">Ψ k = Ψ + C k + κN k κ k (¯ v k − µ)(¯ v k − µ) = Ψ + d i:z d,i =k v d,i v d,i − κ k µ k µ k + κµµ .<label>(3)</label></formula><p>During sampling when we are computing the assignment probability of topic k to v d,i , we need to calculate the updated parameters of the topic. Using (3) it can be shown that Ψ k can be updated from current value of Ψ k , after updating κ k .ν k and µ k , as follows:</p><formula xml:id="formula_6">Ψ k ← Ψ k + κ k κ k − 1 (µ k − v d,i ) (µ k − v d,i ) .<label>(4)</label></formula><p>This equation has the form of a rank 1 update, hinting towards use of Cholesky decomposition. If we have the Cholesky decomposition of Ψ k com- puted, then we have tools to update Ψ k cheaply. Since Ψ k and Σ k are off by only a scalar fac- tor, we can equivalently talk about Σ k . Equation (4) can also be understood in the following way. During sampling, when a word embedding v d,i gets a new assignment to a topic, say k, then the new value of the topic covariance can be computed from the current one using just a rank 1 update. <ref type="bibr">2</ref> We next describe how to exploit the Cholesky de- composition representation to speed up computa- tions.</p><p>For sake of completeness, any symmetric M × M real matrix Σ k is said to be positive definite if ∀z ∈ R M : z Σ k z &gt; 0. The Cholesky decom- position of such a symmetric positive definite ma- trix Σ k is nothing but its decomposition into the product of some lower triangular matrix L and its transpose, i.e.</p><formula xml:id="formula_7">Σ k = LL .</formula><p>Finding this factorization also take cubic opera- tion. However given Cholesky decomposition of Σ k , after a rank 1 update (or downdate), i.e. the operation:</p><formula xml:id="formula_8">Σ k ← Σ k + zz</formula><p>we can find the factorization of new Σ k in just quadratic time <ref type="bibr" target="#b22">(Stewart, 1998</ref>). We will use this trick to speed up the computations 3 . Basically, in- stead of computing determinant and inverse again in cubic time, we will use such rank 1 update (downdate) to find new determinant and inverse in an efficient manner as explained in details below.</p><p>To compute the density of the posterior predic- tive t−distibution, we need to compute the de- terminant |Σ k | and the term of the form</p><formula xml:id="formula_9">(v d,i − µ k ) Σ −1 k (v d,i − µ k ).</formula><p>The Cholesky decomposi- tion of the covariance matrix can be used for ef- ficient computation of these expression as shown below.</p><p>Computation of determinant: The determinant of Σ k can be computed from from its Cholesky decomposition L as:</p><formula xml:id="formula_10">log(|Σ k |) = 2 × M i=1 log (L i,i ) .</formula><p>This takes linear time in the order of dimension and is clearly a significant gain from cubic time complexity.</p><formula xml:id="formula_11">Computation of (v d,i − µ k ) Σ −1 k (v d,i − µ): Let b = (v d,i − µ k ). Now b Σ −1 b can be written as b Σ −1 b = b (LL ) −1 b = b T (L −1 ) L −1 b = (L −1 b) (L −1 b) Now (L −1 b) is the solution of the equation Lx = b.</formula><p>Also since L is a lower triangular matrix, this equation can be solved easily using forward substitution. Lastly we will have to take an in- ner product of x and x to get the value of</p><formula xml:id="formula_12">(v d,i −µ k ) Σ −1 (v d,i −µ k )</formula><p>. This step again takes quadratic time and is again a savings from the cu- bic time complexity.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.2">Further reduction of sampling complexity using Alias Sampling</head><p>Although Cholesky trick helps us to reduce the sampling complexity of a embedding to O(KM 2 ), it can still be impractical.In Gaus- sian LDA, the Gibbs sampling equation (1) can be split into two terms. The first term n k,d ×</p><formula xml:id="formula_13">t ν k −M +1 v d,i µ k , κ k +1 κ k Σ k denotes the docu- ment contribution and the second term α k × t ν k −M +1 v d,i µ k , κ k +1 κ k</formula><p>Σ k denotes the lan- guage model contribution. Empirically one can make two observations about these terms. First, n k,d is often a sparse vector, as a document most likely contains only a few of the topics. Sec- ondly, topic parameters (µ k , Σ k ) captures global phenomenon, and rather change relatively slowly over the iterations. We can exploit these findings to avoid the naive approach to draw a sample from (1).</p><p>In particular, we compute the document-specific sparse term exactly and for the remainder lan- guage model term we borrow idea from ( <ref type="bibr" target="#b14">Li et al., 2014</ref>). We use a slightly stale distribution for the language model. Then Metropolis Hastings (MH) algorithm allows us to convert the stale sample into a fresh one, provided that we compute ra- tios between successive states correctly. It is suf- ficient to run MH for a few number of steps be- cause the stale distribution acting as the proposal is very similar to the target. This is because, as pointed out earlier, the language model term does not change too drastically whenever we resample a single word. The number of words is huge, hence the amount of change per word is concomitantly small. (Only if one could convert stale bread into fresh one, it would solve world's food problem!)</p><p>The exercise of using stale distribution and MH steps is advantageous because sampling from it can be carried out in O(1) amortized time, thanks to alias sampling technique <ref type="bibr" target="#b27">(Vose, 1991)</ref>. More- over, the task of building the alias tables can be outsourced to other cores.</p><p>With the combination of both Cholesky and Alias tricks, the sampling complexity can thus be brought down to O(K d M 2 ) where K d represents the number of actually instantiated topics in the document and K d K. In particular, we plot the sampling rate achieved naively, with Cholesky (CH) trick and with Cholesky+Alias (A+CH) trick in figure 2 demonstrating better likelihood at much less time. Also after initial few iterations, the time per iteration of A+CH trick is 9.93 times less than CH and 53.1 times less than naive method. This is because initially we start with random initializa- tion of words to topics, but after few iterations the n k,d vector starts to become sparse.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>799</head><p>In this section we evaluate our Word Vector Topic Model on various experimental tasks. Specifically we wish to determine:</p><p>• Is our model is able to find coherent and meaningful topics?</p><p>• Is our model able to infer the topic distribu- tion of a held-out document even when the document contains words which were previ- ously unseen?</p><p>We run our experiments 4 on two datasets 20- NEWSGROUP 5 and NIPS 6 . All the datasets were tokenized and lowercased with cdec (Dyer et al., 2010).</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.1">Topic Coherence</head><p>Quantitative Analysis Typically topic models are evaluated based on the likelihood of held-out documents. But in this case, it is not correct to compare perplexities with models which do topic modeling on words. Since our topics are contin- uous distributions, the probability of a word vec- tor is given by its density w.r.t the normal distri- bution based on its topic assignment, instead of a probability mass from a discrete topic distribu- tion. Moreover, ( <ref type="bibr" target="#b2">Chang et al., 2009)</ref> showed that higher likelihood of held-out documents doesn't necessarily correspond to human perception of topic coherence. Instead to measure topic coher- ence we follow <ref type="bibr" target="#b19">(Newman et al., 2009</ref>) to compute the Pointwise Mutual Information (PMI) of topic words w.r.t wikipedia articles. We extract the doc- ument co-occurrence statistics of topic words from Wikipedia and compute the score of a topic by av- eraging the score of the top 15 words of the topic. A higher PMI score implies a more coherent topic as it means the topic words usually co-occur in the same document. In the last line of <ref type="table">Table 1</ref>, we present the PMI score for some of the topics for both Gaussian LDA and traditional multinomial <ref type="bibr">4</ref> Our implementation is available at https: //github.com/rajarshd/Gaussian_LDA 5 A collection of newsgroup documents partitioned into 20 news groups. After pre-processing we had 18768 docu- ments. We randomly selected 2000 documents as our test set. This dataset is publicly available at http://qwone.com/ ˜ jason/20Newsgroups/ 6 A collection of 1740 papers from the proceedings of Neural Information Processing System. The dataset is avail- able at http://www.cs.nyu.edu/ ˜ roweis/data. html LDA. It can be seen that Gaussian LDA is a clear winner, achieving an average 275% higher score on average.</p><p>However, we are using embeddings trained on Wikipedia corpus itself, and the PMI measure is computed from co-occurrence in the Wikipedia corpus. As a result, our model is definitely bi- ased towards producing higher PMI. Nevertheless Wikipedia PMI is a believed to be a good measure of semantic coherence.</p><p>Qualitative Analysis <ref type="table">Table 1</ref> shows some top words from topics from Gaussian-LDA and LDA on the 20-news dataset for K = 50. The words in Gaussian-LDA are ranked based on their den- sity assigned to them by the posterior predictive distribution in the final sample. As shown, Gaus- sian LDA is able to capture several intuitive top- ics in the corpus such as sports, government, 're- ligion', 'universities', 'tech', 'finance' etc. One interesting topic discovered by our model (on both 20-news and NIPS dataset) is the collection of hu- man names, which was not captured by classic LDA. While one might imagine that names associ- ated with particular topics might be preferable to a 'names-in-general' topic, this ultimately is a mat- ter of user preference. More substantively, classic LDA failed to identify the 'finance' topics. We also noticed that there were certain words ('don', 'writes', etc) which often came as a top word in many topics in classic LDA. However our model was not able to capture the 'space' topics which LDA was able to identify.</p><p>Also we visualize a part of the continuous space where the word embedding is performed. For this task we performed the Principal Component Anal- ysis (PCA) over all the word vectors and plot the first two components as shown in <ref type="figure" target="#fig_1">Figure 3</ref>. We can see clear separations between some of the clusters of topics as depicted. The other topics would be separated in other dimensions.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.2">Performance on document containing new words</head><p>In this experiment we evaluate the performance of our model on documents which contains pre- viously unseen words. It should be noted that tra- ditional topic modeling algorithms will typically ignore such words while inferring the topic distri- bution and hence might miss out important words. The continuous topic distributions of the Word Vector Topic Model on the other hand, will be able <ref type="table">Gaussian LDA topics   hostile  play  government  people  university  hardware  scott  market  gun  murder  round  state  god  program  interface  stevens  buying  rocket  violence  win  group  jews  public  mode  graham  sector  military  victim  players  initiative  israel  law  devices  walker  purchases force  testifying  games  board  christians  institute  rendering  tom  payments machine  provoking  goal  legal  christian  high  renderer  russell  purchase  attack  legal  challenge  bill  great  research  user  baker  company  operation  citizens  final  general  jesus  college  computers barry  owners  enemy  conflict  playing  policy  muslims  center  monitor  adams  paying  fire  victims  hitting  favor  religion  study  static  jones  corporate flying  rape  match  office  armenian  reading  encryption joe  limited  defense  laws  ball  political  armenians technology  emulation  palmer  loans  warning  violent  advance  commission  church  programs  reverse  cooper  credit  soldiers  trial  participants private  muslim  level  device  robinson financing  guns  intervention scores  federal  bible</ref>   <ref type="table">Table 1</ref>: Top words of some topics from Gaussian-LDA and multinomial LDA on 20-newsgroups for K = 50. Words in Gaussian LDA are ranked based on density assigned to them by the posterior predic- tive distribution. The last row for each method indicates the PMI score (w.r.t. Wikipedia co-occurence) of the topics fifteen highest ranked words.</p><p>to assign topics to an unseen word, if we have the vector representation of the word. Given the re- cent development of fast and scalable methods of estimating word embeddings, it is possible to train them on huge text corpora and hence it makes our model a viable alternative for topic inference on documents with new words.</p><p>Experimental Setup: Since we want to capture the strength of our model on documents containing unseen words, we select a subset of documents and replace words of those documents by its synonyms if they haven't occurred in the corpus before. We obtain the synonym of a word using two existing resources and hence we create two such datasets.</p><p>For the first set, we use the Paraphrase Database ( <ref type="bibr" target="#b7">Ganitkevitch et al., 2013</ref>) to get the lexical para- phrase of a word. The paraphrase database 7 is a semantic lexicon containing around 169 million paraphrase pairs of which 7.6 million are lexical (one word to one word) paraphrases. The dataset comes in varying size ranges starting from S to XXXL in increasing order of size and decreasing order of paraphrasing confidence. For our exper- iments we selected the L size of the paraphrase database.</p><p>The second set was obtained using WordNet <ref type="bibr" target="#b16">(Miller, 1995)</ref>, a large human annotated lexicon for English that groups words into sets of syn- onyms called synsets. To obtain the synonym of a word, we first label the words with their part-of- speech using the Stanford POS tagger ( <ref type="bibr" target="#b23">Toutanova et al., 2003</ref>). Then we use the WordNet database  <ref type="table">Table 1</ref> have been visualized. Each blob represents a word color coded according to its topic in the <ref type="table">Table 1.</ref> to get the synonym from its sysnset. <ref type="bibr">8</ref> We select the first synonym from the synset which hasn't occurred in the corpus before. On the 20-news dataset (vocab size = 18,179 words, test corpus size = 188,694 words), a total of 21,919 words (2,741 distinct words) were replaced by synonyms from PPDB and 38,687 words (2,037 distinct words) were replaced by synonyms from Wordnet.</p><p>Evaluation Benchmark: As mentioned before traditional topic model algorithms cannot handle OOV words. So comparing the performance of our document with those models would be unfair.</p><p>Recently <ref type="bibr" target="#b30">(Zhai and Boyd-Graber, 2013)</ref> proposed an extension of LDA (infvoc) which can incorpo- rate new words. They have shown better perfor- mances in a document classification task which uses the topic distribution of a document as fea- tures on the 20-news group dataset as compared to other fixed vocabulary algorithms. Even though, the infvoc model can handle OOV words, it will most likely not assign high probability to a new topical word when it encounters it for the first time since it is directly proportional to the number of times the word has been observed On the other hand, our model could assign high probability to the word if its corresponding embedding gets a high probability from one of the topic gaussians. With the experimental setup mentioned before, we want to evaluate performance of this property of our model. Using the topic distribution of a docu- ment as features, we try to classify the document into one of the 20 news groups it belongs to. If the document topic distribution is modeled well, then our model should be able to do a better job in the classification task.</p><p>To infer the topic distribution of a document we follow the usual strategy of fixing the learnt topics during the training phase and then running Gibbs sampling on the test set (G-LDA (fix) in ta- ble 2). However infvoc is an online algorithm, so it would be unfair to compare our model which ob- serves the entire set of documents during test time. Therefore we implement the online version of our algorithm using Gibbs sampling following <ref type="bibr" target="#b29">(Yao et al., 2009</ref>). We input the test documents in batches and do inference on those batches independently also sampling for the topic parameter, along the lines of infvoc. The batch size for our experiments are mentioned in parentheses in table 2. We clas- sify using the multi class logistic regression clas- sifier available in Weka ( .</p><p>It is clear from table 2 that we outperform in- fvoc in all settings of our experiments. This im- plies that even if new documents have significant amount of new words, our model would still do a better job in modeling it. We also conduct an experiment to check the actual difference between the topic distribution of the original and synthetic documents. Let h and h denote the topic vectors of the original and synthetic documents. <ref type="table" target="#tab_2">Table 3</ref> shows the average l 1 , l 2 and l ∞ norm of (h − h ) of the test documents in the NIPS dataset. A low value of these metrics indicates higher similarity. As shown in the table, Gaussian LDA performs better here too.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6">Conclusion and Future Work</head><p>While word embeddings have been incorporated to produce state-of-the-art results in numerous su- pervised natural language processing tasks from the word level to document level ; however, they have played a more minor role in unsupervised learning problems. This work shows some of the promise that they hold in this domain. Our model can be extended in a number of potentially useful, but straightforward ways. First, DPMM models of word emissions would better model the fact that identical vectors will be generated multiple times, and perhaps add flexibility to the topic distribu- tions that can be captured, without sacrificing our Model Accuracy PPDB WordNet infvoc 28.00% 19.30% G-LDA <ref type="bibr">(fix)</ref> 44.51% 43.53% G-LDA <ref type="formula" target="#formula_1">(1)</ref> 44.66% 43.47% G-LDA (100) 43.63% 43.11% G-LDA (1932) 44.72% 42.90% <ref type="table">Table 2</ref>: Accuracy of our model and infvoc on the synthetic datasets. In Gaussian LDA fix, the topic distributions learnt during training were fixed; G- LDA <ref type="bibr">(1,</ref><ref type="bibr">100,</ref><ref type="bibr">1932</ref>) is the online implementation of our model where the documents comes in mini- batches. The number in parenthesis denote the size of the batch. The full size of the test corpus is 1932.  preference for topical coherence. More broadly still, running LDA on documents consisting of dif- ferent modalities than just text is facilitated by us- ing the lingua franca of vector space representa- tions, so we expect numerous interesting appli- cations in this area. An interesting extension to our work would be the ability to handle polyse- mous words based on multi-prototype vector space models ( <ref type="bibr" target="#b18">Neelakantan et al., 2014;</ref><ref type="bibr" target="#b20">Reisinger and Mooney, 2010</ref>) and we keep this as an avenue for future research.</p><formula xml:id="formula_14">Model PPDB (Mean Deviation) L 1 L 2 L ∞ infvoc</formula></div><figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_0"><head>Figure 2 :</head><label>2</label><figDesc>Figure 2: Plot comparing average log-likelihood vs time (in sec) achieved after applying each trick on the NIPS dataset. The shapes on each curve denote end of each iteration.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_1"><head>Figure 3 :</head><label>3</label><figDesc>Figure 3: The first two principal components for the word embeddings of the top words of topics shown in Table 1 have been visualized. Each blob represents a word color coded according to its topic in the Table 1.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_2" validated="false"><head>Table 3 :</head><label>3</label><figDesc></figDesc><table>This table shows the Average L 1 Devia-
+tion, Average L 2 Deviation, Average L ∞ Devia-
+tion for the difference of the topic distribution of 
+the actual document and the synthetic document 
+on the NIPS corpus. Compared to infvoc, G-LDA 
+achieves a lower deviation of topic distribution in-
+ferred on the synthetic documents with respect to 
+actual document. The full size of the test corpus is 
+174. 
+
+</table></figure>
+
+			<note place="foot" n="2"> Similarly the covariance of the old topic assignment of the word w can be computed using a rank 1 downdate 3 For our experiments, we set the prior covariance to be 3*I, which is a positive definite matrix.</note>
+
+			<note place="foot" n="7"> http://www.cis.upenn.edu/ ˜ ccb/ppdb/</note>
+
+			<note place="foot" n="8"> We use the JWI toolkit (Finlayson, 2014)</note>
+		</body>
+		<back>
+
+			<div type="acknowledgement">
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Acknowledgments</head><p>We thank the anonymous reviewers and Manaal Faruqui for helpful comments and feedback.</p></div>
+			</div>
+
+			<div type="references">
+
+				<listBibl>
+
+<biblStruct xml:id="b0">
+	<analytic>
+		<title level="a" type="main">A study on similarity and relatedness using distributional and wordnet-based approaches</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Eneko</forename><surname>Agirre</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Enrique</forename><surname>Alfonseca</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Keith</forename><surname>Hall</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jana</forename><surname>Kravalova</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of NAACL</title>
+		<meeting>NAACL</meeting>
+		<imprint>
+			<date type="published" when="2009" />
+		</imprint>
+	</monogr>
+	<note>Marius Pas¸caPas¸ca, and Aitor Soroa</note>
+</biblStruct>
+
+<biblStruct xml:id="b1">
+	<analytic>
+		<title level="a" type="main">Latent dirichlet allocation</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">David</forename><forename type="middle">M</forename><surname>Blei</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Andrew</forename><forename type="middle">Y</forename><surname>Ng</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Michael</forename><forename type="middle">I</forename><surname>Jordan</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">J. Mach. Learn. Res</title>
+		<imprint>
+			<biblScope unit="volume">3</biblScope>
+			<biblScope unit="page" from="993" to="1022" />
+			<date type="published" when="2003-03" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b2">
+	<analytic>
+		<title level="a" type="main">Reading tea leaves: How humans interpret topic models</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jonathan</forename><surname>Chang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jordan</forename><surname>Boyd-Graber</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Chong</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Sean</forename><surname>Gerrish</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">David</forename><forename type="middle">M</forename><surname>Blei</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Neural Information Processing Systems</title>
+		<imprint>
+			<date type="published" when="2009" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b3">
+	<analytic>
+		<title level="a" type="main">A unified architecture for natural language processing: deep neural networks with multitask learning</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ronan</forename><surname>Collobert</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jason</forename><surname>Weston</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of ICML</title>
+		<meeting>ICML</meeting>
+		<imprint>
+			<date type="published" when="2008" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b4">
+	<analytic>
+		<title level="a" type="main">Indexing by latent semantic analysis</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">S</forename><forename type="middle">C</forename><surname>Deerwester</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">S</forename><forename type="middle">T</forename><surname>Dumais</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">T</forename><forename type="middle">K</forename><surname>Landauer</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">G</forename><forename type="middle">W</forename><surname>Furnas</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">R</forename><forename type="middle">A</forename><surname>Harshman</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Journal of the American Society for Information Science</title>
+		<imprint>
+			<date type="published" when="1990" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b5">
+	<analytic>
+		<title level="a" type="main">cdec: A decoder, alignment, and learning framework for finite-state and context-free translation models</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Chris</forename><surname>Dyer</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Adam</forename><surname>Lopez</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Juri</forename><surname>Ganitkevitch</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Johnathan</forename><surname>Weese</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ferhan</forename><surname>Ture</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Phil</forename><surname>Blunsom</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Hendra</forename><surname>Setiawan</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Vladimir</forename><surname>Eidelman</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Philip</forename><surname>Resnik</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of ACL</title>
+		<meeting>ACL</meeting>
+		<imprint>
+			<date type="published" when="2010" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b6">
+	<monogr>
+				<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Mark</forename><surname>Finlayson</surname></persName>
+		</author>
+		<title level="m">Proceedings of the Seventh Global Wordnet Conference, chapter Java Libraries for Accessing the Princeton Wordnet: Comparison and Evaluation</title>
+		<meeting>the Seventh Global Wordnet Conference, chapter Java Libraries for Accessing the Princeton Wordnet: Comparison and Evaluation</meeting>
+		<imprint>
+			<date type="published" when="2014" />
+			<biblScope unit="page" from="78" to="85" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b7">
+	<analytic>
+		<title level="a" type="main">PPDB: The paraphrase database</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Juri</forename><surname>Ganitkevitch</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Benjamin</forename><surname>Van Durme</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Chris</forename><surname>Callison-Burch</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of NAACL-HLT</title>
+		<meeting>NAACL-HLT<address><addrLine>Atlanta, Georgia</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2013-06" />
+			<biblScope unit="page" from="758" to="764" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b8">
+	<analytic>
+		<title level="a" type="main">Finding scientific topics</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">T</forename><forename type="middle">L</forename><surname>Griffiths</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">M</forename><surname>Steyvers</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Proceedings of the National Academy of Sciences</title>
+		<imprint>
+			<biblScope unit="volume">101</biblScope>
+			<biblScope unit="page" from="5228" to="5235" />
+			<date type="published" when="2004-04" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b9">
+	<analytic>
+		<title level="a" type="main">Revisiting embedding features for simple semi-supervised learning</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jiang</forename><surname>Guo</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Wanxiang</forename><surname>Che</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Haifeng</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ting</forename><surname>Liu</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of EMNLP</title>
+		<meeting>EMNLP</meeting>
+		<imprint>
+			<date type="published" when="2014" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b10">
+	<analytic>
+		<title level="a" type="main">The weka data mining software: An update</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Mark</forename><surname>Hall</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Eibe</forename><surname>Frank</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Geoffrey</forename><surname>Holmes</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Bernhard</forename><surname>Pfahringer</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Peter</forename><surname>Reutemann</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ian</forename><forename type="middle">H</forename><surname>Witten</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">SIGKDD Explor. Newsl</title>
+		<imprint>
+			<biblScope unit="volume">11</biblScope>
+			<biblScope unit="issue">1</biblScope>
+			<biblScope unit="page" from="10" to="18" />
+			<date type="published" when="2009-11" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b11">
+	<monogr>
+				<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Zellig</forename><surname>Harris</surname></persName>
+		</author>
+		<title level="m">Distributional structure. Word</title>
+		<imprint>
+			<date type="published" when="1954" />
+			<biblScope unit="volume">10</biblScope>
+			<biblScope unit="page" from="146" to="162" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b12">
+	<monogr>
+		<title level="m" type="main">Multilingual models for compositional distributed semantics</title>
+		<idno type="arXiv">arXiv:1404.4641</idno>
+		<editor>Karl Moritz Hermann and Phil Blunsom</editor>
+		<imprint>
+			<date type="published" when="2014" />
+		</imprint>
+	</monogr>
+<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b13">
+	<analytic>
+		<title level="a" type="main">Latent topic model based on Gaussian-LDA for audio retrieval</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Pengfei</forename><surname>Hu</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Wenju</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Wei</forename><surname>Jiang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Zhanlei</forename><surname>Yang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Pattern Recognition</title>
+		<imprint>
+			<publisher>Springer</publisher>
+			<date type="published" when="2012" />
+			<biblScope unit="volume">321</biblScope>
+			<biblScope unit="page" from="556" to="563" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b14">
+	<analytic>
+		<title level="a" type="main">Reducing the sampling complexity of topic models</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Aaron</forename><forename type="middle">Q</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Amr</forename><surname>Ahmed</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Sujith</forename><surname>Ravi</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Alexander</forename><forename type="middle">J</forename><surname>Smola</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 20th ACM SIGKDD International Conference on Knowledge Discovery and Data Mining</title>
+		<meeting>the 20th ACM SIGKDD International Conference on Knowledge Discovery and Data Mining</meeting>
+		<imprint>
+			<date type="published" when="2014" />
+			<biblScope unit="page">14</biblScope>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b15">
+	<analytic>
+		<title level="a" type="main">Linguistic regularities in continuous space word representations</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Tomas</forename><surname>Mikolov</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Geoffrey</forename><surname>Wen-Tau Yih</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Zweig</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2013 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies</title>
+		<meeting>the 2013 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies<address><addrLine>Atlanta, Georgia</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2013-06" />
+			<biblScope unit="page" from="746" to="751" />
+		</imprint>
+	</monogr>
+	<note>Association for Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b16">
+	<analytic>
+		<title level="a" type="main">Wordnet: A lexical database for english</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">George</forename><forename type="middle">A</forename><surname>Miller</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Commun. ACM</title>
+		<imprint>
+			<biblScope unit="volume">38</biblScope>
+			<biblScope unit="issue">11</biblScope>
+			<biblScope unit="page" from="39" to="41" />
+			<date type="published" when="1995" />
+			<publisher>November</publisher>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b17">
+	<monogr>
+				<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kevin</forename><forename type="middle">P</forename><surname>Murphy</surname></persName>
+		</author>
+		<title level="m">Machine Learning: A Probabilistic Perspective</title>
+		<imprint>
+			<publisher>The MIT Press</publisher>
+			<date type="published" when="2012" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b18">
+	<analytic>
+		<title level="a" type="main">Efficient nonparametric estimation of multiple embeddings per word in vector space</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Arvind</forename><surname>Neelakantan</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jeevan</forename><surname>Shankar</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Alexandre</forename><surname>Passos</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Andrew</forename><surname>Mccallum</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2014 Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>the 2014 Conference on Empirical Methods in Natural Language Processing<address><addrLine>Doha, Qatar, A meeting of SIGDAT</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2014-10-25" />
+		</imprint>
+	</monogr>
+	<note>a Special Interest Group of the ACL</note>
+</biblStruct>
+
+<biblStruct xml:id="b19">
+	<monogr>
+		<title level="m" type="main">External evaluation of topic models</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">David</forename><surname>Newman</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Sarvnaz</forename><surname>Karimi</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Lawrence</forename><surname>Cavedon</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2009-12" />
+			<biblScope unit="page" from="11" to="18" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b20">
+	<analytic>
+		<title level="a" type="main">Multi-prototype vector-space models of word meaning</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Joseph</forename><surname>Reisinger</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">J</forename><surname>Raymond</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Mooney</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Human Language Technologies: The</title>
+		<imprint>
+			<date type="published" when="2010" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b21">
+	<monogr>
+				<title level="m">Annual Conference of the North American Chapter of the Association for Computational Linguistics, HLT &apos;10</title>
+		<imprint/>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b22">
+	<analytic>
+		<title/>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">G</forename><surname>Stewart</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Matrix Algorithms. Society for Industrial and Applied Mathematics</title>
+		<imprint>
+			<date type="published" when="1998" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b23">
+	<analytic>
+		<title level="a" type="main">Feature-rich part-ofspeech tagging with a cyclic dependency network</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kristina</forename><surname>Toutanova</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Dan</forename><surname>Klein</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Christopher</forename><forename type="middle">D</forename><surname>Manning</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yoram</forename><surname>Singer</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2003 Conference of the North American Chapter of the Association for Computational Linguistics on Human Language Technology</title>
+		<meeting>the 2003 Conference of the North American Chapter of the Association for Computational Linguistics on Human Language Technology<address><addrLine>Stroudsburg, PA, USA</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2003" />
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="173" to="180" />
+		</imprint>
+	</monogr>
+	<note>NAACL &apos;03. Association for Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b24">
+	<analytic>
+		<title level="a" type="main">Word representations: a simple and general method for semi-supervised learning</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Joseph</forename><surname>Turian</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Lev</forename><surname>Ratinov</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yoshua</forename><surname>Bengio</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. of ACL</title>
+		<meeting>of ACL</meeting>
+		<imprint>
+			<date type="published" when="2010" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b25">
+	<analytic>
+		<title level="a" type="main">From frequency to meaning : Vector space models of semantics</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">D</forename><surname>Peter</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Patrick</forename><surname>Turney</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Pantel</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">JAIR</title>
+		<imprint>
+			<biblScope unit="page" from="141" to="188" />
+			<date type="published" when="2010" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b26">
+	<analytic>
+		<title level="a" type="main">Similarity of semantic relations</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">D</forename><surname>Peter</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Turney</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Comput. Linguist</title>
+		<imprint>
+			<biblScope unit="volume">32</biblScope>
+			<biblScope unit="issue">3</biblScope>
+			<biblScope unit="page" from="379" to="416" />
+			<date type="published" when="2006" />
+			<publisher>September</publisher>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b27">
+	<analytic>
+		<title level="a" type="main">A linear algorithm for generating random numbers with a given distribution. Software Engineering</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">D</forename><surname>Michael</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Vose</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">IEEE Transactions on</title>
+		<imprint>
+			<date type="published" when="1991" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b28">
+	<analytic>
+		<title level="a" type="main">A hybrid neural network-latent topic model</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Li</forename><surname>Wan</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Leo</forename><surname>Zhu</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Rob</forename><surname>Fergus</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Fifteenth International Conference on Artificial Intelligence and Statistics (AISTATS-12)</title>
+		<editor>Neil D. Lawrence and Mark A. Girolami</editor>
+		<meeting>the Fifteenth International Conference on Artificial Intelligence and Statistics (AISTATS-12)</meeting>
+		<imprint>
+			<date type="published" when="2012" />
+			<biblScope unit="volume">22</biblScope>
+			<biblScope unit="page" from="1287" to="1294" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b29">
+	<analytic>
+		<title level="a" type="main">Efficient methods for topic model inference on streaming document collections</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Limin</forename><surname>Yao</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">David</forename><surname>Mimno</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Andrew</forename><surname>Mccallum</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 15th ACM SIGKDD International Conference on Knowledge Discovery and Data Mining, KDD &apos;09</title>
+		<meeting>the 15th ACM SIGKDD International Conference on Knowledge Discovery and Data Mining, KDD &apos;09<address><addrLine>New York, NY, USA</addrLine></address></meeting>
+		<imprint>
+			<publisher>ACM</publisher>
+			<date type="published" when="2009" />
+			<biblScope unit="page" from="937" to="946" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b30">
+	<analytic>
+		<title level="a" type="main">Online latent dirichlet allocation with infinite vocabulary</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ke</forename><surname>Zhai</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jordan</forename><forename type="middle">L</forename><surname>Boyd-Graber</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">ICML (1)</title>
+		<imprint>
+			<date type="published" when="2013" />
+			<biblScope unit="volume">28</biblScope>
+			<biblScope unit="page" from="561" to="569" />
+		</imprint>
+	</monogr>
+<note type="report_type">JMLR.org</note>
+</biblStruct>
+
+				</listBibl>
+			</div>
+		</back>
+	</text>
+</TEI>

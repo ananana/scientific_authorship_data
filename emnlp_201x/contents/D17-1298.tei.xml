@@ -1,0 +1,821 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<TEI xmlns="http://www.tei-c.org/ns/1.0" 
+xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+xsi:schemaLocation="http://www.tei-c.org/ns/1.0 /home/ana/installs/grobid/grobid-0.5.1/grobid-home/schemas/xsd/Grobid.xsd"
+ xmlns:xlink="http://www.w3.org/1999/xlink">
+	<teiHeader xml:lang="en">
+		<encodingDesc>
+			<appInfo>
+				<application version="0.5.1-SNAPSHOT" ident="GROBID" when="2019-04-18T12:43+0000">
+					<ref target="https://github.com/kermitt2/grobid">GROBID - A machine learning software for extracting information from scholarly documents</ref>
+				</application>
+			</appInfo>
+		</encodingDesc>
+		<fileDesc>
+			<titleStmt>
+				<title level="a" type="main">Adapting Sequence Models for Sentence Correction</title>
+			</titleStmt>
+			<publicationStmt>
+				<publisher>Association for Computational Linguistics</publisher>
+				<availability status="unknown"><p>Copyright Association for Computational Linguistics</p>
+				</availability>
+				<date>September 7-11, 2017. 2017</date>
+			</publicationStmt>
+			<sourceDesc>
+				<biblStruct>
+					<analytic>
+						<author role="corresp">
+							<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Allen</forename><surname>Schmaltz</surname></persName>
+							<email>{schmaltz@fas,yoonkim@seas,srush@seas,shieber@seas}.harvard.edu</email>
+							<affiliation key="aff0">
+								<orgName type="institution">Harvard University</orgName>
+							</affiliation>
+						</author>
+						<author>
+							<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yoon</forename><surname>Kim</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="institution">Harvard University</orgName>
+							</affiliation>
+						</author>
+						<author>
+							<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Alexander</forename><forename type="middle">M</forename><surname>Rush</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="institution">Harvard University</orgName>
+							</affiliation>
+						</author>
+						<author>
+							<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Stuart</forename><forename type="middle">M</forename><surname>Shieber</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="institution">Harvard University</orgName>
+							</affiliation>
+						</author>
+						<title level="a" type="main">Adapting Sequence Models for Sentence Correction</title>
+					</analytic>
+					<monogr>
+						<title level="m">Natural Language Processing</title>
+						<meeting> <address><addrLine>Copenhagen, Denmark</addrLine></address>
+						</meeting>
+						<imprint>
+							<publisher>Association for Computational Linguistics</publisher>
+							<biblScope unit="page" from="2807" to="2813"/>
+							<date type="published">September 7-11, 2017. 2017</date>
+						</imprint>
+					</monogr>
+					<note>* Part of this work was completed while as an intern at Rakuten.</note>
+				</biblStruct>
+			</sourceDesc>
+		</fileDesc>
+		<profileDesc>
+			<abstract>
+				<p>In a controlled experiment of sequence-to-sequence approaches for the task of sentence correction, we find that character-based models are generally more effective than word-based models and models that encode subword information via con-volutions, and that modeling the output data as a series of diffs improves effectiveness over standard approaches. Our strongest sequence-to-sequence model improves over our strongest phrase-based statistical machine translation model, with access to the same data, by 6 M 2 (0.5 GLEU) points. Additionally, in the data environment of the standard CoNLL-2014 setup, we demonstrate that modeling (and tuning against) diffs yields similar or better M 2 scores with simpler models and/or significantly less data than previous sequence-to-sequence approaches.</p>
+			</abstract>
+		</profileDesc>
+	</teiHeader>
+	<text xml:lang="en">
+		<body>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="1">Introduction</head><p>The task of sentence correction is to convert a natural language sentence that may or may not have errors into a corrected version. The task is envisioned as a component of a learning tool or writing-assistant, and has seen increased interest since 2011 driven by a series of shared tasks ( <ref type="bibr" target="#b5">Dale and Kilgarriff, 2011;</ref><ref type="bibr" target="#b4">Dale et al., 2012;</ref><ref type="bibr" target="#b19">Ng et al., , 2014</ref>).</p><p>Most recent work on language correction has focused on the data provided by the CoNLL-2014 shared task ( <ref type="bibr" target="#b19">Ng et al., 2014</ref>), a set of corrected es- says by second-language learners. The CoNLL- 2014 data consists of only around 60,000 sen- tences, and as such, competitive systems have made use of large amounts of corrected text with- out annotations, and in some cases lower-quality crowd-annotated data, in addition to the shared data. In this data environment, it has been sug- gested that statistical phrase-based machine trans- lation (MT) with task-specific features is the state-of-the-art for the task <ref type="bibr" target="#b12">(Junczys-Dowmunt and Grundkiewicz, 2016)</ref>, outperforming word- and character-based sequence-to-sequence models <ref type="bibr" target="#b27">(Yuan and Briscoe, 2016;</ref><ref type="bibr" target="#b26">Xie et al., 2016;</ref><ref type="bibr" target="#b11">Ji et al., 2017)</ref>, phrase-based systems with neural features <ref type="bibr">(Chollampatt et al., 2016b,a)</ref>, re-ranking output from phrase-based systems <ref type="bibr" target="#b10">(Hoang et al., 2016)</ref>, and combining phrase-based systems with classi- fiers trained for hand-picked subsets of errors <ref type="bibr" target="#b22">(Rozovskaya and Roth, 2016)</ref>.</p><p>We revisit the comparison across translation ap- proaches for the correction task in light of the Au- tomated Evaluation of Scientific Writing (AESW) 2016 dataset, a correction dataset containing over 1 million sentences, holding constant the training data across approaches. The dataset was previ- ously proposed for the distinct binary classifica- tion task of grammatical error identification.</p><p>Experiments demonstrate that pure character- level sequence-to-sequence models are more ef- fective on AESW than word-based models and models that encode subword information via con- volutions over characters, and that representing the output data as a series of diffs significantly in- creases effectiveness on this task. Our strongest character-level model achieves statistically sig- nificant improvements over our strongest phrase- based statistical machine translation model by 6 M 2 (0.5 GLEU) points, with additional gains when including domain information. Further- more, in the partially crowd-sourced data envi- ronment of the standard CoNLL-2014 setup in which there are comparatively few professionally annotated sentences, we find that tuning against the tags marking the diffs yields similar or su- perior effectiveness relative to existing sequence-to-sequence approaches despite using significantly less data, with or without using secondary mod- els. All code is available at https://github. com/allenschmaltz/grammar.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2">Background and Methods</head><p>Task We follow recent work and treat the task of sentence correction as translation from a source sentence (the unedited sentence) into a target sen- tence (a corrected version in the same language as the source). We do not make a distinction between grammatical and stylistic corrections.</p><p>We assume a vocabulary V of natural language word types (some of which have orthographic er- rors). Given a sentence s = [s 1 · · · s I ], where s i ∈ V is the i-th token of the sentence of length I, we seek to predict the corrected target sentence t = [t 1 · · · t J ], where t j ∈ V is the j-th token of the corrected sentence of length J. We are given both s and t for supervised training in the standard setup. At test time, we are only given access to se- quence s. We learn to predict sequence t (which is often identical to s).</p><p>Sequence-to-sequence We explore word and character variants of the sequence-to-sequence framework. We use a standard word-based model (WORD), similar to that of <ref type="bibr" target="#b16">Luong et al. (2015)</ref>, as well as a model that uses a convolutional neural network (CNN) and a highway network over char- acters (CHARCNN), based on the work of , instead of word embeddings as the input to the encoder and decoder. With both of these models, predictions are made at the word level. We also consider the use of bidirectional versions of these encoders (+BI).</p><p>Our character-based model (CHAR+BI) follows the architecture of the WORD+BI model, but the input and output consist of characters rather than words. In this case, the input and output sequences are converted to a series of characters and whites- pace delimiters. The output sequence is converted back to t prior to evaluation.</p><p>The WORD models encode and decode over a closed vocabulary (of the 50k most frequent words); the CHARCNN models encode over an open vocabulary and decode over a closed vocab- ulary; and the CHAR models encode and decode over an open vocabulary.</p><p>Our contribution is to investigate the impact of sequence-to-sequence approaches (including those not considered in previous work) in a series of controlled experiments, holding the data con- stant. In doing so, we demonstrate that on a large, professionally annotated dataset, the most effec- tive sequence-to-sequence approach can signifi- cantly outperform a state-of-the-art SMT system without augmenting the sequence-to-sequence model with a secondary model to handle low- frequency words <ref type="bibr" target="#b27">(Yuan and Briscoe, 2016</ref>) or an additional model to improve precision or inter- secting a large language model ( <ref type="bibr" target="#b26">Xie et al., 2016</ref>). We also demonstrate improvements over these previous sequence-to-sequence approaches on the CoNLL-2014 data and competitive results with <ref type="bibr" target="#b11">Ji et al. (2017)</ref>, despite using significantly less data.</p><p>The work of <ref type="bibr" target="#b23">Schmaltz et al. (2016)</ref> applies WORD and CHARCNN models to the distinct bi- nary classification task of error identification.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Additional Approaches</head><p>The standard formula- tion of the correction task is to model the output sequence as t above. Here, we also propose mod- eling the diffs between s and t. The diffs are pro- vided in-line within t and are described via tags marking the starts and ends of insertions and dele- tions, with replacements represented as deletion- insertion pairs, as in the following example se- lected from the training set: "Some key points are worth &lt;del&gt; emphasiz &lt;/del&gt; &lt;ins&gt; emphasiz- ing &lt;/ins&gt; .". Here, "emphasiz" is replaced with "emphasizing". The models, including the CHAR model, treat each tag as a single, atomic token.</p><p>The diffs enable a means of tuning the model's propensity to generate corrections by modifying the probabilities generated by the decoder for the 4 diff tags, which we examine with the CoNLL data. We include four bias parameters associated with each diff tag, and run a grid search between 0 and 1.0 to set their values based on the tuning set.</p><p>It is possible for models with diffs to output invalid target sequences (for example, inserting a word without using a diff tag). To fix this, a deter- ministic post-processing step is performed (greed- ily from left to right) that returns to source any non-source tokens outside of insertion tags. Diffs are removed prior to evaluation. We indicate mod- els that do not incorporate target diff annotation tags with the designator -DIFFS.</p><p>The AESW dataset provides the paragraph con- text and a journal domain (a classification of the document into one of nine subject categories) for each sentence. <ref type="bibr">1</ref> For the sequence-to-sequence <ref type="bibr">1</ref> The paragraphs are shuffled for purposes of obfuscation,  GLEU and M 2 differences on test are statistically significant via paired bootstrap resampling <ref type="bibr" target="#b15">(Koehn, 2004;</ref><ref type="bibr" target="#b9">Graham et al., 2014</ref>) at the 0.05 level, resampling the full set 50 times.</p><p>models we propose modeling the input and output sequences with a special initial token representing the journal domain (+DOM). <ref type="bibr">2</ref> </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3">Experiments</head><p>Data AESW <ref type="bibr" target="#b6">(Daudaravicius, 2016;</ref> consists of sentences taken from academic articles annotated with corrections by professional editors used for the AESW shared task. The training set contains 1,182,491 sen- tences, of which 460,901 sentences have edits. We set aside a 9,947 sentence sample from the orig- inal development set for tuning (of which 3,797 contain edits), and use the remaining 137,446 sen- tences as the dev set 3 (of which 53,502 contain ed- its). The test set contains 146,478 sentences. The primary focus of the present study is con- ducting controlled experiments on the AESW dataset, but we also investigate results on the CoNLL-2014 shared task data in light of recent neural results ( <ref type="bibr" target="#b11">Ji et al., 2017)</ref> and to serve as a baseline of comparison against existing sequence- to-sequence approaches <ref type="bibr" target="#b27">(Yuan and Briscoe, 2016;</ref><ref type="bibr" target="#b26">Xie et al., 2016</ref>  <ref type="bibr">3</ref> The dev set contains 13,562 unique deletion types, 29,952 insertion types, and 39,930 replacement types. data ( <ref type="bibr" target="#b25">Tajiri et al., 2012;</ref><ref type="bibr" target="#b17">Mizumoto et al., 2012</ref>). The Lang-8 dataset of corrections is large 4 but is crowd-sourced 5 and is thus of a different na- ture than the professionally annotated AESW and NUCLE datasets. We use the revised CoNLL- 2013 test set as a tuning/dev set and the CoNLL- 2014 test set (without alternatives) for testing. We do not make use of the non-public Cambridge Learner Corpus (CLC) <ref type="bibr" target="#b21">(Nicholls, 2003)</ref>, which contains over 1.5 million sentence pairs. Evaluation We follow past work and use the Generalized Language Understanding Evaluation (GLEU) ( ) and MaxMatch (M 2 ) metrics (Dahlmeier and Ng, 2012).</p><p>Parameters All our models, implemented with OpenNMT ( <ref type="bibr">Klein et al.)</ref>, are 2-layer LSTMs with 750 hidden units. For the WORD model, the word embedding size is also set to 750, while for the CHARCNN and CHAR models we use a char- acter embedding size of 25. The CHARCNN model has a convolutional layer with 1000 fil- ters of width 6 followed by max-pooling, which is fed into a 2-layer highway network. Additional training details are provided in Appendix A. For AESW, the WORD+BI model contains around 144 million parameters, the CHARCNN+BI model around 79 million parameters, and the CHAR+BI model around 25 million parameters.</p><p>Statistical Machine Translation As a baseline of comparison, we experiment with a phrase-based machine translation approach (SMT) shown to be state-of-the-art for the CoNLL-2014 shared task data in previous work <ref type="bibr" target="#b12">(Junczys-Dowmunt and Grundkiewicz, 2016)</ref>, which adds task specific features and the M 2 metric as a scorer to the Moses statistical machine translation system. The SMT model follows the training, parameters, and dense and sparse task-specific features that gener- ate state-of-the-art results for CoNLL-2014 shared task data, as implemented in publicly available code. <ref type="bibr">6</ref> However, to compare models against the same training data, we remove language model features associated with external data. <ref type="bibr">7</ref> We exper-iment with tuning against M 2 (+M 2 ) and BLEU (+BLEU). Models trained with diffs were only tuned with BLEU, since the tuning pipeline from previous work is not designed to handle removing such annotation tags prior to M 2 scoring. <ref type="table" target="#tab_1">Table 1</ref> shows the full set of experimental results on the AESW development and test data.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4">Results and Analysis: AESW</head><p>The CHAR+BI+DOM model is stronger than the WORD+BI+DOM and CHARCNN+DOM models by 2.9 M 2 (0.2 GLEU) and 3.3 M 2 (0.3 GLEU), respectively. The sequence-to-sequence models were also more effective than the SMT models, as shown in <ref type="table" target="#tab_1">Table 1</ref>. We find that training with target diffs is beneficial across all models, with an increase of about 5 M 2 points for the WORD+BI model, for example. Adding +DOM information slightly improves effectiveness across models.</p><p>We analyzed deletion, insertion, and replace- ment error types. <ref type="table" target="#tab_4">Table 2</ref> compares effec- tiveness across replacement errors. We found the CHARCNN+BI models were less effective than CHARCNN variants in terms of GLEU and M 2 , and the strongest CHARCNN models were eclipsed by the WORD+BI models in terms of the GLEU and M 2 scores. However, <ref type="table" target="#tab_4">Table 2</ref> shows CHARCNN+DOM is stronger on lower fre- quency replacements than WORD models. The CHAR+BI+DOM model is relatively strong on ar- ticle and punctuation replacements, as well as er- rors appearing with low frequency in the training set and overall across deletion and insertion error types, which are summarized in <ref type="table" target="#tab_5">Table 3</ref>.</p><p>Errors never occurring in training The com- paratively high Micro F 0.5 score (18.66) for the CHAR+BI+DOM model on replacement errors <ref type="table" target="#tab_4">(Table 2</ref>) never occurring in training is a result of a high precision (92.65) coupled with a low re- call (4.45). This suggests some limited capacity to generalize to items not seen in training. A se- lectively chosen example is the replacement from "discontinous" to "discontinuous", which never occurs in training. However, similar errors of low edit distance also occur once in the dev set and never in training, but the CHAR+BI+DOM model filtered against the NUCLE corpus, hurt effectiveness for the phrase-based models. This is likely a reflection of the do- main specific nature of the academic text and LaTeX holder symbols appearing in the text. Here, we conduct controlled experiments without introducing additional domain-specific monolingual data. never correctly recovers many of these errors, and many of the correctly recovered errors are minor changes in capitalization or hyphenation.</p><p>Error frequency About 39% of the AESW training sentences have errors, and of those sen- tences, on average, 2.4 words are involved in changes in deletions, insertions, or replacements (i.e., the count of words occurring between diff tags) per sentence. In the NUCLE data, about 37% of the sentences have errors, of which on aver- age, 5.3 words are involved in changes. On the AESW dev set, if we only consider the 9545 sen- tences in which 4 or more words are involved in a change (average of 5.8 words in changes per sen- tence), the CHAR+BI model is still more effective than SMT+BLEU, with a GLEU score of 67.21 vs. 65.34. The baseline GLEU score (No Change) is 60.86, reflecting the greater number of changes relative to the full dataset (cf. <ref type="table" target="#tab_1">Table 1</ref>).</p><p>Re-annotation The AESW dataset only pro- vides 1 annotation for each sentence, so we per- form a small re-annotation of the data to gauge effectiveness in the presence of multiple annota- tions. We collected 3 outputs (source, gold, and generated sentences from the CHAR+BI+DOM model) for 200 randomly sampled sentences, re- annotating to create 3 new references for each sentence. The GLEU scores for the 200 original source, CHAR+BI+DOM, and original gold sen- tences evaluated against the 3 new references were 79.79, 81.72, and 84.78, respectively, suggesting that there is still progress to be made on the task relative to human levels of annotation. <ref type="table" target="#tab_6">Table 4</ref> shows the results on the CoNLL dev set, and <ref type="table" target="#tab_8">Table 5</ref> contains the final test results.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5">Results and Analysis: CoNLL</head><p>Since the CoNLL data does not contain enough data for training neural models, previous works add the crowd-sourced Lang-8 data; however, this data is not professionally annotated. Since the distribution of corrections differs between the dev/test and training sets, we need to tune the pre- cision and recall.</p><p>As shown in <ref type="table" target="#tab_6">Table 4</ref>, WORD+BI effectiveness increases significantly by tuning the weights 8 as- signed to the diff tags on the CoNLL-2013 set 9 .</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Replacement Error Type (out of 39,930) -Frequency relative to training</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Model</head><p>Punctuation Articles Other &gt; 100 <ref type="bibr">[5,</ref><ref type="bibr">100]</ref>     Note that we are tuning the weights on this same CoNLL-2013 set. Without tuning, the model very rarely generates a change, albeit with a high pre- cision. After tuning, it exceeds the effective- ness of WORD+BI-DIFFS. The comparatively low effectiveness of WORD+BI-DIFFS is consistent with past sequence-to-sequence approaches utiliz- ing data augmentation, additional annotated data, and/or secondary models to achieve competitive levels of effectiveness. <ref type="table" target="#tab_8">Table 5</ref> shows that WORD+BI is within 0.2 M 2 of <ref type="bibr" target="#b11">Ji et al. (2017)</ref>, despite using over 1 million fewer sentence pairs, and exceeds the M 2 scores of <ref type="bibr" target="#b26">Xie et al. (2016)</ref> and <ref type="bibr" target="#b27">Yuan and Briscoe (2016)</ref> without the secondary models of those systems. We hypothesize that further gains are possible uti- lizing the CLC data and moving to the charac- ter model. (The character model is omitted here due to the long training time of about 4 weeks.) <ref type="bibr">Data M 2</ref> Yuan and Briscoe <ref type="formula">(2016)</ref>   Notably, SMT systems (with LMs) are still more effective than reported sequence-to-sequence re- sults, as in <ref type="bibr" target="#b11">Ji et al. (2017)</ref>, on CoNLL. <ref type="bibr">10</ref> </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6">Conclusion</head><p>Our experiments demonstrate that on a large, professionally annotated dataset, a sequence-to- sequence character-based model of diffs can lead to considerable effectiveness gains over a state- of-the-art SMT system with task-specific fea- tures, ceteris paribus. Furthermore, in the crowd- sourced environment of the CoNLL data, in which there are comparatively few professionally anno- tated sentences in training, modeling diffs enables a means of tuning that improves the effectiveness of sequence-to-sequence models for the task.</p></div><figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_1" validated="false"><head>Table 1 : AESW development/test set correction results.</head><label>1</label><figDesc></figDesc><table></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_4" validated="false"><head>Table 2 :</head><label>2</label><figDesc></figDesc><table>Micro F0.5 scores on replacement errors on the dev set. Errors are grouped by 'Punctuation', 'Article', and 'Other'. 
+
+'Other' errors are further broken down based on frequency buckets on the training set, with errors grouped by the frequency in 
+which they occur in the training set. 
+
+Deletions Insertions Replacements 
+
+SMT+BLEU 
+46.56 
+31.48 
+42.21 
+
+WORD+BI 
+47.75 
+38.31 
+46.02 
+WORD+BI+DOM 
+47.78 
+39.00 
+47.29 
+
+CHARCNN+DOM 48.30 
+39.57 
+46.24 
+
+CHAR+BI 
+49.05 
+37.17 
+48.55 
+CHAR+BI+DOM 
+50.20 
+42.51 
+50.39 
+
+</table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_5" validated="false"><head>Table 3 :</head><label>3</label><figDesc></figDesc><table>Micro F0.5 scores across error types 
+
+Precision Recall 
+F0.5 
+
+WORD+BI-DIFFS 
+65.36 
+6.19 
+22.45 
+WORD+BI, before tuning 
+72.34 
+0.97 
+4.60 
+WORD+BI, after tuning 
+46.66 
+15.35 33.14 
+
+</table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_6" validated="false"><head>Table 4 : M 2 scores on the CoNLL-2013 set.</head><label>4</label><figDesc></figDesc><table></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_8" validated="false"><head>Table 5 :</head><label>5</label><figDesc></figDesc><table>M 2 scores on the CoNLL-2014 test set and data 
+
+used for recent sequence-to-sequence based systems. Results 
+for previous works are those reported by the original authors. 
+ *  CLC is proprietary. 
+
+</table></figure>
+
+			<note place="foot" n="4"> about 1.4 million sentences after filtering 5 derived from the Lang-8 language-learning website 6 SRI International provided access to SRILM (Stolcke, 2002) for running Junczys-Dowmunt and Grundkiewicz (2016) 7 We found that including the features and data associated with the large language models of Junczys-Dowmunt and Grundkiewicz (2016), created from Common Crawl text</note>
+
+			<note place="foot" n="8"> In contrast, in early experiments on AESW, tuning yielded negligible improvements. 9 The single model with highest M 2 score was then run on the test set. Here, a single set is used for tuning and dev.</note>
+
+			<note place="foot" n="10"> For reference, the reported M 2 results of the carefully optimized SMT system of Junczys-Dowmunt and Grundkiewicz (2016) trained on NUCLE and Lang-8, with parameter vectors averaged over multiple runs, with a Wikipedia LM is 45.95 and adding a Common Crawl LM is 49.49. We leave to future work the intersection of a LM for the CoNLL environment and more generally, whether these patterns hold in the presence of additional monolingual data.</note>
+		</body>
+		<back>
+			<div type="references">
+
+				<listBibl>
+
+<biblStruct xml:id="b0">
+	<analytic>
+		<title level="a" type="main">Adapting grammatical error correction based on the native language of writers with neural network joint models</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Shamil</forename><surname>Chollampatt</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Duc</forename><forename type="middle">Tam</forename><surname>Hoang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Hwee Tou</forename><surname>Ng</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2016 Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>the 2016 Conference on Empirical Methods in Natural Language Processing<address><addrLine>Austin, Texas</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2016" />
+			<biblScope unit="page" from="1901" to="1911" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b1">
+	<analytic>
+		<title level="a" type="main">Neural network translation models for grammatical error correction</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Shamil</forename><surname>Chollampatt</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kaveh</forename><surname>Taghipour</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Hwee Tou</forename><surname>Ng</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Twenty-Fifth International Joint Conference on Artificial Intelligence, IJCAI&apos;16</title>
+		<meeting>the Twenty-Fifth International Joint Conference on Artificial Intelligence, IJCAI&apos;16</meeting>
+		<imprint>
+			<publisher>AAAI Press</publisher>
+			<date type="published" when="2016" />
+			<biblScope unit="page" from="2768" to="2774" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b2">
+	<analytic>
+		<title level="a" type="main">Better evaluation for grammatical error correction</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Daniel</forename><surname>Dahlmeier</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Hwee Tou</forename><surname>Ng</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2012 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies, NAACL HLT &apos;12</title>
+		<meeting>the 2012 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies, NAACL HLT &apos;12<address><addrLine>Stroudsburg, PA, USA</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2012" />
+			<biblScope unit="page" from="568" to="572" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b3">
+	<analytic>
+		<title level="a" type="main">Building a large annotated corpus of learner english: The nus corpus of learner english</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Daniel</forename><surname>Dahlmeier</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Hwee</forename><forename type="middle">Tou</forename><surname>Ng</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Siew Mei</forename><surname>Wu</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Eighth Workshop on Innovative Use of NLP for Building Educational Applications</title>
+		<meeting>the Eighth Workshop on Innovative Use of NLP for Building Educational Applications<address><addrLine>Atlanta, Georgia</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2013" />
+			<biblScope unit="page" from="22" to="31" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b4">
+	<analytic>
+		<title level="a" type="main">Hoo 2012: A report on the preposition and determiner error correction shared task</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Robert</forename><surname>Dale</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ilya</forename><surname>Anisimoff</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">George</forename><surname>Narroway</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Seventh Workshop on Building Educational Applications Using NLP</title>
+		<meeting>the Seventh Workshop on Building Educational Applications Using NLP<address><addrLine>Stroudsburg, PA, USA</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2012" />
+			<biblScope unit="page" from="54" to="62" />
+		</imprint>
+	</monogr>
+	<note>Association for Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b5">
+	<analytic>
+		<title level="a" type="main">Helping our own: The hoo 2011 pilot shared task</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Robert</forename><surname>Dale</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Adam</forename><surname>Kilgarriff</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 13th European Workshop on Natural Language Generation, ENLG &apos;11</title>
+		<meeting>the 13th European Workshop on Natural Language Generation, ENLG &apos;11<address><addrLine>Stroudsburg, PA, USA</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2011" />
+			<biblScope unit="page" from="242" to="249" />
+		</imprint>
+	</monogr>
+	<note>Association for Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b6">
+	<monogr>
+		<title level="m" type="main">Automated evaluation of scientific writing data set (version 1.2) [data file</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Vidas</forename><surname>Daudaravicius</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b7">
+	<monogr>
+		<title/>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Vtex</surname></persName>
+		</author>
+		<imprint/>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b8">
+	<analytic>
+		<title level="a" type="main">A report on the automatic evaluation of scientific writing shared task</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Vidas</forename><surname>Daudaravicius</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Rafael</forename><forename type="middle">E</forename><surname>Banchs</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Elena</forename><surname>Volodina</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Courtney</forename><surname>Napoles</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 11th Workshop on Innovative Use of NLP for Building Educational Applications</title>
+		<meeting>the 11th Workshop on Innovative Use of NLP for Building Educational Applications<address><addrLine>San Diego, CA</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2016" />
+			<biblScope unit="page" from="53" to="62" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b9">
+	<analytic>
+		<title level="a" type="main">Randomized significance tests in machine translation</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yvette</forename><surname>Graham</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Nitika</forename><surname>Mathur</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Timothy</forename><surname>Baldwin</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Ninth Workshop on Statistical Machine Translation</title>
+		<meeting>the Ninth Workshop on Statistical Machine Translation<address><addrLine>Baltimore, Maryland, USA</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2014" />
+			<biblScope unit="page" from="266" to="274" />
+		</imprint>
+	</monogr>
+	<note>Association for Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b10">
+	<analytic>
+		<title level="a" type="main">Exploiting n-best hypotheses to improve an smt approach to grammatical error correction</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Tam</forename><surname>Duc</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Shamil</forename><surname>Hoang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Hwee Tou</forename><surname>Chollampatt</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Ng</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Twenty-Fifth International Joint Conference on Artificial Intelligence, IJCAI&apos;16</title>
+		<meeting>the Twenty-Fifth International Joint Conference on Artificial Intelligence, IJCAI&apos;16</meeting>
+		<imprint>
+			<publisher>AAAI Press</publisher>
+			<date type="published" when="2016" />
+			<biblScope unit="page" from="2803" to="2809" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b11">
+	<monogr>
+		<title level="m" type="main">A Nested Attention Neural Hybrid Model for Grammatical Error Correction</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">J</forename><surname>Ji</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Q</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">K</forename><surname>Toutanova</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Y</forename><surname>Gong</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">S</forename><surname>Truong</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">J</forename><surname>Gao</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2017" />
+		</imprint>
+	</monogr>
+	<note>ArXiv eprints</note>
+</biblStruct>
+
+<biblStruct xml:id="b12">
+	<analytic>
+		<title level="a" type="main">Phrase-based machine translation is state-ofthe-art for automatic grammatical error correction</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Marcin</forename><surname>Junczys</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">-Dowmunt</forename></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Roman</forename><surname>Grundkiewicz</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2016 Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>the 2016 Conference on Empirical Methods in Natural Language Processing<address><addrLine>Austin, Texas</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2016" />
+			<biblScope unit="page" from="1546" to="1556" />
+		</imprint>
+	</monogr>
+	<note>Association for Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b13">
+	<analytic>
+		<title level="a" type="main">Character-Aware Neural Language Models</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yoon</forename><surname>Kim</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yacine</forename><surname>Jernite</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">David</forename><surname>Sontag</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Alexander</forename><forename type="middle">M</forename><surname>Rush</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of AAAI</title>
+		<meeting>AAAI</meeting>
+		<imprint>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b14">
+	<monogr>
+		<title level="m" type="main">OpenNMT: Open-Source Toolkit for Neural Machine Translation</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">G</forename><surname>Klein</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Y</forename><surname>Kim</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Y</forename><surname>Deng</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">J</forename><surname>Senellart</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">A</forename><forename type="middle">M</forename><surname>Rush</surname></persName>
+		</author>
+		<imprint/>
+	</monogr>
+	<note>ArXiv e-prints</note>
+</biblStruct>
+
+<biblStruct xml:id="b15">
+	<analytic>
+		<title level="a" type="main">Statistical significance tests for machine translation evaluation</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Philipp</forename><surname>Koehn</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of EMNLP 2004</title>
+		<meeting>EMNLP 2004<address><addrLine>Barcelona, Spain</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2004" />
+			<biblScope unit="page" from="388" to="395" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b16">
+	<analytic>
+		<title level="a" type="main">Effective approaches to attentionbased neural machine translation</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Minh-Thang</forename><surname>Luong</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Hieu</forename><surname>Pham</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Christopher</forename><forename type="middle">D</forename><surname>Manning</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Empirical Methods in Natural Language Processing (EMNLP)</title>
+		<meeting><address><addrLine>Lisbon, Portugal</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2015" />
+			<biblScope unit="page" from="1412" to="1421" />
+		</imprint>
+	</monogr>
+	<note>Association for Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b17">
+	<analytic>
+		<title level="a" type="main">The effect of learner corpus size in grammatical error correction of ESL writings</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Tomoya</forename><surname>Mizumoto</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yuta</forename><surname>Hayashibe</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Mamoru</forename><surname>Komachi</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Masaaki</forename><surname>Nagata</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yuji</forename><surname>Matsumoto</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">The COLING 2012 Organizing Committee</title>
+		<meeting><address><addrLine>Mumbai, India</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2012" />
+			<biblScope unit="page" from="863" to="872" />
+		</imprint>
+	</monogr>
+	<note>Proceedings of COLING 2012: Posters</note>
+</biblStruct>
+
+<biblStruct xml:id="b18">
+	<monogr>
+		<title/>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Courtney</forename><surname>Napoles</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Keisuke</forename><surname>Sakaguchi</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Matt</forename><surname>Post</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Joel</forename><surname>Tetreault</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1605.02592</idno>
+		<imprint>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+<note type="report_type">GLEU without tuning. eprint</note>
+	<note>cs.CL</note>
+</biblStruct>
+
+<biblStruct xml:id="b19">
+	<analytic>
+		<title level="a" type="main">The CoNLL-2014 shared task on grammatical error correction</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Hwee Tou Ng</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Mei</forename><surname>Siew</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ted</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Christian</forename><surname>Briscoe</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Raymond</forename><forename type="middle">Hendy</forename><surname>Hadiwinoto</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Christopher</forename><surname>Susanto</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Bryant</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Eighteenth Conference on Computational Natural Language Learning: Shared Task</title>
+		<meeting>the Eighteenth Conference on Computational Natural Language Learning: Shared Task<address><addrLine>Baltimore, Maryland</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2014" />
+			<biblScope unit="page" from="1" to="14" />
+		</imprint>
+	</monogr>
+	<note>Association for Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b20">
+	<analytic>
+		<title level="a" type="main">The CoNLL2013 shared task on grammatical error correction</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Hwee Tou Ng</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Mei</forename><surname>Siew</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yuanbin</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Christian</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Joel</forename><surname>Hadiwinoto</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Tetreault</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Seventeenth Conference on Computational Natural Language Learning: Shared Task</title>
+		<meeting>the Seventeenth Conference on Computational Natural Language Learning: Shared Task<address><addrLine>Sofia, Bulgaria</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2013" />
+			<biblScope unit="page" from="1" to="12" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b21">
+	<analytic>
+		<title level="a" type="main">The cambridge learner corpus: Error coding and analysis for lexicography and ELT</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Diane</forename><surname>Nicholls</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Corpus Linguistics 2003 conference</title>
+		<meeting>the Corpus Linguistics 2003 conference</meeting>
+		<imprint>
+			<date type="published" when="2003" />
+			<biblScope unit="page" from="572" to="581" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b22">
+	<analytic>
+		<title level="a" type="main">Grammatical error correction: Machine translation and classifiers</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Alla</forename><surname>Rozovskaya</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Dan</forename><surname>Roth</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 54th Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 54th Annual Meeting of the Association for Computational Linguistics<address><addrLine>Berlin, Germany</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2016" />
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="2205" to="2215" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b23">
+	<analytic>
+		<title level="a" type="main">Sentence-level grammatical error identification as sequence-to-sequence correction</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Allen</forename><surname>Schmaltz</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yoon</forename><surname>Kim</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Alexander</forename><forename type="middle">M</forename><surname>Rush</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Stuart</forename><surname>Shieber</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 11th Workshop on Innovative Use of NLP for Building Educational Applications</title>
+		<meeting>the 11th Workshop on Innovative Use of NLP for Building Educational Applications<address><addrLine>San Diego, CA</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2016" />
+			<biblScope unit="page" from="242" to="251" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b24">
+	<analytic>
+		<title level="a" type="main">Srilm-an extensible language modeling toolkit</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Andreas</forename><surname>Stolcke</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. Intl. Conf. on Spoken Language Processing</title>
+		<meeting>Intl. Conf. on Spoken Language essing<address><addrLine>Denver</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2002" />
+			<biblScope unit="volume">2</biblScope>
+			<biblScope unit="page" from="901" to="904" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b25">
+	<analytic>
+		<title level="a" type="main">Tense and aspect error correction for esl learners using global context</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Toshikazu</forename><surname>Tajiri</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Mamoru</forename><surname>Komachi</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yuji</forename><surname>Matsumoto</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 50th Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 50th Annual Meeting of the Association for Computational Linguistics<address><addrLine>Jeju Island, Korea</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2012" />
+			<biblScope unit="volume">2</biblScope>
+			<biblScope unit="page" from="198" to="202" />
+		</imprint>
+	</monogr>
+	<note>Short Papers). Association for Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b26">
+	<monogr>
+		<title level="m" type="main">Neural language correction with character-based attention</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ziang</forename><surname>Xie</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Anand</forename><surname>Avati</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Naveen</forename><surname>Arivazhagan</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Dan</forename><surname>Jurafsky</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Andrew</forename><forename type="middle">Y</forename><surname>Ng</surname></persName>
+		</author>
+		<idno>abs/1603.09727</idno>
+		<imprint>
+			<date type="published" when="2016" />
+			<publisher>CoRR</publisher>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b27">
+	<analytic>
+		<title level="a" type="main">Grammatical error correction using neural machine translation</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Zheng</forename><surname>Yuan</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ted</forename><surname>Briscoe</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2016 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies</title>
+		<meeting>the 2016 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies<address><addrLine>San Diego, California</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2016" />
+			<biblScope unit="page" from="380" to="386" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+				</listBibl>
+			</div>
+		</back>
+	</text>
+</TEI>

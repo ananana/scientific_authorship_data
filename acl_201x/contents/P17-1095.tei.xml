@@ -1,0 +1,795 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<TEI xmlns="http://www.tei-c.org/ns/1.0" 
+xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+xsi:schemaLocation="http://www.tei-c.org/ns/1.0 /home/ana/installs/grobid/grobid-0.5.1/grobid-home/schemas/xsd/Grobid.xsd"
+ xmlns:xlink="http://www.w3.org/1999/xlink">
+	<teiHeader xml:lang="en">
+		<encodingDesc>
+			<appInfo>
+				<application version="0.5.1-SNAPSHOT" ident="GROBID" when="2019-04-18T10:01+0000">
+					<ref target="https://github.com/kermitt2/grobid">GROBID - A machine learning software for extracting information from scholarly documents</ref>
+				</application>
+			</appInfo>
+		</encodingDesc>
+		<fileDesc>
+			<titleStmt>
+				<title level="a" type="main">Bayesian Modeling of Lexical Resources for Low-Resource Settings</title>
+			</titleStmt>
+			<publicationStmt>
+				<publisher>Association for Computational Linguistics</publisher>
+				<availability status="unknown"><p>Copyright Association for Computational Linguistics</p>
+				</availability>
+				<date>July 30-August 4, 2017. July 30-August 4, 2017</date>
+			</publicationStmt>
+			<sourceDesc>
+				<biblStruct>
+					<analytic>
+						<author>
+							<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Nicholas</forename><surname>Andrews</surname></persName>
+						</author>
+						<author>
+							<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Mark</forename><surname>Dredze</surname></persName>
+						</author>
+						<author>
+							<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Benjamin</forename><surname>Van Durme</surname></persName>
+						</author>
+						<author>
+							<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jason</forename><surname>Eisner</surname></persName>
+						</author>
+						<title level="a" type="main">Bayesian Modeling of Lexical Resources for Low-Resource Settings</title>
+					</analytic>
+					<monogr>
+						<title level="m">Proceedings of the 55th Annual Meeting of the Association for Computational Linguistics (Volume 1: Long Papers)</title>
+						<meeting>the 55th Annual Meeting of the Association for Computational Linguistics (Volume 1: Long Papers) <address><addrLine>Vancouver, Canada; Vancouver, Canada</addrLine></address>
+						</meeting>
+						<imprint>
+							<publisher>Association for Computational Linguistics</publisher>
+							<biblScope unit="page" from="1029" to="1039"/>
+							<date type="published">July 30-August 4, 2017. July 30-August 4, 2017</date>
+						</imprint>
+					</monogr>
+					<idno type="DOI">10.18653/v1/p17-1095</idno>
+				</biblStruct>
+			</sourceDesc>
+		</fileDesc>
+		<profileDesc>
+			<abstract>
+				<p>Lexical resources such as dictionaries and gazetteers are often used as auxiliary data for tasks such as part-of-speech induction and named-entity recognition. However, discriminative training with lexical features requires annotated data to reliably estimate the lexical feature weights and may result in overfitting the lexical features at the expense of features which generalize better. In this paper, we investigate a more robust approach: we stipulate that the lexicon is the result of an assumed generative process. Practically, this means that we may treat the lexical resources as observations under the proposed generative model. The lexical resources provide training data for the generative model without requiring separate data to estimate lexical feature weights. We evaluate the proposed approach in two settings: part-of-speech induction and low-resource named-entity recognition.</p>
+			</abstract>
+		</profileDesc>
+	</teiHeader>
+	<text xml:lang="en">
+		<body>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="1">Introduction</head><p>Dictionaries and gazetteers are useful in many natural language processing tasks. These lexical resources may be derived from freely available sources (such as Wikidata and Wiktionary) or con- structed for a particular domain. Lexical resources are typically used to complement existing anno- tations for a given task (Ando and <ref type="bibr" target="#b0">Zhang, 2005;</ref><ref type="bibr" target="#b6">Collobert et al., 2011)</ref>. In this paper, we focus instead on low-resource settings where task annota- tions are unavailable or scarce. Specifically, we use lexical resources to guide part-of-speech induction ( §4) and to bootstrap named-entity recognizers in low-resource languages ( §5).</p><p>Given their success, it is perhaps surprising that incorporating gazetteers or dictionaries into dis- criminative models (e.g. conditional random fields) may sometimes hurt performance. This phenom- ena is called weight under-training, in which lexi- cal features-which detect whether a name is listed in the dictionary or gazetteer-are given exces- sive weight at the expense of other useful features such as spelling features that would generalize to unlisted names ( <ref type="bibr" target="#b25">Smith et al., 2005;</ref><ref type="bibr" target="#b28">Sutton et al., 2006</ref>; <ref type="bibr" target="#b26">Smith and Osborne, 2006</ref>). Furthermore, dis- criminative training with lexical features requires sufficient annotated training data, which poses chal- lenges for the unsupervised and low-resource set- tings we consider here.</p><p>Our observation is that Bayesian modeling pro- vides a principled solution. The lexicon is itself a dataset that was generated by some process. Prac- tically, this means that lexicon entries (words or phrases) may be treated as additional observations. As a result, these entries provide information about how names are spelled. The presence of the lexi- con therefore now improves training of the spelling features, rather than competing with the spelling features to help explain the labeled corpus.</p><p>A downside is that generative models are typi- cally less feature-rich than their globally normal- ized discriminative counterparts (e.g. conditional random fields). In designing our approach-the hierarchical sequence memoizer (HSM)-we aim to be reasonably expressive while retaining prac- tically useful inference algorithms. We propose a Bayesian nonparametric model to serve as a gener- ative distribution responsible for both lexicon and corpus data. The proposed model memoizes previ- ously used lexical entries (words or phrases) but backs off to a character-level distribution when generating novel types <ref type="bibr" target="#b29">(Teh, 2006;</ref><ref type="bibr" target="#b20">Mochihashi et al., 2009)</ref>. We propose an efficient inference algorithm for the proposed model using particle Gibbs sampling ( §3). Our code is available at https://github.com/noa/bayesner.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2">Model</head><p>Our goal is to fit a model that can automatically annotate text. We observe a supervised or unsu- pervised training corpus. For each label y in the annotation scheme, we also observe a lexicon of strings of type y. For example, in our tagging task ( §4), a dictionary provides us with a list of words for each part-of-speech tag y. (These lists need not be disjoint.) For named-entity recognition (NER, §5), we use a list of words or phrases for each named-entity type y (PER, LOC, ORG, etc.). 1</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.1">Modeling the lexicon</head><p>We may treat the lexicon for type y, of size m y , as having been produced by a set of m y IID draws from an unknown distribution P y over the words or named entities of type y. It therefore provides some evidence about P y . We will later assume that P y is also used when generating mentions of these words or entities in text. Thanks to this sharing of P y , if x = Washington is listed in the gazetteer of locations (y = LOC), we can draw the same con- clusions as if we had seen a LOC-labeled instance of Washington in a supervised corpus. Generalizing this a bit, we may suppose that one observation of string x in the lexicon is equivalent to c labeled tokens of x in a corpus, where the constant c &gt; 0 is known as a pseudocount. In other words, observing a lexicon of m y distinct types {x 1 , . . . , x my } is equivalent to observing a labeled pseudocorpus of cm y tokens. Notice that given such an observation, the prior probability of any candidate distribution P y is reweighted by the likelihood</p><formula xml:id="formula_0">(cmy)! (c!) my · (P y (x 1 )P y (x 2 ) · · · P y (x my )) c .</formula><p>Therefore, this choice of P y can have relatively high posterior probability only to the extent that it assigns high probability to all of the lexicon types.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.2">Discussion</head><p>We employ the above model because it has rea- sonable qualitative behavior and because computa- tionally, it allows us to condition on observed lexi- cons as easily as we condition on observed corpora. However, we caution that as a generative model of the lexicon, it is deficient, in the sense that it 1 Dictionaries and knowledge bases provide more infor- mation than we use in this paper. For instance, Wikidata also provides a wealth of attributes and other metadata for each entity s. In principle, this additional information could also be helpful in estimating Py(s); we leave this intriguing possibility for future <ref type="bibr">work.</ref> allocates probability mass to events that cannot ac- tually correspond to any lexicon. After all, drawing cm y IID tokens from P y is highly unlikely to result in exactly c tokens of each of m y different types, and yet a run of our system will always assume that precisely this happened to produce each ob- served lexicon! To avoid the deficiency, one could assume that the lexicon was generated by rejection sampling: that is, the gazetteer author repeatedly drew samples of size cm y from P y until one was obtained that had this property, and then returned the set of distinct types in that sample as the lexi- con for y. But this is hardly a realistic description of how gazetteers are actually constructed. Rather, one imagines that the gazetteer author simply har- vested a lexicon of frequent types from P y or from a corpus of tokens generated from P y . For example, a much better generative story is that the lexicon was constructed as the first m y distinct types to appear ≥ c times in an unbounded sequence of IID draws from P y . When c = 1, this is equivalent to modeling the lexicon as m y draws without re- placement from P y . 2 Unfortunately, draws without replacement are no longer IID or exchangeable: or- der matters. It would therefore become difficult to condition inference and learning on an observed lexicon, because we would need to explicitly sum or sample over the possibilities for the latent se- quence of tokens (or stick segments). We therefore adopt the simpler deficient model.</p><p>A version of our lexicon model (with c = 1) was previously used by <ref type="bibr">Dreyer and Eisner (2011, Appendix C)</ref>, who observed a list of verb paradigm types rather than word or entity-name types.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.3">Prior distribution over P y</head><p>We assume a priori that P y was drawn from a Pitman-Yor process (PYP) <ref type="bibr" target="#b23">(Pitman and Yor, 1997)</ref>. Both the lexicon and the ordinary corpus are ob- servations that provide information about P y . The PYP is defined by three parameters: a concentra- tion parameter α, a discount parameter d, and a base distribution H y . In our case, H y is a distribu- tion over X = Σ * , the set of possible strings over a finite character alphabet Σ.</p><p>For example, H LOC is used to choose new place names, so it describes what place names tend to look like in the language. The draw P LOC ∼ PYP(d, α, H LOC ) is an "adapted" version of H LOC . It is P LOC that determines how often each name is mentioned in text (and whether it is mentioned in the lexicon). Some names such as Washington that are merely plausible under H LOC are far more frequent under P LOC , presumably because they were chosen as the names of actual, significant places. These place names were randomly drawn from H LOC as part of the procedure for drawing P y .</p><p>The expected value of P y is H (i.e., H is the mean of the PYP distribution), but if α and d are small, then a typical draw of P y will be rather dif- ferent from H, with much of the probability mass falling on a subset of the strings.</p><p>At training or test time, when deciding whether to label a corpus token of x = Washington as a place or person, we will be interested in the rel- ative values of P LOC (x) and P PER (x). In practice, we do not have to represent the unknown infinite object P y , but can integrate over its possible values. When P y ∼ PYP(d, α, H y ), then a sequence of draws X 1 , X 2 , . . . ∼ P y is distributed according to a Chinese restaurant process, via</p><formula xml:id="formula_1">P y (X i+1 = x | X 1 , . . . , X i ) (1) = customers(x) − d · tables(x) α + i + α + d · x tables(x ) α + i H y (x)</formula><p>where customers(x) ≤ i is the number of times that x appeared among X 1 , . . . , X i , and tables(x) ≤ customers(x) is the number of those times that x was drawn from H y (where each P y (X i | · · · ) defined by (1) is interpreted as a mixture distribution that sometimes uses H y ).</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.4">Form of the base distribution H y</head><p>By fitting H y on corpus and lexicon data, we learn what place names or noun strings tend to look like in the language. By simultaneously fitting P y , we learn which ones are commonly mentioned. Recall that under our model, tokens are drawn from P y but the underlying types are drawn from H y , e.g., H y is responsible for (at least) the first token of each type. A simple choice for H y is a Markov process that emits characters in Σ ∪ {$}, where $ is a dis- tinguished stop symbol that indicates the end of the string. Thus, the probability of producing $ controls the typical string length under H y .</p><p>We use a more sophisticated model of strings-a sequence memoizer (SM), which is a (hierarchi- cal) Bayesian treatment of variable-order Markov modeling ( <ref type="bibr" target="#b31">Wood et al., 2009</ref>). The SM allows dependence on an unbounded history, and the prob- ability of a given sequence (string) can be found efficiently much as in equation <ref type="formula">(1)</ref>.</p><p>Given a string x = a 1 · · · a J ∈ Σ * , the SM assigns a probability to it via</p><formula xml:id="formula_2">H y (a 1:J ) = J j=1 H y (a j | a 1:j−1 ) H y ($ | a 1:J ) = J j=1 H y,a 1:j−1 (a j ) H y,a 1:J ($) (2)</formula><p>where H y,u (a) denotes the conditional probability of character a given the left context u ∈ Σ * . Each H y,u is a distribution over Σ, defined recursively as</p><formula xml:id="formula_3">H y,, ∼ PYP(d , α , U Σ ) (3) H y,u ∼ PYP(d |u| , α |u| , H y,σ(u) )</formula><p>where is the empty sequence, U Σ is the uni- form distribution over Σ ∪ {$}, and σ(u) drops the first symbol from u. The discount and concen- tration parameters (d |u| , α |u| ) are associated with the lengths of the contexts |u|, and should gener- ally be larger for longer (more specific) contexts, implying stronger backoff from those contexts. <ref type="bibr">3</ref> Our inference procedure is largely indifferent to the form of H y , so the SM is not the only option. It would be possible to inject more assumptions into H y , for instance via structured priors for mor- phology or a grammar of name structure. Another possibility is to use a parametric model such as a neural language model (e.g., <ref type="bibr" target="#b18">Jozefowicz et al. (2016)</ref>), although this would require an inner-loop of gradient optimization.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.5">Modeling the sequence of tags y</head><p>We now turn to modeling the corpus. We assume that each sentence is generated via a sequence of latent labels y = y 1:T ∈ Y * . <ref type="bibr">4</ref> The observations x 1:T are then generated conditioned on the label sequence via the corresponding P y distribution (de- fined in §2.3). All observations with the same label y are drawn from the same P y , and thus this subse- quence of observations is distributed according to the Chinese restaurant process (1).</p><p>We model y using another sequence memo- izer model. This is similar to other hierarchical Bayesian models of latent sequences <ref type="bibr" target="#b3">Blunsom and Cohn, 2010)</ref>, but again, it does not limit the Markov order (the num- ber of preceding labels that are conditioned on). Thus, the probability of a sequence of latent types is computed in the same way as the base distribu- tion in §2.4, that is,</p><formula xml:id="formula_4">p(y 1:T ) := T t=1 G y 1:t−1 (y t ) G y 1:T ($)<label>(4)</label></formula><p>where</p><formula xml:id="formula_5">G v (y) denotes the conditional probability of latent label y ∈ Y given the left context v ∈ Y * . Each G v is a distribution over Y, defined recur- sively as G ∼ PYP(d , α , U Y )<label>(5)</label></formula><formula xml:id="formula_6">G v ∼ PYP(d |v| , α |v| , G σ(v) )</formula><p>The probability of transitioning to label y t de- pends on the assignments of all previous labels y 1 . . . y t−1 . For part-of-speech induction, each label y t is the part-of-speech associated with the corresponding word x t . For named-entity recognition, we say that each word token is labeled with a named entity type (LOC, PER, . . . ), <ref type="bibr">5</ref> or with itself if it is not a named entity but rather a "context word." For example, the word token x t = Washington could have been emitted from the label y t = LOC, or from y t = PER, or from y t = Washington itself (in which case p(x t | y t ) = 1). This uses a much larger set of labels Y than in the traditional setup where all context words are emitted from the same latent label type O. Of course, most labels are impossible at most positions (e.g., y t cannot be Washington unless x t = Washington). This scheme makes our generative model sensitive to specific contexts (which is accomplished in dis- criminative NER systems by contextual features). For example, the SM for y can learn that spoke to P E R yesterday is a common 4-gram in the label sequence y, and thus we are more likely to label Washington as a person if x = . . . spoke to Washington yesterday . . ..</p><p>We need one change to make this work, since now Y must include not only the standard NER labels Y = {PER, LOC, ORG, GPE} but also words like Washington. Indeed, now Y = Y ∪ Σ * . But no uniform distribution exists over the infinite set Σ * , so how should we replace the base distribu- tion U Y over labels in equation <ref type="formula" target="#formula_5">(5)</ref>? Answer: To draw from the new base distribution, sample y ∼ U Y ∪ {CONTEXT} . If y = CONTEXT, however, then "expand" it by</p><note type="other">resampling y ∼ H CONTEXT . Here H CONTEXT is the base distribution over spellings of context words, and is learned just like the other H y distributions in §2.4.</note></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3">Inference via particle Markov chain</head><p>Monte Carlo</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.1">Sequential sampler</head><p>Taking Y to be a random variable, we are interested in the posterior distribution p(Y = y | x) over la- bel sequences y given the emitted word sequence x. Our model does not admit an efficient dynamic programming algorithm, owing to the dependen- cies introduced among the Y t when we marginalize over the unknown G and P distributions that gov- ern transitions and emissions, respectively. In con- trast to tagging with a hidden Markov model tag- ging, the distribution of each label Y t depends on all previous labels y 1:t−1 , for two reasons: x The transition distribution p(Y t = y | y 1:t−1 ) has un- bounded dependence because of the PYP prior (4). y The emission distribution p(x t | Y t = y) de- pends on the emissions observed from any earlier tokens of y, because of the Chinese restaurant pro- cess (1). When y is the only complication, block Metropolis-Hastings samplers have proven effec- tive ( <ref type="bibr" target="#b17">Johnson et al., 2007</ref>). However, this approach uses dynamic programming to sample from a pro- posal distribution efficiently, which x precludes in our case. Instead, we use sequential Monte Carlo (SMC)-sometimes called particle filtering-as a proposal distribution. Particle filtering is typically used in online settings, including word segmenta- tion (Borschinger and Johnson, 2011), to make de- cisions before all of x has been observed. However, we are interested in the inference (or smoothing) problem that conditions on all of x ( <ref type="bibr" target="#b10">Dubbin and Blunsom, 2012;</ref><ref type="bibr" target="#b30">Tripuraneni et al., 2015)</ref>. SMC employs a proposal distribution q(y | x) whose definition decomposes as follows:</p><formula xml:id="formula_7">q(y 1 | x 1 ) T t=2</formula><p>q(y t | y 1:t−1 , x 1:t )</p><p>for T = |x|. To sample a sequence of latent labels, first sample an initial label y 1 from q 1 , then proceed incrementally by sampling y t from q t (· | y 1:t−1 , x 1:t ) for t = 2, . . . , T . The fi- nal sampled sequence y is called a particle, and is given an unnormalized importance weight of˜w of˜ of˜w = ˜ w T · p($ | y 1:T ) where˜wwhere˜ where˜w T was built up viã viã w t := ˜ w t−1 · p(y 1:t , x 1:t ) p(y 1:t−1 , x 1:t−1 ) q(y t | y 1:t−1 , x 1:t )</p><p>The SMC procedure consists of generating a sys- tem of M weighted particles whose unnormalized importance weights˜wweights˜ weights˜w (m) : Particle Gibbs. We employ SMC as a kernel in an MCMC sampler ( <ref type="bibr" target="#b2">Andrieu et al., 2010)</ref>. In par- ticular, we use a block Gibbs sampler in which we iteratively resample the hidden labeling y of a sentence x conditioned on the current labelings for all other sentences in the corpus. In this con- text, the algorithm is called conditional SMC since one particle is always fixed to the previous sam- pler state for the sentence being resampled, which ensures that the MCMC procedure is ergodic. At a high level, this procedure is analogous to other Gibbs samplers (e.g. for topic models), except that the conditional SMC (CSMC) kernel uses auxiliary variables (particles) in order to generate the new block variable assignments. The procedure is out- lined in Algorithm 1. Given a previous latent state assignment y 1:T and observations x 1:T , the CSMC kernel produces a new latent state assignment via M auxiliary particles where one particle is fixed to the previous assignment. For ergodicity, M ≥ 2, where larger values of M may improve mixing rate at the expense of increased computation per step.</p><formula xml:id="formula_10">1 ≤ m ≤ M are normalized into w (m) := ˜ w (m) / M m=1˜wm=1˜ m=1˜w (m) . As M → ∞, SMC</formula><p>Proposal distribution. The choice of proposal dis- tribution q is crucial to the performance of SMC methods. In the case of continuous latent variables, it is common to propose y t from the transition prob- ability p(Y t | y 1:t−1 ) because this distribution usu- ally has a simple form that permits efficient sam- pling. However, it is possible to do better in the case of discrete latent variables. The optimal pro- posal distribution is the one which minimizes the variance of the importance weights, and is given by q(y t | y 1:t−1 , x 1:t ) := p(y t | y 1:t−1 , x 1:t ) (8) = p(y t | y 1:t−1 )p(x t | y t ) p(x t | y 1:t−1 ) where p(x t | y 1:t−1 ) = yt∈Y p(y t | y 1:t−1 )p(x t | y t ) (9)</p><p>Substituting this expression in equation <ref type="formula" target="#formula_9">(7)</ref> and simplifying yields the incremental weight update:</p><formula xml:id="formula_11">˜ w t := ˜ w t−1 · p(x t | y 1:t−1 )<label>(10)</label></formula><p>Resampling. In filtering applications, it is com- mon to use resampling operations to prevent weight degeneracy. We do not find resampling necessary here for three reasons. First, note that we resam- ple hidden label sequences that are only as long as the number of words in a given sentence. Second, we use a proposal which minimizes the variance of the weights. Finally, we use SMC as a kernel embedded in an MCMC sampler; asymptotically, this procedure yields samples from the desired pos- terior regardless of degeneracy (which only affects the mixing rate). Practically speaking, one can di- agnose the need for resampling via the effective sample size (ESS) of the particle system:</p><formula xml:id="formula_12">ESS := 1 M m=1 ( ˜ w (m) ) 2 = ( M m=1 w (m) ) 2 M m=1 (w (m) ) 2</formula><p>In our experiments, we find that ESS remains high (a significant fraction of M ) even for long sen- tences, suggesting that resampling is not necessary to enable mixing of the the Gibbs sampler.</p><p>Decoding. In order to obtain a single latent vari- able assignment for evaluation purposes, we simply take the state of the Markov chain after a fixed num- ber of iterations of particle Gibbs. In principle, one could collect many samples during particle Gibbs and use them to perform minimum Bayes risk de- coding under a given loss function. However, this approach is somewhat slower and did not appear to improve performance in preliminary experiments</p><formula xml:id="formula_13">Algorithm 1 Conditional SMC 1: procedure CSMC(x 1:T , y 1:T , M ) 2: Draw y (m) 1 (eqn. 8) for m ∈ [1, M − 1] 3:</formula><p>Set y</p><formula xml:id="formula_14">(M ) 1 = y 1 4:</formula><p>Set˜wSet˜ Set˜w return y (k) 1:T</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.2">Segmental sampler</head><p>We now present an sampler for settings such as NER where each latent label emits a segment con- sisting of 1 or more words. We make use of the same transition distribution p(y t | y 1:t−1 ), which determines the probability of a label in a given context, and an emission distribution p(x t | y t ) (namely P yt ); these are assumed to be drawn from hierarchical Pitman-Yor processes described in §2.5 and §2.1, respectively. To allow the x t to be a multi-word string, we simply augment the charac- ter set with a distinguished space symbol ∈ Σ that separates words within a string. For instance, New York would be generated as the 9-symbol sequence New York$.</p><p>Although the model emits New York all at once, we still formulate our inference procedure as a particle filter that proposes one tag for each word. Thus, for a given segment label type y, we allow two tag types for its words:</p><p>• I-y corresponds to a non-final word in a seg- ment of type y (in effect, a word with a fol- lowing attached).</p><p>• E-y corresponds to the final word in a segment of type y.</p><p>For instance, x 1:2 = New York would be anno- tated as a location segment by defining y 1:2 = I-LOC E-LOC. This says that y 1:2 has jointly emitted x 1:2 , an event with prior probability P LOC (New York). Each word that is not part of a named entity is considered to be a single- word segment. For example, if the next word were x 3 = hosted then it should be tagged with y 3 = hosted as in §2.5, in which case x 3 was emitted with probability 1.</p><p>To adapt the sampler described in §3.1 for the segmental case, we need only to define the transi- tion and emission probabilities used in equation <ref type="formula">(8)</ref> and its denominator (9).</p><p>For the transition probabilities, we want to model the sequence of segment labels. If y t−1 is an I-tag, we take p(y t | y 1:t−1 ) = 1 , since then y t merely continues an existing segment. Otherwise y t starts a new segment, and we take p(y t | y 1:t−1 ) = 1 to be defined by the PYP's probability G y 1:t−1 (y t ) as usual, but where we interpret the subscript y 1:t−1 to refer to the possibly shorter sequence of segment labels implied by those t − 1 tags.</p><p>For the emission probabilities, if y t has the form I-y or E-y, then its associated emission probabil- ity no longer has the form p(x t | y t ), since the choice of x t also depends on any words emitted earlier in the segment. Let s ≤ t be the starting position of the segment that contains t. If y t = E-y, then the emission probability is proportional to P y (x s x s+1 . . . x t ). If y t = I-y then the emis- sion probability is proportional to the prefix prob- ability</p><p>x P y (x) where x ranges over all strings in Σ * that have x s x s+1 . . . x t as a proper pre- fix. Prefix probabilities in H y are easy to compute because H y has the form of a language model, and prefix probabilities in P y are therefore also easy to compute (using a prefix tree for efficiency).</p><p>This concludes the description of the segmental sampler. Note that the particle Gibbs procedure is unchanged.</p><p>of-speech. In our setting, however, the dictionar- ies are not constraints but evidence. If monthly is listed in (only) the adjective lexicon, this tells us that P ADJ sometimes generates monthly and therefore that H ADJ may also tend to generate other words that end with -ly. However, for us, P ADV (monthly) &gt; 0 as well, allowing us to still correctly treat monthly as a possible adverb if we later encounter it in a training or test corpus.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.1">Experiments</head><p>We follow the experimental procedure described in <ref type="bibr" target="#b19">Li et al. (2012)</ref>, and use their released code and data to compare to their best model: a second-order maximum entropy Markov model parametrized with log-linear features (SHMM-ME). This model uses hand-crafted features designed to distinguish between different parts-of-speech, and it has spe- cial handling for rare words. This approach is sur- prisingly effective and outperforms alternate ap- proaches such as cross-lingual transfer ( <ref type="bibr" target="#b7">Das and Petrov, 2011</ref>). However, it also has limitations, since words that do not appear in the dictionary will be unconstrained, and spurious or incorrect lexical entries may lead to propagation of errors.</p><p>The lexicons are taken from the Wiktionary project; their size and coverage are documented by ( <ref type="bibr" target="#b19">Li et al., 2012)</ref>. We evaluate our model on multi-lingual data released as part of the CoNLL 2007 and CoNLL-X shared tasks. In particular, we use the same set of languages as <ref type="bibr" target="#b19">Li et al. (2012)</ref>. <ref type="bibr">7</ref> For our method, we impute the parts-of-speech by running particle Gibbs for 100 epochs, where one epoch consists of resampling the states for a each sentence in the corpus. The final sampler state is then taken as a 1-best tagging of the unlabeled data.</p><p>Results. The results are reported in <ref type="table">Table 1</ref>. We find that our hierarchical sequence memoizer (HSM) matches or exceeds the performance of the baseline (SHMM-ME) for nearly all the tested lan- guages, particularly for morphologically rich lan- guages such as German where the spelling distribu- tions H y may capture regularities. It is interesting to note that our model performs worse relative to the baseline for English; one possible explanation is that the baseline uses hand-engineered features whereas ours does not, and these features may have been tuned using English data for validation.</p><p>Our generative model is supposed to exploit lex- icons well. To see what is lost from using a genera- tive model, we also compared with <ref type="bibr" target="#b19">Li et al. (2012)</ref> on standard supervised tagging without any lexi- cons. Even here our generative model is very com- petive, losing only on English and Swedish.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5">Boostrapping NER with type-level supervision</head><p>Name lists and dictionaries are useful for NER particularly when in-domain annotations are scarce. However, with little annotated data, discriminative training may be unable to reliably estimate lexical feature weights and may overfit. In this section, we are interested in evaluating our proposed Bayesian model in the context of low-resource NER.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.1">Data</head><p>Most languages do not have corpora annotated for parts-of-speech, named-entities, syntactic parses, or other linguistic annotations. Therefore, rapidly deploying natural language technologies in a new language may be challenging. In the context of facilitating relief responses in emergencies such as natural disasters, the DARPA LORELEI (Low Re- source Languages for Emergent Incidents) program has sponsored the development and release of repre- sentative "language packs" for Turkish and Uzbek with more languages planned ( <ref type="bibr" target="#b27">Strassel and Tracey, 2016)</ref>. We use the named-entity annotations as part of these language packs which include persons, lo- cations, organizations, and geo-political entities, in order to explore bootstrapping named-entity recog- nition from small amounts of data. We consider two types of data: x in-context annotations, where sentences are fully annotated for named-entities, and y lexical resources. The LORELEI language packs lack adequate in- domain lexical resources for our purposes. There- fore, we simulate in-domain lexical resources by holding out portions of the annotated de- velopment data and deriving dictionaries and name lists from them. For each label y ∈ {PER, LOC, ORG, GPE, CONTEXT}, our lexicon for y lists all distinct y-labeled strings that appear in the held-out data. This setup ensures that the labels associated with lexicon entries correspond to the annotation guidelines used in the data we use for evaluation. It avoids possible problems that might arise when leveraging noisy out-of-domain knowledge bases, which we may explore in future.  <ref type="table">Table 1</ref>: Part-of-speech induction results in multiple languages.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Model</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Danish German Greek English Italian Portuguese Spanish Swedish</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.2">Evaluation</head><p>In this section we report supervised NER experi- ments on two low-resource languages: Turkish and Uzbek. We vary both the amount of supervision as well as the size of the lexical resources. A chal- lenge when evaluating the performance of a model with small amounts of training data is that there may be high-variance in the results. In order to have more confidence in our results, we perform bootstrap resampling experiments in which the training set, evaluation set, and lexical resources are randomized across several replications of the same experiment (for each of the data conditions). We use 10 replications for each of the data condi- tions reported in <ref type="figure">Figures 1-2</ref>, and report both the mean performance and 95% confidence intervals.</p><p>Baseline. We use the Stanford NER system with a standard set of language-independent fea- tures ( <ref type="bibr" target="#b11">Finkel et al., 2005</ref>). 8 . This model is a condi- tional random field (CRF) with feature templates which include character n-grams as well as word shape features. Crucially, we also incorporate lexi- cal features. The CRF parameters are regularized using an L1 penalty and optimized via Orthant-wise limited-memory quasi-Newton optimization <ref type="bibr" target="#b1">(Andrew and Gao, 2007)</ref>. For both our proposed method and the discriminative baseline, we use a fixed set of hyperparameters (i.e. we do not use a separate validation set for tuning each data con- dition). In order to make a fair comparison to the CRF, we use our sampler for forward inference only, without resampling on the test data.</p><p>Results. We show learning curves as a function of supervised training corpus size. <ref type="figure">Figure 1</ref> shows that our generative model strongly beats the base- line in this low-data regime. In particular, when there is little annotated training data, our proposed generative model can compensate by exploiting the lexicon, while the discriminative baseline scores terribly. The performance gap decreases with larger supervised corpora, which is consistent with prior results comparing generative and discriminative training <ref type="bibr" target="#b21">(Ng and Jordan, 2002</ref>).</p><p>In <ref type="figure">Figure 2</ref>, we show the effect of the lexi- con's size: as expected, larger lexicons are better. The generative approach significantly outperforms the discriminative baseline at any lexicon size, al- though its advantage drops for smaller lexicons or larger training corpora.</p><p>In <ref type="figure">Figure 1</ref> we found that increasing the pseudo- count c consistently decreases performance, so we used c = 1 in our other experiments. <ref type="bibr">9</ref> </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6">Conclusion</head><p>This paper has described a generative model for low-resource sequence labeling and segmentation tasks using lexical resources. Experiments in semi- supervised and low-resource settings have demon- strated its applicability to part-of-speech induction and low-resource named-entity recognition. There are many potential avenues for future work. Our model may be useful in the context of active learn- ing where efficient re-estimation and performance in low-data conditions are important. It would also be interesting to explore more expressive parame- terizations, such recurrent neural networks for H y . In the space of neural methods, differentiable mem- ory ( <ref type="bibr" target="#b24">Santoro et al., 2016</ref>) may be more flexible than the PYP prior, while retaining the ability of the model to cache strings observed in the gazetteer. Figure 1: Absolute NER performance for Turkish (y-axis) as a function of corpus size (x-axis). The y-axis gives the F1 score on a held-out evaluation set (averaged over 10 bootstrap replicates, with error bars showing 95% confidence intervals). Our generative approach is compared to a baseline discriminative model with lexicon features (lowest curve). 500 held-out sentences were used to create the lexicon for both methods. Note that increasing the pseudocount c for lexicon entries (upper curves) tends to decrease performance for the generative model; we therefore take c = 1 in all other experiments. This graph shows Turkish; the corresponding Uzbek figure is available as supplementary material. Figure 2: Relative NER performance for Turkish (y-axis) as a function of corpus size (x-axis). In this graph, c = 1 is constant and the curves instead compare different lexicon sizes derived from 10, 100, and 1000 held-out sentences. The y-axis now gives the difference F1 model − F1 baseline , so positive values indicate improvement over the baseline due to the proposed model. Gains are highest for large lexicons and for small corpora. Again, the corresponding Uzbek figure is available as supplementary material.</p></div><figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_0"><head></head><label></label><figDesc>provides a consistent estimate of the marginal likelihood p(x) as 1 M M m=1˜wm=1˜ m=1˜w (m) , and samples from the weighted particle system are distributed as samples from the desired posterior p(y | x) (Doucet and Johansen, 2009).</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_1"><head>Set˜w</head><label></label><figDesc>Set˜ Set˜w (m) = ˜ w (m) T p($|y 1:T ) for m ∈ [1, M ] 10: Draw index k where p(k = m) ∝ ˜ w (m) 11:</figDesc></figure>
+
+			<note place="foot" n="2"> If we assume that Py was drawn from a Pitman-Yor process prior (as in §2.3) using the stick-breaking method (Pitman, 1996), it is also equivalent to modeling the lexicon as the set of labels of the first my stick segments (which tend to have high probability).</note>
+
+			<note place="foot" n="3"> We fix these hyperparameters using the values suggested in (Wood et al., 2009; Gasthaus and Teh, 2010), which we find to be quite robust in practice. One could also resample their values (Blunsom and Cohn, 2010); we experimented with this but did not observe any consistent advantage to doing so in our setting. 4 The label sequence is terminated by a distinguished endof-sequence label, again written as $.</note>
+
+			<note place="foot" n="5"> In §3.2, we will generalize this labeling scheme to allow multi-word named entities such as New York.</note>
+
+			<note place="foot" n="4"> Inducing parts-of-speech with type-level supervision Automatically inducing parts-of-speech from raw text is a challenging problem (Goldwater et al., 2005). Our focus here is on the easier problem of type-supervised part-of-speech induction, in which (partial) dictionaries are used to guide inference (Garrette and Baldridge, 2012; Li et al., 2012). Conditioned on the unlabeled corpus and dictionary, we use the MCMC procedure described in §3.1 to impute the latent parts-of-speech. Since dictionaries are freely available for hundreds of languages, 6 we see this as a mild additional requirement in practice over the purely unsupervised setting. In prior work, dictionaries have been used as constraints on possible parts-of-speech: words appearing in the dictionary take one of their known parts6 https://www.wiktionary.org/</note>
+
+			<note place="foot" n="7"> With the exception of Dutch. Unlike the other CoNLL languages, Dutch includes phrases, and the procedure by which these were split into tokens was not fully documented.</note>
+
+			<note place="foot" n="8"> We also experimented with neural models, but found that the CRF outperformed them in low-data conditions.</note>
+
+			<note place="foot" n="9"> Why? Even a pseudocount of c = 1 is enough to ensure that Py(s) Hy(s), since the prior probability Hy(s) is rather small for most strings in the lexicon. Indeed, perhaps c &lt; 1 would have increased performance, particularly if the lexicon reflects out-of-domain data. This could be arranged, in effect, by using a hierarchical Bayesian model in which the lexicon and corpus emissions are not drawn from the identical distribution Py but only from similar (coupled) distributions.</note>
+		</body>
+		<back>
+
+			<div type="acknowledgement">
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Acknowledgments</head><p>This work was supported by the JHU Human Lan-guage Technology Center of Excellence, DARPA LORELEI, and NSF grant IIS-1423276. Thanks to Jay Feldman for early discussions.</p></div>
+			</div>
+
+			<div type="references">
+
+				<listBibl>
+
+<biblStruct xml:id="b0">
+	<analytic>
+		<title level="a" type="main">A framework for learning predictive structures from multiple tasks and unlabeled data</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kubota</forename><surname>Rie</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Tong</forename><surname>Ando</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Zhang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Journal of Machine Learning Research</title>
+		<imprint>
+			<biblScope unit="volume">6</biblScope>
+			<biblScope unit="page" from="1817" to="1853" />
+			<date type="published" when="2005" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b1">
+	<analytic>
+		<title level="a" type="main">Scalable training of L1-regularized log-linear models</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Galen</forename><surname>Andrew</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jianfeng</forename><surname>Gao</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 24th International Conference on Machine Learning</title>
+		<meeting>the 24th International Conference on Machine Learning</meeting>
+		<imprint>
+			<date type="published" when="2007" />
+			<biblScope unit="page" from="33" to="40" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b2">
+	<analytic>
+		<title level="a" type="main">Particle Markov chain Monte Carlo methods</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Christophe</forename><surname>Andrieu</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Arnaud</forename><surname>Doucet</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Roman</forename><surname>Holenstein</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Journal of the Royal Statistical Society: Series B (Statistical Methodology)</title>
+		<imprint>
+			<biblScope unit="volume">72</biblScope>
+			<biblScope unit="issue">3</biblScope>
+			<biblScope unit="page" from="269" to="342" />
+			<date type="published" when="2010" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b3">
+	<analytic>
+		<title level="a" type="main">A hierarchical Pitman-Yor process HMM for unsupervised partof-speech induction</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Phil</forename><surname>Blunsom</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Trevor</forename><surname>Cohn</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 49th</title>
+		<meeting>the 49th</meeting>
+		<imprint>
+			<date type="published" when="2010" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b4">
+	<monogr>
+				<title level="m">Annual Meeting of the Association for Computational Linguistics</title>
+		<imprint/>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b5">
+	<analytic>
+		<title level="a" type="main">A particle filter algorithm for Bayesian wordsegmentation</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Benjamin</forename><surname>Borschinger</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Mark</forename><surname>Johnson</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Australasian Language Technology Association Workshop</title>
+		<meeting>the Australasian Language Technology Association Workshop<address><addrLine>Canberra, Australia</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2011" />
+			<biblScope unit="page" from="10" to="18" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b6">
+	<analytic>
+		<title level="a" type="main">Natural language processing (almost) from scratch</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ronan</forename><surname>Collobert</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jason</forename><surname>Weston</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Léon</forename><surname>Bottou</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Michael</forename><surname>Karlen</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Koray</forename><surname>Kavukcuoglu</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Pavel</forename><surname>Kuksa</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Journal of Machine Learning Research</title>
+		<imprint>
+			<biblScope unit="volume">12</biblScope>
+			<biblScope unit="page" from="2493" to="2537" />
+			<date type="published" when="2011" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b7">
+	<analytic>
+		<title level="a" type="main">Unsupervised part-of-speech tagging with bilingual graph-based projections</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Dipanjan</forename><surname>Das</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Slav</forename><surname>Petrov</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 49th Annual Meeting of the Association for Computational Linguistics: Human Language Technologies</title>
+		<meeting>the 49th Annual Meeting of the Association for Computational Linguistics: Human Language Technologies</meeting>
+		<imprint>
+			<date type="published" when="2011" />
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="600" to="609" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b8">
+	<analytic>
+		<title level="a" type="main">A tutorial on particle filtering and smoothing: Fifteen years later</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Arnaud</forename><surname>Doucet</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Adam</forename><forename type="middle">M</forename><surname>Johansen</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Handbook of Nonlinear Filtering</title>
+		<imprint>
+			<biblScope unit="volume">12</biblScope>
+			<biblScope unit="page" from="656" to="704" />
+			<date type="published" when="2009" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b9">
+	<analytic>
+		<title level="a" type="main">Discovering morphological paradigms from plain text using a Dirichlet process mixture model</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Markus</forename><surname>Dreyer</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jason</forename><surname>Eisner</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Conference on Empirical Methods in Natural Language Processing (EMNLP)</title>
+		<meeting>the Conference on Empirical Methods in Natural Language Processing (EMNLP)<address><addrLine>Edinburgh</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2011" />
+			<biblScope unit="page" from="616" to="627" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b10">
+	<analytic>
+		<title level="a" type="main">Unsupervised Bayesian part of speech inference with particle Gibbs</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Gregory</forename><surname>Dubbin</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Phil</forename><surname>Blunsom</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2012 European Conference on Machine Learning and Knowledge Discovery in Databases-Volume Part I</title>
+		<meeting>the 2012 European Conference on Machine Learning and Knowledge Discovery in Databases-Volume Part I<address><addrLine>Berlin, Heidelberg, ECML PKDD</addrLine></address></meeting>
+		<imprint>
+			<publisher>SpringerVerlag</publisher>
+			<date type="published" when="2012" />
+			<biblScope unit="volume">12</biblScope>
+			<biblScope unit="page" from="760" to="773" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b11">
+	<analytic>
+		<title level="a" type="main">Incorporating non-local information into information extraction systems by Gibbs sampling</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jenny</forename><forename type="middle">Rose</forename><surname>Finkel</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Trond</forename><surname>Grenager</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Christopher</forename><surname>Manning</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 43rd Annual Meeting on Association for Computational Linguistics</title>
+		<meeting>the 43rd Annual Meeting on Association for Computational Linguistics<address><addrLine>Stroudsburg, PA, USA, ACL &apos;05</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2005" />
+			<biblScope unit="page" from="363" to="370" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b12">
+	<analytic>
+		<title level="a" type="main">Typesupervised hidden Markov models for part-ofspeech tagging with incomplete tag dictionaries</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Dan</forename><surname>Garrette</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jason</forename><surname>Baldridge</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2012 Joint Conference on Empirical Methods in Natural Language Processing and Computational Natural Language Learning</title>
+		<meeting>the 2012 Joint Conference on Empirical Methods in Natural Language Processing and Computational Natural Language Learning</meeting>
+		<imprint>
+			<date type="published" when="2012" />
+			<biblScope unit="page" from="821" to="831" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b13">
+	<analytic>
+		<title level="a" type="main">Improvements to the sequence memoizer</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jan</forename><surname>Gasthaus</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yee</forename><forename type="middle">Whye</forename><surname>Teh</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">NIPS</title>
+		<imprint>
+			<date type="published" when="2010" />
+			<biblScope unit="page" from="685" to="693" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b14">
+	<analytic>
+		<title level="a" type="main">A fully Bayesian approach to unsupervised part-ofspeech tagging</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Sharon</forename><surname>Goldwater</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Thomas</forename><forename type="middle">L</forename><surname>Griffiths</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 45th Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 45th Annual Meeting of the Association for Computational Linguistics<address><addrLine>Prague, Czech Republic</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2007" />
+			<biblScope unit="page" from="744" to="751" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b15">
+	<monogr>
+		<title/>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Sharon</forename><surname>Goldwater</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Mark</forename><surname>Johnson</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Thomas</forename><forename type="middle">L</forename></persName>
+		</author>
+		<imprint/>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b16">
+	<analytic>
+		<title level="a" type="main">Interpolating between types and tokens by estimating power-law generators</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Griffiths</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Advances in Neural Information Processing Systems</title>
+		<imprint>
+			<date type="published" when="2005" />
+			<biblScope unit="page" from="459" to="466" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b17">
+	<analytic>
+		<title level="a" type="main">Bayesian inference for PCFGs via Markov chain Monte Carlo</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Mark</forename><surname>Johnson</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Thomas</forename><forename type="middle">L</forename><surname>Griffiths</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Sharon</forename><surname>Goldwater</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">HLT-NAACL</title>
+		<imprint>
+			<date type="published" when="2007" />
+			<biblScope unit="page" from="139" to="146" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b18">
+	<monogr>
+		<title level="m" type="main">Exploring the limits of language modeling</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Rafal</forename><surname>Jozefowicz</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Oriol</forename><surname>Vinyals</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Mike</forename><surname>Schuster</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Noam</forename><surname>Shazeer</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yonghui</forename><surname>Wu</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1602.02410</idno>
+		<imprint>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+<note type="report_type">Computing Research Repository</note>
+</biblStruct>
+
+<biblStruct xml:id="b19">
+	<analytic>
+		<title level="a" type="main">Wiki-ly supervised part-of-speech tagging</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Shen</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Joao</forename><forename type="middle">V</forename><surname>Graça</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ben</forename><surname>Taskar</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2012 Joint Conference on Empirical Methods in Natural Language Processing and Computational Natural Language Learning</title>
+		<meeting>the 2012 Joint Conference on Empirical Methods in Natural Language Processing and Computational Natural Language Learning</meeting>
+		<imprint>
+			<date type="published" when="2012" />
+			<biblScope unit="page" from="1389" to="1398" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b20">
+	<analytic>
+		<title level="a" type="main">Bayesian unsupervised word segmentation with nested Pitman-Yor language modeling</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Daichi</forename><surname>Mochihashi</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Takeshi</forename><surname>Yamada</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Naonori</forename><surname>Ueda</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Joint Conference of the 47th Annual Meeting of the ACL and the 4th International Joint Conference on Natural Language Processing of the AFNLP</title>
+		<meeting>the Joint Conference of the 47th Annual Meeting of the ACL and the 4th International Joint Conference on Natural Language Processing of the AFNLP</meeting>
+		<imprint>
+			<date type="published" when="2009" />
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="100" to="108" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b21">
+	<analytic>
+		<title level="a" type="main">On discriminative vs. generative classifiers: A comparison of logistic regression and naive Bayes</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Y</forename><surname>Andrew</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Michael</forename><forename type="middle">I</forename><surname>Ng</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Jordan</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Advances in Neural Information Processing Systems</title>
+		<imprint>
+			<biblScope unit="volume">2</biblScope>
+			<biblScope unit="page" from="841" to="848" />
+			<date type="published" when="2002" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b22">
+	<analytic>
+		<title level="a" type="main">Some developments of the Blackwell-MacQueen urn scheme</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jim</forename><surname>Pitman</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Statistics, Probability and Game Theory: Papers in Honor of David Blackwell</title>
+		<editor>T. S. Ferguson, L. S. Shapley, and J. B. MacQueen</editor>
+		<imprint>
+			<date type="published" when="1996" />
+			<biblScope unit="volume">30</biblScope>
+			<biblScope unit="page" from="245" to="267" />
+		</imprint>
+		<respStmt>
+			<orgName>Institute of Mathematical Statistics</orgName>
+		</respStmt>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b23">
+	<analytic>
+		<title level="a" type="main">The two-parameter Poisson-Dirichlet distribution derived from a stable subordinator</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jim</forename><surname>Pitman</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Marc</forename><surname>Yor</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">The Annals</title>
+		<imprint>
+			<biblScope unit="page" from="855" to="900" />
+			<date type="published" when="1997" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b24">
+	<monogr>
+		<title level="m" type="main">One-shot learning with memory-augmented neural networks</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Adam</forename><surname>Santoro</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Sergey</forename><surname>Bartunov</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Matthew</forename><surname>Botvinick</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Daan</forename><surname>Wierstra</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Timothy</forename><forename type="middle">P</forename><surname>Lillicrap</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1605.06065</idno>
+		<imprint>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+<note type="report_type">Computing Research Repository</note>
+</biblStruct>
+
+<biblStruct xml:id="b25">
+	<analytic>
+		<title level="a" type="main">Logarithmic opinion pools for conditional random fields</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Andrew</forename><surname>Smith</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Trevor</forename><surname>Cohn</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Miles</forename><surname>Osborne</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 43rd Annual Meeting on Association for Computational Linguistics</title>
+		<meeting>the 43rd Annual Meeting on Association for Computational Linguistics</meeting>
+		<imprint>
+			<date type="published" when="2005" />
+			<biblScope unit="page" from="18" to="25" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b26">
+	<analytic>
+		<title level="a" type="main">Using gazetteers in discriminative information extraction</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Andrew</forename><surname>Smith</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Miles</forename><surname>Osborne</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Tenth Conference on Computational Natural Language Learning</title>
+		<meeting>the Tenth Conference on Computational Natural Language Learning</meeting>
+		<imprint>
+			<date type="published" when="2006" />
+			<biblScope unit="page" from="133" to="140" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b27">
+	<analytic>
+		<title level="a" type="main">Lorelei language packs: Data, tools, and resources for technology development in low resource languages</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Stephanie</forename><surname>Strassel</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jennifer</forename><surname>Tracey</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Tenth International Conference on Language Resources and Evaluation (LREC 2016). European Language Resources Association (ELRA)</title>
+		<meeting>the Tenth International Conference on Language Resources and Evaluation (LREC 2016). European Language Resources Association (ELRA)<address><addrLine>Paris, France</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b28">
+	<analytic>
+		<title level="a" type="main">Reducing weight undertraining in structured discriminative learning</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Charles</forename><surname>Sutton</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Michael</forename><surname>Sindelar</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Andrew</forename><surname>Mccallum</surname></persName>
+		</author>
+		<idno>HLT-NAACL &apos;06</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Main Conference on Human Language Technology Conference of the North American Chapter of the Association of Computational Linguistics</title>
+		<meeting>the Main Conference on Human Language Technology Conference of the North American Chapter of the Association of Computational Linguistics<address><addrLine>Stroudsburg, PA, USA</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2006" />
+			<biblScope unit="page" from="89" to="95" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b29">
+	<analytic>
+		<title level="a" type="main">A hierarchical Bayesian language model based on Pitman-Yor processes</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yee Whye</forename><surname>Teh</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 21st International Conference on Computational Linguistics and the 44th annual meeting of the Association for Computational Linguistics</title>
+		<meeting>the 21st International Conference on Computational Linguistics and the 44th annual meeting of the Association for Computational Linguistics</meeting>
+		<imprint>
+			<date type="published" when="2006" />
+			<biblScope unit="page" from="985" to="992" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b30">
+	<analytic>
+		<title level="a" type="main">Particle Gibbs for infinite hidden Markov models</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Nilesh</forename><surname>Tripuraneni</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Shixiang</forename><surname>Gu</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Hong</forename><surname>Ge</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Zoubin</forename><surname>Ghahramani</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 28th International Conference on Neural Information Processing Systems</title>
+		<meeting>the 28th International Conference on Neural Information Processing Systems<address><addrLine>Cambridge, MA, USA</addrLine></address></meeting>
+		<imprint>
+			<publisher>MIT Press</publisher>
+			<date type="published" when="2015" />
+			<biblScope unit="page" from="2395" to="2403" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b31">
+	<analytic>
+		<title level="a" type="main">A stochastic memoizer for sequence data</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Frank</forename><surname>Wood</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Cédric</forename><surname>Archambeau</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jan</forename><surname>Gasthaus</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Lancelot</forename><surname>James</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yee</forename><forename type="middle">Whye</forename><surname>Teh</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 26th Annual International Conference on Machine Learning</title>
+		<meeting>the 26th Annual International Conference on Machine Learning</meeting>
+		<imprint>
+			<date type="published" when="2009" />
+			<biblScope unit="page" from="1129" to="1136" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+				</listBibl>
+			</div>
+		</back>
+	</text>
+</TEI>

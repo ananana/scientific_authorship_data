@@ -1,0 +1,1379 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<TEI xmlns="http://www.tei-c.org/ns/1.0" 
+xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+xsi:schemaLocation="http://www.tei-c.org/ns/1.0 /home/ana/installs/grobid/grobid-0.5.1/grobid-home/schemas/xsd/Grobid.xsd"
+ xmlns:xlink="http://www.w3.org/1999/xlink">
+	<teiHeader xml:lang="en">
+		<encodingDesc>
+			<appInfo>
+				<application version="0.5.1-SNAPSHOT" ident="GROBID" when="2019-04-18T11:01+0000">
+					<ref target="https://github.com/kermitt2/grobid">GROBID - A machine learning software for extracting information from scholarly documents</ref>
+				</application>
+			</appInfo>
+		</encodingDesc>
+		<fileDesc>
+			<titleStmt>
+				<title level="a" type="main">Learning to Skim Text</title>
+			</titleStmt>
+			<publicationStmt>
+				<publisher>Association for Computational Linguistics</publisher>
+				<availability status="unknown"><p>Copyright Association for Computational Linguistics</p>
+				</availability>
+				<date>July 30-August 4, 2017. July 30-August 4, 2017</date>
+			</publicationStmt>
+			<sourceDesc>
+				<biblStruct>
+					<analytic>
+						<author>
+							<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Adams</forename><forename type="middle">Wei</forename><surname>Yu</surname></persName>
+						</author>
+						<author>
+							<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Hongrae</forename><surname>Lee</surname></persName>
+						</author>
+						<author>
+							<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Quoc</forename><surname>Le</surname></persName>
+						</author>
+						<title level="a" type="main">Learning to Skim Text</title>
+					</analytic>
+					<monogr>
+						<title level="m">Proceedings of the 55th Annual Meeting of the Association for Computational Linguistics (Volume 1: Long Papers)</title>
+						<meeting>the 55th Annual Meeting of the Association for Computational Linguistics (Volume 1: Long Papers) <address><addrLine>Vancouver, Canada; Vancouver, Canada</addrLine></address>
+						</meeting>
+						<imprint>
+							<publisher>Association for Computational Linguistics</publisher>
+							<biblScope unit="page" from="1880" to="1890"/>
+							<date type="published">July 30-August 4, 2017. July 30-August 4, 2017</date>
+						</imprint>
+					</monogr>
+					<idno type="DOI">10.18653/v1/p17-1172</idno>
+				</biblStruct>
+			</sourceDesc>
+		</fileDesc>
+		<profileDesc>
+			<abstract>
+				<p>Recurrent Neural Networks are showing much promise in many sub-areas of natural language processing, ranging from document classification to machine translation to automatic question answering. Despite their promise, many recurrent models have to read the whole text word by word, making it slow to handle long documents. For example, it is difficult to use a recurrent network to read a book and answer questions about it. In this paper, we present an approach of reading text while skipping irrelevant information if needed. The underlying model is a recurrent network that learns how far to jump after reading a few words of the input text. We employ a standard policy gradient method to train the model to make discrete jumping decisions. In our benchmarks on four different tasks, including number prediction, sentiment analysis, news article classification and automatic Q&amp;A, our proposed model, a modified LSTM with jumping, is up to 6 times faster than the standard sequential LSTM, while maintaining the same or even better accuracy.</p>
+			</abstract>
+		</profileDesc>
+	</teiHeader>
+	<text xml:lang="en">
+		<body>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="1">Introduction</head><p>The last few years have seen much success of ap- plying neural networks to many important appli- cations in natural language processing, e.g., part- of-speech tagging, chunking, named entity recog- nition <ref type="bibr" target="#b7">(Collobert et al., 2011</ref>), sentiment analy- sis <ref type="bibr" target="#b36">(Socher et al., 2011</ref><ref type="bibr" target="#b37">(Socher et al., , 2013</ref>, document classifi- cation <ref type="bibr" target="#b17">(Kim, 2014;</ref><ref type="bibr" target="#b20">Le and Mikolov, 2014;</ref><ref type="bibr" target="#b49">Zhang et al., 2015;</ref><ref type="bibr" target="#b8">Dai and Le, 2015)</ref>, machine transla- tion <ref type="bibr" target="#b16">(Kalchbrenner and Blunsom, 2013</ref>; Sutskever * Most of work was done when AWY was with Google.</p><p>et al., <ref type="bibr">2014</ref>; <ref type="bibr" target="#b2">Bahdanau et al., 2014;</ref><ref type="bibr" target="#b31">Sennrich et al., 2015;</ref><ref type="bibr" target="#b46">Wu et al., 2016)</ref>, conversational/dialogue modeling ( <ref type="bibr" target="#b38">Sordoni et al., 2015;</ref><ref type="bibr" target="#b34">Shang et al., 2015)</ref>, document summariza- tion ( <ref type="bibr" target="#b27">Nallapati et al., 2016</ref>), parsing <ref type="bibr" target="#b0">(Andor et al., 2016)</ref> and automatic ques- tion answering (Q&amp;A) ( <ref type="bibr" target="#b11">Hermann et al., 2015;</ref><ref type="bibr" target="#b42">Wang and Jiang, 2016;</ref><ref type="bibr" target="#b40">Trischler et al., 2016;</ref><ref type="bibr" target="#b21">Lee et al., 2016;</ref><ref type="bibr" target="#b32">Seo et al., 2016;</ref><ref type="bibr" target="#b47">Xiong et al., 2016</ref>). An important characteristic of all these models is that they read all the text available to them. While it is essential for certain applications, such as machine transla- tion, this characteristic also makes it slow to ap- ply these models to scenarios that have long input text, such as document classification or automatic Q&amp;A. However, the fact that texts are usually writ- ten with redundancy inspires us to think about the possibility of reading selectively.</p><p>In this paper, we consider the problem of under- standing documents with partial reading, and pro- pose a modification to the basic neural architec- tures that allows them to read input text with skip- ping. The main benefit of this approach is faster inference because it skips irrelevant information. An unexpected benefit of this approach is that it also helps the models generalize better.</p><p>In our approach, the model is a recurrent net- work, which learns to predict the number of jump- ing steps after it reads one or several input tokens. Such a discrete model is therefore not fully differ- entiable, but it can be trained by a standard policy gradient algorithm, where the reward can be the accuracy or its proxy during training.</p><p>In our experiments, we use the basic LSTM recurrent networks <ref type="bibr" target="#b14">(Hochreiter and Schmidhuber, 1997</ref>) as the base model and benchmark the pro- posed algorithm on a range of document clas- sification or reading comprehension tasks, using various datasets such as Rotten Tomatoes (Pang <ref type="figure">Figure 1</ref>: A synthetic example of the proposed model to process a text document. In this example, the maximum size of jump K is 5, the number of tokens read before a jump R is 2 and the number of jumps allowed N is 10. The green softmax are for jumping predictions. The processing stops if a) the jumping softmax predicts a 0 or b) the jump times exceeds N or c) the network processed the last token. We only show the case a) in this <ref type="figure">figure.</ref> and <ref type="bibr" target="#b28">Lee, 2005</ref>), IMDB (Maas et al., 2011), AG News ( <ref type="bibr" target="#b49">Zhang et al., 2015</ref>) and Children's Book Test <ref type="bibr" target="#b12">(Hill et al., 2015)</ref>. We find that the proposed approach of selective reading speeds up the base model by two to six times. Surprisingly, we also observe our model beats the standard LSTM in terms of accuracy.</p><p>In summary, the main contribution of our work is to design an architecture that learns to skim text and show that it is both faster and more accurate in practical applications of text processing. Our model is simple and flexible enough that we antic- ipate it would be able to incorporate to recurrent nets with more sophisticated structures to achieve even better performance in the future.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2">Methodology</head><p>In this section, we introduce the proposed model named LSTM-Jump. We first describe its main structure, followed by the difficulty of estimat- ing part of the model parameters because of non- differentiability. To address this issue, we appeal to a reinforcement learning formulation and adopt a policy gradient method.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.1">Model Overview</head><p>The main architecture of the proposed model is shown in <ref type="figure">Figure 1</ref>, which is based on an LSTM re- current neural network. Before training, the num- ber of jumps allowed N , the number of tokens read between every two jumps R and the max- imum size of jumping K are chosen ahead of time. While K is a fixed parameter of the model, N and R are hyperparameters that can vary be- tween training and testing. Also, throughout the paper, we would use d 1:p to denote a sequence</p><formula xml:id="formula_0">d 1 , d 2 , ..., d p .</formula><p>In the following, we describe in detail how the model operates when processing text. Given a training example x 1:T , the recurrent network will read the embedding of the first R tokens x 1:R and output the hidden state. Then this state is used to compute the jumping softmax that determines a distribution over the jumping steps between 1 and K. The model then samples from this distribution a jumping step, which is used to decide the next token to be read into the model. Let κ be the sam- pled value, then the next starting token is x R+κ . Such process continues until either a) the jump softmax samples a 0; or b) the number of jumps exceeds N ; or c) the model reaches the last token x T . After stopping, as the output, the latest hidden state is further used for predicting desired targets. How to leverage the hidden state depends on the specifics of the task at hand. For example, for clas- sification problems in Section 3.1, 3.2 and 3.3, it is directly applied to produce a softmax for classi- fication, while in automatic Q&amp;A problem of Sec- tion 3.4, it is used to compute the correlation with the candidate answers in order to select the best one. <ref type="figure">Figure 1</ref> gives an example with K = 5, R = 2 and N = 10 terminating on condition a).</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.2">Training with REINFORCE</head><p>Our goal for training is to estimate the parameters of LSTM and possibly word embedding, which are denoted as θ m , together with the jumping ac- tion parameters θ a . Once obtained, they can be used for inference.</p><p>The estimation of θ m is straightforward in the tasks that can be reduced as classification prob- lems (which is essentially what our experiments cover), as the cross entropy objective J 1 (θ m ) is differentiable over θ m that we can directly apply backpropagation to minimize. However, the nature of discrete jumping deci- sions made at every step makes it difficult to es- timate θ a , as cross entropy is no longer differen- tiable over θ a . Therefore, we formulate it as a reinforcement learning problem and apply policy gradient method to train the model. Specifically, we need to maximize a reward function over θ a which can be constructed as follows.</p><p>Let j 1:N be the jumping action sequence dur- ing the training with an example x 1:T . Suppose h i is a hidden state of the LSTM right before the i-th jump j i , 1 then it is a function of j 1:i−1 and thus can be denoted as h i (j 1:i−1 ). Now the jump is attained by sampling from the multinomial dis- tribution p(j i |h i (j 1:i−1 ); θ a ), which is determined by the jump softmax. We can receive a reward R after processing x 1:T under the current jumping strategy. <ref type="bibr">2</ref> The reward should be positive if the out- put is favorable or non-positive otherwise. In our experiments, we choose</p><formula xml:id="formula_1">R = 1 if prediction correct; −1 otherwise.</formula><p>Then the objective function of θ a we want to max- imize is the expected reward under the distribution defined by the current jumping policy, i.e., J 2 (θ a ) = E p(j 1:N ;θa) <ref type="bibr">[R]</ref>.</p><p>(1)</p><p>where p(j 1:N ; θ a ) = i p(j 1:i |h i (j 1:i−1 ); θ a ). Optimizing this objective numerically requires computing its gradient, whose exact value is in- tractable to obtain as the expectation is over high dimensional interaction sequences. By running S examples, an approximated gradient can be computed by the following REINFORCE algo- rithm <ref type="bibr" target="#b45">(Williams, 1992)</ref>:</p><formula xml:id="formula_2">θa J 2 (θ a ) = N i=1 E p(j 1:N ;θa) [ θa log p(j 1:i |h i ; θ a )R] ≈ 1 S S s=1 N i=1 [ θa log p(j s 1:i |h s i ; θ a )R s ]</formula><p>where the superscript s denotes a quantity be- longing to the s-th example. Now the term <ref type="bibr">1</ref> The i-th jumping step is usually not xi. <ref type="bibr">2</ref> In the general case, one may receive (discounted) inter- mediate rewards after each jump. But in our case, we only consider final reward. It is equivalent to a special case that all intermediate rewards are identical and without discount. θa log p(j 1:i |h i ; θ a ) can be computed by stan- dard backpropagation.</p><p>Although the above estimation of θa J 2 (θ a ) is unbiased, it may have very high variance. One widely used remedy to reduce the variance is to subtract a baseline value b s i from the reward R s , such that the approximated gradient becomes</p><formula xml:id="formula_3">θa J 2 (θ a ) ≈ 1 S S s=1 N i=1 [ θa log p(j s 1:i |h s i ; θ)(R s −b s i )]</formula><p>It is shown <ref type="bibr" target="#b45">(Williams, 1992;</ref><ref type="bibr" target="#b48">Zaremba and Sutskever, 2015</ref>) that any number b s i will yield an unbiased estimation. Here, we adopt the strategy of  </p><formula xml:id="formula_4">that b s i = w b h s i + c b and the parameter θ b = {w b , c b } is learned by minimizing (R s − b s i ) 2</formula><p>. Now the final objective to minimize is</p><formula xml:id="formula_5">J(θ m , θ a , θ b ) = J 1 (θ m )−J 2 (θ a )+ S s=1 N i=1 (R s −b s i ) 2 ,</formula><p>which is fully differentiable and can be solved by standard backpropagation.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.3">Inference</head><p>During inference, we can either use sampling or greedy evaluation by selecting the most probable jumping step suggested by the jump softmax and follow that path. In the our experiments, we will adopt the sampling scheme.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3">Experimental Results</head><p>In this section, we present our empirical studies to understand the efficiency of the proposed model in reading text. The tasks under experimentation are: synthetic number prediction, sentiment analysis, news topic classification and automatic question answering. Those, except the first one, are repre- sentative tasks in text reading involving different sizes of datasets and various levels of text process- ing, from character to word and to sentence. Ta- ble 1 summarizes the statistics of the dataset in our experiments.</p><p>To exclude the potential impact of advanced models, we restrict our comparison between the vanilla LSTM (Hochreiter and Schmidhuber, 1997) and our model, which is referred to as LSTM-Jump. In a nutshell, we show that, while achieving the same or even better testing accuracy, our model is up to 6 times and 66 times faster than the baseline LSTM model in real and synthetic <ref type="table" target="#tab_1">Task   Dataset  Level  Vocab  AvgLen  #train  #valid  #test  #class  Number Prediction  synthetic  word  100  100 words  1M  10K  10K  100  Sentiment Analysis  Rotten Tomatoes  word  18,764  22 words  8,835  1,079  1,030  2  Sentiment Analysis  IMDB  word  112,540  241 words  21,143  3,857  25,000  2  News Classification  AG  character  70  200 characters 101,851 18,149  7,600  4  Q/A  Children Book Test-NE sentence  53,063  20 sentences  108,719  2,000  2,500  10  Q/A  Children Book Test-CN sentence  53,185  20 sentences  120,769</ref> 2,000 2,500 10 <ref type="table">Table 1</ref>: Task and dataset statistics.</p><p>datasets, respectively, as we are able to selectively skip a large fraction of text.</p><p>In fact, the proposed model can be readily ex- tended to other recurrent neural networks with so- phisticated mechanisms such as attention and/or hierarchical structure to achieve higher accuracy than those presented below. However, this is or- thogonal to the main focus of this work and would be left as an interesting future work.</p><p>General Experiment Settings We use the Adam optimizer <ref type="bibr" target="#b18">(Kingma and Ba, 2014</ref>) with a learning rate of 0.001 in all experiments. We also apply gradient clipping to all the trainable vari- ables with the threshold of 1.0. The dropout rate between the LSTM layers is 0.2 and the embed- ding dropout rate is 0.1. We repeat the notations N, K, R defined previously in <ref type="table">Table 2</ref>, so readers can easily refer to when looking at Tables 4,5,6 and 7. While K is fixed during both training and testing, we would fix R and N at training but vary their values during test to see the impact of pa- rameter changes. Note that N is essentially a con- straint which can be relaxed. Yet we prefer to en- force this constraint here to let the model learn to read fewer tokens. Finally, the reported test time is measured by running one pass of the whole test set instance by instance, and the speedup is over the base LSTM model. The code is written with TensorFlow. <ref type="bibr">3</ref> </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Notation</head><p>Meaning N number of jumps allowed K maximum size of jumping R number of tokens read before a jump <ref type="table">Table 2</ref>: Notations referred to in experiments.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.1">Number Prediction with a Synthetic Dataset</head><p>We first test whether LSTM-Jump is indeed able to learn how to jump if a very clear jumping sig-  The results of LSTM and our method, LSTM- Jump, are shown in <ref type="table" target="#tab_1">Table 3</ref>. The first observa- tion is that LSTM-Jump is faster than LSTM; the longer the sequence is, the more significant speed- up LSTM-Jump can gain. This is because the well-trained LSTM-Jump is aware of the jump- ing signal at the first token and hence can directly jump to the output position to make prediction, while LSTM is agnostic to the signal and has to read the whole sequence. As a result, the read- ing speed of LSTM-Jump is hardly affected by the length of sequence, but that of LSTM is linear with respect to length. Besides, LSTM-Jump also out- performs LSTM in terms of test accuracy under all cases. This is not surprising either, as LSTM has to read a large amount of tokens that are potentially not helpful and could interfere with the prediction. In summary, the results indicate LSTM-Jump is able to learn to jump if the signal is clear.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.2">Word Level Sentiment Analysis with Rotten Tomatoes and IMDB datasets</head><p>As LSTM-Jump has shown great speedups in the synthetic dataset, we would like to understand whether it could carry this benefit to real-world data, where "jumping" signal is not explicit. So in this section, we conduct sentiment analysis on two movie review datasets, both containing equal numbers of positive and negative reviews. The first dataset is Rotten Tomatoes, which con- tains 10,662 documents. Since there is not a stan- dard split, we randomly select around 80% for training, 10% for validation, and 10% for test- ing. The average and maximum lengths of the re- views are 22 and 56 words respectively, and we pad each of them to 60. We choose the pre-trained word2vec embeddings <ref type="bibr">5 (Mikolov et al., 2013</ref>) as our fixed word embedding that we do not update this matrix during training. Both LSTM-Jump and LSTM contain 2 layers, 256 hidden units and the batch size is 100. As the amount of training data is small, we slightly augment the data by sampling a continuous 50-word sequence in each padded re- views as one training sample. During training, we enforce LSTM-Jump to read 8 tokens before a jump (R = 8), and the maximum skipping to- kens per jump is 10 (K = 10), while the number of jumps allowed is 3 <ref type="figure">(N = 3)</ref>.</p><p>The testing result is reported in <ref type="table" target="#tab_3">Table 4</ref>. In a nutshell, LSTM-Jump is always faster than LSTM under different combinations of R and N . At the same time, the accuracy is on par with that of LSTM. In particular, the combination of (R, N ) = (7, 4) even achieves slightly better accuracy than LSTM while having a 1.5x speedup.   <ref type="bibr">6</ref> which contains 25,000 training and 25,000 testing movie reviews, where the average length of text is 240 words, much longer than that of Rotten Tomatoes. We randomly set aside about 15% of training data as validation set. Both LSTM-Jump and LSTM has one layer and 128 hidden units, and the batch size is 50. Again, we use pretrained word2vec embeddings as initialization but they are updated during training. We either pad a short se- quence to 400 words or randomly select a 400- word segment from a long sequence as a training example. During training, we set R = 20, K = 40 and N = 5.</p><p>As <ref type="table" target="#tab_5">Table 5</ref> shows, the result exhibits a similar trend as found in Rotten Tomatoes that LSTM- Jump is uniformly faster than LSTM under many settings. The various (R, N ) combinations again demonstrate the trade-off between efficiency and accuracy. If one cares more about accuracy, then allowing LSTM-Jump to read and jump more    The result is summarized in <ref type="table" target="#tab_7">Table 6</ref>. It is inter- esting to see that even with skipping, LSTM-Jump is not always faster than LSTM. This is mainly due to the fact that the embedding size and hidden layer are both much smaller than those used previ- ously, and accordingly the processing of a token is much faster. In that case, other computation over- head such as calculating and sampling from the jump softmax might become a dominating factor of efficiency. By this cross-task comparison, we can see that the larger the hidden unit size of re- current neural network and the embedding are, the more speedup LSTM-Jump can gain, which is also confirmed by the task below.  </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.4">Sentence Level Automatic Question Answering with Children's Book Test dataset</head><p>The last task is automatic question answering, in which we aim to test the sentence level skimming of LSTM-Jump. We benchmark on the data set Children's Book Test (CBT) ( <ref type="bibr" target="#b12">Hill et al., 2015)</ref>. <ref type="bibr">8</ref> In each document, there are 20 contiguous sen- tences (context) extracted from a children's book followed by a query sentence. A word of the query is deleted and the task is to select the best fit for this position from 10 candidates. Originally, there are four types of tasks according to the part of speech of the missing word, from which, we choose the most difficult two, i.e., the name en- tity (NE) and common noun (CN) as our focus, since simple language models can already achieve human-level performance for the other two types . The models, LSTM or LSTM-Jump, firstly read the whole query, then the context sentences and finally output the predicted word. While LSTM reads everything, our jumping model would de- cide how many context sentences should skip after reading one sentence. Whenever a model finishes reading, the context and query are encoded in its hidden state h o , and the best answer from the can- didate words has the same index that maximizes the following:</p><formula xml:id="formula_6">softmax(CW h o ) ∈ R 10 ,</formula><p>where C ∈ R 10×d is the word embedding matrix of the 10 candidates and W ∈ R d×hidden size is a trainable weight variable. Using such bilinear form to select answer basically follows the idea of , as it is shown to have good performance. The task is now distilled to a classi- fication problem of 10 classes.</p><p>We either truncate or pad each context sentence, such that they all have length 20. The same pre- processing is applied to the query sentences ex- cept that the length is set as 30. For both models, the number of layers is 2, the number of hidden units is 256 and the batch size is 32. Pretrained word2vec embeddings are again used and they are not adjusted during training. The maximum num- ber of context sentences LSTM-Jump can skip per time is K = 5 while the number of total jumping is limited to N = 5. We let the model jump after reading every sentence, so R = 1 (20 words).</p><p>The result is reported in <ref type="table" target="#tab_9">Table 7</ref>. The perfor- mance of LSTM-Jump is superior to LSTM in terms of both accuracy and efficiency under all set- tings in our experiments. In particular, the fastest LSTM-Jump configuration achieves a remarkable 6x speedup over LSTM, while also having respec- tively 1.4% and 4.4% higher accuracy in Chil- dren's Book Test -Named Entity and Children's Book Test -Common Noun.  The dominant performance of LSTM-Jump over LSTM might be interpreted as follows. After reading the query, both LSTM and LSTM-Jump know what the question is. However, LSTM still has to process the remaining 20 sentences and thus at the very end of the last sentence, the long de- pendency between the question and output might become weak that the prediction is hampered. On the contrary, the question can guide LSTM-Jump on how to read selectively and stop early when the answer is clear. Therefore, when it comes to the output stage, the "memory" is both fresh and un- cluttered that a more accurate answer is likely to be picked.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Model</head><p>In the following, we show two examples of how the model reads the context given a query (bold face sentences are those read by our model in the increasing order). XXXXX is the missing word we want to fill. Note that due to truncation, a few sentences might look uncompleted.</p><p>Example 1 In the first example, the exact an- swer appears in the context multiple times, which makes the task relatively easy, as long as the reader has captured their occurrences.</p><p>(a) Query: 'XXXXX! (b) Context: 1. said Big Klaus, and he ran off at once to Little Klaus. 2. 'Where did you get so much money from?' 3. 'Oh, that was from my horse-skin. The reading behavior might be interpreted as follows. The model tries to search for clues, and after reading sentence 8, it realizes that the most plausible answer is "Klaus" or "Skins", as they both appear twice. "Skins" is more likely to be the answer as it is followed by a "!". The model searches further to see if "Klaus!" is mentioned somewhere, but it only finds "Klaus" without "!" for the third time. After the last attempt at sen- tence 14, it is confident about the answer and stops to output with "Skins".</p><p>Example 2 In this example, the answer is illus- trated by a word "nuisance" that does not show up in the context at all. Hence, to answer the query, the model has to understand the meaning of both the query and context and locate the synonym of "nuisance", which is not merely verbatim and thus much harder than the previous example. Neverthe- less, our model is still able to make a right choice while reading much fewer sentences.</p><p>(a) Query: Yes, I call XXXXX a nuisance.</p><p>(b) Context:</p><p>1. But to you and me it would have looked just as it did to Cousin Myra -a very dis- contented 2. "I'm awfully glad to see you, Cousin Myra, "explained Frank carefully, "and your 3. But Christmas is just a bore -a regular bore." 4. That was what Uncle Edgar called things that didn't interest him, so that Frank felt pretty sure of 5. Nevertheless, he wondered uncomfortably what made Cousin Myra smile so queerly. 6. "Why, how dreadful!" 7. she said brightly. 8. "I thought all boys and girls looked upon Christmas as the very best time in the year." 9. "We don't, "said Frank gloomily. 10. "It's just the same old thing year in and year out. 11. We know just exactly what is going to hap- pen. 12. We even know pretty well what presents we are going to get. 13. And Christmas Day itself is always the same. 14. We'll get up in the morning , and our stock- ings will be full of things, and half of 15. Then there 's dinner. 16. It 's always so poky.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="17.">And all the uncles and aunts come to dinner</head><p>-just the same old crowd, every year, and 18. Aunt Desda always says, 'Why, Frankie, how you have grown!' 19. She knows I hate to be called Frankie. 20. And after dinner they'll sit round and talk the rest of the day, and that's all. (c) Candidates:</p><formula xml:id="formula_7">Christmas | boys | day | dinner | half | interest | rest | stockings | things | un- cles (d) Answer: Christmas</formula><p>The reading behavior can be interpreted as fol- lows. After reading the query, our model realizes that the answer should be something like a nui- sance. Then it starts to process the text. Once it hits sentence 3, it may begin to consider "Christ- mas" as the answer, since "bore" is a synonym of "nuisance". Yet the model is not 100% sure, so it continues to read, very conservatively -it does not jump for the next three sentences. Af- ter that, the model gains more confidence on the answer "Christmas" and it makes a large jump to see if there is something that can turn over the cur- rent hypothesis. It turns out that the last-read sen- tence is still talking about Christmas with a neg- ative voice. Therefore, the model stops to take "Christmas" as the output.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4">Related Work</head><p>Closely related to our work is the idea of learn- ing visual attention with neural networks <ref type="bibr" target="#b33">Sermanet et al., 2014)</ref>, where a recurrent model is used to combine vi- sual evidence at multiple fixations processed by a convolutional neural network. Similar to our ap- proach, the model is trained end-to-end using the REINFORCE algorithm <ref type="bibr" target="#b45">(Williams, 1992)</ref>. How- ever, a major difference between those work and ours is that we have to sample from discrete jump- ing distribution, while they can sample from con- tinuous distribution such as Gaussian. The differ- ence is mainly due to the inborn characteristics of text and image. In fact, as pointed out by , it was difficult to learn policies over more than 25 possible discrete locations. This idea has recently been explored in the con- text of natural language processing applications, where the main goal is to filter irrelevant content using a small network ( <ref type="bibr" target="#b5">Choi et al., 2016)</ref>. Perhaps the most closely related to our work is the concur- rent work on learning to reason with reinforcement learning <ref type="bibr" target="#b35">(Shen et al., 2016)</ref>. The key difference between our work and <ref type="bibr" target="#b35">Shen et al. (2016)</ref> is that they focus on early stopping after multiple pass of data to ensure accuracy whereas our method fo- cuses on selective reading with single pass to en- able fast processing.</p><p>The concept of "hard" attention has also been used successfully in the context of making neu- ral network predictions more interpretable ( <ref type="bibr" target="#b22">Lei et al., 2016)</ref>. The key difference between our work and <ref type="bibr" target="#b22">Lei et al. (2016)</ref>'s method is that our method optimizes for faster inference, and is more dy- namic in its jumping. Likewise is the difference between our approach and the "soft" attention ap- proach by ( <ref type="bibr" target="#b2">Bahdanau et al., 2014</ref>).</p><p>Our method belongs to adaptive computation of neural networks, whose idea is recently explored by <ref type="bibr" target="#b9">(Graves, 2016;</ref><ref type="bibr" target="#b15">Jernite et al., 2016)</ref>, where dif- ferent amount of computations are allocated dy- namically per time step. The main difference between our method and Graves; Jernite et al.'s methods is that our method can set the amount of computation to be exactly zero for many steps, thereby achieving faster scanning over texts. Even though our method requires policy gradient meth- ods to train, which is a disadvantage compared to <ref type="bibr" target="#b9">(Graves, 2016;</ref><ref type="bibr" target="#b15">Jernite et al., 2016</ref>), we do not find training with policy gradient methods prob- lematic in our experiments.</p><p>At the high-level, our model can be viewed as a simplified trainable Turing machine, where the controller can move on the input tape. It is there- fore related to the prior work on Neural Turing Machines ( ) and especially its RL version ( <ref type="bibr" target="#b48">Zaremba and Sutskever, 2015)</ref>. Com- pared to <ref type="bibr" target="#b48">(Zaremba and Sutskever, 2015)</ref>, the out- put tape in our method is more simple and reward signals in our problems are less sparse, which ex- plains why our model is easy to train. It is worth noting that Zaremba and Sutskever report diffi- culty in using policy gradients to train their model. Our method, by skipping irrelevant content, shortens the length of recurrent networks, thereby addressing the vanishing or exploding gradients in them <ref type="bibr" target="#b13">(Hochreiter et al., 2001</ref>). The baseline method itself, Long Short Term Memory (Hochre- iter and Schmidhuber, 1997), belongs to the same category of methods. In this category, there are several recent methods that try to achieve the same goal, such as having recurrent networks that oper- ate in different frequency ( <ref type="bibr" target="#b19">Koutnik et al., 2014</ref>) or is organized in a hierarchical fashion <ref type="bibr" target="#b3">(Chan et al., 2015;</ref><ref type="bibr" target="#b6">Chung et al., 2016</ref>).</p><p>Lastly, we should point out that we are among the recent efforts that deploy reinforcement learn- ing to the field of natural language processing, some of which have achieved encouraging re- sults in the realm of such as neural symbolic machine ( <ref type="bibr" target="#b23">Liang et al., 2017)</ref>, machine reason- ing <ref type="bibr" target="#b35">(Shen et al., 2016)</ref> and sequence genera- tion ( <ref type="bibr" target="#b29">Ranzato et al., 2015)</ref>.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5">Conclusions</head><p>In this paper, we focus on learning how to skim text for fast reading. In particular, we pro- pose a "jumping" model that after reading every few tokens, it decides how many tokens should be skipped by sampling from a softmax. Such jumping behavior is modeled as a discrete de- cision making process, which can be trained by reinforcement learning algorithm such as REIN- FORCE. In four different tasks with six datasets (one synthetic and five real), we test the efficiency of the proposed method on various levels of text jumping, from character to word and then to sen- tence. The results indicate our model is several times faster than, while the accuracy is on par with the baseline LSTM model.</p></div><figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_0"><head>Model</head><label></label><figDesc></figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_1"><head></head><label></label><figDesc>abcdefghijklmnopqrstuvwxyz0123456 789-,;.!?:/\|_@#$%&amp; * ˜'+-=&lt;&gt;()[]{} Since the vocabulary size is small, we choose 16 as the embedding size. The initialized entries of the embedding matrix are drawn from a uniform dis- tribution in [−0.25, 0.25], which are progressively updated during training. Both LSTM-Jump and LSTM have 1 layer and 64 hidden units and the batch sizes are 20 and 100 respectively. The train- ing sequence is again of length 400 that it is either padded from a short sequence or sampled from a long one. During training, we set R = 30, K = 40 and N = 5.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_1" validated="false"><head>Table 3 :</head><label>3</label><figDesc></figDesc><table>Testing accuracy and time of synthetic 
+number prediction problem. The jumping level is 
+number. 
+
+</table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_3" validated="false"><head>Table 4 :</head><label>4</label><figDesc></figDesc><table>Testing time and accuracy on the Rotten 
+Tomatoes review classification dataset. The max-
+imum size of jumping K is set to 10 for all the 
+settings. The jumping level is word. 
+
+The second dataset is IMDB (Maas et al., 
+2011), </table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_4" validated="false"><head>( R, N ) Accuracy Time Speedup</head><label>(</label><figDesc></figDesc><table>LSTM-Jump 
+
+(80, 8) 
+0.894 
+769s 
+1.62x 
+(80, 3) 
+0.892 
+764s 
+1.63x 
+(70, 3) 
+0.889 
+673s 
+1.85x 
+(50, 2) 
+0.887 
+585s 
+2.12x 
+(100, 1) 
+0.880 
+489s 
+2.54x 
+LSTM 
+n/a 
+0.891 
+1243s 
+1x 
+
+</table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_5" validated="false"><head>Table 5 :</head><label>5</label><figDesc></figDesc><table>Testing time and accuracy on the IMDB 
+sentiment analysis dataset. The maximum size of 
+jumping K is set to 40 for all the settings. The 
+jumping level is word. 
+
+times is a good choice. Otherwise, shrinking ei-
+ther one would bring a significant speedup though 
+at the price of losing some accuracy. Neverthe-
+less, the configuration with the highest accuracy 
+still enjoys a 1.6x speedup compared to LSTM. 
+With a slight loss of accuracy, LSTM-Jump can be 
+2.5x faster . 
+
+3.3 Character Level News Article 
+Classification with AG dataset 
+
+We now present results on testing the character 
+level jumping with a news article classification 
+problem. The dataset contains four classes of top-
+ics (World, Sports, Business, Sci/Tech) from the 
+AG's news corpus, 7 a collection of more than 1 
+million news articles. The data we use is the subset 
+constructed by Zhang et al. (2015) for classifica-
+tion with character-level convolutional networks. 
+There are 30,000 training and 1,900 testing ex-
+amples for each class respectively, where 15% of 
+training data is set aside as validation. The non-
+space alphabet under use are: 
+
+</table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_7" validated="false"><head>Table 6 :</head><label>6</label><figDesc>Testing time and accuracy on the AG news classification dataset. The maximum size of jumping K is set to 40 for all the settings. The jumping level is character.</figDesc><table></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_9" validated="false"><head>Table 7 :</head><label>7</label><figDesc></figDesc><table>Testing time and accuracy on the Chil-
+dren's Book Test dataset. The maximum size of 
+jumping K is set to 5 for all the settings. The 
+jumping level is sentence. 
+
+</table></figure>
+
+			<note place="foot" n="3"> https://www.tensorflow.org/ nal is given in the text. The input of the task is a sequence of L positive integers x 0:T −1 and the output is simply x x 0. That is, the output is chosen from the input sequence, with index determined by x 0. Here are two examples to illustrate the idea: input1 : 4, 5, 1, 7, 6, 2. output1 : 6 input2 : 2, 4, 9, 4, 5, 6. output2 : 9 One can see that x 0 is essentially the oracle jumping signal, i.e. the indicator of how many steps the reading should jump to get the exact output and obviously, the remaining number of the sequence are useless. After reading the first token, a &quot;smart&quot; network should be able to learn from the training examples to jump to the output position, skipping the rest. We generate 1 million training and 10,000 validation examples with the rule above, each with sequence length T = 100. We also impose 1 ≤ x 0 &lt; T to ensure the index is valid. We find that directly training the LSTM-Jump with full sequence is unlikely to converge, therefore, we adopt a curriculum training scheme. More specifically, we generate sequences with lengths {10, 20, 30, 40, 50, 60, 70, 80, 90, 100} and train the model starting from the shortest. Whenever the training accuracy reaches a threshold, we shift to longer sequences. We also train an LSTM with the same curriculum training scheme. The training stops when the validation accuracy is larger than 98%. We choose such stopping criterion simply because it is the highest that both models can achieve. 4 All the networks are single layered, with hidden size 512, embedding size 32 and batch size 100. During testing, we generate sequences of lengths 10, 100 and 1000 with the same rule, each having 10,000 examples. As the training size is large enough, we do not have to worry about overfitting so dropout is not applied. In fact, we find that the training, validation and testing accuracies are almost the same. 4 In fact, our model can get higher but we stick to 98% for ease of comparison.</note>
+
+			<note place="foot" n="5"> https://code.google.com/archive/p/ word2vec/</note>
+
+			<note place="foot" n="6"> http://ai.Stanford.edu/amaas/data/ sentiment/index.html</note>
+
+			<note place="foot" n="7"> http://www.di.unipi.it/ ˜ gulli/AG_ corpus_of_news_articles.html</note>
+
+			<note place="foot" n="8"> http://www.thespermwhale.com/ jaseweston/babi/CBTest.tgz</note>
+		</body>
+		<back>
+
+			<div type="acknowledgement">
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Acknowledgments</head><p>The authors would like to thank the Google Brain Team, especially Zhifeng Chen and Yuan Yu for helpful discussion about the implementation of this model on Tensorflow. The first author also wants to thank Chen Liang, Hanxiao Liu, Yingtao Tian, Fish Tung, Chiyuan Zhang and Yu Zhang for their help during the project. Finally, the authors appreciate the invaluable feedback from anony-mous reviewers.</p></div>
+			</div>
+
+			<div type="references">
+
+				<listBibl>
+
+<biblStruct xml:id="b0">
+	<monogr>
+				<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Daniel</forename><surname>Andor</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Chris</forename><surname>Alberti</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">David</forename><surname>Weiss</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Aliaksei</forename><surname>Severyn</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Alessandro</forename><surname>Presta</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kuzman</forename><surname>Ganchev</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Slav</forename><surname>Petrov</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Michael</forename><surname>Collins</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1603.06042</idno>
+		<title level="m">Globally normalized transition-based neural networks</title>
+		<imprint>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b1">
+	<monogr>
+				<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jimmy</forename><surname>Ba</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Volodymyr</forename><surname>Mnih</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Koray</forename><surname>Kavukcuoglu</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1412.7755</idno>
+		<title level="m">Multiple object recognition with visual attention</title>
+		<imprint>
+			<date type="published" when="2014" />
+		</imprint>
+	</monogr>
+<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b2">
+	<monogr>
+		<title level="m" type="main">Neural machine translation by jointly learning to align and translate</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Dzmitry</forename><surname>Bahdanau</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kyunghyun</forename><surname>Cho</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yoshua</forename><surname>Bengio</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1409.0473</idno>
+		<imprint>
+			<date type="published" when="2014" />
+		</imprint>
+	</monogr>
+<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b3">
+	<monogr>
+				<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">William</forename><surname>Chan</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Navdeep</forename><surname>Jaitly</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">V</forename><surname>Quoc</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Oriol</forename><surname>Le</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Vinyals</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1508.01211</idno>
+		<title level="m">Listen, attend and spell</title>
+		<imprint>
+			<date type="published" when="2015" />
+		</imprint>
+	</monogr>
+<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b4">
+	<analytic>
+		<title level="a" type="main">A thorough examination of the cnn/daily mail reading comprehension task</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Danqi</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jason</forename><surname>Bolton</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Christopher</forename><forename type="middle">D</forename><surname>Manning</surname></persName>
+		</author>
+		<idno>Au- gust 7-12</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 54th Annual Meeting of the Association for Computational Linguistics, ACL 2016</title>
+		<meeting>the 54th Annual Meeting of the Association for Computational Linguistics, ACL 2016<address><addrLine>Berlin, Germany</addrLine></address></meeting>
+		<imprint>
+			<publisher>Long Papers</publisher>
+			<date type="published" when="2016" />
+			<biblScope unit="volume">1</biblScope>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b5">
+	<monogr>
+				<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Eunsol</forename><surname>Choi</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Daniel</forename><surname>Hewlett</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Alexandre</forename><surname>Lacoste</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Illia</forename><surname>Polosukhin</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jakob</forename><surname>Uszkoreit</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jonathan</forename><surname>Berant</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1611.01839</idno>
+		<title level="m">Hierarchical question answering for long documents</title>
+		<imprint>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b6">
+	<monogr>
+				<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Junyoung</forename><surname>Chung</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Sungjin</forename><surname>Ahn</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yoshua</forename><surname>Bengio</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1609.01704</idno>
+		<title level="m">Hierarchical multiscale recurrent neural networks</title>
+		<imprint>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b7">
+	<analytic>
+		<title level="a" type="main">Natural language processing (almost) from scratch</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ronan</forename><surname>Collobert</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jason</forename><surname>Weston</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Léon</forename><surname>Bottou</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Michael</forename><surname>Karlen</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Koray</forename><surname>Kavukcuoglu</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Pavel</forename><surname>Kuksa</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Journal of Machine Learning Research</title>
+		<imprint>
+			<biblScope unit="volume">12</biblScope>
+			<biblScope unit="page" from="2493" to="2537" />
+			<date type="published" when="2011-08" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b8">
+	<analytic>
+		<title level="a" type="main">Semisupervised sequence learning</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">M</forename><surname>Andrew</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Dai</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">V</forename><surname>Quoc</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Le</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Advances in Neural Information Processing Systems</title>
+		<imprint>
+			<date type="published" when="2015" />
+			<biblScope unit="page" from="3079" to="3087" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b9">
+	<monogr>
+				<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Alex</forename><surname>Graves</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1603.08983</idno>
+		<title level="m">Adaptive computation time for recurrent neural networks</title>
+		<imprint>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b10">
+	<monogr>
+				<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Alex</forename><surname>Graves</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Greg</forename><surname>Wayne</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ivo</forename><surname>Danihelka</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1410.5401</idno>
+		<title level="m">Neural turing machines</title>
+		<imprint>
+			<date type="published" when="2014" />
+		</imprint>
+	</monogr>
+<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b11">
+	<analytic>
+		<title level="a" type="main">Teaching machines to read and comprehend</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Karl</forename><surname>Moritz Hermann</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Tomas</forename><surname>Kocisky</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Edward</forename><surname>Grefenstette</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Lasse</forename><surname>Espeholt</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Will</forename><surname>Kay</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Mustafa</forename><surname>Suleyman</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Phil</forename><surname>Blunsom</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Advances in Neural Information Processing Systems</title>
+		<imprint>
+			<date type="published" when="2015" />
+			<biblScope unit="page" from="1693" to="1701" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b12">
+	<monogr>
+		<title level="m" type="main">The goldilocks principle: Reading children&apos;s books with explicit memory representations</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Felix</forename><surname>Hill</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Antoine</forename><surname>Bordes</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Sumit</forename><surname>Chopra</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jason</forename><surname>Weston</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1511.02301</idno>
+		<imprint>
+			<date type="published" when="2015" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b13">
+	<analytic>
+		<title level="a" type="main">Gradient flow in recurrent nets: the difficulty of learning long-term dependencies</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Sepp</forename><surname>Hochreiter</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yoshua</forename><surname>Bengio</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Paolo</forename><surname>Frasconi</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jürgen</forename><surname>Schmidhuber</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">A Field Guide to Dynamical Recurrent Neural Networks</title>
+		<editor>S. C. Kremer and J. F. Kolen</editor>
+		<imprint>
+			<publisher>IEEE press</publisher>
+			<date type="published" when="2001" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b14">
+	<analytic>
+		<title level="a" type="main">Long short-term memory</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Sepp</forename><surname>Hochreiter</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jürgen</forename><surname>Schmidhuber</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Neural computation</title>
+		<imprint>
+			<biblScope unit="volume">9</biblScope>
+			<biblScope unit="issue">8</biblScope>
+			<biblScope unit="page" from="1735" to="1780" />
+			<date type="published" when="1997" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b15">
+	<monogr>
+				<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yacine</forename><surname>Jernite</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Edouard</forename><surname>Grave</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Armand</forename><surname>Joulin</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Tomas</forename><surname>Mikolov</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1611.06188</idno>
+		<title level="m">Variable computation in recurrent neural networks</title>
+		<imprint>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b16">
+	<analytic>
+		<title level="a" type="main">Recurrent continuous translation models</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Nal</forename><surname>Kalchbrenner</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Phil</forename><surname>Blunsom</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">EMNLP</title>
+		<imprint>
+			<date type="published" when="2013" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b17">
+	<monogr>
+		<title level="m" type="main">Convolutional neural networks for sentence classification</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yoon</forename><surname>Kim</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1408.5882</idno>
+		<imprint>
+			<date type="published" when="2014" />
+		</imprint>
+	</monogr>
+<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b18">
+	<monogr>
+		<title level="m" type="main">Adam: A method for stochastic optimization</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Diederik</forename><surname>Kingma</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jimmy</forename><surname>Ba</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1412.6980</idno>
+		<imprint>
+			<date type="published" when="2014" />
+		</imprint>
+	</monogr>
+<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b19">
+	<analytic>
+		<title level="a" type="main">A clockwork rnn</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jan</forename><surname>Koutnik</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Klaus</forename><surname>Greff</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Faustino</forename><surname>Gomez</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Juergen</forename><surname>Schmidhuber</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">International Conference on Machine Learning</title>
+		<imprint>
+			<date type="published" when="2014" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b20">
+	<analytic>
+		<title level="a" type="main">Distributed representations of sentences and documents</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">V</forename><surname>Quoc</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Tomas</forename><surname>Le</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Mikolov</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">International Conference on Machine Learning (ICML)</title>
+		<imprint>
+			<date type="published" when="2014" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b21">
+	<monogr>
+		<title level="m" type="main">Learning recurrent span representations for extractive question answering</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kenton</forename><surname>Lee</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Tom</forename><surname>Kwiatkowski</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ankur</forename><surname>Parikh</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Dipanjan</forename><surname>Das</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1611.01436</idno>
+		<imprint>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b22">
+	<monogr>
+				<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Tao</forename><surname>Lei</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Regina</forename><surname>Barzilay</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Tommi</forename><surname>Jaakkola</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1606.04155</idno>
+		<title level="m">Rationalizing neural predictions</title>
+		<imprint>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b23">
+	<analytic>
+		<title level="a" type="main">Neural symbolic machines: Learning semantic parsers on freebase with weak supervision</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Chen</forename><surname>Liang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jonathan</forename><surname>Berant</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Quoc</forename><surname>Le</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kenneth</forename><forename type="middle">D</forename><surname>Forbus</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ni</forename><surname>Lao</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 55th Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 55th Annual Meeting of the Association for Computational Linguistics</meeting>
+		<imprint>
+			<publisher>Long Papers</publisher>
+			<date type="published" when="2017" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b24">
+	<analytic>
+		<title level="a" type="main">Learning word vectors for sentiment analysis</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Raymond</forename><forename type="middle">E</forename><surname>Andrew L Maas</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Peter</forename><forename type="middle">T</forename><surname>Daly</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Dan</forename><surname>Pham</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Andrew</forename><forename type="middle">Y</forename><surname>Huang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Christopher</forename><surname>Ng</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Potts</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 49th Annual Meeting of the Association for Computational Linguistics: Human Language Technologies</title>
+		<meeting>the 49th Annual Meeting of the Association for Computational Linguistics: Human Language Technologies</meeting>
+		<imprint>
+			<date type="published" when="2011" />
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="142" to="150" />
+		</imprint>
+	</monogr>
+	<note>Association for Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b25">
+	<analytic>
+		<title level="a" type="main">Distributed representations of words and phrases and their compositionality</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Tomas</forename><surname>Mikolov</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ilya</forename><surname>Sutskever</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kai</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Greg</forename><forename type="middle">S</forename><surname>Corrado</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jeff</forename><surname>Dean</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Advances in neural information processing systems</title>
+		<imprint>
+			<date type="published" when="2013" />
+			<biblScope unit="page" from="3111" to="3119" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b26">
+	<analytic>
+		<title level="a" type="main">Recurrent models of visual attention</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Volodymyr</forename><surname>Mnih</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Nicolas</forename><surname>Heess</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Alex</forename><surname>Graves</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Advances in neural information processing systems</title>
+		<imprint>
+			<date type="published" when="2014" />
+			<biblScope unit="page" from="2204" to="2212" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b27">
+	<analytic>
+		<title level="a" type="main">Abstractive text summarization using sequence-to-sequence RNNs and beyond</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ramesh</forename><surname>Nallapati</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Bowen</forename><surname>Zhou</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Caglar</forename><surname>Gulcehre</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Bing</forename><surname>Xiang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Conference on Computational Natural Language Learning (CoNLL)</title>
+		<imprint>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b28">
+	<analytic>
+		<title level="a" type="main">Seeing stars: Exploiting class relationships for sentiment categorization with respect to rating scales</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Bo</forename><surname>Pang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Lillian</forename><surname>Lee</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 43rd annual meeting on association for computational linguistics</title>
+		<meeting>the 43rd annual meeting on association for computational linguistics</meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2005" />
+			<biblScope unit="page" from="115" to="124" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b29">
+	<monogr>
+		<title level="m" type="main">Sequence level training with recurrent neural networks</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Sumit</forename><surname>Marc&amp;apos;aurelio Ranzato</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Michael</forename><surname>Chopra</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Wojciech</forename><surname>Auli</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Zaremba</surname></persName>
+		</author>
+		<idno>CoRR abs/1511.06732</idno>
+		<ptr target="http://arxiv.org/abs/1511.06732" />
+		<imprint>
+			<date type="published" when="2015" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b30">
+	<analytic>
+		<title level="a" type="main">A neural attention model for abstractive sentence summarization</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Sumit</forename><surname>Alexander M Rush</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jason</forename><surname>Chopra</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Weston</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Empirical Methods in Natural Language Processing (EMNLP)</title>
+		<imprint>
+			<date type="published" when="2015" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b31">
+	<analytic>
+		<title level="a" type="main">Neural machine translation of rare words with subword units</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Rico</forename><surname>Sennrich</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Barry</forename><surname>Haddow</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Alexandra</forename><surname>Birch</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Annual Meeting of the Association for Computational Linguistics (ACL)</title>
+		<imprint>
+			<date type="published" when="2015" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b32">
+	<monogr>
+		<title level="m" type="main">Bidirectional attention flow for machine comprehension</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Minjoon</forename><surname>Seo</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Aniruddha</forename><surname>Kembhavi</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ali</forename><surname>Farhadi</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Hannaneh</forename><surname>Hajishirzi</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1611.01603</idno>
+		<imprint>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b33">
+	<monogr>
+		<title level="m" type="main">Attention for fine-grained categorization</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Pierre</forename><surname>Sermanet</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Andrea</forename><surname>Frome</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Esteban</forename><surname>Real</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1412.7054</idno>
+		<imprint>
+			<date type="published" when="2014" />
+		</imprint>
+	</monogr>
+<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b34">
+	<analytic>
+		<title level="a" type="main">Neural responding machine for short-text conversation</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Lifeng</forename><surname>Shang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Zhengdong</forename><surname>Lu</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Hang</forename><surname>Li</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Annual Meeting of the Association for Computational Linguistics (ACL)</title>
+		<imprint>
+			<date type="published" when="2015" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b35">
+	<monogr>
+		<title level="m" type="main">Reasonet: Learning to stop reading in machine comprehension</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yelong</forename><surname>Shen</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Po-Sen</forename><surname>Huang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jianfeng</forename><surname>Gao</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Weizhu</forename><surname>Chen</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1609.05284</idno>
+		<imprint>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b36">
+	<analytic>
+		<title level="a" type="main">Semi-supervised recursive autoencoders for predicting sentiment distributions</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Richard</forename><surname>Socher</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jeffrey</forename><surname>Pennington</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Eric</forename><forename type="middle">H</forename><surname>Huang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Andrew</forename><forename type="middle">Y</forename><surname>Ng</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Christopher</forename><forename type="middle">D</forename><surname>Manning</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the conference on empirical methods in natural language processing</title>
+		<meeting>the conference on empirical methods in natural language processing</meeting>
+		<imprint>
+			<date type="published" when="2011" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b37">
+	<analytic>
+		<title level="a" type="main">Recursive deep models for semantic compositionality over a sentiment treebank</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Richard</forename><surname>Socher</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Alex</forename><surname>Perelygin</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jean</forename><forename type="middle">Y</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jason</forename><surname>Chuang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Christopher</forename><forename type="middle">D</forename><surname>Manning</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Andrew</forename><forename type="middle">Y</forename><surname>Ng</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Christopher</forename><surname>Potts</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">EMNLP</title>
+		<imprint>
+			<date type="published" when="2013" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b38">
+	<monogr>
+		<title level="m" type="main">A neural network approach to context-sensitive generation of conversational responses</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Alessandro</forename><surname>Sordoni</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Michel</forename><surname>Galley</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Michael</forename><surname>Auli</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Chris</forename><surname>Brockett</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yangfeng</forename><surname>Ji</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Margaret</forename><surname>Mitchell</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jian-Yun</forename><surname>Nie</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jianfeng</forename><surname>Gao</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Bill</forename><surname>Dolan</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1506.06714</idno>
+		<imprint>
+			<date type="published" when="2015" />
+		</imprint>
+	</monogr>
+<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b39">
+	<analytic>
+		<title level="a" type="main">Sequence to sequence learning with neural networks</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ilya</forename><surname>Sutskever</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Oriol</forename><surname>Vinyals</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">V</forename><surname>Quoc</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><surname>Le</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Advances in neural information processing systems</title>
+		<imprint>
+			<date type="published" when="2014" />
+			<biblScope unit="page" from="3104" to="3112" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b40">
+	<monogr>
+		<title level="m" type="main">A parallel-hierarchical model for machine comprehension on sparse data</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Adam</forename><surname>Trischler</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Zheng</forename><surname>Ye</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Xingdi</forename><surname>Yuan</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jing</forename><surname>He</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Phillip</forename><surname>Bachman</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Kaheer</forename><surname>Suleman</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1603.08884</idno>
+		<imprint>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b41">
+	<monogr>
+				<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Oriol</forename><surname>Vinyals</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Quoc</forename><surname>Le</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1506.05869</idno>
+		<title level="m">A neural conversational model</title>
+		<imprint>
+			<date type="published" when="2015" />
+		</imprint>
+	</monogr>
+<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b42">
+	<monogr>
+				<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Shuohang</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jing</forename><surname>Jiang</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1608.07905</idno>
+		<title level="m">Machine comprehension using match-lstm and answer pointer</title>
+		<imprint>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b43">
+	<monogr>
+		<title level="m" type="main">Multi-perspective context matching for machine comprehension</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Zhiguo</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Haitao</forename><surname>Mi</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Wael</forename><surname>Hamza</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Radu</forename><surname>Florian</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1612.04211</idno>
+		<imprint>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b44">
+	<monogr>
+		<title level="m" type="main">Towards ai-complete question answering: A set of prerequisite toy tasks</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Jason</forename><surname>Weston</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Antoine</forename><surname>Bordes</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Sumit</forename><surname>Chopra</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Alexander</forename><forename type="middle">M</forename><surname>Rush</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Bart</forename><surname>Van Merriënboer</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Armand</forename><surname>Joulin</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Tomas</forename><surname>Mikolov</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1502.05698</idno>
+		<imprint>
+			<date type="published" when="2015" />
+		</imprint>
+	</monogr>
+<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b45">
+	<analytic>
+		<title level="a" type="main">Simple statistical gradientfollowing algorithms for connectionist reinforcement learning</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ronald</forename><forename type="middle">J</forename><surname>Williams</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Machine Learning</title>
+		<imprint>
+			<biblScope unit="volume">8</biblScope>
+			<biblScope unit="page" from="229" to="256" />
+			<date type="published" when="1992" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b46">
+	<analytic>
+		<title level="a" type="main">Google&apos;s neural machine translation system</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yonghui</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Mike</forename><surname>Schuster</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Zhifeng</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Quoc</forename><forename type="middle">V</forename><surname>Le</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Mohammad</forename><surname>Norouzi</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Wolfgang</forename><surname>Macherey</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Maxim</forename><surname>Krikun</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yuan</forename><surname>Cao</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Qin</forename><surname>Gao</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Klaus</forename><surname>Macherey</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1609.08144</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Bridging the gap between human and machine translation</title>
+		<imprint>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b47">
+	<monogr>
+		<title level="m" type="main">Dynamic coattention networks for question answering</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Caiming</forename><surname>Xiong</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Victor</forename><surname>Zhong</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Richard</forename><surname>Socher</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1611.01604</idno>
+		<imprint>
+			<date type="published" when="2016" />
+		</imprint>
+	</monogr>
+<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b48">
+	<monogr>
+				<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Wojciech</forename><surname>Zaremba</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Ilya</forename><surname>Sutskever</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1505.00521</idno>
+		<title level="m">Reinforcement learning neural turing machines-revised</title>
+		<imprint>
+			<date type="published" when="2015" />
+		</imprint>
+	</monogr>
+<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b49">
+	<analytic>
+		<title level="a" type="main">Character-level convolutional networks for text classification</title>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Xiang</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Junbo</forename><surname>Zhao</surname></persName>
+		</author>
+		<author>
+			<persName xmlns="http://www.tei-c.org/ns/1.0"><forename type="first">Yann</forename><surname>Lecun</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Advances in neural information processing systems</title>
+		<imprint>
+			<date type="published" when="2015" />
+			<biblScope unit="page" from="649" to="657" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+				</listBibl>
+			</div>
+		</back>
+	</text>
+</TEI>
